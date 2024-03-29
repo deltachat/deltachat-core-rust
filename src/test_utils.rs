@@ -1013,6 +1013,11 @@ impl EventTracker {
         self.get_matching(|evt| matches!(evt, EventType::IncomingMsg { .. }))
             .await;
     }
+
+    /// Clears event queue 
+    pub fn clear_events(&self){
+        while self.try_recv().is_ok() {}
+    }
 }
 
 /// Gets a specific message from a chat and asserts that the chat has a specific length.

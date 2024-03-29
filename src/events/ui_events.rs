@@ -50,3 +50,393 @@ pub(crate) fn emit_chatlist_items_changed_for_contact(context: &Context, _contac
     // (contact id for dm chats and contact id of contact that wrote the message in the summary)
     // the ui could then look for this info in the cache and only reload the needed chats.
 }
+
+/// Tests for chatlist events
+///
+/// Only checks if the events are emitted,
+/// does not check for excess/too-many events
+#[cfg(test)]
+mod test_chatlist_events {
+
+    use std::time::Duration;
+
+    use crate::{
+        chat::{
+            self, create_broadcast_list, create_group_chat, set_muted, ChatId, ChatVisibility,
+            MuteDuration, ProtectionStatus,
+        }, config::Config, constants::*, contact::Contact, message, test_utils::{TestContext, TestContextManager}, EventType
+    };
+
+    use anyhow::Result;
+
+    async fn wait_for_chatlist_order_and_specific_item(context: &TestContext, chat_id: ChatId) {
+        context
+            .evtracker
+            .get_matching(|evt| match evt {
+                EventType::ChatlistItemChanged {
+                    chat_id: Some(ev_chat_id),
+                } => ev_chat_id == &chat_id,
+                EventType::ChatlistChanged => true,
+                _ => false,
+            })
+            .await;
+        context
+            .evtracker
+            .get_matching(|evt| match evt {
+                EventType::ChatlistItemChanged {
+                    chat_id: Some(ev_chat_id),
+                } => ev_chat_id == &chat_id,
+                EventType::ChatlistChanged => true,
+                _ => false,
+            })
+            .await;
+    }
+
+    async fn wait_for_chatlist_specific_item(context: &TestContext, chat_id: ChatId) {
+        context
+            .evtracker
+            .get_matching(|evt| match evt {
+                EventType::ChatlistItemChanged {
+                    chat_id: Some(ev_chat_id),
+                } => ev_chat_id == &chat_id,
+                _ => false,
+            })
+            .await;
+    }
+
+    async fn wait_for_chatlist_all_items(context: &TestContext) {
+        context
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ChatlistItemChanged { chat_id: None }))
+            .await;
+    }
+
+    async fn wait_for_chatlist_order(context: &TestContext) {
+        context
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ChatlistChanged))
+            .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_change_chat_visibility() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat_id = create_group_chat(
+            &alice,
+            crate::chat::ProtectionStatus::Unprotected,
+            "my_group",
+        )
+        .await?;
+
+        chat_id
+            .set_visibility(&alice, ChatVisibility::Pinned)
+            .await?;
+        wait_for_chatlist_order_and_specific_item(&alice, chat_id).await;
+
+        chat_id
+            .set_visibility(&alice, ChatVisibility::Archived)
+            .await?;
+        wait_for_chatlist_order_and_specific_item(&alice, chat_id).await;
+
+        chat_id
+            .set_visibility(&alice, ChatVisibility::Normal)
+            .await?;
+        wait_for_chatlist_order_and_specific_item(&alice, chat_id).await;
+
+        Ok(())
+    }
+
+    /// mute a chat, archive it, then use another account to send a message to it, the counter on the archived chatlist item should change
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_archived_counter_increases_for_muted_chats() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(chat.id, "moin").await;
+        bob.recv_msg(&sent_msg).await;
+
+        let bob_chat = bob.create_chat(&alice).await;
+        bob_chat
+            .id
+            .set_visibility(&bob, ChatVisibility::Archived)
+            .await?;
+        set_muted(&bob, bob_chat.id, MuteDuration::Forever).await?;
+
+        bob.evtracker.clear_events();
+
+        let sent_msg = alice.send_text(chat.id, "moin2").await;
+        bob.recv_msg(&sent_msg).await;
+
+        bob.evtracker
+            .get_matching(|evt| match evt {
+                EventType::ChatlistItemChanged {
+                    chat_id: Some(chat_id),
+                } => chat_id.is_archived_link(),
+                _ => false,
+            })
+            .await;
+
+        Ok(())
+    }
+
+    /// Mark noticed on archive-link chatlistitem should update the unread counter on it
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_archived_counter_update_on_mark_noticed() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(chat.id, "moin").await;
+        bob.recv_msg(&sent_msg).await;
+        let bob_chat = bob.create_chat(&alice).await;
+        bob_chat
+            .id
+            .set_visibility(&bob, ChatVisibility::Archived)
+            .await?;
+        set_muted(&bob, bob_chat.id, MuteDuration::Forever).await?;
+        let sent_msg = alice.send_text(chat.id, "moin2").await;
+        bob.recv_msg(&sent_msg).await;
+
+        bob.evtracker.clear_events();
+        chat::marknoticed_chat(&bob, DC_CHAT_ID_ARCHIVED_LINK).await?;
+        wait_for_chatlist_specific_item(&bob, DC_CHAT_ID_ARCHIVED_LINK).await;
+
+        Ok(())
+    }
+
+    /// Contact name update - expect all chats to update
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_contact_name_update() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let alice_to_bob_chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(alice_to_bob_chat.id, "hello").await;
+        bob.recv_msg(&sent_msg).await;
+
+        bob.evtracker.clear_events();
+        // set alice name then receive messagefrom her with bob
+        alice.set_config(Config::Displayname, Some("Alice")).await?;
+        let sent_msg = alice
+            .send_text(alice_to_bob_chat.id, "hello, I set a displayname")
+            .await;
+        bob.recv_msg(&sent_msg).await;
+        let alice_on_bob = bob.add_or_lookup_contact(&alice).await;
+        assert!(alice_on_bob.get_display_name() == "Alice");
+
+        wait_for_chatlist_all_items(&bob).await;
+
+        bob.evtracker.clear_events();
+        // set name
+        let addr = alice_on_bob.get_addr();
+        Contact::create(&bob, "Alice2", addr).await?;
+        assert!(bob.add_or_lookup_contact(&alice).await.get_display_name() == "Alice2");
+
+        wait_for_chatlist_all_items(&bob).await;
+
+        Ok(())
+    }
+
+    /// Contact changed avatar
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_contact_changed_avatar() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let alice_to_bob_chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(alice_to_bob_chat.id, "hello").await;
+        bob.recv_msg(&sent_msg).await;
+
+        bob.evtracker.clear_events();
+        // set alice avatar then receive messagefrom her with bob
+        let file = alice.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../../test-data/image/avatar64x64.png");
+        tokio::fs::write(&file, bytes).await?;
+        alice
+            .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await?;
+        let sent_msg = alice
+            .send_text(alice_to_bob_chat.id, "hello, I have a new avatar")
+            .await;
+        bob.recv_msg(&sent_msg).await;
+        let alice_on_bob = bob.add_or_lookup_contact(&alice).await;
+        assert!(alice_on_bob.get_profile_image(&bob).await?.is_some());
+
+        wait_for_chatlist_specific_item(&bob, bob.create_chat(&alice).await.id).await;
+        Ok(())
+    }
+
+    /// Delete chat
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_chat() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+
+        alice.evtracker.clear_events();
+        chat.delete(&alice).await?;
+        wait_for_chatlist_order(&alice).await;
+        Ok(())
+    }
+
+    /// Create group chat
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_create_group_chat() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        alice.evtracker.clear_events();
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+        wait_for_chatlist_order_and_specific_item(&alice, chat).await;
+        Ok(())
+    }
+
+    /// Create broadcastlist
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_create_broadcastlist() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        alice.evtracker.clear_events();
+        create_broadcast_list(&alice).await?;
+        wait_for_chatlist_order(&alice).await;
+        Ok(())
+    }
+
+    /// Mute chat
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mute_chat() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+
+        alice.evtracker.clear_events();
+        chat::set_muted(&alice, chat, MuteDuration::Forever).await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        alice.evtracker.clear_events();
+        chat::set_muted(&alice, chat, MuteDuration::NotMuted).await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    /// Expiry of mute should also trigger an event
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "does not work yet"]
+    async fn test_mute_chat_expired() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+
+        let mute_duration = MuteDuration::Until(
+            std::time::SystemTime::now()
+                .checked_add(Duration::from_secs(2))
+                .unwrap(),
+        );
+        chat::set_muted(&alice, chat, mute_duration).await?;
+        alice.evtracker.clear_events();
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    /// Change chat name
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_change_chat_name() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+
+        alice.evtracker.clear_events();
+        chat::set_chat_name(&alice, chat, "New Name").await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    /// Change chat profile image
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_change_chat_profile_image() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+
+        alice.evtracker.clear_events();
+        let file = alice.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../../test-data/image/avatar64x64.png");
+        tokio::fs::write(&file, bytes).await?;
+        chat::set_chat_profile_image(&alice, chat, file.to_str().unwrap()).await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    /// Receive group and receive name change
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_receiving_group_and_group_changes() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let chat = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "My Group", &[&bob])
+            .await;
+
+        let sent_msg = alice.send_text(chat, "Hello").await;
+        let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
+        wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
+        chat_id_for_bob.accept(&bob).await?;
+
+        bob.evtracker.clear_events();
+        chat::set_chat_name(&alice, chat, "New Name").await?;
+        let sent_msg = alice.send_text(chat, "Hello").await;
+        bob.recv_msg(&sent_msg).await;
+        wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
+
+        Ok(())
+    }
+
+    /// Delete message
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_message() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+        let message = chat::send_text_msg(&alice, chat, "Hello World".to_owned()).await?;
+       
+        alice.evtracker.clear_events();
+        message::delete_msgs(&alice, &[message]).await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    // - [ ] create_for_contact_with_blocked (is this unblock?)
+
+    // - [ ] disappearing messages
+    // - [ ] Click on chat should remove the unread count (on msgs noticed)
+    // - [ ] Change status on chatlistitem when status changes (delivered, read, failed)
+
+    // - [ ] Download on demand on last message in chat
+    // - [ ] Accept contact request
+    // - [ ] Securejoin (both directions)
+    // - [ ] change protection
+    // - [ ] AdHoc (Groups without a group ID.) group receiving
+    // - [ ] Chatlist correctly updated after AEAP
+    // - [ ] Imap sync seen messages - chatlist item should update
+    // - [ ] multidevice sync
+    // - [ ] syncing chat visibility and muting across multiple devices
+    // - [ ] Call Resend message on webxdc message if it’s the last in chat (note(treefit): what did I mean by this?)
+
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    // async fn test_() -> Result<()> {
+    //     let mut tcm = TestContextManager::new();
+    //     let alice = tcm.alice().await;
+    //     let bob = tcm.bob().await;
+
+    //     Ok(())
+    // }
+}
