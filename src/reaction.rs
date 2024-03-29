@@ -380,14 +380,17 @@ impl Chat {
 mod tests {
     use super::*;
     use crate::chat::{get_chat_msgs, send_text_msg};
+    use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, ContactAddress, Origin};
     use crate::download::DownloadState;
-    use crate::message::MessageState;
+    use crate::message::{delete_msgs, MessageState};
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
+    use deltachat_time::SystemTimeTools;
+    use std::time::Duration;
 
     #[test]
     fn test_parse_reaction() {
@@ -614,6 +617,107 @@ Here's my footer -- bob@example.net"
             reactions.emoji_sorted_by_frequency(),
             vec![("👍".to_string(), 2), ("😀".to_string(), 1)]
         );
+
+        Ok(())
+    }
+
+    async fn assert_summary(t: &TestContext, expected: &str) {
+        let chatlist = Chatlist::try_load(t, 0, None, None).await.unwrap();
+        let summary = chatlist.get_summary(t, 0, None).await.unwrap();
+        assert_eq!(summary.text, expected);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction_summary() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        alice.set_config(Config::Displayname, Some("ALICE")).await?;
+        bob.set_config(Config::Displayname, Some("BOB")).await?;
+
+        // Alice sends message to Bob
+        let alice_chat = alice.create_chat(&bob).await;
+        let alice_msg1 = alice.send_text(alice_chat.id, "Party?").await;
+        let bob_msg1 = bob.recv_msg(&alice_msg1).await;
+
+        // Bob reacts to Alice's message, this is shown in the summaries
+        SystemTimeTools::shift(Duration::from_secs(10));
+        bob_msg1.chat_id.accept(&bob).await?;
+        send_reaction(&bob, bob_msg1.id, "👍").await?;
+        let bob_send_reaction = bob.pop_sent_msg().await;
+        let alice_rcvd_reaction = alice.recv_msg(&bob_send_reaction).await;
+        assert!(alice_rcvd_reaction.get_timestamp() > bob_msg1.get_timestamp());
+
+        let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
+        let summary = chatlist.get_summary(&bob, 0, None).await?;
+        assert_eq!(summary.text, "You reacted 👍 to \"Party?\"");
+        assert_eq!(summary.timestamp, bob_msg1.get_timestamp()); // time refers to message, not to reaction
+        assert_eq!(summary.state, MessageState::InFresh); // state refers to message, not to reaction
+        assert!(summary.prefix.is_none());
+        assert!(summary.thumbnail_path.is_none());
+        assert_summary(&alice, "BOB reacted 👍 to \"Party?\"").await;
+
+        // Alice reacts to own message as well
+        SystemTimeTools::shift(Duration::from_secs(10));
+        send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
+        let alice_send_reaction = alice.pop_sent_msg().await;
+        bob.recv_msg(&alice_send_reaction).await;
+
+        assert_summary(&alice, "You reacted 🍿 to \"Party?\"").await;
+        assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
+
+        // Alice sends a newer message, this overwrites reaction summaries
+        SystemTimeTools::shift(Duration::from_secs(10));
+        let alice_msg2 = alice.send_text(alice_chat.id, "kewl").await;
+        bob.recv_msg(&alice_msg2).await;
+
+        assert_summary(&alice, "kewl").await;
+        assert_summary(&bob, "kewl").await;
+
+        // Reactions to older messages still overwrite newer messages
+        SystemTimeTools::shift(Duration::from_secs(10));
+        send_reaction(&alice, alice_msg1.sender_msg_id, "🤘").await?;
+        let alice_send_reaction = alice.pop_sent_msg().await;
+        bob.recv_msg(&alice_send_reaction).await;
+
+        assert_summary(&alice, "You reacted 🤘 to \"Party?\"").await;
+        assert_summary(&bob, "ALICE reacted 🤘 to \"Party?\"").await;
+
+        // Retracted reactions remove all summary reactions
+        SystemTimeTools::shift(Duration::from_secs(10));
+        send_reaction(&alice, alice_msg1.sender_msg_id, "").await?;
+        let alice_remove_reaction = alice.pop_sent_msg().await;
+        bob.recv_msg(&alice_remove_reaction).await;
+
+        assert_summary(&alice, "kewl").await;
+        assert_summary(&bob, "kewl").await;
+
+        // Alice adds another reaction and then deletes the message reacted to; this will also delete reaction summary
+        SystemTimeTools::shift(Duration::from_secs(10));
+        send_reaction(&alice, alice_msg1.sender_msg_id, "🧹").await?;
+        assert_summary(&alice, "You reacted 🧹 to \"Party?\"").await;
+
+        delete_msgs(&alice, &[alice_msg1.sender_msg_id]).await?;
+        assert_summary(&alice, "kewl").await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction_self_chat_multidevice_summary() -> Result<()> {
+        let alice0 = TestContext::new_alice().await;
+        let alice1 = TestContext::new_alice().await;
+        let chat = alice0.get_self_chat().await;
+
+        let msg_id = send_text_msg(&alice0, chat.id, "mom's birthday!".to_string()).await?;
+        alice1.recv_msg(&alice0.pop_sent_msg().await).await;
+
+        SystemTimeTools::shift(Duration::from_secs(10));
+        send_reaction(&alice0, msg_id, "👆").await?;
+        let sync = alice0.pop_sent_msg().await;
+        receive_imf(&alice1, sync.payload().as_bytes(), false).await?;
+
+        assert_summary(&alice0, "You reacted 👆 to \"mom's birthday!\"").await;
+        assert_summary(&alice1, "You reacted 👆 to \"mom's birthday!\"").await;
 
         Ok(())
     }
