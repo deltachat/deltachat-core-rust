@@ -64,7 +64,13 @@ mod test_chatlist_events {
         chat::{
             self, create_broadcast_list, create_group_chat, set_muted, ChatId, ChatVisibility,
             MuteDuration, ProtectionStatus,
-        }, config::Config, constants::*, contact::Contact, message, test_utils::{TestContext, TestContextManager}, EventType
+        },
+        config::Config,
+        constants::*,
+        contact::Contact,
+        message,
+        test_utils::{TestContext, TestContextManager},
+        EventType,
     };
 
     use anyhow::Result;
@@ -399,6 +405,25 @@ mod test_chatlist_events {
         Ok(())
     }
 
+    /// Accept contact request
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_accept_contact_request() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let chat = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "My Group", &[&bob])
+            .await;
+        let sent_msg = alice.send_text(chat, "Hello").await;
+        let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
+
+        bob.evtracker.clear_events();
+        chat_id_for_bob.accept(&bob).await?;
+        wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
+
+        Ok(())
+    }
+
     /// Delete message
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_delete_message() -> Result<()> {
@@ -406,7 +431,7 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
         let message = chat::send_text_msg(&alice, chat, "Hello World".to_owned()).await?;
-       
+
         alice.evtracker.clear_events();
         message::delete_msgs(&alice, &[message]).await?;
         wait_for_chatlist_specific_item(&alice, chat).await;
@@ -414,14 +439,37 @@ mod test_chatlist_events {
         Ok(())
     }
 
+    /// Click on chat should remove the unread count (on msgs noticed)
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_msgs_noticed_on_chat() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let chat = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "My Group", &[&bob])
+            .await;
+        let sent_msg = alice.send_text(chat, "Hello").await;
+        let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
+        chat_id_for_bob.accept(&bob).await?;
+
+        let sent_msg = alice.send_text(chat, "New Message").await;
+        let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
+        assert!(chat_id_for_bob.get_fresh_msg_cnt(&bob).await? >= 1);
+
+        bob.evtracker.clear_events();
+        chat::marknoticed_chat(&bob, chat_id_for_bob).await?;
+        wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
+
+        Ok(())
+    }
+
     // - [ ] create_for_contact_with_blocked (is this unblock?)
 
     // - [ ] disappearing messages
-    // - [ ] Click on chat should remove the unread count (on msgs noticed)
     // - [ ] Change status on chatlistitem when status changes (delivered, read, failed)
 
     // - [ ] Download on demand on last message in chat
-    // - [ ] Accept contact request
     // - [ ] Securejoin (both directions)
     // - [ ] change protection
     // - [ ] AdHoc (Groups without a group ID.) group receiving
