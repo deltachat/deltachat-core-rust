@@ -705,7 +705,6 @@ int              dc_get_push_state           (dc_context_t* context);
 
 
 /**
- * Standalone version of dc_accounts_all_work_done().
  * Only used by the python tests.
  */
 int             dc_all_work_done             (dc_context_t* context);
@@ -3097,23 +3096,6 @@ dc_context_t*  dc_accounts_get_selected_account (dc_accounts_t* accounts);
  * @return 1=success, 0=error
  */
 int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32_t account_id);
-
-
-/**
- * This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
- *
- * iOS can:
- * - call dc_start_io() (in case IO was not running)
- * - call dc_maybe_network()
- * - while dc_accounts_all_work_done() returns false:
- *   - Wait for #DC_EVENT_CONNECTIVITY_CHANGED
- *
- * @memberof dc_accounts_t
- * @param accounts The account manager as created by dc_accounts_new().
- * @return Whether all accounts finished their background work.
- *      #DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
- */
-int            dc_accounts_all_work_done        (dc_accounts_t* accounts);
 
 
 /**

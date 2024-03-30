@@ -170,7 +170,7 @@ impl ConnectivityStore {
 }
 
 /// Set all folder states to InterruptingIdle in case they were `Connected` before.
-/// Called during `dc_maybe_network()` to make sure that `dc_accounts_all_work_done()`
+/// Called during `dc_maybe_network()` to make sure that `dc_all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
 pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<ConnectivityStore>) {
     let mut connectivity_lock = inbox.0.lock().await;
