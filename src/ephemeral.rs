@@ -392,7 +392,8 @@ WHERE
 SELECT id, chat_id, type
 FROM msgs
 WHERE
-  timestamp < ?
+  timestamp < ?1
+  AND timestamp_rcvd < ?1
   AND chat_id > ?
   AND chat_id != ?
   AND chat_id != ?
@@ -490,7 +491,7 @@ async fn next_delete_device_after_timestamp(context: &Context) -> Result<Option<
             .sql
             .query_get_value(
                 r#"
-                SELECT min(timestamp)
+                SELECT min(max(timestamp, timestamp_rcvd))
                 FROM msgs
                 WHERE chat_id > ?
                   AND chat_id != ?
