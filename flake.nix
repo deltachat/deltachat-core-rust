@@ -495,7 +495,6 @@
                 format = "pyproject";
                 propagatedBuildInputs = [
                   pkgs.python3Packages.setuptools
-                  pkgs.python3Packages.setuptools_scm
                 ];
               };
 
@@ -513,7 +512,6 @@
                 ];
                 propagatedBuildInputs = [
                   pkgs.python3Packages.setuptools
-                  pkgs.python3Packages.setuptools_scm
                   pkgs.python3Packages.pkgconfig
                   pkgs.python3Packages.cffi
                   pkgs.python3Packages.imap-tools

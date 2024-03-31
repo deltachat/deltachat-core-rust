@@ -73,6 +73,8 @@ def main():
         "deltachat-jsonrpc/Cargo.toml",
         "deltachat-rpc-server/Cargo.toml",
         "deltachat-repl/Cargo.toml",
+        "python/pyproject.toml",
+        "deltachat-rpc-client/pyproject.toml",
     ]
     try:
         opts = parser.parse_args()
