@@ -69,6 +69,8 @@ mod test_chatlist_events {
         constants::*,
         contact::Contact,
         message,
+        receive_imf::receive_imf,
+        securejoin::{get_securejoin_qr, join_securejoin},
         test_utils::{TestContext, TestContextManager},
         EventType,
     };
@@ -464,20 +466,120 @@ mod test_chatlist_events {
         Ok(())
     }
 
-    // - [ ] create_for_contact_with_blocked (is this unblock?)
+    // Block and Unblock contact
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_unblock_contact() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let contact_id = Contact::create(&alice, "example", "example@example.com").await?;
+        let _ = ChatId::create_for_contact(&alice, contact_id).await;
 
-    // - [ ] disappearing messages
+        alice.evtracker.clear_events();
+        Contact::block(&alice, contact_id).await?;
+        wait_for_chatlist_order(&alice).await;
+
+        alice.evtracker.clear_events();
+        Contact::unblock(&alice, contact_id).await?;
+        wait_for_chatlist_order(&alice).await;
+
+        Ok(())
+    }
+
+    /// ephemeral / disappearing messages
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_update_after_ephemeral_messages() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+        chat.set_ephemeral_timer(&alice, crate::ephemeral::Timer::Enabled { duration: 1 })
+            .await?;
+        let _ = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
+
+        alice.evtracker.clear_events();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        wait_for_chatlist_order_and_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    /// AdHoc (Groups without a group ID.) group receiving
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_adhoc_group() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let mime = br#"Subject: First thread
+Message-ID: first@example.org
+To: Alice <alice@example.org>, Bob <bob@example.net>
+From: Claire <claire@example.org>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+First thread."#;
+
+        alice.evtracker.clear_events();
+        receive_imf(&alice, mime, false).await?;
+        wait_for_chatlist_order(&alice).await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_secure_join() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let alice_chatid =
+            chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat").await?;
+
+        // Step 1: Generate QR-code, secure-join implied by chatid
+        let qr = get_securejoin_qr(&alice.ctx, Some(alice_chatid)).await?;
+
+        // Step 2: Bob scans QR-code, sends vg-request
+        bob.evtracker.clear_events();
+        let bob_chatid = join_securejoin(&bob.ctx, &qr).await?;
+        wait_for_chatlist_order(&bob).await;
+
+        let sent = bob.pop_sent_msg().await;
+
+        // Step 3: Alice receives vg-request, sends vg-auth-required
+        alice.evtracker.clear_events();
+        alice.recv_msg(&sent).await;
+        wait_for_chatlist_order(&alice).await;
+
+        let sent = alice.pop_sent_msg().await;
+
+        // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
+        bob.evtracker.clear_events();
+        bob.recv_msg(&sent).await;
+        wait_for_chatlist_order_and_specific_item(&bob, bob_chatid).await;
+
+        let sent = bob.pop_sent_msg().await;
+
+        // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
+        alice.evtracker.clear_events();
+        alice.recv_msg(&sent).await;
+        wait_for_chatlist_order_and_specific_item(&alice, alice_chatid).await;
+
+        let sent = alice.pop_sent_msg().await;
+
+        // Step 7: Bob receives vg-member-added
+        bob.evtracker.clear_events();
+        bob.recv_msg(&sent).await;
+        wait_for_chatlist_order_and_specific_item(&bob, bob_chatid).await;
+
+        Ok(())
+    }
+
     // - [ ] Change status on chatlistitem when status changes (delivered, read, failed)
+    // - [ ] Call Resend on message if it’s the last in chat
 
     // - [ ] Download on demand on last message in chat
-    // - [ ] Securejoin (both directions)
-    // - [ ] change protection
-    // - [ ] AdHoc (Groups without a group ID.) group receiving
-    // - [ ] Chatlist correctly updated after AEAP
+    // - [ ] change protection (1:1 chat gets guranteed encryption)
+
     // - [ ] Imap sync seen messages - chatlist item should update
-    // - [ ] multidevice sync
+    // - [ ] multidevice sync (chat visibility; chat muted)
     // - [ ] syncing chat visibility and muting across multiple devices
-    // - [ ] Call Resend message on webxdc message if it’s the last in chat (note(treefit): what did I mean by this?)
+
+    // - [ ] Chatlist correctly updated after AEAP
 
     // #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     // async fn test_() -> Result<()> {
