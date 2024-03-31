@@ -4,6 +4,7 @@ version = "1.136.6"
 edition = "2021"
 license = "MPL-2.0"
 rust-version = "1.70"
+repository = "https://github.com/deltachat/deltachat-core-rust"
 
 [profile.dev]
 debug = 0
