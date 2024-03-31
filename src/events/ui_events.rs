@@ -68,7 +68,7 @@ mod test_chatlist_events {
         config::Config,
         constants::*,
         contact::Contact,
-        message,
+        message::{self, markseen_msgs, Message, MessageState},
         receive_imf::receive_imf,
         securejoin::{get_securejoin_qr, join_securejoin},
         test_utils::{TestContext, TestContextManager},
@@ -521,6 +521,7 @@ First thread."#;
         Ok(())
     }
 
+    /// Test both direction of securejoin
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_secure_join() -> Result<()> {
         let mut tcm = TestContextManager::new();
@@ -569,9 +570,30 @@ First thread."#;
         Ok(())
     }
 
-    // - [ ] Change status on chatlistitem when status changes (delivered, read, failed)
-    // - [ ] Call Resend on message if it’s the last in chat
+    /// Call Resend on message
+    /// 
+    /// (the event is technically only needed if it is the last message in the chat, but checking that would be too expensive so the event is always emitted)
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_resend_message() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+       
+        let msg_id = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
+        let _ = alice.pop_sent_msg().await;
 
+        let message = Message::load_from_db(&alice, msg_id).await?;
+        assert_eq!(message.get_state(), MessageState::OutDelivered);
+
+        alice.evtracker.clear_events();
+        chat::resend_msgs(&alice, &[msg_id]).await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    // - [ ] Change status on chatlistitem when status changes (delivered, read)
+    // - [ ] Change status on chatlistitem when status changes to failed
     // - [ ] Download on demand on last message in chat
     // - [ ] change protection (1:1 chat gets guranteed encryption)
 
@@ -580,13 +602,4 @@ First thread."#;
     // - [ ] syncing chat visibility and muting across multiple devices
 
     // - [ ] Chatlist correctly updated after AEAP
-
-    // #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    // async fn test_() -> Result<()> {
-    //     let mut tcm = TestContextManager::new();
-    //     let alice = tcm.alice().await;
-    //     let bob = tcm.bob().await;
-
-    //     Ok(())
-    // }
 }
