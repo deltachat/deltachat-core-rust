@@ -1,9 +1,10 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "deltachat-rpc-client"
+version = "1.136.6"
 description = "Python client for Delta Chat core JSON-RPC interface"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -19,9 +20,6 @@ classifiers = [
     "Topic :: Communications :: Chat",
     "Topic :: Communications :: Email"
 ]
-dynamic = [
-    "version"
-]
 readme = "README.md"
 
 [tool.setuptools.package-data]
@@ -31,9 +29,6 @@ deltachat_rpc_client = [
 
 [project.entry-points.pytest11]
 "deltachat_rpc_client.pytestplugin" = "deltachat_rpc_client.pytestplugin"
-
-[tool.setuptools_scm]
-root = ".."
 
 [tool.black]
 line-length = 120

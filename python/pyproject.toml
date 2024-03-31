@@ -1,9 +1,10 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2", "cffi>=1.0.0", "pkgconfig"]
+requires = ["setuptools>=45", "wheel", "cffi>=1.0.0", "pkgconfig"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "deltachat"
+version = "1.136.6"
 description = "Python bindings for the Delta Chat Core library using CFFI against the Rust-implemented libdeltachat"
 readme = "README.rst"
 requires-python = ">=3.7"
@@ -26,9 +27,6 @@ dependencies = [
     "pluggy",
     "requests",
 ]
-dynamic = [
-    "version"
-]
 
 [project.urls]
 "Home" = "https://github.com/deltachat/deltachat-core-rust/"
@@ -43,11 +41,6 @@ dynamic = [
 deltachat = [
     "py.typed"
 ]
-
-[tool.setuptools_scm]
-root = ".."
-tag_regex = '^(?P<prefix>v)?(?P<version>[^\+]+)(?P<suffix>.*)?$'
-git_describe_command = "git describe --dirty --tags --long --match v*.*"
 
 [tool.black]
 line-length = 120
