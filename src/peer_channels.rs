@@ -6,7 +6,7 @@ use iroh_base::base32;
 use iroh_gossip::net::{Gossip, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
-use iroh_net::{derp::DerpMode, key::SecretKey, MagicEndpoint};
+use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
 
 use crate::chat::send_msg;
@@ -34,7 +34,7 @@ impl Context {
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
-            .derp_mode(DerpMode::Default)
+            .relay_mode(RelayMode::Default)
             .bind(0)
             .await?;
 

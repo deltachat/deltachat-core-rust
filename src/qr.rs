@@ -117,7 +117,7 @@ pub enum Qr {
         /// information to connect to and authenticate a backup provider.
         ///
         /// The format is somewhat opaque, but `sendme` can deserialise this.
-        ticket: iroh::provider::Ticket,
+        ticket: iroh_old::provider::Ticket,
     },
 
     /// Ask the user if they want to use the given service for video chats.
@@ -525,7 +525,7 @@ fn decode_backup(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP_SCHEME)
         .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
-    let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
+    let ticket: iroh_old::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
     Ok(Qr::Backup { ticket })
 }
 

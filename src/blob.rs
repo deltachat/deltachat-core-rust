@@ -724,13 +724,11 @@ fn add_white_bg(img: &mut DynamicImage) {
 
 #[cfg(test)]
 mod tests {
-    use fs::File;
-    use image::Pixel;
-
     use super::*;
     use crate::chat::{self, create_group_chat, ProtectionStatus};
     use crate::message::{Message, Viewtype};
     use crate::test_utils::{self, TestContext};
+    use fs::File;
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
         tokio::task::block_in_place(move || {
