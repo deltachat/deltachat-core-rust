@@ -1,6 +1,8 @@
 import logging
 import threading
 import time
+import base64
+import os
 
 import pytest
 from deltachat_rpc_client import Chat, SpecialContactId, EventType, Account, const
@@ -114,12 +116,48 @@ def test_delivery_status_failed(acfactory, tmp_path) -> None:
 
 
 
+def test_download_on_demand(acfactory, tmp_path) -> None:
+    """
+    Test if download on demand emits chatlist update events.
+    This is only needed for last message in chat, but finding that out is too expensive, so it's always emitted
+    """
+    # explicit type Annotations are needed for vscode
+    alice: Account
+    bob: Account 
+    alice, bob = acfactory.get_online_accounts(2)
 
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = alice_contact_bob.create_chat()
+    alice_chat_bob.send_text("hi")
 
+    alice.set_config("download_limit", "1")
+
+    while True:
+        event = bob.wait_for_event()
+        if event.kind == EventType.INCOMING_MSG:
+            msg = bob.get_message_by_id(event.msg_id)
+            chat_id = msg.get_snapshot().chat_id
+            bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
+            bob.get_chat_by_id(chat_id).send_message("Hello World, this message is bigger than 5 bytes", html=base64.b64encode(os.urandom(300000)).decode("utf-8"))
+            break
     
+    while True:
+        event = alice.wait_for_event()
+        if event.kind == EventType.INCOMING_MSG:
+            msg_id = event.msg_id
+            break
+    
+    assert alice.get_message_by_id(msg_id).get_snapshot().download_state == const.DownloadState.AVAILABLE
+
+    alice.clear_all_events()
+    chat_id = alice.get_message_by_id(msg_id).get_snapshot().chat_id
+    alice._rpc.download_full_message(alice.id, msg_id)
+
+    wait_for_chatlist_specific_item(alice, chat_id)
+
 
 # TODO
-# - [ ] Download on demand on last message in chat
 # - [ ] change protection (1:1 chat gets guranteed encryption)
 # - [ ] Imap sync seen messages - chatlist item should update
 # - [ ] multidevice sync (chat visibility; chat muted)
