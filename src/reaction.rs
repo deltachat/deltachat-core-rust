@@ -310,7 +310,7 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::get_chat_msgs;
+    use crate::chat::{get_chat_msgs, send_text_msg};
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, ContactAddress, Origin};
@@ -651,6 +651,27 @@ Here's my footer -- bob@example.net"
             alice1.get_config(Config::Selfstatus).await?.as_deref(),
             Some("New status")
         );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_reaction_multidevice() -> Result<()> {
+        let alice0 = TestContext::new_alice().await;
+        let alice1 = TestContext::new_alice().await;
+        let bob_id = Contact::create(&alice0, "", "bob@example.net").await?;
+        let chat_id = ChatId::create_for_contact(&alice0, bob_id).await?;
+
+        let alice0_msg_id = send_text_msg(&alice0, chat_id, "foo".to_string()).await?;
+        let alice1_msg = alice1.recv_msg(&alice0.pop_sent_msg().await).await;
+
+        send_reaction(&alice0, alice0_msg_id, "👀").await?;
+        let sync = alice0.pop_sent_msg().await;
+        receive_imf(&alice1, sync.payload().as_bytes(), false).await?;
+
+        expect_reactions_changed_event(&alice0, chat_id, alice0_msg_id, ContactId::SELF).await?;
+        expect_reactions_changed_event(&alice1, alice1_msg.chat_id, alice1_msg.id, ContactId::SELF)
+            .await?;
+
         Ok(())
     }
 }
