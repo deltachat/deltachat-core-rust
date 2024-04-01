@@ -11,7 +11,12 @@
   outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix, android }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = (import nixpkgs {
+          inherit system;
+          overlays = [
+            fenix.overlays.default
+          ];
+        });
         inherit (pkgs.stdenv) isDarwin;
         fenixPkgs = fenix.packages.${system};
         naersk' = pkgs.callPackage naersk { };
@@ -111,8 +116,6 @@
         mkWin64RustPackage = packageName:
           let
             rustTarget = "x86_64-pc-windows-gnu";
-          in
-          let
             toolchainWin = fenixPkgs.combine [
               fenixPkgs.stable.rustc
               fenixPkgs.stable.cargo
@@ -185,7 +188,6 @@
                 ];
               })
             );
-            winStdenv = pkgsWin32.buildPackages.overrideCC pkgsWin32.stdenv winCC;
           in
           naerskWin.buildPackage rec {
             pname = packageName;
@@ -279,8 +281,6 @@
         mkAndroidRustPackage = arch: packageName:
           let
             rustTarget = androidAttrs.${arch}.rustTarget;
-          in
-          let
             toolchain = fenixPkgs.combine [
               fenixPkgs.stable.rustc
               fenixPkgs.stable.cargo
@@ -446,7 +446,7 @@
               };
 
             libdeltachat =
-              pkgs.stdenv.mkDerivation rec {
+              pkgs.stdenv.mkDerivation {
                 pname = "libdeltachat";
                 version = manifest.version;
                 src = rustSrc;
@@ -488,7 +488,7 @@
               };
 
             deltachat-rpc-client =
-              pkgs.python3Packages.buildPythonPackage rec {
+              pkgs.python3Packages.buildPythonPackage {
                 pname = "deltachat-rpc-client";
                 version = manifest.version;
                 src = pkgs.lib.cleanSource ./deltachat-rpc-client;
@@ -500,7 +500,7 @@
               };
 
             deltachat-python =
-              pkgs.python3Packages.buildPythonPackage rec {
+              pkgs.python3Packages.buildPythonPackage {
                 pname = "deltachat-python";
                 version = manifest.version;
                 src = pkgs.lib.cleanSource ./python;
@@ -537,6 +537,20 @@
                 installPhase = ''mkdir -p $out; cp -av dist/html $out'';
               };
           };
+      
+        devShells.default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              (fenixPkgs.complete.withComponents [
+                "cargo"
+                "clippy"
+                "rust-src"
+                "rustc"
+                "rustfmt"
+              ])
+              rust-analyzer-nightly
+              perl
+            ];
+        };
       }
     );
 }
