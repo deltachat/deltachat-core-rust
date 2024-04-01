@@ -59,6 +59,8 @@ class EventType(str, Enum):
     SELFAVATAR_CHANGED = "SelfavatarChanged"
     WEBXDC_STATUS_UPDATE = "WebxdcStatusUpdate"
     WEBXDC_INSTANCE_DELETED = "WebxdcInstanceDeleted"
+    CHATLIST_CHANGED = "ChatlistChanged"
+    CHATLIST_ITEM_CHANGED = "ChatlistItemChanged"
 
 
 class ChatId(IntEnum):

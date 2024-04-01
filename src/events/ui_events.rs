@@ -68,7 +68,7 @@ mod test_chatlist_events {
         config::Config,
         constants::*,
         contact::Contact,
-        message::{self, markseen_msgs, Message, MessageState},
+        message::{self, Message, MessageState},
         receive_imf::receive_imf,
         securejoin::{get_securejoin_qr, join_securejoin},
         test_utils::{TestContext, TestContextManager},
@@ -591,15 +591,4 @@ First thread."#;
 
         Ok(())
     }
-
-    // - [ ] Change status on chatlistitem when status changes (delivered, read)
-    // - [ ] Change status on chatlistitem when status changes to failed
-    // - [ ] Download on demand on last message in chat
-    // - [ ] change protection (1:1 chat gets guranteed encryption)
-
-    // - [ ] Imap sync seen messages - chatlist item should update
-    // - [ ] multidevice sync (chat visibility; chat muted)
-    // - [ ] syncing chat visibility and muting across multiple devices
-
-    // - [ ] Chatlist correctly updated after AEAP
 }
