@@ -1721,6 +1721,11 @@ async fn is_probably_private_reply(
         }
     }
 
+    let is_reaction = mime_parser.parts.iter().any(|part| part.is_reaction);
+    if is_reaction {
+        return Ok(false);
+    }
+
     Ok(true)
 }
 
