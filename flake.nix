@@ -542,6 +542,7 @@
               "rustc"
               "rustfmt"
             ])
+            cargo-deny
             fenixPkgs.rust-analyzer
             perl # needed to build vendored OpenSSL
           ];
