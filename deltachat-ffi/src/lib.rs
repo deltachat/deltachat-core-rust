@@ -595,7 +595,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::AccountsBackgroundFetchDone => 0,
-        | EventType::ChatlistChanged => 0,
+        EventType::ChatlistChanged => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }

@@ -1014,8 +1014,8 @@ impl EventTracker {
             .await;
     }
 
-    /// Clears event queue 
-    pub fn clear_events(&self){
+    /// Clears event queue
+    pub fn clear_events(&self) {
         while self.try_recv().is_ok() {}
     }
 }

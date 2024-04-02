@@ -571,14 +571,14 @@ First thread."#;
     }
 
     /// Call Resend on message
-    /// 
+    ///
     /// (the event is technically only needed if it is the last message in the chat, but checking that would be too expensive so the event is always emitted)
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_resend_message() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
-       
+
         let msg_id = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
         let _ = alice.pop_sent_msg().await;
 
