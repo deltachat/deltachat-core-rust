@@ -6,7 +6,7 @@ import logging
 import os
 import subprocess
 import sys
-from queue import Queue
+from queue import Queue, Empty
 from threading import Event, Thread
 from typing import Any, Iterator, Optional
 
@@ -194,7 +194,7 @@ class Rpc:
         try:
             while True:
                 queue.get_nowait()
-        except Queue.Empty:
+        except Empty:
             pass
 
     def __getattr__(self, attr: str):
