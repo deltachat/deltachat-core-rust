@@ -1,11 +1,8 @@
-import logging
-import threading
-import time
 import base64
+import logging
 import os
 
-import pytest
-from deltachat_rpc_client import Chat, SpecialContactId, EventType, Account, const
+from deltachat_rpc_client import Account, EventType, const
 
 
 def wait_for_chatlist_order_and_specific_item(account, chat_id):
@@ -13,24 +10,21 @@ def wait_for_chatlist_order_and_specific_item(account, chat_id):
         event = account.wait_for_event()
         if event.kind == EventType.CHATLIST_CHANGED:
             break
-        if event.kind == EventType.CHATLIST_ITEM_CHANGED:
-            if event.chat_id == chat_id:
-                break
+        if event.kind == EventType.CHATLIST_ITEM_CHANGED and event.chat_id == chat_id:
+            break
     while True:
         event = account.wait_for_event()
         if event.kind == EventType.CHATLIST_CHANGED:
             break
-        if event.kind == EventType.CHATLIST_ITEM_CHANGED:
-            if event.chat_id == chat_id:
-                break
+        if event.kind == EventType.CHATLIST_ITEM_CHANGED and event.chat_id == chat_id:
+            break
 
 
 def wait_for_chatlist_specific_item(account, chat_id):
     while True:
         event = account.wait_for_event()
-        if event.kind == EventType.CHATLIST_ITEM_CHANGED:
-            if event.chat_id == chat_id:
-                break
+        if event.kind == EventType.CHATLIST_ITEM_CHANGED and event.chat_id == chat_id:
+            break
 
 
 def wait_for_chatlist_order(account):
@@ -40,7 +34,7 @@ def wait_for_chatlist_order(account):
             break
 
 
-def test_delivery_status(acfactory, tmp_path) -> None:
+def test_delivery_status(acfactory) -> None:
     """
     Test change status on chatlistitem when status changes (delivered, read)
     """
@@ -56,7 +50,7 @@ def test_delivery_status(acfactory, tmp_path) -> None:
     alice.clear_all_events()
     bob.stop_io()
     alice.stop_io()
-    msg_id = alice_chat_bob.send_text("hi")
+    alice_chat_bob.send_text("hi")
     wait_for_chatlist_order_and_specific_item(alice, chat_id=alice_chat_bob.id)
 
     alice.clear_all_events()
@@ -89,7 +83,7 @@ def test_delivery_status(acfactory, tmp_path) -> None:
     assert chat_item["summaryStatus"] == const.MessageState.OUT_MDN_RCVD
 
 
-def test_delivery_status_failed(acfactory, tmp_path) -> None:
+def test_delivery_status_failed(acfactory) -> None:
     """
     Test change status on chatlistitem when status changes failed
     """
@@ -118,7 +112,7 @@ def test_delivery_status_failed(acfactory, tmp_path) -> None:
     assert failing_message.get_snapshot().state == const.MessageState.OUT_FAILED
 
 
-def test_download_on_demand(acfactory, tmp_path) -> None:
+def test_download_on_demand(acfactory) -> None:
     """
     Test if download on demand emits chatlist update events.
     This is only needed for last message in chat, but finding that out is too expensive, so it's always emitted
@@ -181,9 +175,7 @@ def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
     alice_second_device: Account = acfactory.get_unconfigured_account()
 
     alice._rpc.provide_backup.future(alice.id)
-    logging.info("attempt to get backup_code")
     backup_code = alice._rpc.get_backup_qr(alice.id)
-    logging.info("backup_code", backup_code)
     alice_second_device._rpc.get_backup(alice_second_device.id, backup_code)
     alice.clear_all_events()
     alice_second_device.clear_all_events()
@@ -191,7 +183,7 @@ def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
     return [alice, alice_second_device, bob, alice_chat_bob]
 
 
-def test_imap_sync_seen_msgs(acfactory, tmp_path) -> None:
+def test_imap_sync_seen_msgs(acfactory) -> None:
     """
     Test that chatlist changed events are emitted for the second device
     when the message is marked as read on the first device
@@ -228,7 +220,7 @@ def test_imap_sync_seen_msgs(acfactory, tmp_path) -> None:
     wait_for_chatlist_specific_item(alice, alice_chat_bob.id)
 
 
-def test_multidevice_sync_chat(acfactory, tmp_path) -> None:
+def test_multidevice_sync_chat(acfactory) -> None:
     """
     Test multidevice sync: syncing chat visibility and muting across multiple devices
     """
