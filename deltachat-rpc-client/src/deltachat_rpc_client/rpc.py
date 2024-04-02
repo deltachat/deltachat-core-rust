@@ -194,7 +194,7 @@ class Rpc:
         try:
             while True:
                 queue.get_nowait()
-        except:
+        except Queue.Empty:
             pass
 
     def __getattr__(self, attr: str):
