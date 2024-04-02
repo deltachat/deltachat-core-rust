@@ -6,7 +6,7 @@ import logging
 import os
 import subprocess
 import sys
-from queue import Queue, Empty
+from queue import Empty, Queue 
 from threading import Event, Thread
 from typing import Any, Iterator, Optional
 
