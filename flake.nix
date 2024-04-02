@@ -11,12 +11,7 @@
   outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix, android }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = (import nixpkgs {
-          inherit system;
-          overlays = [
-            fenix.overlays.default
-          ];
-        });
+        pkgs = nixpkgs.legacyPackages.${system};
         inherit (pkgs.stdenv) isDarwin;
         fenixPkgs = fenix.packages.${system};
         naersk' = pkgs.callPackage naersk { };
@@ -182,7 +177,7 @@
                     model = "win32";
                     package = null;
                   };
-                })).overrideAttrs (oldAttr: rec{
+                })).overrideAttrs (oldAttr: {
                 configureFlags = oldAttr.configureFlags ++ [
                   "--disable-sjlj-exceptions --with-dwarf2"
                 ];
@@ -537,19 +532,19 @@
                 installPhase = ''mkdir -p $out; cp -av dist/html $out'';
               };
           };
-      
+
         devShells.default = pkgs.mkShell {
-            buildInputs = with pkgs; [
-              (fenixPkgs.complete.withComponents [
-                "cargo"
-                "clippy"
-                "rust-src"
-                "rustc"
-                "rustfmt"
-              ])
-              rust-analyzer-nightly
-              perl
-            ];
+          buildInputs = with pkgs; [
+            (fenixPkgs.complete.withComponents [
+              "cargo"
+              "clippy"
+              "rust-src"
+              "rustc"
+              "rustfmt"
+            ])
+            fenixPkgs.rust-analyzer
+            perl # needed to build vendored OpenSSL
+          ];
         };
       }
     );
