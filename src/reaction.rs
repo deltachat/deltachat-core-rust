@@ -241,7 +241,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
         msg_id,
         msg.chat_id,
         ContactId::SELF,
-        reaction_msg.get_timestamp(),
+        reaction_msg.timestamp_sort,
         reaction,
     )
     .await?;

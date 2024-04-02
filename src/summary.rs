@@ -66,7 +66,7 @@ impl Summary {
         contact: Option<&Contact>,
     ) -> Result<Summary> {
         if let Some((reaction_msg, reaction_contact_id, reaction)) = chat
-            .get_last_reaction_if_newer_than(context, msg.get_timestamp())
+            .get_last_reaction_if_newer_than(context, msg.timestamp_sort)
             .await?
         {
             // there is a reaction newer than the latest message, show that.
