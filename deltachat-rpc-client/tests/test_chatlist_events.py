@@ -167,11 +167,16 @@ def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
     alice_contact_bob = alice.create_contact(bob_addr, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("hi")
+
+    while True:
+        event = bob.wait_for_event()
+        if event.kind == EventType.INCOMING_MSG:
+            break
     
     alice_second_device: Account = acfactory.get_unconfigured_account()
 
-    # TODO somehow call provide_backup on alice without blocking on it
-
+    alice._rpc.provide_backup.future(alice.id)
+    logging.info("attempt to get backup_code")
     backup_code = alice._rpc.get_backup_qr(alice.id)
     logging.info("backup_code", backup_code)
     alice_second_device._rpc.get_backup(alice_second_device.id, backup_code)
@@ -218,7 +223,7 @@ def test_imap_sync_seen_msgs(acfactory, tmp_path) -> None:
     wait_for_chatlist_specific_item(alice, alice_chat_bob.id)
 
 
-def test_multidevice_sync(acfactory, tmp_path) -> None:
+def test_multidevice_sync_chat(acfactory, tmp_path) -> None:
     """
     Test multidevice sync: syncing chat visibility and muting across multiple devices
     """
