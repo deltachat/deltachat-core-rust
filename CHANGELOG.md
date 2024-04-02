@@ -1,5 +1,78 @@
 # Changelog
 
+## [1.137.0] - 2024-04-02
+
+### API-Changes
+
+- [**breaking**] Remove data from `DC_EVENT_INCOMING_MSG_BUNCH`.
+- [**breaking**] Remove unused `dc_accounts_all_work_done()` ([#5384](https://github.com/deltachat/deltachat-core-rust/pull/5384)).
+- deltachat-rpc-client: Add futures.
+
+### Build system
+
+- cmake: Build outside the source tree.
+- nix: Add outputs for Android binaries.
+- Add `repository` to Cargo.toml.
+- python: Remove `setuptools_scm` dependency.
+- Add development shell ([#5390](https://github.com/deltachat/deltachat-core-rust/pull/5390)).
+
+### CI
+
+- Update to Rust 1.77.0.
+- Build deltachat-rpc-server for Android.
+- Shorter names for deltachat-rpc-server jobs.
+
+### Features / Changes
+
+- Do not include provider hostname in `Message-ID`.
+- Include 3 recent Message-IDs in `References` header.
+- Include more entries into DNS fallback cache.
+
+### Fixes
+
+- Preserve upper-/lowercase of links parsed by `dehtml()` ([#5362](https://github.com/deltachat/deltachat-core-rust/pull/5362)).
+- Rescan folders after changing `Config::SentboxWatch`.
+- Do not ignore `Contact::get_by_id()` error in `from_field_to_contact_id()`.
+- Put overridden sender name into message info.
+- Don't send selfavatar in `SecureJoin` messages before contact verification ([#5354](https://github.com/deltachat/deltachat-core-rust/pull/5354)).
+- Always set correct `chat_id` for `DC_EVENT_REACTIONS_CHANGED` ([#5419](https://github.com/deltachat/deltachat-core-rust/pull/5419)).
+
+### Refactor
+
+- Remove `MessageObject::from_message_id()`.
+- jsonrpc: Add `msg_id` and `account_id` to `get_message()` errors.
+- Cleanup `jobs` and `Params` relicts.
+
+### Tests
+
+- `Test_mvbox_sentbox_threads`: Check that sentbox gets configured after setting `sentbox_watch` ([#5105](https://github.com/deltachat/deltachat-core-rust/pull/5105)).
+- Remove flaky time check from `test_list_from()`.
+- Add failing test for #5418 (wrong `DC_EVENT_REACTIONS_CHANGED`)
+
+### Miscellaneous Tasks
+
+- Add `result` to .gitignore.
+- cargo: Bump thiserror from 1.0.57 to 1.0.58.
+- cargo: Bump tokio from 1.36.0 to 1.37.0.
+- cargo: Bump pin-project from 1.1.4 to 1.1.5.
+- cargo: Bump strum from 0.26.1 to 0.26.2.
+- cargo: Bump uuid from 1.7.0 to 1.8.0.
+- cargo: Bump toml from 0.8.10 to 0.8.12.
+- cargo: Bump tokio-stream from 0.1.14 to 0.1.15.
+- cargo: Bump smallvec from 1.13.1 to 1.13.2.
+- cargo: Bump async-smtp from 0.9.0 to 0.9.1.
+- cargo: Bump strum_macros from 0.26.1 to 0.26.2.
+- cargo: Bump serde_json from 1.0.114 to 1.0.115.
+- cargo: Bump anyhow from 1.0.80 to 1.0.81.
+- cargo: Bump syn from 2.0.52 to 2.0.57.
+- cargo: Bump futures-lite from 2.2.0 to 2.3.0.
+- cargo: Bump axum from 0.7.4 to 0.7.5.
+- cargo: Bump reqwest from 0.11.24 to 0.12.2.
+- cargo: Bump backtrace from 0.3.69 to 0.3.71.
+- cargo: Bump regex from 1.10.3 to 1.10.4.
+- cargo: Update aho-corasick from 1.1.2 to 1.1.3.
+- Update deny.toml.
+
 ## [1.136.6] - 2024-03-19
 
 ### Build system
@@ -3762,3 +3835,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.136.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.3...v1.136.4
 [1.136.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.4...v1.136.5
 [1.136.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.5...v1.136.6
+[1.137.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.6...v1.137.0
