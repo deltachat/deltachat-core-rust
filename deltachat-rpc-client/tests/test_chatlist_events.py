@@ -157,9 +157,83 @@ def test_download_on_demand(acfactory, tmp_path) -> None:
     wait_for_chatlist_specific_item(alice, chat_id)
 
 
-# TODO
-# - [ ] change protection (1:1 chat gets guranteed encryption)
-# - [ ] Imap sync seen messages - chatlist item should update
-# - [ ] multidevice sync (chat visibility; chat muted)
-# - [ ] syncing chat visibility and muting across multiple devices
-# - [ ] Chatlist correctly updated after AEAP
+def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
+    # explicit type Annotations are needed for vscode
+    alice: Account
+    bob: Account 
+    alice, bob = acfactory.get_online_accounts(2)
+
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = alice_contact_bob.create_chat()
+    alice_chat_bob.send_text("hi")
+    
+    alice_second_device: Account = acfactory.get_unconfigured_account()
+
+    # TODO somehow call provide_backup on alice without blocking on it
+
+    backup_code = alice._rpc.get_backup_qr(alice.id)
+    logging.info("backup_code", backup_code)
+    alice_second_device._rpc.get_backup(alice_second_device.id, backup_code)
+    alice.clear_all_events()
+    alice_second_device.clear_all_events()
+    bob.clear_all_events()
+    return [alice, alice_second_device, bob, alice_chat_bob]
+
+
+def test_imap_sync_seen_msgs(acfactory, tmp_path) -> None:
+    """
+    Test that chatlist changed events are emitted for the second device
+    when the message is marked as read on the first device
+    """
+    alice, alice_second_device, bob, alice_chat_bob = get_multi_account_test_setup(acfactory)
+
+    while True:
+        event = bob.wait_for_event()
+        if event.kind == EventType.INCOMING_MSG:
+            msg = bob.get_message_by_id(event.msg_id)
+            bob_chat_id = msg.get_snapshot().chat_id
+            bob._rpc.accept_chat(bob.id, bob_chat_id)
+            break
+    
+    alice.clear_all_events()
+    alice_second_device.clear_all_events()
+    bob.get_chat_by_id(bob_chat_id).send_text("hello")
+
+    # make sure alice_second_device already received the message
+    while True:
+        event = alice_second_device.wait_for_event()
+        if event.kind == EventType.INCOMING_MSG:
+            break
+
+    while True:
+        event = alice.wait_for_event()
+        if event.kind == EventType.INCOMING_MSG:
+            msg = alice.get_message_by_id(event.msg_id)
+            alice_second_device.clear_all_events()
+            alice.mark_seen_messages([msg])
+            break
+    
+    wait_for_chatlist_specific_item(bob, bob_chat_id)
+    wait_for_chatlist_specific_item(alice, alice_chat_bob.id)
+
+
+def test_multidevice_sync(acfactory, tmp_path) -> None:
+    """
+    Test multidevice sync: syncing chat visibility and muting across multiple devices
+    """
+    alice, alice_second_device, bob, alice_chat_bob = get_multi_account_test_setup(acfactory)
+
+    alice_chat_bob.archive()
+    wait_for_chatlist_specific_item(alice_second_device, alice_chat_bob.id)
+    assert alice_second_device.get_chat_by_id(alice_chat_bob.id).get_basic_snapshot().archived
+    
+    alice_second_device.clear_all_events()
+    alice_chat_bob.pin()
+    wait_for_chatlist_specific_item(alice_second_device, alice_chat_bob.id)
+
+    alice_second_device.clear_all_events()
+    alice_chat_bob.mute()
+    wait_for_chatlist_specific_item(alice_second_device, alice_chat_bob.id)
+    assert alice_second_device.get_chat_by_id(alice_chat_bob.id).get_basic_snapshot().is_muted
+
