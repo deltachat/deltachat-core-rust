@@ -1,13 +1,13 @@
 //! Peer channels for webxdc updates using iroh.
 
 use anyhow::{anyhow, Context as _, Result};
-use image::EncodableLayout;
 use iroh_base::base32;
 use iroh_gossip::net::{Gossip, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
+use serde::{Deserialize, Serialize};
 
 use crate::chat::send_msg;
 use crate::config::Config;
@@ -173,13 +173,16 @@ impl Context {
         status_update: &str,
     ) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await.unwrap();
-
+        let message = GossipMessage {
+            payload: status_update.to_string(),
+            time: chrono::Utc::now().timestamp() as u64,
+        };
         self.gossip
             .lock()
             .await
             .as_ref()
             .context("No gossip")?
-            .broadcast(topic, status_update.as_bytes().to_vec().into())
+            .broadcast(topic, serde_json::to_vec(&message)?.into())
             .await?;
         Ok(())
     }
@@ -194,6 +197,13 @@ impl Context {
         send_msg(self, webxdc.chat_id, &mut msg).await?;
         Ok(())
     }
+}
+
+// Maybe we can add the timstamp in the byte sequence of the message?
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct GossipMessage {
+    payload: String,
+    time: u64,
 }
 
 pub(crate) fn create_random_topic() -> TopicId {
@@ -254,10 +264,10 @@ async fn subscribe_loop(
             }
             IrohEvent::Received(event) => {
                 info!(context, "Received: {:?}", event);
-                let status_update = String::from_utf8_lossy(event.content.as_bytes());
+                let status_update: GossipMessage = serde_json::from_slice(&event.content)?;
                 context.emit_event(EventType::WebxdcEphemeralStatusUpdate {
                     msg_id,
-                    status_update: status_update.to_string(),
+                    status_update: status_update.payload,
                 });
             }
         };
@@ -268,9 +278,6 @@ async fn subscribe_loop(
 mod tests {
     use std::time::Duration;
 
-    use iroh_gossip::proto::Event as IrohEvent;
-    use tokio::time::timeout;
-
     use crate::{
         chat::send_msg,
         message::{Message, Viewtype},
@@ -279,7 +286,7 @@ mod tests {
     };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_can_connect() {
+    async fn test_can_communicate() {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
@@ -300,15 +307,14 @@ mod tests {
             .unwrap();
 
         send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
-
         let alice_webxdc = alice.get_last_msg().await;
         assert_eq!(alice_webxdc.get_viewtype(), Viewtype::Webxdc);
 
         let webxdc = alice.pop_sent_msg().await;
         let bob_webdxc = bob.recv_msg(&webxdc).await;
-        bob_webdxc.chat_id.accept(bob).await.unwrap();
-
         assert_eq!(bob_webdxc.get_viewtype(), Viewtype::Webxdc);
+
+        bob_webdxc.chat_id.accept(bob).await.unwrap();
 
         // Alice advertises herself.
         alice
@@ -325,55 +331,40 @@ mod tests {
             vec![alice.get_iroh_node_addr().await.unwrap().node_id]
         );
 
+        bob.join_and_subscribe_gossip(bob_webdxc.id).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
         // Alice sends ephemeral message
         alice
             .send_webxdc_ephemeral_status_update(alice_webxdc.id, "alice -> bob")
             .await
             .unwrap();
 
-        while let Ok(event) = bob.evtracker.try_recv() {
+        loop {
+            let event = bob.evtracker.recv().await.unwrap();
             if let EventType::WebxdcEphemeralStatusUpdate { status_update, .. } = event.typ {
-                if status_update.contains("bob -> alice") {
+                if status_update.contains("alice -> bob") {
                     break;
+                } else {
+                    panic!("Unexpected status update: {status_update}");
                 }
             }
         }
-
-        bob.join_and_subscribe_gossip(bob_webdxc.id).await.unwrap();
 
         // Bob sends ephemeral message
         bob.send_webxdc_ephemeral_status_update(bob_webdxc.id, "bob -> alice")
             .await
             .unwrap();
 
-        let mut stream = alice
-            .ctx
-            .gossip
-            .lock()
-            .await
-            .as_ref()
-            .unwrap()
-            .subscribe(alice.get_topic_for_msg_id(alice_webxdc.id).await.unwrap())
-            .await
-            .unwrap();
-
-        while let Ok(event) = alice.evtracker.try_recv() {
+        loop {
+            let event = alice.evtracker.recv().await.unwrap();
             if let EventType::WebxdcEphemeralStatusUpdate { status_update, .. } = event.typ {
                 if status_update.contains("bob -> alice") {
                     break;
+                } else {
+                    panic!("Unexpected status update: {status_update}");
                 }
             }
-        }
-
-        let event = timeout(Duration::from_secs(5), stream.recv())
-            .await
-            .unwrap()
-            .unwrap();
-        match event {
-            IrohEvent::NeighborUp(node) => {
-                assert_eq!(node, bob.endpoint.lock().await.as_ref().unwrap().node_id());
-            }
-            _ => panic!("Expected NeighborUp event"),
         }
 
         // Alice adds bob to gossip peers.
@@ -382,6 +373,21 @@ mod tests {
             members,
             vec![bob.get_iroh_node_addr().await.unwrap().node_id]
         );
+
+        bob.send_webxdc_ephemeral_status_update(bob_webdxc.id, "bob -> alice 2")
+            .await
+            .unwrap();
+
+        loop {
+            let event = alice.evtracker.recv().await.unwrap();
+            if let EventType::WebxdcEphemeralStatusUpdate { status_update, .. } = event.typ {
+                if status_update.contains("bob -> alice 2") {
+                    break;
+                } else {
+                    panic!("Unexpected status update: {status_update}");
+                }
+            }
+        }
     }
 }
 
