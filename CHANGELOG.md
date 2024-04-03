@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.137.1] - 2024-04-03
+
+### CI
+
+- Remove android builds for `x86` and `x86_64`.
+
 ## [1.137.0] - 2024-04-02
 
 ### API-Changes
@@ -3836,3 +3842,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.136.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.4...v1.136.5
 [1.136.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.5...v1.136.6
 [1.137.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.6...v1.137.0
+[1.137.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.0...v1.137.1
