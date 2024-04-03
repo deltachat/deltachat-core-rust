@@ -72,7 +72,7 @@ impl Summary {
             // there is a reaction newer than the latest message, show that.
             // sorting and therefore date is still the one of the last message,
             // the reaction is is more sth. that overlays temporarily.
-            let summary = reaction_msg.get_summary_text(context).await;
+            let summary = reaction_msg.get_summary_text_without_prefix(context).await;
             return Ok(Summary {
                 prefix: None,
                 text: msg_reacted(context, reaction_contact_id, &reaction, &summary).await,
@@ -139,6 +139,17 @@ impl Summary {
 impl Message {
     /// Returns a summary text.
     async fn get_summary_text(&self, context: &Context) -> String {
+        let summary = self.get_summary_text_without_prefix(context).await;
+
+        if self.is_forwarded() {
+            format!("{}: {}", stock_str::forwarded(context).await, summary)
+        } else {
+            summary
+        }
+    }
+
+    /// Returns a summary text without "Forwarded:" prefix.
+    async fn get_summary_text_without_prefix(&self, context: &Context) -> String {
         let (emoji, type_name, type_file, append_text);
         match self.viewtype {
             Viewtype::Image => {
@@ -245,12 +256,6 @@ impl Message {
 
         let summary = if let Some(emoji) = emoji {
             format!("{emoji} {summary}")
-        } else {
-            summary
-        };
-
-        let summary = if self.is_forwarded() {
-            format!("{}: {}", stock_str::forwarded(context).await, summary)
         } else {
             summary
         };
