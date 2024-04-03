@@ -11,9 +11,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{format_err, Context as _, Result};
 use base64::Engine as _;
 use futures::StreamExt;
-use image::{
-    DynamicImage, GenericImage, GenericImageView, ImageFormat, ImageOutputFormat, Pixel, Rgba,
-};
+use image::codecs::jpeg::JpegEncoder;
+use image::{DynamicImage, GenericImage, GenericImageView, ImageFormat, Pixel, Rgba};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
@@ -35,6 +34,12 @@ use crate::log::LogExt;
 pub struct BlobObject<'a> {
     blobdir: &'a Path,
     name: String,
+}
+
+#[derive(Debug, Clone)]
+enum ImageOutputFormat {
+    Png,
+    Jpeg { quality: u8 },
 }
 
 impl<'a> BlobObject<'a> {
@@ -457,9 +462,13 @@ impl<'a> BlobObject<'a> {
                 Ok(ImageFormat::Png) if !exceeds_max_bytes => ImageOutputFormat::Png,
                 Ok(ImageFormat::Jpeg) => {
                     add_white_bg = false;
-                    ImageOutputFormat::Jpeg(jpeg_quality)
+                    ImageOutputFormat::Jpeg {
+                        quality: jpeg_quality,
+                    }
                 }
-                _ => ImageOutputFormat::Jpeg(jpeg_quality),
+                _ => ImageOutputFormat::Jpeg {
+                    quality: jpeg_quality,
+                },
             };
             // We need to rewrite images with Exif to remove metadata such as location,
             // camera model, etc.
@@ -530,7 +539,7 @@ impl<'a> BlobObject<'a> {
             if do_scale || exif.is_some() {
                 // The file format is JPEG/PNG now, we may have to change the file extension
                 if !matches!(fmt, Ok(ImageFormat::Jpeg))
-                    && matches!(ofmt, ImageOutputFormat::Jpeg(_))
+                    && matches!(ofmt, ImageOutputFormat::Jpeg { .. })
                 {
                     blob_abs = blob_abs.with_extension("jpg");
                     let file_name = blob_abs.file_name().context("No image file name (???)")?;
@@ -685,7 +694,13 @@ fn encode_img(
 ) -> anyhow::Result<()> {
     encoded.clear();
     let mut buf = Cursor::new(encoded);
-    img.write_to(&mut buf, fmt)?;
+    match fmt {
+        ImageOutputFormat::Png => img.write_to(&mut buf, ImageFormat::Png)?,
+        ImageOutputFormat::Jpeg { quality } => {
+            let encoder = JpegEncoder::new_with_quality(&mut buf, quality);
+            img.write_with_encoder(encoder)?;
+        }
+    }
     Ok(())
 }
 
