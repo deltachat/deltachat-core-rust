@@ -389,7 +389,7 @@ mod tests {
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
-    use deltachat_time::SystemTimeTools;
+    use crate::tools::SystemTime;
     use std::time::Duration;
 
     #[test]
@@ -640,7 +640,7 @@ Here's my footer -- bob@example.net"
         let bob_msg1 = bob.recv_msg(&alice_msg1).await;
 
         // Bob reacts to Alice's message, this is shown in the summaries
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         bob_msg1.chat_id.accept(&bob).await?;
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
@@ -657,7 +657,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&alice, "BOB reacted 👍 to \"Party?\"").await;
 
         // Alice reacts to own message as well
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
         bob.recv_msg(&alice_send_reaction).await;
@@ -666,7 +666,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
 
         // Alice sends a newer message, this overwrites reaction summaries
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         let alice_msg2 = alice.send_text(alice_chat.id, "kewl").await;
         bob.recv_msg(&alice_msg2).await;
 
@@ -674,7 +674,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "kewl").await;
 
         // Reactions to older messages still overwrite newer messages
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "🤘").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
         bob.recv_msg(&alice_send_reaction).await;
@@ -683,7 +683,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "ALICE reacted 🤘 to \"Party?\"").await;
 
         // Retracted reactions remove all summary reactions
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "").await?;
         let alice_remove_reaction = alice.pop_sent_msg().await;
         bob.recv_msg(&alice_remove_reaction).await;
@@ -692,7 +692,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "kewl").await;
 
         // Alice adds another reaction and then deletes the message reacted to; this will also delete reaction summary
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "🧹").await?;
         assert_summary(&alice, "You reacted 🧹 to \"Party?\"").await;
 
@@ -711,7 +711,7 @@ Here's my footer -- bob@example.net"
         let msg_id = send_text_msg(&alice0, chat.id, "mom's birthday!".to_string()).await?;
         alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
-        SystemTimeTools::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice0, msg_id, "👆").await?;
         let sync = alice0.pop_sent_msg().await;
         receive_imf(&alice1, sync.payload().as_bytes(), false).await?;
