@@ -76,7 +76,7 @@ impl Summary {
             return Ok(Summary {
                 prefix: None,
                 text: msg_reacted(context, reaction_contact_id, &reaction, &summary).await,
-                timestamp: msg.get_timestamp(), // message timestamp (not reaction) - otherwise sorting is wrong
+                timestamp: msg.get_timestamp(), // message timestamp (not reaction) to make timestamps more consistent with chats ordering
                 state: msg.state, // message state (not reaction) - indicating if it was me sending the last message
                 thumbnail_path: None,
             });
