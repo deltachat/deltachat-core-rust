@@ -499,7 +499,7 @@ fn get_next_backup_path(
     backup_time: i64,
 ) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
-    let stem = chrono::NaiveDateTime::from_timestamp_opt(backup_time, 0)
+    let stem = chrono::DateTime::<chrono::Utc>::from_timestamp(backup_time, 0)
         .context("can't get next backup path")?
         // Don't change this file name format, in `dc_imex_has_backup` we use string comparison to determine which backup is newer:
         .format("delta-chat-backup-%Y-%m-%d")

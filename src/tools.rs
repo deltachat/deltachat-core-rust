@@ -181,6 +181,7 @@ pub fn get_release_timestamp() -> i64 {
         *crate::release::DATE,
         NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
     )
+    .and_utc()
     .timestamp_millis()
         / 1_000
 }
@@ -205,7 +206,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
             ),
         )
         .await;
-        if let Some(timestamp) = chrono::NaiveDateTime::from_timestamp_opt(now, 0) {
+        if let Some(timestamp) = chrono::DateTime::<chrono::Utc>::from_timestamp(now, 0) {
             add_device_msg_with_importance(
                 context,
                 Some(
@@ -232,7 +233,7 @@ async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time
     if now > approx_compile_time + DC_OUTDATED_WARNING_DAYS * 24 * 60 * 60 {
         let mut msg = Message::new(Viewtype::Text);
         msg.text = stock_str::update_reminder_msg_body(context).await;
-        if let Some(timestamp) = chrono::NaiveDateTime::from_timestamp_opt(now, 0) {
+        if let Some(timestamp) = chrono::DateTime::<chrono::Utc>::from_timestamp(now, 0) {
             add_device_msg(
                 context,
                 Some(
@@ -1214,6 +1215,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             NaiveDate::from_ymd_opt(2020, 9, 1).unwrap(),
             NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
         )
+        .and_utc()
         .timestamp_millis()
             / 1_000;
 
@@ -1329,6 +1331,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             NaiveDate::from_ymd_opt(2020, 9, 9).unwrap(),
             NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
         )
+        .and_utc()
         .timestamp_millis()
             / 1_000;
         assert!(get_release_timestamp() <= time());
