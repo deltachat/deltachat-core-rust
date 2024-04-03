@@ -429,6 +429,12 @@ pub enum StockMessage {
         fallback = "⚠️ It seems you are using Delta Chat on multiple devices that cannot decrypt each other's outgoing messages. To fix this, on the older device use \"Settings / Add Second Device\" and follow the instructions."
     ))]
     CantDecryptOutgoingMsgs = 175,
+
+    #[strum(props(fallback = "You reacted %1$s to \"%2$s\""))]
+    MsgYouReacted = 176,
+
+    #[strum(props(fallback = "%1$s reacted %2$s to \"%3$s\""))]
+    MsgReactedBy = 177,
 }
 
 impl StockMessage {
@@ -727,6 +733,27 @@ pub(crate) async fn msg_group_left_local(context: &Context, by_contact: ContactI
         translated(context, StockMessage::MsgGroupLeftBy)
             .await
             .replace1(&by_contact.get_stock_name_n_addr(context).await)
+    }
+}
+
+/// Stock string: `You reacted %1$s to "%2$s"` or `%1$s reacted %2$s to "%3$s"`.
+pub(crate) async fn msg_reacted(
+    context: &Context,
+    by_contact: ContactId,
+    reaction: &str,
+    summary: &str,
+) -> String {
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouReacted)
+            .await
+            .replace1(reaction)
+            .replace2(summary)
+    } else {
+        translated(context, StockMessage::MsgReactedBy)
+            .await
+            .replace1(&by_contact.get_stock_name(context).await)
+            .replace2(reaction)
+            .replace3(summary)
     }
 }
 

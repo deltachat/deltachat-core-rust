@@ -1374,6 +1374,7 @@ async fn add_parts(
                 &mime_in_reply_to,
                 orig_chat_id.unwrap_or_default(),
                 from_id,
+                sort_timestamp,
                 Reaction::from(reaction_str.as_str()),
             )
             .await?;

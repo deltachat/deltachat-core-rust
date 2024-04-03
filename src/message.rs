@@ -796,7 +796,7 @@ impl Message {
             None
         };
 
-        Ok(Summary::new(context, self, chat, contact.as_ref()).await)
+        Summary::new(context, self, chat, contact.as_ref()).await
     }
 
     // It's a little unfortunate that the UI has to first call `dc_msg_get_override_sender_name` and then if it was `NULL`, call

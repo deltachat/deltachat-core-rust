@@ -64,6 +64,15 @@ pub enum Param {
     /// For Messages: the message is a reaction.
     Reaction = b'x',
 
+    /// For Chats: the timestamp of the last reaction.
+    LastReactionTimestamp = b'y',
+
+    /// For Chats: Message ID of the last reaction.
+    LastReactionMsgId = b'Y',
+
+    /// For Chats: Contact ID of the last reaction.
+    LastReactionContactId = b'1',
+
     /// For Messages: a message with "Auto-Submitted: auto-generated" header ("bot").
     Bot = b'b',
 

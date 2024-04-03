@@ -416,7 +416,7 @@ impl Chatlist {
         if chat.id.is_archived_link() {
             Ok(Default::default())
         } else if let Some(lastmsg) = lastmsg.filter(|msg| msg.from_id != ContactId::UNDEFINED) {
-            Ok(Summary::new(context, &lastmsg, chat, lastcontact.as_ref()).await)
+            Summary::new(context, &lastmsg, chat, lastcontact.as_ref()).await
         } else {
             Ok(Summary {
                 text: stock_str::no_messages(context).await,
