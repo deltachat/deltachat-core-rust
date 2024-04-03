@@ -875,8 +875,7 @@ Here's my footer -- bob@example.net"
         let alice1_msg = alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
         send_reaction(&alice0, alice0_msg_id, "👀").await?;
-        let sync = alice0.pop_sent_msg().await;
-        receive_imf(&alice1, sync.payload().as_bytes(), false).await?;
+        alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
         expect_reactions_changed_event(&alice0, chat_id, alice0_msg_id, ContactId::SELF).await?;
         expect_reactions_changed_event(&alice1, alice1_msg.chat_id, alice1_msg.id, ContactId::SELF)

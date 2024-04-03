@@ -9,7 +9,7 @@ use crate::chat::{
     ChatVisibility,
 };
 use crate::chatlist::Chatlist;
-use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
+use crate::constants::{ShowEmails, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
 use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
@@ -140,6 +140,35 @@ async fn test_adhoc_group_show_accepted_contact_unknown() {
     // adhoc-group with unknown contacts with show_emails=accepted is ignored for unknown contacts
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
     assert_eq!(chats.len(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_adhoc_group_outgoing_show_accepted_contact_unaccepted() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    bob.set_config(
+        Config::ShowEmails,
+        Some(&ShowEmails::AcceptedContacts.to_string()),
+    )
+    .await?;
+    tcm.send_recv(alice, bob, "hi").await;
+    receive_imf(
+        bob,
+        b"From: bob@example.net\n\
+        To: alice@example.org, claire@example.com\n\
+        Message-ID: <3333@example.net>\n\
+        Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+        \n\
+        hello\n",
+        false,
+    )
+    .await?;
+    let chats = Chatlist::try_load(bob, 0, None, None).await?;
+    assert_eq!(chats.len(), 1);
+    let chat_id = chats.get_chat_id(0)?;
+    assert_eq!(chat_id.get_msg_cnt(bob).await?, 1);
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

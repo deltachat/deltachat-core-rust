@@ -1077,6 +1077,12 @@ async fn add_parts(
                     chat_id_blocked = chat.blocked;
                 }
             }
+            if chat_id.is_none() && is_dc_message == MessengerMessage::Yes {
+                if let Some(chat) = ChatIdBlocked::lookup_by_contact(context, to_id).await? {
+                    chat_id = Some(chat.id);
+                    chat_id_blocked = chat.blocked;
+                }
+            }
 
             // automatically unblock chat when the user sends a message
             if chat_id_blocked != Blocked::Not {
@@ -1720,11 +1726,6 @@ async fn is_probably_private_reply(
         if chat_contacts.len() == 2 && chat_contacts.contains(&ContactId::SELF) {
             return Ok(false);
         }
-    }
-
-    let is_reaction = mime_parser.parts.iter().any(|part| part.is_reaction);
-    if is_reaction {
-        return Ok(false);
     }
 
     Ok(true)
