@@ -99,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [arm64-v8a, armeabi-v7a, x86, x86_64]
+        arch: [arm64-v8a, armeabi-v7a]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -201,18 +201,6 @@ jobs:
           name: deltachat-rpc-server-armeabi-v7a-android
           path: deltachat-rpc-server-armeabi-v7a-android.d
 
-      - name: Download Android binary for x86
-        uses: actions/download-artifact@v4
-        with:
-          name: deltachat-rpc-server-x86-android
-          path: deltachat-rpc-server-x86-android.d
-
-      - name: Download Android binary for x86_64
-        uses: actions/download-artifact@v4
-        with:
-          name: deltachat-rpc-server-x86_64-android
-          path: deltachat-rpc-server-x86_64-android.d
-
       - name: Create bin/ directory
         run: |
           mkdir -p bin
@@ -227,8 +215,6 @@ jobs:
           mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server bin/deltachat-rpc-server-aarch64-macos
           mv deltachat-rpc-server-arm64-v8a-android.d/deltachat-rpc-server bin/deltachat-rpc-server-arm64-v8a-android
           mv deltachat-rpc-server-armeabi-v7a-android.d/deltachat-rpc-server bin/deltachat-rpc-server-armeabi-v7a-android
-          mv deltachat-rpc-server-x86-android.d/deltachat-rpc-server bin/deltachat-rpc-server-x86-android
-          mv deltachat-rpc-server-x86_64-android.d/deltachat-rpc-server bin/deltachat-rpc-server-x86_64-android
 
       - name: List binaries
         run: ls -l bin/

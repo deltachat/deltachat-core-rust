@@ -263,14 +263,6 @@
             cc = "aarch64-linux-android21-clang";
             rustTarget = "aarch64-linux-android";
           };
-          x86 = {
-            cc = "i686-linux-android19-clang";
-            rustTarget = "i686-linux-android";
-          };
-          x86_64 = {
-            cc = "x86_64-linux-android21-clang";
-            rustTarget = "x86_64-linux-android";
-          };
         };
 
         mkAndroidRustPackage = arch: packageName:
