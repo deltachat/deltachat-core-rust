@@ -379,7 +379,7 @@ impl Chat {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::{get_chat_msgs, send_text_msg};
+    use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
@@ -698,6 +698,43 @@ Here's my footer -- bob@example.net"
 
         delete_msgs(&alice, &[alice_msg1.sender_msg_id]).await?;
         assert_summary(&alice, "kewl").await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction_forwarded_summary() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice adds a message to "Saved Messages"
+        let self_chat = alice.get_self_chat().await;
+        let msg_id = send_text_msg(&alice, self_chat.id, "foo".to_string()).await?;
+        assert_summary(&alice, "foo").await;
+
+        // Alice reacts to that message
+        SystemTime::shift(Duration::from_secs(10));
+        send_reaction(&alice, msg_id, "🐫").await?;
+        assert_summary(&alice, "You reacted 🐫 to \"foo\"").await;
+        let reactions = get_msg_reactions(&alice, msg_id).await?;
+        assert_eq!(reactions.reactions.len(), 1);
+
+        // Alice forwards that message to Bob: Reactions are not forwarded, the message is prefixed by "Forwarded".
+        let bob_id = Contact::create(&alice, "", "bob@example.net").await?;
+        let bob_chat_id = ChatId::create_for_contact(&alice, bob_id).await?;
+        forward_msgs(&alice, &[msg_id], bob_chat_id).await?;
+        assert_summary(&alice, "Forwarded: foo").await; // forwarded messages are prefixed
+        let chatlist = Chatlist::try_load(&alice, 0, None, None).await.unwrap();
+        let forwarded_msg_id = chatlist.get_msg_id(0)?.unwrap();
+        let reactions = get_msg_reactions(&alice, forwarded_msg_id).await?;
+        assert!(reactions.reactions.is_empty()); // reactions are not forwarded
+
+        // Alice reacts to forwarded message:
+        // For reaction summary neither original message author nor "Forwarded" prefix is shown
+        SystemTime::shift(Duration::from_secs(10));
+        send_reaction(&alice, forwarded_msg_id, "🐳").await?;
+        assert_summary(&alice, "You reacted 🐳 to \"foo\"").await;
+        let reactions = get_msg_reactions(&alice, msg_id).await?;
+        assert_eq!(reactions.reactions.len(), 1);
 
         Ok(())
     }
