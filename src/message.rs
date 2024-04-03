@@ -459,7 +459,19 @@ impl Message {
     }
 
     /// Loads message with given ID from the database.
+    ///
+    /// Returns an error if the message does not exist.
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message> {
+        let message = Self::load_from_db_optional(context, id)
+            .await?
+            .context("Message {id} does not exist")?;
+        Ok(message)
+    }
+
+    /// Loads message with given ID from the database.
+    ///
+    /// Returns `None` if the message does not exist.
+    pub async fn load_from_db_optional(context: &Context, id: MsgId) -> Result<Option<Message>> {
         ensure!(
             !id.is_special(),
             "Can not load special message ID {} from DB",
@@ -467,7 +479,7 @@ impl Message {
         );
         let msg = context
             .sql
-            .query_row(
+            .query_row_optional(
                 concat!(
                     "SELECT",
                     "    m.id AS id,",

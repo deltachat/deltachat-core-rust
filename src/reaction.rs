@@ -348,7 +348,9 @@ impl Chat {
                 // The message reacted to may be deleted physically (`load_from_db()` fails) or marked as a tombstone (`is_trash()`).
                 // These are no errors as `Param::LastReaction*` are just weak pointers.
                 // Instead, just return `Ok(None)` and let the caller create another summary.
-                if let Ok(reaction_msg) = Message::load_from_db(context, reaction_msg_id).await {
+                if let Some(reaction_msg) =
+                    Message::load_from_db_optional(context, reaction_msg_id).await?
+                {
                     if !reaction_msg.chat_id.is_trash() {
                         let reaction_contact_id = ContactId::new(
                             self.param
