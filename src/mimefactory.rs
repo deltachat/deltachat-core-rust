@@ -575,11 +575,7 @@ impl<'a> MimeFactory<'a> {
             .protected
             .push(Header::new("Subject".into(), encoded_subject));
 
-        let date = chrono::Utc
-            .from_local_datetime(
-                &chrono::NaiveDateTime::from_timestamp_opt(self.timestamp, 0)
-                    .context("can't convert timestamp to NativeDateTime")?,
-            )
+        let date = chrono::DateTime::<chrono::Utc>::from_timestamp(self.timestamp, 0)
             .unwrap()
             .to_rfc2822();
         headers.unprotected.push(Header::new("Date".into(), date));
