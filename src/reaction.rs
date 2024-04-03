@@ -340,34 +340,35 @@ impl Chat {
     ) -> Result<Option<(Message, ContactId, String)>> {
         if let Some(reaction_timestamp) = self.param.get_i64(Param::LastReactionTimestamp) {
             if reaction_timestamp > timestamp {
-                let reaction_msg = Message::load_from_db(
-                    context,
-                    MsgId::new(
-                        self.param
-                            .get_int(Param::LastReactionMsgId)
-                            .unwrap_or_default() as u32,
-                    ),
-                )
-                .await?;
-                if !reaction_msg.chat_id.is_trash() {
-                    let reaction_contact_id = ContactId::new(
-                        self.param
-                            .get_int(Param::LastReactionContactId)
-                            .unwrap_or_default() as u32,
-                    );
-                    if let Some(reaction) = context
-                        .sql
-                        .query_row_optional(
-                            r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
-                            (reaction_msg.id, reaction_contact_id),
-                            |row| {
-                                let reaction: String = row.get(0)?;
-                                Ok(reaction)
-                            },
-                        )
-                        .await?
-                    {
-                        return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
+                let reaction_msg_id = MsgId::new(
+                    self.param
+                        .get_int(Param::LastReactionMsgId)
+                        .unwrap_or_default() as u32,
+                );
+                // The message reacted to may be deleted physically (`load_from_db()` fails) or marked as a tombstone (`is_trash()`).
+                // These are no errors as `Param::LastReaction*` are just weak pointers.
+                // Instead, just return `Ok(None)` and let the caller create another summary.
+                if let Ok(reaction_msg) = Message::load_from_db(context, reaction_msg_id).await {
+                    if !reaction_msg.chat_id.is_trash() {
+                        let reaction_contact_id = ContactId::new(
+                            self.param
+                                .get_int(Param::LastReactionContactId)
+                                .unwrap_or_default() as u32,
+                        );
+                        if let Some(reaction) = context
+                            .sql
+                            .query_row_optional(
+                                r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
+                                (reaction_msg.id, reaction_contact_id),
+                                |row| {
+                                    let reaction: String = row.get(0)?;
+                                    Ok(reaction)
+                                },
+                            )
+                            .await?
+                        {
+                            return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
+                        }
                     }
                 }
             }
@@ -387,6 +388,7 @@ mod tests {
     use crate::download::DownloadState;
     use crate::message::{delete_msgs, MessageState};
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
+    use crate::sql::housekeeping;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use crate::tools::SystemTime;
@@ -696,7 +698,9 @@ Here's my footer -- bob@example.net"
         send_reaction(&alice, alice_msg1.sender_msg_id, "🧹").await?;
         assert_summary(&alice, "You reacted 🧹 to \"Party?\"").await;
 
-        delete_msgs(&alice, &[alice_msg1.sender_msg_id]).await?;
+        delete_msgs(&alice, &[alice_msg1.sender_msg_id]).await?; // this will leave a tombstone
+        assert_summary(&alice, "kewl").await;
+        housekeeping(&alice).await?; // this will delete the tombstone
         assert_summary(&alice, "kewl").await;
 
         Ok(())
