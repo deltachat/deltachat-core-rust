@@ -8,11 +8,10 @@ use crate::constants::{
     Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_GCL_ADD_ALLDONE_HINT,
     DC_GCL_ARCHIVED_ONLY, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS,
 };
-use crate::contact::{Contact, ContactId};
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::message::{Message, MessageState, MsgId};
 use crate::param::{Param, Params};
-use crate::stock_str;
 use crate::summary::Summary;
 use crate::tools::IsNoneOrEmpty;
 
@@ -22,7 +21,8 @@ pub static IS_UNREAD_FILTER: Lazy<regex::Regex> =
 
 /// An object representing a single chatlist in memory.
 ///
-/// Chatlist objects contain chat IDs and, if possible, message IDs belonging to them.
+/// Chatlist objects contain IDs of chats and, optionally, their last messages, recently updated
+/// come first.
 /// The chatlist object is not updated; if you want an update, you have to recreate the object.
 ///
 /// For a **typical chat overview**, the idea is to get the list of all chats via dc_get_chatlist()
@@ -347,9 +347,11 @@ impl Chatlist {
         Ok(*chat_id)
     }
 
-    /// Get a single message ID of a chatlist.
+    /// Get the last message ID of a chat with index `index`.
     ///
-    /// To get the message object from the message ID, use dc_get_msg().
+    /// If you want to obtain the [Message] object further, it's not recommended to use as the
+    /// message may expire (if it's ephemeral f.e.). Better use [`Self::get_chat_id()`] +
+    /// [`Message::load_from_db_last_for_chat()`].
     pub fn get_msg_id(&self, index: usize) -> Result<Option<MsgId>> {
         let (_chat_id, msg_id) = self
             .ids
@@ -373,56 +375,28 @@ impl Chatlist {
             .ids
             .get(index)
             .context("chatlist index is out of range")?;
-        Chatlist::get_summary2(context, *chat_id, *lastmsg_id, chat).await
+        let lastmsg = if let Some(lastmsg_id) = lastmsg_id {
+            Some(
+                Message::load_from_db(context, *lastmsg_id)
+                    .await
+                    .with_context(|| format!("Loading message {lastmsg_id} failed"))?,
+            )
+        } else {
+            None
+        };
+        chat_id.get_summary(context, chat, lastmsg.as_ref()).await
     }
 
-    /// Returns a summary for a given chatlist item.
+    /// Returns a summary for a given chat.
     pub async fn get_summary2(
         context: &Context,
         chat_id: ChatId,
-        lastmsg_id: Option<MsgId>,
         chat: Option<&Chat>,
     ) -> Result<Summary> {
-        let chat_loaded: Chat;
-        let chat = if let Some(chat) = chat {
-            chat
-        } else {
-            let chat = Chat::load_from_db(context, chat_id).await?;
-            chat_loaded = chat;
-            &chat_loaded
-        };
-
-        let (lastmsg, lastcontact) = if let Some(lastmsg_id) = lastmsg_id {
-            let lastmsg = Message::load_from_db(context, lastmsg_id)
-                .await
-                .context("loading message failed")?;
-            if lastmsg.from_id == ContactId::SELF {
-                (Some(lastmsg), None)
-            } else {
-                match chat.typ {
-                    Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
-                        let lastcontact = Contact::get_by_id(context, lastmsg.from_id)
-                            .await
-                            .context("loading contact failed")?;
-                        (Some(lastmsg), Some(lastcontact))
-                    }
-                    Chattype::Single => (Some(lastmsg), None),
-                }
-            }
-        } else {
-            (None, None)
-        };
-
-        if chat.id.is_archived_link() {
-            Ok(Default::default())
-        } else if let Some(lastmsg) = lastmsg.filter(|msg| msg.from_id != ContactId::UNDEFINED) {
-            Summary::new(context, &lastmsg, chat, lastcontact.as_ref()).await
-        } else {
-            Ok(Summary {
-                text: stock_str::no_messages(context).await,
-                ..Default::default()
-            })
-        }
+        let lastmsg = Message::load_from_db_last_for_chat(context, chat_id)
+            .await
+            .context("Loading message failed")?;
+        chat_id.get_summary(context, chat, lastmsg.as_ref()).await
     }
 
     /// Returns chatlist item position for the given chat ID.
@@ -431,6 +405,9 @@ impl Chatlist {
     }
 
     /// An iterator visiting all chatlist items.
+    ///
+    /// See [`Self::get_msg_id()`] why it's not recommended to use returned [MsgId]-s to obtain
+    /// [Message] objects and what to use instead.
     pub fn iter(&self) -> impl Iterator<Item = &(ChatId, Option<MsgId>)> {
         self.ids.iter()
     }
@@ -448,8 +425,10 @@ pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
     Ok(count)
 }
 
-/// Gets the last message of a chat, the message that would also be displayed in the ChatList
-/// Used for passing to `deltachat::chatlist::Chatlist::get_summary2`
+/// Gets the id of the last user-visible message of a chat.
+///
+/// See [`Chatlist::get_msg_id()`] why it's not recommended to use returned [MsgId] to obtain the
+/// [Message] object and what to use instead.
 pub async fn get_last_message_for_chat(
     context: &Context,
     chat_id: ChatId,
@@ -474,7 +453,8 @@ mod tests {
         add_contact_to_chat, create_group_chat, get_chat_contacts, remove_contact_from_chat,
         send_text_msg, ProtectionStatus,
     };
-    use crate::message::Viewtype;
+    use crate::contact::Contact;
+    use crate::message::{Message, Viewtype};
     use crate::receive_imf::receive_imf;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;

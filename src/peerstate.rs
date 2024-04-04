@@ -650,9 +650,9 @@ impl Peerstate {
                 .await
             }
         };
-        for (chat_id, msg_id) in chats.iter() {
-            let timestamp_sort = if let Some(msg_id) = msg_id {
-                let lastmsg = Message::load_from_db(context, *msg_id).await?;
+        for (chat_id, _) in chats.iter() {
+            let lastmsg = Message::load_from_db_last_for_chat(context, *chat_id).await?;
+            let timestamp_sort = if let Some(lastmsg) = lastmsg {
                 lastmsg.timestamp_sort
             } else {
                 context

@@ -1792,28 +1792,6 @@ NAPI_METHOD(dcn_chatlist_get_summary) {
   return result;
 }
 
-NAPI_METHOD(dcn_chatlist_get_summary2) {
-  NAPI_ARGV(3);
-  NAPI_DCN_CONTEXT();
-  NAPI_ARGV_INT32(chat_id, 1);
-  NAPI_ARGV_INT32(message_id, 2);
-
-  //TRACE("calling..");
-  dc_lot_t* summary = dc_chatlist_get_summary2(dcn_context->dc_context, chat_id, message_id);
-
-  napi_value result;
-  if (summary == NULL) {
-    NAPI_STATUS_THROWS(napi_get_null(env, &result));
-  } else {
-    NAPI_STATUS_THROWS(napi_create_external(env, summary,
-                                            finalize_lot,
-                                            NULL, &result));
-  }
-  //TRACE("done");
-
-  return result;
-}
-
 /**
  * dc_contact_t
  */
@@ -3511,7 +3489,6 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(dcn_chatlist_get_cnt);
   NAPI_EXPORT_FUNCTION(dcn_chatlist_get_msg_id);
   NAPI_EXPORT_FUNCTION(dcn_chatlist_get_summary);
-  NAPI_EXPORT_FUNCTION(dcn_chatlist_get_summary2);
 
   /**
    * dc_contact_t
