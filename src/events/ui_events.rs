@@ -217,7 +217,6 @@ mod test_chatlist_events {
     }
 
     /// Contact name update - expect all chats to update
-
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_contact_name_update() -> Result<()> {
         let mut tcm = TestContextManager::new();
@@ -423,6 +422,25 @@ mod test_chatlist_events {
         bob.evtracker.clear_events();
         chat_id_for_bob.accept(&bob).await?;
         wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
+
+        Ok(())
+    }
+
+    /// Block contact request
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_block_contact_request() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let chat = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "My Group", &[&bob])
+            .await;
+        let sent_msg = alice.send_text(chat, "Hello").await;
+        let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
+
+        bob.evtracker.clear_events();
+        chat_id_for_bob.block(&bob).await?;
+        wait_for_chatlist_order(&bob).await;
 
         Ok(())
     }
