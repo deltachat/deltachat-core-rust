@@ -247,6 +247,14 @@ impl SchedulerState {
         }
     }
 
+    /// Interrupt optional boxes (mvbox, sentbox) loops.
+    pub(crate) async fn interrupt_oboxes(&self) {
+        let inner = self.inner.read().await;
+        if let InnerSchedulerState::Started(ref scheduler) = *inner {
+            scheduler.interrupt_oboxes();
+        }
+    }
+
     pub(crate) async fn interrupt_smtp(&self) {
         let inner = self.inner.read().await;
         if let InnerSchedulerState::Started(ref scheduler) = *inner {
@@ -565,19 +573,28 @@ async fn fetch_idle(
             .context("store_seen_flags_on_imap")?;
     }
 
-    // Fetch the watched folder.
-    connection
-        .fetch_move_delete(ctx, &mut session, &watch_folder, folder_meaning)
-        .await
-        .context("fetch_move_delete")?;
+    if !ctx.should_delete_to_trash().await?
+        || ctx
+            .get_config(Config::ConfiguredTrashFolder)
+            .await?
+            .is_some()
+    {
+        // Fetch the watched folder.
+        connection
+            .fetch_move_delete(ctx, &mut session, &watch_folder, folder_meaning)
+            .await
+            .context("fetch_move_delete")?;
 
-    // Mark expired messages for deletion. Marked messages will be deleted from the server
-    // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
-    // called right before `fetch_move_delete` because it is not well optimized and would
-    // otherwise slow down message fetching.
-    delete_expired_imap_messages(ctx)
-        .await
-        .context("delete_expired_imap_messages")?;
+        // Mark expired messages for deletion. Marked messages will be deleted from the server
+        // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
+        // called right before `fetch_move_delete` because it is not well optimized and would
+        // otherwise slow down message fetching.
+        delete_expired_imap_messages(ctx)
+            .await
+            .context("delete_expired_imap_messages")?;
+    } else if folder_config == Config::ConfiguredInboxFolder {
+        ctx.last_full_folder_scan.lock().await.take();
+    }
 
     // Scan additional folders only after finishing fetching the watched folder.
     //
@@ -909,6 +926,12 @@ impl Scheduler {
 
     fn interrupt_inbox(&self) {
         self.inbox.conn_state.interrupt();
+    }
+
+    fn interrupt_oboxes(&self) {
+        for b in &self.oboxes {
+            b.conn_state.interrupt();
+        }
     }
 
     fn interrupt_smtp(&self) {
