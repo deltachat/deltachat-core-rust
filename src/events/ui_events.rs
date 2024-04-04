@@ -69,6 +69,7 @@ mod test_chatlist_events {
         constants::*,
         contact::Contact,
         message::{self, Message, MessageState},
+        reaction,
         receive_imf::receive_imf,
         securejoin::{get_securejoin_qr, join_securejoin},
         test_utils::{TestContext, TestContextManager},
@@ -587,6 +588,23 @@ First thread."#;
 
         alice.evtracker.clear_events();
         chat::resend_msgs(&alice, &[msg_id]).await?;
+        wait_for_chatlist_specific_item(&alice, chat).await;
+
+        Ok(())
+    }
+
+    /// test that setting a reaction emits chatlistitem update event
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
+        let msg_id = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
+        let _ = alice.pop_sent_msg().await;
+
+        alice.evtracker.clear_events();
+        reaction::send_reaction(&alice, msg_id, "👍").await?;
+        let _ = alice.pop_sent_msg().await;
         wait_for_chatlist_specific_item(&alice, chat).await;
 
         Ok(())
