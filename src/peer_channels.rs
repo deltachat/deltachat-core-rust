@@ -1,7 +1,6 @@
 //! Peer channels for webxdc updates using iroh.
 
 use anyhow::{anyhow, Context as _, Result};
-use iroh_base::base32;
 use iroh_gossip::net::{Gossip, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
@@ -20,7 +19,6 @@ impl Context {
     /// Create magic endpoint and gossip for the context.
     pub async fn create_gossip(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
-        println!("> our secret key: {}", base32::fmt(secret_key.to_bytes()));
 
         if self.endpoint.lock().await.is_some() {
             warn!(
@@ -172,10 +170,10 @@ impl Context {
         msg_id: MsgId,
         status_update: &str,
     ) -> Result<()> {
-        let topic = self.get_topic_for_msg_id(msg_id).await.unwrap();
+        let topic = self.get_topic_for_msg_id(msg_id).await?;
         let message = GossipMessage {
             payload: status_update.to_string(),
-            time: chrono::Utc::now().timestamp() as u64,
+            time: chrono::Utc::now().timestamp_micros() as u64,
         };
         self.gossip
             .lock()
@@ -390,4 +388,3 @@ mod tests {
         }
     }
 }
-
