@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
+use crate::tools::create_id;
 use crate::EventType;
 
 impl Context {
@@ -173,7 +174,7 @@ impl Context {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let message = GossipMessage {
             payload: status_update.to_string(),
-            time: chrono::Utc::now().timestamp_micros() as u64,
+            uid: create_id(),
         };
         self.gossip
             .lock()
@@ -201,7 +202,7 @@ impl Context {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct GossipMessage {
     payload: String,
-    time: u64,
+    uid: String,
 }
 
 pub(crate) fn create_random_topic() -> TopicId {
