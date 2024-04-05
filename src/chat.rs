@@ -2698,7 +2698,9 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
     }
 
     if !prepare_send_msg(context, chat_id, msg).await?.is_empty() {
-        context.emit_msgs_changed(msg.chat_id, msg.id);
+        if !msg.hidden {
+            context.emit_msgs_changed(msg.chat_id, msg.id);
+        }
 
         if msg.param.exists(Param::SetLatitude) {
             context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
