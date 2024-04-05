@@ -1051,55 +1051,52 @@ impl Contact {
             "Can not provide encryption info for special contact"
         );
 
-        let mut ret = String::new();
-        if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-            let loginparam = LoginParam::load_configured_params(context).await?;
-            let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
+        let contact = Contact::get_by_id(context, contact_id).await?;
+        let loginparam = LoginParam::load_configured_params(context).await?;
+        let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
-            if let Some(peerstate) =
-                peerstate.filter(|peerstate| peerstate.peek_key(false).is_some())
-            {
-                let stock_message = match peerstate.prefer_encrypt {
-                    EncryptPreference::Mutual => stock_str::e2e_preferred(context).await,
-                    EncryptPreference::NoPreference => stock_str::e2e_available(context).await,
-                    EncryptPreference::Reset => stock_str::encr_none(context).await,
-                };
+        let Some(peerstate) = peerstate.filter(|peerstate| peerstate.peek_key(false).is_some())
+        else {
+            return Ok(stock_str::encr_none(context).await);
+        };
 
-                let finger_prints = stock_str::finger_prints(context).await;
-                ret += &format!("{stock_message}.\n{finger_prints}:");
+        let stock_message = match peerstate.prefer_encrypt {
+            EncryptPreference::Mutual => stock_str::e2e_preferred(context).await,
+            EncryptPreference::NoPreference => stock_str::e2e_available(context).await,
+            EncryptPreference::Reset => stock_str::encr_none(context).await,
+        };
 
-                let fingerprint_self = load_self_public_key(context)
-                    .await?
-                    .fingerprint()
-                    .to_string();
-                let fingerprint_other_verified = peerstate
-                    .peek_key(true)
-                    .map(|k| k.fingerprint().to_string())
-                    .unwrap_or_default();
-                let fingerprint_other_unverified = peerstate
-                    .peek_key(false)
-                    .map(|k| k.fingerprint().to_string())
-                    .unwrap_or_default();
-                if loginparam.addr < peerstate.addr {
-                    cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
-                    cat_fingerprint(
-                        &mut ret,
-                        &peerstate.addr,
-                        &fingerprint_other_verified,
-                        &fingerprint_other_unverified,
-                    );
-                } else {
-                    cat_fingerprint(
-                        &mut ret,
-                        &peerstate.addr,
-                        &fingerprint_other_verified,
-                        &fingerprint_other_unverified,
-                    );
-                    cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
-                }
-            } else {
-                ret += &stock_str::encr_none(context).await;
-            }
+        let finger_prints = stock_str::finger_prints(context).await;
+        let mut ret = format!("{stock_message}.\n{finger_prints}:");
+
+        let fingerprint_self = load_self_public_key(context)
+            .await?
+            .fingerprint()
+            .to_string();
+        let fingerprint_other_verified = peerstate
+            .peek_key(true)
+            .map(|k| k.fingerprint().to_string())
+            .unwrap_or_default();
+        let fingerprint_other_unverified = peerstate
+            .peek_key(false)
+            .map(|k| k.fingerprint().to_string())
+            .unwrap_or_default();
+        if loginparam.addr < peerstate.addr {
+            cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
+            cat_fingerprint(
+                &mut ret,
+                &peerstate.addr,
+                &fingerprint_other_verified,
+                &fingerprint_other_unverified,
+            );
+        } else {
+            cat_fingerprint(
+                &mut ret,
+                &peerstate.addr,
+                &fingerprint_other_verified,
+                &fingerprint_other_unverified,
+            );
+            cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
         }
 
         Ok(ret)
