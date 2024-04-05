@@ -76,6 +76,12 @@ class Account:
         """Get self avatar."""
         return self.get_config("selfavatar")
 
+    def check_qr(self, qr):
+        return self._rpc.check_qr(self.id, qr)
+
+    def set_config_from_qr(self, qr: str):
+        self._rpc.set_config_from_qr(self.id, qr)
+
     @futuremethod
     def configure(self):
         """Configure an account."""
