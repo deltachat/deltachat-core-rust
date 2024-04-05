@@ -1,7 +1,7 @@
 import logging
 
 import pytest
-from deltachat_rpc_client import Chat, SpecialContactId
+from deltachat_rpc_client import Chat, EventType, SpecialContactId
 
 
 def test_qr_setup_contact(acfactory, tmp_path) -> None:
@@ -579,3 +579,40 @@ def test_securejoin_after_contact_resetup(acfactory) -> None:
 
     # ac1 is still "not verified" for ac2 due to inconsistent state.
     assert not ac2_contact_ac1.get_snapshot().is_verified
+
+
+def test_withdraw_securejoin_qr(acfactory):
+    alice, bob = acfactory.get_online_accounts(2)
+
+    logging.info("Alice creates a verified group")
+    alice_chat = alice.create_group("Verified group", protect=True)
+    assert alice_chat.get_basic_snapshot().is_protected
+    logging.info("Bob joins verified group")
+
+    qr_code, _svg = alice_chat.get_qr_code()
+    bob_chat = bob.secure_join(qr_code)
+    bob.wait_for_securejoin_joiner_success()
+
+    snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Member Me ({}) added by {}.".format(bob.get_config("addr"), alice.get_config("addr"))
+    assert snapshot.chat.get_basic_snapshot().is_protected
+    bob_chat.leave()
+
+    snapshot = alice.get_message_by_id(alice.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Group left by {}.".format(bob.get_config("addr"))
+
+    logging.info("Alice withdraws QR code.")
+    qr = alice.check_qr(qr_code)
+    assert qr["kind"] == "withdrawVerifyGroup"
+    alice.set_config_from_qr(qr_code)
+
+    logging.info("Bob scans withdrawn QR code.")
+    bob_chat = bob.secure_join(qr_code)
+
+    logging.info("Bob scanned withdrawn QR code")
+    while True:
+        event = alice.wait_for_event()
+        if event.kind == EventType.MSGS_CHANGED and event.chat_id != 0:
+            break
+    snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
+    assert snapshot.text == "Cannot establish guaranteed end-to-end encryption with {}".format(bob.get_config("addr"))
