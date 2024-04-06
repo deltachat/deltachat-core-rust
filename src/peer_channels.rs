@@ -21,7 +21,7 @@ impl Context {
     pub async fn create_gossip(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
 
-        if self.endpoint.lock().await.is_some() {
+        if self.gossip.lock().await.is_some() {
             warn!(
                 self,
                 "Tried to create endpoint even though there is already one."
@@ -45,19 +45,19 @@ impl Context {
         let context = self.clone();
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
 
-        *self.gossip.lock().await = Some(gossip);
+        *self.gossip.lock().await = Some(gossip.clone());
         *self.endpoint.lock().await = Some(endpoint);
         Ok(())
     }
 
     /// Join a topic and create the subscriber loop for it.
+    /// If there is no gossip, create it.
     pub async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<()> {
-        let Some(ref gossip) = *self.gossip.lock().await else {
-            warn!(
-                self,
-                "Not joining topic {msg_id} because there is no gossip."
-            );
-            return Ok(());
+        let gossip = if let Some(ref gossip) = *self.gossip.lock().await {
+            gossip.clone()
+        } else {
+            self.create_gossip().await?;
+            todo!()
         };
 
         let peers = self.get_gossip_peers(msg_id).await?;
@@ -67,6 +67,7 @@ impl Context {
 
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let connect_future = gossip.join(topic, peers).await?;
+        self.channels.lock().await.insert(topic);
 
         tokio::spawn(connect_future);
         tokio::spawn(subscribe_loop(self.clone(), gossip.clone(), topic, msg_id));
@@ -132,6 +133,7 @@ impl Context {
 
     /// Get the iroh gossip secret key from the database or generate a new one and persist it.
     pub async fn get_or_generate_iroh_keypair(&self) -> Result<SecretKey> {
+        // Replacing this with `todo!()` fixes the circle problem
         match self.get_config_parsed(Config::IrohSecretKey).await? {
             Some(key) => Ok(key),
             None => {
@@ -144,9 +146,14 @@ impl Context {
     }
 
     /// Get own iroh gossip public key.
-    /// TODO: cache?
     pub async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
-        self.endpoint.lock().await.as_ref().unwrap().my_addr().await
+        self.endpoint
+            .lock()
+            .await
+            .as_ref()
+            .context("no Gossip")?
+            .my_addr()
+            .await
     }
 
     /// Get the topic for given [MsgId].
@@ -154,7 +161,7 @@ impl Context {
         let bytes = self
             .sql
             .query_row(
-                "SELECT topic FROM iroh_gossip_peers WHERE msg_id = ? AND public_key = ?",
+                "SELECT topic FROM iroh_gossip_peers WHERE msg_id = ? LIMIT 1",
                 (msg_id, self.get_iroh_node_addr().await?.node_id.as_bytes()),
                 |row| {
                     let data = row.get::<_, Vec<u8>>(0)?;
@@ -172,21 +179,44 @@ impl Context {
         status_update: &str,
     ) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let message = GossipMessage {
-            payload: status_update.to_string(),
-            uid: create_id(),
-        };
-        self.gossip
-            .lock()
-            .await
-            .as_ref()
-            .context("No gossip")?
-            .broadcast(topic, serde_json::to_vec(&message)?.into())
-            .await?;
+
+        match self.channels.lock().await.get(&topic) {
+            Some(_) => {
+                let message = GossipMessage {
+                    payload: status_update.to_string(),
+                    uid: create_id(),
+                };
+
+                self.gossip
+                    .lock()
+                    .await
+                    .as_ref()
+                    .context("No gossip")?
+                    .broadcast(topic, serde_json::to_vec(&message)?.into())
+                    .await?
+            }
+            None => {
+                self.send_gossip_advertisement(msg_id).await?;
+
+                let message = GossipMessage {
+                    payload: status_update.to_string(),
+                    uid: create_id(),
+                };
+
+                self.gossip
+                    .lock()
+                    .await
+                    .as_ref()
+                    .context("No gossip")?
+                    .broadcast(topic, serde_json::to_vec(&message)?.into())
+                    .await?;
+            }
+        }
         Ok(())
     }
 
     /// Send a gossip advertisement to the chat of a given [MsgId].
+    /// Automatically join the gossip for the [MsgId] if not already done.
     pub async fn send_gossip_advertisement(&self, msg_id: MsgId) -> Result<()> {
         self.join_and_subscribe_gossip(msg_id).await?;
         let mut msg = Message::new(Viewtype::Text);

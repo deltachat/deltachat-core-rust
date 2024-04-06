@@ -1566,6 +1566,10 @@ RETURNING id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::GossipTopic) {
                 let topic = TopicId::from_str(topic).unwrap();
+                let need_things = context.endpoint.lock().await.as_ref().is_none();
+                if  need_things {
+                    context.create_gossip().await?;
+                }
                 let peer = context.get_iroh_node_addr().await?.node_id;
                 context.add_peer_for_topic(*msg_id, topic, peer).await?;
             } else {

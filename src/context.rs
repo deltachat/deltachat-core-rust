@@ -1,6 +1,6 @@
 //! Context module.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::OsString;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
+use iroh_gossip::proto::TopicId;
 use pgp::SignedPublicKey;
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, Notify, RwLock};
@@ -295,6 +296,9 @@ pub struct InnerContext {
 
     /// [Gossip] needed for iroh peer channels.
     pub(crate) gossip: Mutex<Option<Gossip>>,
+
+    /// Open channels
+    pub(crate) channels: Mutex<HashSet<TopicId>>,
 }
 
 /// The state of ongoing process.
@@ -454,6 +458,7 @@ impl Context {
             push_subscribed: AtomicBool::new(false),
             endpoint: Mutex::new(None),
             gossip: Mutex::new(None),
+            channels: Mutex::new(HashSet::new()),
         };
 
         let ctx = Context {
@@ -482,10 +487,6 @@ impl Context {
                 // Allow at least 1 message every second + a burst of 3.
                 *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
             }
-        }
-
-        if let Err(e) = self.create_gossip().await {
-            warn!(self, "{e}");
         }
 
         self.scheduler.start(self.clone()).await;
