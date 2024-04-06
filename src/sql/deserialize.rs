@@ -772,13 +772,11 @@ VALUES (:folder,
 INSERT INTO
 keypairs (id,
           addr,
-          is_default,
           private_key,
           public_key,
           created)
 VALUES (:id,
         :addr,
-        :is_default,
         :private_key,
         :public_key,
         :created)",
@@ -796,9 +794,6 @@ VALUES (:id,
             self.expect_key("id").await?;
             let id = self.expect_u32().await?;
 
-            self.expect_key("is_default").await?;
-            let is_default = self.expect_bool().await?;
-
             self.expect_key("private_key").await?;
             let private_key = self.expect_blob().await?;
 
@@ -810,7 +805,6 @@ VALUES (:id,
             stmt.execute(named_params! {
                 ":id": id,
                 ":addr": addr,
-                ":is_default": is_default,
                 ":private_key": private_key,
                 ":public_key": public_key,
                 ":created": created,

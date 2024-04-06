@@ -469,15 +469,13 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
     async fn serialize_keypairs(&mut self) -> Result<()> {
         let mut stmt = self
             .tx
-            .prepare("SELECT id,addr,is_default,private_key,public_key,created FROM keypairs")?;
+            .prepare("SELECT id,addr,private_key,public_key,created FROM keypairs")?;
         let mut rows = stmt.query(())?;
 
         self.w.write_all(b"l").await?;
         while let Some(row) = rows.next()? {
             let id: u32 = row.get("id")?;
             let addr: String = row.get("addr")?;
-            let is_default: u32 = row.get("is_default")?;
-            let is_default = is_default != 0;
             let private_key: Vec<u8> = row.get("private_key")?;
             let public_key: Vec<u8> = row.get("public_key")?;
             let created: i64 = row.get("created")?;
@@ -492,9 +490,6 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
 
             write_str(&mut self.w, "id").await?;
             write_u32(&mut self.w, id).await?;
-
-            write_str(&mut self.w, "is_default").await?;
-            write_bool(&mut self.w, is_default).await?;
 
             write_str(&mut self.w, "private_key").await?;
             write_bytes(&mut self.w, &private_key).await?;
