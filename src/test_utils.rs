@@ -1100,7 +1100,10 @@ fn print_event(event: &Event) {
                 "Received MSGS_CHANGED(chat_id={chat_id}, msg_id={msg_id})",
             ))
         ),
-        EventType::ContactsChanged(_) => format!("{}", green.paint("Received CONTACTS_CHANGED()")),
+        EventType::ContactsChanged(contact) => format!(
+            "{}",
+            green.paint(format!("Received CONTACTS_CHANGED(contact={contact:?})"))
+        ),
         EventType::LocationChanged(contact) => format!(
             "{}",
             green.paint(format!("Received LOCATION_CHANGED(contact={contact:?})"))
