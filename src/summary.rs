@@ -59,7 +59,7 @@ pub struct Summary {
 impl Summary {
     /// Constructs chatlist summary
     /// from the provided message, chat and message author contact snapshots.
-    pub async fn new(
+    pub async fn new_with_reaction_details(
         context: &Context,
         msg: &Message,
         chat: &Chat,
@@ -81,7 +81,17 @@ impl Summary {
                 thumbnail_path: None,
             });
         }
+        Self::new(context, msg, chat, contact).await
+    }
 
+    /// Constructs search result summary
+    /// from the provided message, chat and message author contact snapshots.
+    pub async fn new(
+        context: &Context,
+        msg: &Message,
+        chat: &Chat,
+        contact: Option<&Contact>,
+    ) -> Result<Summary> {
         let prefix = if msg.state == MessageState::OutDraft {
             Some(SummaryPrefix::Draft(stock_str::draft(context).await))
         } else if msg.from_id == ContactId::SELF {
