@@ -1074,9 +1074,11 @@ VALUES (:id,
 INSERT INTO
 msgs_status_updates (id,
                      msg_id,
+                     uid,
                      update_item)
 VALUES (:id,
         :msg_id,
+        :uid
         :update_item)",
         )?;
 
@@ -1089,6 +1091,9 @@ VALUES (:id,
             self.expect_key("msg_id").await?;
             let msg_id = self.expect_i64().await?;
 
+            self.expect_key("uid").await?;
+            let uid = self.expect_string().await?;
+
             self.expect_key("update_item").await?;
             let update_item = self.expect_u32().await?;
 
@@ -1097,6 +1102,7 @@ VALUES (:id,
             stmt.execute(named_params! {
                 ":id": id,
                 ":msg_id": msg_id,
+                ":uid": uid,
                 ":update_item": update_item,
             })?;
         }

@@ -726,13 +726,14 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
     async fn serialize_msgs_status_updates(&mut self) -> Result<()> {
         let mut stmt = self
             .tx
-            .prepare("SELECT id, msg_id, update_item FROM msgs_status_updates")?;
+            .prepare("SELECT id, msg_id, uid, update_item FROM msgs_status_updates")?;
         let mut rows = stmt.query(())?;
 
         self.w.write_all(b"l").await?;
         while let Some(row) = rows.next()? {
             let id: i64 = row.get("id")?;
             let msg_id: i64 = row.get("msg_id")?;
+            let uid: String = row.get("uid")?;
             let update_item: String = row.get("update_item")?;
 
             self.w.write_all(b"d").await?;
@@ -742,6 +743,9 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
 
             write_str(&mut self.w, "msg_id").await?;
             write_i64(&mut self.w, msg_id).await?;
+
+            write_str(&mut self.w, "uid").await?;
+            write_str(&mut self.w, &uid).await?;
 
             write_str(&mut self.w, "update_item").await?;
             write_str(&mut self.w, &update_item).await?;
