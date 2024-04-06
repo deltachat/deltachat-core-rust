@@ -924,7 +924,7 @@ impl Scheduler {
     }
 
     fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
-        self.recently_seen_loop.interrupt(contact_id, timestamp);
+        self.recently_seen_loop.try_interrupt(contact_id, timestamp);
     }
 
     /// Halt the scheduler.
