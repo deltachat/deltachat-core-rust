@@ -326,12 +326,14 @@ impl<R: AsyncRead + Unpin> Decoder<R> {
             "
 INSERT INTO
 acpeerstates (addr,
+              backward_verified_key_id,
               gossip_key, gossip_key_fingerprint, gossip_timestamp,
               last_seen, last_seen_autocrypt,
               prefer_encrypted,
               public_key, public_key_fingerprint,
               verified_key, verified_key_fingerprint)
 VALUES       (:addr,
+              :backward_verified_key_id
               :gossip_key, :gossip_key_fingerprint, :gossip_timestamp,
               :last_seen, :last_seen_autocrypt,
               :prefer_encrypted,
@@ -343,6 +345,13 @@ VALUES       (:addr,
         while self.expect_dictionary_opt().await? {
             self.expect_key("addr").await?;
             let addr = self.expect_string().await?;
+
+            let backward_verified_key_id =
+                if self.expect_key_opt("backward_verified_key_id").await? {
+                    Some(self.expect_i64().await?)
+                } else {
+                    None
+                };
 
             let gossip_key = if self.expect_key_opt("gossip_key").await? {
                 Some(self.expect_blob().await?)
@@ -397,6 +406,7 @@ VALUES       (:addr,
 
             stmt.execute(named_params! {
             ":addr": addr,
+            ":backward_verified_key_id": backward_verified_key_id,
             ":gossip_key": gossip_key,
             ":gossip_key_fingerprint": gossip_key_fingerprint,
             ":gossip_timestamp": gossip_timestamp,

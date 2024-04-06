@@ -93,12 +93,13 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
     }
 
     async fn serialize_acpeerstates(&mut self) -> Result<()> {
-        let mut stmt = self.tx.prepare("SELECT addr, last_seen, last_seen_autocrypt, public_key, prefer_encrypted, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates")?;
+        let mut stmt = self.tx.prepare("SELECT addr, backward_verified_key_id, last_seen, last_seen_autocrypt, public_key, prefer_encrypted, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates")?;
         let mut rows = stmt.query(())?;
 
         self.w.write_all(b"l").await?;
         while let Some(row) = rows.next()? {
             let addr: String = row.get("addr")?;
+            let backward_verified_key_id: Option<i64> = row.get("backward_verified_key_id")?;
             let prefer_encrypted: i64 = row.get("prefer_encrypted")?;
 
             let last_seen: i64 = row.get("last_seen")?;
@@ -118,6 +119,11 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
 
             write_str(&mut self.w, "addr").await?;
             write_str(&mut self.w, &addr).await?;
+
+            if let Some(backward_verified_key_id) = backward_verified_key_id {
+                write_str(&mut self.w, "backward_verified_key_id").await?;
+                write_i64(&mut self.w, backward_verified_key_id).await?;
+            }
 
             if let Some(gossip_key) = gossip_key {
                 write_str(&mut self.w, "gossip_key").await?;
