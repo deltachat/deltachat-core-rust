@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
@@ -62,14 +63,14 @@ use crate::api::types::qr::QrObject;
 struct AccountState {
     /// The Qr code for current [`CommandApi::provide_backup`] call.
     ///
-    /// If there currently is a call to [`CommandApi::provide_backup`] this will be
-    /// `Pending` or `Ready`, otherwise `NoProvider`.
-    backup_provider_qr: watch::Sender<ProviderQr>,
+    /// If there is currently is a call to [`CommandApi::provide_backup`] this will be
+    /// `Some`, otherwise `None`.
+    backup_provider_qr: watch::Sender<Option<Qr>>,
 }
 
 impl Default for AccountState {
     fn default() -> Self {
-        let (tx, _rx) = watch::channel(ProviderQr::NoProvider);
+        let tx = watch::Sender::new(None);
         Self {
             backup_provider_qr: tx,
         }
@@ -123,21 +124,13 @@ impl CommandApi {
             .with_state(account_id, |state| state.backup_provider_qr.subscribe())
             .await;
 
-        let val: ProviderQr = receiver.borrow_and_update().clone();
-        match val {
-            ProviderQr::NoProvider => bail!("No backup being provided"),
-            ProviderQr::Pending => loop {
-                if receiver.changed().await.is_err() {
-                    bail!("No backup being provided (account state dropped)");
-                }
-                let val: ProviderQr = receiver.borrow().clone();
-                match val {
-                    ProviderQr::NoProvider => bail!("No backup being provided"),
-                    ProviderQr::Pending => continue,
-                    ProviderQr::Ready(qr) => break Ok(qr),
-                };
-            },
-            ProviderQr::Ready(qr) => Ok(qr),
+        loop {
+            if let Some(qr) = receiver.borrow_and_update().clone() {
+                return Ok(qr);
+            }
+            if receiver.changed().await.is_err() {
+                bail!("No backup being provided (account state dropped)");
+            }
         }
     }
 }
@@ -1569,20 +1562,21 @@ impl CommandApi {
     /// Returns once a remote device has retrieved the backup, or is cancelled.
     async fn provide_backup(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        self.with_state(account_id, |state| {
-            state.backup_provider_qr.send_replace(ProviderQr::Pending);
-        })
-        .await;
 
         let provider = imex::BackupProvider::prepare(&ctx).await?;
         self.with_state(account_id, |state| {
-            state
-                .backup_provider_qr
-                .send_replace(ProviderQr::Ready(provider.qr()));
+            state.backup_provider_qr.send_replace(Some(provider.qr()));
         })
         .await;
 
-        provider.await
+        let res = provider.await;
+
+        self.with_state(account_id, |state| {
+            state.backup_provider_qr.send_replace(None);
+        })
+        .await;
+
+        res
     }
 
     /// Returns the text of the QR code for the running [`CommandApi::provide_backup`].
@@ -1590,11 +1584,17 @@ impl CommandApi {
     /// This QR code text can be used in [`CommandApi::get_backup`] on a second device to
     /// retrieve the backup and setup this second device.
     ///
-    /// This call will fail if there is currently no concurrent call to
-    /// [`CommandApi::provide_backup`].  This call may block if the QR code is not yet
-    /// ready.
+    /// This call will block until the QR code is ready,
+    /// even if there is no concurrent call to [`CommandApi::provide_backup`],
+    /// but will fail after 10 seconds to avoid deadlocks.
     async fn get_backup_qr(&self, account_id: u32) -> Result<String> {
-        let qr = self.inner_get_backup_qr(account_id).await?;
+        let qr = tokio::time::timeout(
+            Duration::from_secs(10),
+            self.inner_get_backup_qr(account_id),
+        )
+        .await
+        .context("Backup provider did not start in time")?
+        .context("Failed to get backup QR code")?;
         qr::format_backup(&qr)
     }
 
@@ -1603,14 +1603,20 @@ impl CommandApi {
     /// This QR code can be used in [`CommandApi::get_backup`] on a second device to
     /// retrieve the backup and setup this second device.
     ///
-    /// This call will fail if there is currently no concurrent call to
-    /// [`CommandApi::provide_backup`].  This call may block if the QR code is not yet
-    /// ready.
+    /// This call will block until the QR code is ready,
+    /// even if there is no concurrent call to [`CommandApi::provide_backup`],
+    /// but will fail after 10 seconds to avoid deadlocks.
     ///
     /// Returns the QR code rendered as an SVG image.
     async fn get_backup_qr_svg(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        let qr = self.inner_get_backup_qr(account_id).await?;
+        let qr = tokio::time::timeout(
+            Duration::from_secs(10),
+            self.inner_get_backup_qr(account_id),
+        )
+        .await
+        .context("Backup provider did not start in time")?
+        .context("Failed to get backup QR code")?;
         generate_backup_qr(&ctx, &qr).await
     }
 
@@ -2140,16 +2146,4 @@ async fn get_config(
         ctx.get_config(Config::from_str(key).with_context(|| format!("unknown key {key:?}"))?)
             .await
     }
-}
-
-/// Whether a QR code for a BackupProvider is currently available.
-#[allow(clippy::large_enum_variant)]
-#[derive(Clone, Debug)]
-enum ProviderQr {
-    /// There is no provider, asking for a QR is an error.
-    NoProvider,
-    /// There is a provider, the QR code is pending.
-    Pending,
-    /// There is a provider and QR code.
-    Ready(Qr),
 }
