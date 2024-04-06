@@ -945,6 +945,7 @@ msgs (id,
       timestamp_sent,
       timestamp_rcvd,
       hidden,
+      mime_compressed,
       mime_headers,
       mime_in_reply_to,
       mime_references,
@@ -964,6 +965,7 @@ VALUES (:id,
         :timestamp_sent,
         :timestamp_rcvd,
         :hidden,
+        :mime_compressed
         :mime_headers,
         :mime_in_reply_to,
         :mime_references,
@@ -990,6 +992,9 @@ VALUES (:id,
 
             self.expect_key("location_id").await?;
             let location_id = self.expect_i64().await?;
+
+            self.expect_key("mime_compressed").await?;
+            let mime_compressed = self.expect_i64().await?;
 
             self.expect_key("mime_headers").await?;
             let mime_headers = self.expect_blob().await?;
@@ -1058,6 +1063,7 @@ VALUES (:id,
                 ":timestamp_sent": timestamp_sent,
                 ":timestamp_rcvd": timestamp_rcvd,
                 ":hidden": hidden,
+                ":mime_compressed": mime_compressed,
                 ":mime_headers": mime_headers,
                 ":mime_in_reply_to": mime_in_reply_to,
                 ":mime_references": mime_references,

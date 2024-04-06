@@ -614,6 +614,7 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
                         timestamp_sent,
                         timestamp_rcvd,
                         hidden,
+                        mime_compressed,
                         mime_headers,
                         mime_in_reply_to,
                         mime_references,
@@ -639,6 +640,7 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
             let timestamp_sent: i64 = row.get("timestamp_sent")?;
             let timestamp_rcvd: i64 = row.get("timestamp_rcvd")?;
             let hidden: i64 = row.get("hidden")?;
+            let mime_compressed: i64 = row.get("mime_compressed")?;
             let mime_headers: Vec<u8> =
                 row.get("mime_headers")
                     .or_else(|err| match row.get_ref("mime_headers")? {
@@ -670,6 +672,9 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
 
             write_str(&mut self.w, "location_id").await?;
             write_i64(&mut self.w, location_id).await?;
+
+            write_str(&mut self.w, "mime_compressed").await?;
+            write_i64(&mut self.w, mime_compressed).await?;
 
             write_str(&mut self.w, "mime_headers").await?;
             write_bytes(&mut self.w, &mime_headers).await?;
