@@ -44,7 +44,7 @@ async-native-tls = { version = "0.5", default-features = false, features = ["run
 async-smtp = { version = "0.9", default-features = false, features = ["runtime-tokio"] }
 async_zip = { version = "0.0.12", default-features = false, features = ["deflate", "fs"] }
 backtrace = "0.3"
-base64 = "0.21"
+base64 = "0.22"
 brotli = { version = "4", default-features=false, features = ["std"] }
 chrono = { version = "0.4", default-features=false, features = ["clock", "std"] }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
