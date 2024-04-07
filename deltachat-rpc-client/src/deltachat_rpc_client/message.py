@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
 
 from ._utils import AttrDict
+from .const import EventType
 from .contact import Contact
 
 if TYPE_CHECKING:
@@ -61,3 +62,10 @@ class Message:
 
     def get_webxdc_info(self) -> dict:
         return self._rpc.get_webxdc_info(self.account.id, self.id)
+
+    def wait_until_delivered(self) -> None:
+        """Consume events until the message is delivered."""
+        while True:
+            event = self.account.wait_for_event()
+            if event.kind == EventType.MSG_DELIVERED and event.msg_id == self.id:
+                break
