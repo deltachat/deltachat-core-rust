@@ -22,9 +22,10 @@ class Message:
     def _rpc(self) -> "Rpc":
         return self.account._rpc
 
-    def send_reaction(self, *reaction: str):
+    def send_reaction(self, *reaction: str) -> "Message":
         """Send a reaction to this message."""
-        self._rpc.send_reaction(self.account.id, self.id, reaction)
+        msg_id = self._rpc.send_reaction(self.account.id, self.id, reaction)
+        return Message(self.account, msg_id)
 
     def get_snapshot(self) -> AttrDict:
         """Get a snapshot with the properties of this message."""
