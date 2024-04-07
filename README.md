@@ -192,6 +192,7 @@ or its language bindings:
 - [Desktop](https://github.com/deltachat/deltachat-desktop)
 - [Pidgin](https://code.ur.gs/lupine/purple-plugin-delta/)
 - [Telepathy](https://code.ur.gs/lupine/telepathy-padfoot/)
+- [Ubuntu Touch](https://codeberg.org/lk108/deltatouch)
 - several **Bots**
 
 [^1]: Out of date / unmaintained, if you like those languages feel free to start maintaining them. If you have questions we'll help you, please ask in the issues.
