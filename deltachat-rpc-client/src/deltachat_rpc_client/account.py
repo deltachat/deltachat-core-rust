@@ -104,6 +104,11 @@ class Account:
             obj = obj.get_snapshot().address
         return Contact(self, self._rpc.create_contact(self.id, obj, name))
 
+    def create_chat(self, account: "Account") -> Chat:
+        addr = account.get_config("addr")
+        contact = self.create_contact(addr)
+        return contact.create_chat()
+
     def get_contact_by_id(self, contact_id: int) -> Contact:
         """Return Contact instance for the given contact ID."""
         return Contact(self, contact_id)
