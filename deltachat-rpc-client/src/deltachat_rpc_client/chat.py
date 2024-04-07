@@ -142,6 +142,10 @@ class Chat:
         msg_id = self._rpc.misc_send_text_message(self.account.id, self.id, text)
         return Message(self.account, msg_id)
 
+    def send_file(self, path):
+        """Send a file and return the resulting Message instance."""
+        return self.send_message(file=path)
+
     def send_videochat_invitation(self) -> Message:
         """Send a videochat invitation and return the resulting Message instance."""
         msg_id = self._rpc.send_videochat_invitation(self.account.id, self.id)
