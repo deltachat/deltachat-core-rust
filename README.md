@@ -6,6 +6,9 @@
   <a href="https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml">
     <img alt="Rust CI" src="https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml/badge.svg">
   </a>
+  <a href="https://deps.rs/repo/github/deltachat/deltachat-core-rust">
+    <img alt="dependency status" src="https://deps.rs/repo/github/deltachat/deltachat-core-rust/status.svg">
+  </a>
 </p>
 
 <p align="center">
