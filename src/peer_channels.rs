@@ -38,6 +38,7 @@ impl Context {
                 self.blobdir
                     .parent()
                     .context("Can't get parent of blob dir")?
+                    .join("iroh_gossip_peers")
                     .to_path_buf(),
             )
             .relay_mode(RelayMode::Default)
