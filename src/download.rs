@@ -13,7 +13,7 @@ use crate::imap::session::Session;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
 use crate::tools::time;
-use crate::{stock_str, ui_events, EventType};
+use crate::{stock_str, chatlist_events, EventType};
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
 ///
@@ -115,7 +115,7 @@ impl MsgId {
             chat_id: msg.chat_id,
             msg_id: self,
         });
-        ui_events::emit_chatlist_item_changed(context, msg.chat_id);
+        chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
         Ok(())
     }
 }

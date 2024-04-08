@@ -14,7 +14,7 @@ use crate::events::EventType;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::tools::{duration_to_str, time};
-use crate::{stock_str, ui_events};
+use crate::{stock_str, chatlist_events};
 
 /// Location record.
 #[derive(Debug, Clone, Default)]
@@ -290,7 +290,7 @@ pub async fn send_locations_to_chat(
         chat::add_info_msg(context, chat_id, &stock_str, now).await?;
     }
     context.emit_event(EventType::ChatModified(chat_id));
-    ui_events::emit_chatlist_item_changed(context, chat_id);
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
     if 0 != seconds {
         context.scheduler.interrupt_location().await;
     }
@@ -803,7 +803,7 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
             let stock_str = stock_str::msg_location_disabled(context).await;
             chat::add_info_msg(context, chat_id, &stock_str, now).await?;
             context.emit_event(EventType::ChatModified(chat_id));
-            ui_events::emit_chatlist_item_changed(context, chat_id);
+            chatlist_events::emit_chatlist_item_changed(context, chat_id);
         }
     }
 

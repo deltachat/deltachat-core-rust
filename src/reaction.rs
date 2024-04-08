@@ -26,7 +26,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::message::{rfc724_mid_exists, Message, MsgId, Viewtype};
 use crate::param::Param;
-use crate::ui_events;
+use crate::chatlist_events;
 
 /// A single reaction consisting of multiple emoji sequences.
 ///
@@ -215,7 +215,7 @@ async fn set_msg_id_reaction(
         msg_id,
         contact_id,
     });
-    ui_events::emit_chatlist_item_changed(context, chat_id);
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
     Ok(())
 }
 

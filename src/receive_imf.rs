@@ -40,7 +40,7 @@ use crate::tools::{
     self, buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters, validate_id,
 };
 use crate::{contact, imap};
-use crate::{location, ui_events};
+use crate::{location, chatlist_events};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
@@ -1859,8 +1859,8 @@ async fn create_or_lookup_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
         context.emit_event(EventType::ChatModified(new_chat_id));
-        ui_events::emit_chatlist_changed(context);
-        ui_events::emit_chatlist_item_changed(context, new_chat_id);
+        chatlist_events::emit_chatlist_changed(context);
+        chatlist_events::emit_chatlist_item_changed(context, new_chat_id);
     }
 
     if let Some(chat_id) = chat_id {
@@ -2174,7 +2174,7 @@ async fn apply_group_changes(
 
     if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
-        ui_events::emit_chatlist_item_changed(context, chat_id);
+        chatlist_events::emit_chatlist_item_changed(context, chat_id);
     }
     Ok((group_changes_msgs, better_msg))
 }
@@ -2477,8 +2477,8 @@ async fn create_adhoc_group(
     chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));
-    ui_events::emit_chatlist_changed(context);
-    ui_events::emit_chatlist_item_changed(context, new_chat_id);
+    chatlist_events::emit_chatlist_changed(context);
+    chatlist_events::emit_chatlist_item_changed(context, new_chat_id);
 
     Ok(Some(new_chat_id))
 }
