@@ -13,7 +13,7 @@ use regex::Regex;
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
+use crate::constants::{self, Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
     addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin,
 };
@@ -1080,6 +1080,12 @@ async fn add_parts(
                     chat_id_blocked = chat.blocked;
                 }
             }
+            if chat_id.is_none() && is_dc_message == MessengerMessage::Yes {
+                if let Some(chat) = ChatIdBlocked::lookup_by_contact(context, to_id).await? {
+                    chat_id = Some(chat.id);
+                    chat_id_blocked = chat.blocked;
+                }
+            }
 
             // automatically unblock chat when the user sends a message
             if chat_id_blocked != Blocked::Not {
@@ -1766,11 +1772,6 @@ async fn is_probably_private_reply(
         }
     }
 
-    let is_reaction = mime_parser.parts.iter().any(|part| part.is_reaction);
-    if is_reaction {
-        return Ok(false);
-    }
-
     Ok(true)
 }
 
@@ -1962,18 +1963,24 @@ async fn apply_group_changes(
         HashSet::<ContactId>::from_iter(chat::get_chat_contacts(context, chat_id).await?);
     let is_from_in_chat =
         !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
-
     // Reject group membership changes from non-members and old changes.
-    let allow_member_list_changes = !is_partial_download
-        && is_from_in_chat
-        && chat_id
-            .update_timestamp(
-                context,
-                Param::MemberListTimestamp,
-                mime_parser.timestamp_sent,
-            )
-            .await?;
-
+    let member_list_ts = match !is_partial_download && is_from_in_chat {
+        true => Some(chat_id.get_member_list_timestamp(context).await?),
+        false => None,
+    };
+    // When we remove a member locally, we shift `MemberListTimestamp` by `TIMESTAMP_SENT_TOLERANCE`
+    // into the future, so add some more tolerance here to allow remote membership changes as well.
+    let timestamp_sent_tolerance = constants::TIMESTAMP_SENT_TOLERANCE * 2;
+    let allow_member_list_changes = member_list_ts
+        .filter(|t| {
+            *t <= mime_parser
+                .timestamp_sent
+                .saturating_add(timestamp_sent_tolerance)
+        })
+        .is_some();
+    let sync_member_list = member_list_ts
+        .filter(|t| *t <= mime_parser.timestamp_sent)
+        .is_some();
     // Whether to rebuild the member list from scratch.
     let recreate_member_list = {
         // Always recreate membership list if SELF has been added. The older versions of DC
@@ -1988,15 +1995,16 @@ async fn apply_group_changes(
                     .is_none(),
                 None => false,
             }
-    } && {
-        if !allow_member_list_changes {
+    } && (
+        // Don't allow the timestamp tolerance here for more reliable leaving of groups.
+        sync_member_list || {
             info!(
                 context,
                 "Ignoring a try to recreate member list of {chat_id} by {from_id}.",
             );
+            false
         }
-        allow_member_list_changes
-    };
+    );
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let VerifiedEncryption::NotVerified(err) = verified_encryption {
@@ -2109,6 +2117,13 @@ async fn apply_group_changes(
         }
 
         if !recreate_member_list {
+            let mut diff = HashSet::<ContactId>::new();
+            if sync_member_list {
+                diff = new_members.difference(&chat_contacts).copied().collect();
+            } else if let Some(added_id) = added_id {
+                diff.insert(added_id);
+            }
+            new_members = chat_contacts.clone();
             // Don't delete any members locally, but instead add absent ones to provide group
             // membership consistency for all members:
             // - Classical MUA users usually don't intend to remove users from an email thread, so
@@ -2120,9 +2135,6 @@ async fn apply_group_changes(
             // will likely recreate the member list from the next received message. The problem
             // occurs only if that "somebody" managed to reply earlier. Really, it's a problem for
             // big groups with high message rate, but let it be for now.
-            let mut diff: HashSet<ContactId> =
-                new_members.difference(&chat_contacts).copied().collect();
-            new_members = chat_contacts.clone();
             new_members.extend(diff.clone());
             if let Some(added_id) = added_id {
                 diff.remove(&added_id);
@@ -2157,6 +2169,17 @@ async fn apply_group_changes(
             chat::update_chat_contacts_table(context, chat_id, &new_members).await?;
             chat_contacts = new_members;
             send_event_chat_modified = true;
+        }
+        if sync_member_list {
+            let mut ts = mime_parser.timestamp_sent;
+            if recreate_member_list {
+                // Reject all older membership changes. See `allow_member_list_changes` to know how
+                // this works.
+                ts += timestamp_sent_tolerance;
+            }
+            chat_id
+                .update_timestamp(context, Param::MemberListTimestamp, ts)
+                .await?;
         }
     }
 

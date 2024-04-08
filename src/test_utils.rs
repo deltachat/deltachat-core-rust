@@ -27,8 +27,8 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::config::Config;
+use crate::constants::DC_GCL_NO_SPECIALS;
 use crate::constants::{Blocked, Chattype};
-use crate::constants::{DC_GCL_NO_SPECIALS, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
@@ -701,16 +701,16 @@ impl TestContext {
             chat_id,
             MessageListOptions {
                 info_only: false,
-                add_daymarker: true,
+                add_daymarker: false,
             },
         )
         .await
         .unwrap();
         let msglist: Vec<MsgId> = msglist
             .into_iter()
-            .map(|x| match x {
-                ChatItem::Message { msg_id } => msg_id,
-                ChatItem::DayMarker { .. } => MsgId::new(DC_MSG_ID_DAYMARKER),
+            .filter_map(|x| match x {
+                ChatItem::Message { msg_id } => Some(msg_id),
+                ChatItem::DayMarker { .. } => None,
             })
             .collect();
 
@@ -758,23 +758,17 @@ impl TestContext {
 
         let mut lines_out = 0;
         for msg_id in msglist {
-            if msg_id == MsgId::new(DC_MSG_ID_DAYMARKER) {
+            if msg_id.is_special() {
+                continue;
+            }
+            if lines_out == 0 {
                 writeln!(res,
-                "--------------------------------------------------------------------------------"
-            )
-                .unwrap();
-
-                lines_out += 1
-            } else if !msg_id.is_special() {
-                if lines_out == 0 {
-                    writeln!(res,
                     "--------------------------------------------------------------------------------",
                 ).unwrap();
-                    lines_out += 1
-                }
-                let msg = Message::load_from_db(self, msg_id).await.unwrap();
-                write_msg(self, "", &msg, &mut res).await;
+                lines_out += 1
             }
+            let msg = Message::load_from_db(self, msg_id).await.unwrap();
+            write_msg(self, "", &msg, &mut res).await;
         }
         if lines_out > 0 {
             writeln!(
@@ -1100,7 +1094,10 @@ fn print_event(event: &Event) {
                 "Received MSGS_CHANGED(chat_id={chat_id}, msg_id={msg_id})",
             ))
         ),
-        EventType::ContactsChanged(_) => format!("{}", green.paint("Received CONTACTS_CHANGED()")),
+        EventType::ContactsChanged(contact) => format!(
+            "{}",
+            green.paint(format!("Received CONTACTS_CHANGED(contact={contact:?})"))
+        ),
         EventType::LocationChanged(contact) => format!(
             "{}",
             green.paint(format!("Received LOCATION_CHANGED(contact={contact:?})"))

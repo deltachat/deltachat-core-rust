@@ -1,6 +1,6 @@
 [package]
 name = "deltachat-jsonrpc"
-version = "1.137.1"
+version = "1.137.2"
 description = "DeltaChat JSON-RPC API"
 edition = "2021"
 default-run = "deltachat-jsonrpc-server"
@@ -28,7 +28,7 @@ typescript-type-def = { version = "0.5.8", features = ["json_value"] }
 tokio = { version = "1.37.0" }
 sanitize-filename = "0.5"
 walkdir = "2.5.0"
-base64 = "0.21"
+base64 = "0.22"
 
 # optional dependencies
 axum = { version = "0.7", optional = true, features = ["ws"] }

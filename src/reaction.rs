@@ -340,34 +340,37 @@ impl Chat {
     ) -> Result<Option<(Message, ContactId, String)>> {
         if let Some(reaction_timestamp) = self.param.get_i64(Param::LastReactionTimestamp) {
             if reaction_timestamp > timestamp {
-                let reaction_msg = Message::load_from_db(
-                    context,
-                    MsgId::new(
-                        self.param
-                            .get_int(Param::LastReactionMsgId)
-                            .unwrap_or_default() as u32,
-                    ),
-                )
-                .await?;
-                if !reaction_msg.chat_id.is_trash() {
-                    let reaction_contact_id = ContactId::new(
-                        self.param
-                            .get_int(Param::LastReactionContactId)
-                            .unwrap_or_default() as u32,
-                    );
-                    if let Some(reaction) = context
-                        .sql
-                        .query_row_optional(
-                            r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
-                            (reaction_msg.id, reaction_contact_id),
-                            |row| {
-                                let reaction: String = row.get(0)?;
-                                Ok(reaction)
-                            },
-                        )
-                        .await?
-                    {
-                        return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
+                let reaction_msg_id = MsgId::new(
+                    self.param
+                        .get_int(Param::LastReactionMsgId)
+                        .unwrap_or_default() as u32,
+                );
+                // The message reacted to may be deleted physically (`load_from_db()` fails) or marked as a tombstone (`is_trash()`).
+                // These are no errors as `Param::LastReaction*` are just weak pointers.
+                // Instead, just return `Ok(None)` and let the caller create another summary.
+                if let Some(reaction_msg) =
+                    Message::load_from_db_optional(context, reaction_msg_id).await?
+                {
+                    if !reaction_msg.chat_id.is_trash() {
+                        let reaction_contact_id = ContactId::new(
+                            self.param
+                                .get_int(Param::LastReactionContactId)
+                                .unwrap_or_default() as u32,
+                        );
+                        if let Some(reaction) = context
+                            .sql
+                            .query_row_optional(
+                                r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
+                                (reaction_msg.id, reaction_contact_id),
+                                |row| {
+                                    let reaction: String = row.get(0)?;
+                                    Ok(reaction)
+                                },
+                            )
+                            .await?
+                        {
+                            return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
+                        }
                     }
                 }
             }
@@ -379,7 +382,7 @@ impl Chat {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::{get_chat_msgs, send_text_msg};
+    use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
@@ -387,6 +390,7 @@ mod tests {
     use crate::download::DownloadState;
     use crate::message::{delete_msgs, MessageState};
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
+    use crate::sql::housekeeping;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use crate::tools::SystemTime;
@@ -696,8 +700,47 @@ Here's my footer -- bob@example.net"
         send_reaction(&alice, alice_msg1.sender_msg_id, "🧹").await?;
         assert_summary(&alice, "You reacted 🧹 to \"Party?\"").await;
 
-        delete_msgs(&alice, &[alice_msg1.sender_msg_id]).await?;
+        delete_msgs(&alice, &[alice_msg1.sender_msg_id]).await?; // this will leave a tombstone
         assert_summary(&alice, "kewl").await;
+        housekeeping(&alice).await?; // this will delete the tombstone
+        assert_summary(&alice, "kewl").await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction_forwarded_summary() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice adds a message to "Saved Messages"
+        let self_chat = alice.get_self_chat().await;
+        let msg_id = send_text_msg(&alice, self_chat.id, "foo".to_string()).await?;
+        assert_summary(&alice, "foo").await;
+
+        // Alice reacts to that message
+        SystemTime::shift(Duration::from_secs(10));
+        send_reaction(&alice, msg_id, "🐫").await?;
+        assert_summary(&alice, "You reacted 🐫 to \"foo\"").await;
+        let reactions = get_msg_reactions(&alice, msg_id).await?;
+        assert_eq!(reactions.reactions.len(), 1);
+
+        // Alice forwards that message to Bob: Reactions are not forwarded, the message is prefixed by "Forwarded".
+        let bob_id = Contact::create(&alice, "", "bob@example.net").await?;
+        let bob_chat_id = ChatId::create_for_contact(&alice, bob_id).await?;
+        forward_msgs(&alice, &[msg_id], bob_chat_id).await?;
+        assert_summary(&alice, "Forwarded: foo").await; // forwarded messages are prefixed
+        let chatlist = Chatlist::try_load(&alice, 0, None, None).await.unwrap();
+        let forwarded_msg_id = chatlist.get_msg_id(0)?.unwrap();
+        let reactions = get_msg_reactions(&alice, forwarded_msg_id).await?;
+        assert!(reactions.reactions.is_empty()); // reactions are not forwarded
+
+        // Alice reacts to forwarded message:
+        // For reaction summary neither original message author nor "Forwarded" prefix is shown
+        SystemTime::shift(Duration::from_secs(10));
+        send_reaction(&alice, forwarded_msg_id, "🐳").await?;
+        assert_summary(&alice, "You reacted 🐳 to \"foo\"").await;
+        let reactions = get_msg_reactions(&alice, msg_id).await?;
+        assert_eq!(reactions.reactions.len(), 1);
 
         Ok(())
     }
@@ -838,8 +881,7 @@ Here's my footer -- bob@example.net"
         let alice1_msg = alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
         send_reaction(&alice0, alice0_msg_id, "👀").await?;
-        let sync = alice0.pop_sent_msg().await;
-        receive_imf(&alice1, sync.payload().as_bytes(), false).await?;
+        alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
         expect_reactions_changed_event(&alice0, chat_id, alice0_msg_id, ContactId::SELF).await?;
         expect_reactions_changed_event(&alice1, alice1_msg.chat_id, alice1_msg.id, ContactId::SELF)

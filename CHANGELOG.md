@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.137.2] - 2024-04-05
+
+### API-Changes
+
+- [**breaking**] Increase Minimum Supported Rust Version to 1.77.0.
+
+### Features / Changes
+
+- Show reactions in summaries ([#5387](https://github.com/deltachat/deltachat-core-rust/pull/5387)).
+
+### Tests
+
+- Test reactions for forwarded messages
+
+### Refactor
+
+- `is_probably_private_reply`: Remove reaction-specific code.
+- Use Rust 1.77.0 support for recursion in async functions.
+
+### Miscellaneous Tasks
+
+- cargo: Bump rustyline from 13.0.0 to 14.0.0.
+- Update chrono from 0.4.34 to 0.4.37.
+- Update from brotli 3.4.0 to brotli 4.0.0.
+- Upgrade `h2` from 0.4.3 to 0.4.4.
+- Upgrade `image` from 0.24.9 to 0.25.1.
+- cargo: Bump fast-socks5 from 0.9.5 to 0.9.6.
+
 ## [1.137.1] - 2024-04-03
 
 ### CI
@@ -3843,3 +3871,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.136.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.5...v1.136.6
 [1.137.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.6...v1.137.0
 [1.137.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.0...v1.137.1
+[1.137.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.1...v1.137.2

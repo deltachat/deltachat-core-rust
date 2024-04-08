@@ -459,7 +459,19 @@ impl Message {
     }
 
     /// Loads message with given ID from the database.
+    ///
+    /// Returns an error if the message does not exist.
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message> {
+        let message = Self::load_from_db_optional(context, id)
+            .await?
+            .context("Message {id} does not exist")?;
+        Ok(message)
+    }
+
+    /// Loads message with given ID from the database.
+    ///
+    /// Returns `None` if the message does not exist.
+    pub async fn load_from_db_optional(context: &Context, id: MsgId) -> Result<Option<Message>> {
         ensure!(
             !id.is_special(),
             "Can not load special message ID {} from DB",
@@ -467,7 +479,7 @@ impl Message {
         );
         let msg = context
             .sql
-            .query_row(
+            .query_row_optional(
                 concat!(
                     "SELECT",
                     "    m.id AS id,",
@@ -1975,8 +1987,9 @@ mod tests {
     use num_traits::FromPrimitive;
 
     use super::*;
-    use crate::chat::{self, marknoticed_chat, ChatItem};
+    use crate::chat::{self, marknoticed_chat, send_text_msg, ChatItem};
     use crate::chatlist::Chatlist;
+    use crate::reaction::send_reaction;
     use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::{TestContext, TestContextManager};
@@ -2462,6 +2475,24 @@ mod tests {
         assert_eq!(received.text, "> Second quote");
         assert!(received.quoted_text().is_none());
         assert!(received.quoted_message(&bob).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_message_summary_text() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat = t.get_self_chat().await;
+        let msg_id = send_text_msg(&t, chat.id, "foo".to_string()).await?;
+        let msg = Message::load_from_db(&t, msg_id).await?;
+        let summary = msg.get_summary(&t, None).await?;
+        assert_eq!(summary.text, "foo");
+
+        // message summary does not change when reactions are applied (in contrast to chatlist summary)
+        send_reaction(&t, msg_id, "🫵").await?;
+        let msg = Message::load_from_db(&t, msg_id).await?;
+        let summary = msg.get_summary(&t, None).await?;
+        assert_eq!(summary.text, "foo");
 
         Ok(())
     }

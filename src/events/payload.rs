@@ -182,7 +182,7 @@ pub enum EventType {
         timer: EphemeralTimer,
     },
 
-    /// Contact(s) created, renamed, blocked or deleted.
+    /// Contact(s) created, renamed, blocked, deleted or changed their "recently seen" status.
     ///
     /// @param data1 (int) If set, this is the contact_id of an added contact that should be selected.
     ContactsChanged(Option<ContactId>),

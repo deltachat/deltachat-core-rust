@@ -137,7 +137,7 @@ impl Kml {
                 // 0   4  7  10 13 16 19
                 match chrono::NaiveDateTime::parse_from_str(&val, "%Y-%m-%dT%H:%M:%SZ") {
                     Ok(res) => {
-                        self.curr.timestamp = res.timestamp();
+                        self.curr.timestamp = res.and_utc().timestamp();
                         let now = time();
                         if self.curr.timestamp > now {
                             self.curr.timestamp = now;
@@ -540,7 +540,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<Option<(Strin
 
 fn get_kml_timestamp(utc: i64) -> String {
     // Returns a string formatted as YYYY-MM-DDTHH:MM:SSZ. The trailing `Z` indicates UTC.
-    chrono::NaiveDateTime::from_timestamp_opt(utc, 0)
+    chrono::DateTime::<chrono::Utc>::from_timestamp(utc, 0)
         .unwrap()
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string()

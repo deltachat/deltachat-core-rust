@@ -1051,55 +1051,52 @@ impl Contact {
             "Can not provide encryption info for special contact"
         );
 
-        let mut ret = String::new();
-        if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-            let loginparam = LoginParam::load_configured_params(context).await?;
-            let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
+        let contact = Contact::get_by_id(context, contact_id).await?;
+        let loginparam = LoginParam::load_configured_params(context).await?;
+        let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
-            if let Some(peerstate) =
-                peerstate.filter(|peerstate| peerstate.peek_key(false).is_some())
-            {
-                let stock_message = match peerstate.prefer_encrypt {
-                    EncryptPreference::Mutual => stock_str::e2e_preferred(context).await,
-                    EncryptPreference::NoPreference => stock_str::e2e_available(context).await,
-                    EncryptPreference::Reset => stock_str::encr_none(context).await,
-                };
+        let Some(peerstate) = peerstate.filter(|peerstate| peerstate.peek_key(false).is_some())
+        else {
+            return Ok(stock_str::encr_none(context).await);
+        };
 
-                let finger_prints = stock_str::finger_prints(context).await;
-                ret += &format!("{stock_message}.\n{finger_prints}:");
+        let stock_message = match peerstate.prefer_encrypt {
+            EncryptPreference::Mutual => stock_str::e2e_preferred(context).await,
+            EncryptPreference::NoPreference => stock_str::e2e_available(context).await,
+            EncryptPreference::Reset => stock_str::encr_none(context).await,
+        };
 
-                let fingerprint_self = load_self_public_key(context)
-                    .await?
-                    .fingerprint()
-                    .to_string();
-                let fingerprint_other_verified = peerstate
-                    .peek_key(true)
-                    .map(|k| k.fingerprint().to_string())
-                    .unwrap_or_default();
-                let fingerprint_other_unverified = peerstate
-                    .peek_key(false)
-                    .map(|k| k.fingerprint().to_string())
-                    .unwrap_or_default();
-                if loginparam.addr < peerstate.addr {
-                    cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
-                    cat_fingerprint(
-                        &mut ret,
-                        &peerstate.addr,
-                        &fingerprint_other_verified,
-                        &fingerprint_other_unverified,
-                    );
-                } else {
-                    cat_fingerprint(
-                        &mut ret,
-                        &peerstate.addr,
-                        &fingerprint_other_verified,
-                        &fingerprint_other_unverified,
-                    );
-                    cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
-                }
-            } else {
-                ret += &stock_str::encr_none(context).await;
-            }
+        let finger_prints = stock_str::finger_prints(context).await;
+        let mut ret = format!("{stock_message}.\n{finger_prints}:");
+
+        let fingerprint_self = load_self_public_key(context)
+            .await?
+            .fingerprint()
+            .to_string();
+        let fingerprint_other_verified = peerstate
+            .peek_key(true)
+            .map(|k| k.fingerprint().to_string())
+            .unwrap_or_default();
+        let fingerprint_other_unverified = peerstate
+            .peek_key(false)
+            .map(|k| k.fingerprint().to_string())
+            .unwrap_or_default();
+        if loginparam.addr < peerstate.addr {
+            cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
+            cat_fingerprint(
+                &mut ret,
+                &peerstate.addr,
+                &fingerprint_other_verified,
+                &fingerprint_other_unverified,
+            );
+        } else {
+            cat_fingerprint(
+                &mut ret,
+                &peerstate.addr,
+                &fingerprint_other_verified,
+                &fingerprint_other_unverified,
+            );
+            cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
         }
 
         Ok(ret)
@@ -1632,6 +1629,7 @@ pub(crate) async fn update_last_seen(
         > 0
         && timestamp > time() - SEEN_RECENTLY_SECONDS
     {
+        context.emit_event(EventType::ContactsChanged(Some(contact_id)));
         context
             .scheduler
             .interrupt_recently_seen(contact_id, timestamp)
@@ -1762,6 +1760,7 @@ impl RecentlySeenLoop {
             .unwrap_or_default();
 
         loop {
+            let now = SystemTime::now();
             let (until, contact_id) =
                 if let Some((Reverse(timestamp), contact_id)) = unseen_queue.peek() {
                     (
@@ -1804,7 +1803,10 @@ impl RecentlySeenLoop {
                         timestamp,
                     })) => {
                         // Received an interrupt.
-                        unseen_queue.push((Reverse(timestamp + SEEN_RECENTLY_SECONDS), contact_id));
+                        if contact_id != ContactId::UNDEFINED {
+                            unseen_queue
+                                .push((Reverse(timestamp + SEEN_RECENTLY_SECONDS), contact_id));
+                        }
                     }
                 }
             } else {
@@ -1822,13 +1824,24 @@ impl RecentlySeenLoop {
         }
     }
 
-    pub(crate) fn interrupt(&self, contact_id: ContactId, timestamp: i64) {
+    pub(crate) fn try_interrupt(&self, contact_id: ContactId, timestamp: i64) {
         self.interrupt_send
             .try_send(RecentlySeenInterrupt {
                 contact_id,
                 timestamp,
             })
             .ok();
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn interrupt(&self, contact_id: ContactId, timestamp: i64) {
+        self.interrupt_send
+            .send(RecentlySeenInterrupt {
+                contact_id,
+                timestamp,
+            })
+            .await
+            .unwrap();
     }
 
     pub(crate) fn abort(self) {
@@ -2809,6 +2822,44 @@ Hi."#;
         let self_contact = Contact::get_by_id(&bob, ContactId::SELF).await?;
         assert!(!self_contact.was_seen_recently());
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_was_seen_recently_event() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let recently_seen_loop = RecentlySeenLoop::new(bob.ctx.clone());
+        let chat = bob.create_chat(&alice).await;
+        let contacts = chat::get_chat_contacts(&bob, chat.id).await?;
+
+        for _ in 0..2 {
+            let chat = alice.create_chat(&bob).await;
+            let sent_msg = alice.send_text(chat.id, "moin").await;
+            let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+            assert!(!contact.was_seen_recently());
+            while bob.evtracker.try_recv().is_ok() {}
+            bob.recv_msg(&sent_msg).await;
+            let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+            assert!(contact.was_seen_recently());
+            bob.evtracker
+                .get_matching(|evt| matches!(evt, EventType::ContactsChanged { .. }))
+                .await;
+            recently_seen_loop
+                .interrupt(contact.id, contact.last_seen)
+                .await;
+
+            // Wait for `was_seen_recently()` to turn off.
+            while bob.evtracker.try_recv().is_ok() {}
+            SystemTime::shift(Duration::from_secs(SEEN_RECENTLY_SECONDS as u64 * 2));
+            recently_seen_loop.interrupt(ContactId::UNDEFINED, 0).await;
+            let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+            assert!(!contact.was_seen_recently());
+            bob.evtracker
+                .get_matching(|evt| matches!(evt, EventType::ContactsChanged { .. }))
+                .await;
+        }
         Ok(())
     }
 
