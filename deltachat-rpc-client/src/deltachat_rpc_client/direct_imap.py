@@ -2,12 +2,13 @@
 Internal Python-level IMAP handling used by the tests.
 """
 
+from __future__ import annotations
+
 import imaplib
 import io
 import pathlib
 import ssl
 from contextlib import contextmanager
-from typing import List
 
 from imap_tools import (
     AND,
@@ -87,7 +88,7 @@ class DirectImap:
             return self.select_folder(foldername)
         return None
 
-    def list_folders(self) -> List[str]:
+    def list_folders(self) -> list[str]:
         """return list of all existing folder names."""
         assert not self._idling
         return [folder.name for folder in self.conn.folder.list()]
@@ -102,11 +103,11 @@ class DirectImap:
         if expunge:
             self.conn.expunge()
 
-    def get_all_messages(self) -> List[MailMessage]:
+    def get_all_messages(self) -> list[MailMessage]:
         assert not self._idling
         return list(self.conn.fetch())
 
-    def get_unread_messages(self) -> List[str]:
+    def get_unread_messages(self) -> list[str]:
         assert not self._idling
         return [msg.uid for msg in self.conn.fetch(AND(seen=False))]
 
@@ -198,7 +199,7 @@ class IdleManager:
         self.direct_imap.conn.fetch("1:*")
         self.direct_imap.conn.idle.start()
 
-    def check(self, timeout=None) -> List[bytes]:
+    def check(self, timeout=None) -> list[bytes]:
         """(blocking) wait for next idle message from server."""
         self.log("imap-direct: calling idle_check")
         res = self.direct_imap.conn.idle.poll(timeout=timeout)

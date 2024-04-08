@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import itertools
 import json
 import logging
@@ -6,7 +8,7 @@ import subprocess
 import sys
 from queue import Queue
 from threading import Event, Thread
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Iterator, Optional
 
 
 class JsonRpcError(Exception):
@@ -67,11 +69,11 @@ class Rpc:
         self._kwargs = kwargs
         self.process: subprocess.Popen
         self.id_iterator: Iterator[int]
-        self.event_queues: Dict[int, Queue]
+        self.event_queues: dict[int, Queue]
         # Map from request ID to `threading.Event`.
-        self.request_events: Dict[int, Event]
+        self.request_events: dict[int, Event]
         # Map from request ID to the result.
-        self.request_results: Dict[int, Any]
+        self.request_results: dict[int, Any]
         self.request_queue: Queue[Any]
         self.closing: bool
         self.reader_thread: Thread

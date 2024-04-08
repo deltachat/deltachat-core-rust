@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 from warnings import warn
 
 from ._utils import AttrDict, futuremethod
@@ -126,7 +128,7 @@ class Account:
         contact_id = self._rpc.lookup_contact_id_by_addr(self.id, address)
         return contact_id and Contact(self, contact_id)
 
-    def get_blocked_contacts(self) -> List[AttrDict]:
+    def get_blocked_contacts(self) -> list[AttrDict]:
         """Return a list with snapshots of all blocked contacts."""
         contacts = self._rpc.get_blocked_contacts(self.id)
         return [AttrDict(contact=Contact(self, contact["id"]), **contact) for contact in contacts]
@@ -151,7 +153,7 @@ class Account:
         with_self: bool = False,
         verified_only: bool = False,
         snapshot: bool = False,
-    ) -> Union[List[Contact], List[AttrDict]]:
+    ) -> Union[list[Contact], list[AttrDict]]:
         """Get a filtered list of contacts.
 
         :param query: if a string is specified, only return contacts
@@ -186,7 +188,7 @@ class Account:
         no_specials: bool = False,
         alldone_hint: bool = False,
         snapshot: bool = False,
-    ) -> Union[List[Chat], List[AttrDict]]:
+    ) -> Union[list[Chat], list[AttrDict]]:
         """Return list of chats.
 
         :param query: if a string is specified only chats matching this query are returned.
@@ -244,7 +246,7 @@ class Account:
         """
         return Chat(self, self._rpc.secure_join(self.id, qrdata))
 
-    def get_qr_code(self) -> Tuple[str, str]:
+    def get_qr_code(self) -> tuple[str, str]:
         """Get Setup-Contact QR Code text and SVG data.
 
         this data needs to be transferred to another Delta Chat account
@@ -256,15 +258,15 @@ class Account:
         """Return the Message instance with the given ID."""
         return Message(self, msg_id)
 
-    def mark_seen_messages(self, messages: List[Message]) -> None:
+    def mark_seen_messages(self, messages: list[Message]) -> None:
         """Mark the given set of messages as seen."""
         self._rpc.markseen_msgs(self.id, [msg.id for msg in messages])
 
-    def delete_messages(self, messages: List[Message]) -> None:
+    def delete_messages(self, messages: list[Message]) -> None:
         """Delete messages (local and remote)."""
         self._rpc.delete_messages(self.id, [msg.id for msg in messages])
 
-    def get_fresh_messages(self) -> List[Message]:
+    def get_fresh_messages(self) -> list[Message]:
         """Return the list of fresh messages, newest messages first.
 
         This call is intended for displaying notifications.
@@ -274,12 +276,12 @@ class Account:
         fresh_msg_ids = self._rpc.get_fresh_msgs(self.id)
         return [Message(self, msg_id) for msg_id in fresh_msg_ids]
 
-    def get_next_messages(self) -> List[Message]:
+    def get_next_messages(self) -> list[Message]:
         """Return a list of next messages."""
         next_msg_ids = self._rpc.get_next_msgs(self.id)
         return [Message(self, msg_id) for msg_id in next_msg_ids]
 
-    def wait_next_messages(self) -> List[Message]:
+    def wait_next_messages(self) -> list[Message]:
         """Wait for new messages and return a list of them."""
         next_msg_ids = self._rpc.wait_next_msgs(self.id)
         return [Message(self, msg_id) for msg_id in next_msg_ids]
@@ -309,7 +311,7 @@ class Account:
             if event.kind == EventType.REACTIONS_CHANGED:
                 return event
 
-    def get_fresh_messages_in_arrival_order(self) -> List[Message]:
+    def get_fresh_messages_in_arrival_order(self) -> list[Message]:
         """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
         warn(
             "get_fresh_messages_in_arrival_order is deprecated, use get_next_messages instead.",

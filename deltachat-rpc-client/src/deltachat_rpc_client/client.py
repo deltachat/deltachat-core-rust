@@ -1,14 +1,13 @@
 """Event loop implementations offering high level event handling/hooking."""
 
+from __future__ import annotations
+
 import logging
 from typing import (
     TYPE_CHECKING,
     Callable,
-    Dict,
     Iterable,
     Optional,
-    Set,
-    Tuple,
     Type,
     Union,
 )
@@ -39,16 +38,16 @@ class Client:
     def __init__(
         self,
         account: "Account",
-        hooks: Optional[Iterable[Tuple[Callable, Union[type, EventFilter]]]] = None,
+        hooks: Optional[Iterable[tuple[Callable, Union[type, EventFilter]]]] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.account = account
         self.logger = logger or logging
-        self._hooks: Dict[type, Set[tuple]] = {}
+        self._hooks: dict[type, set[tuple]] = {}
         self._should_process_messages = 0
         self.add_hooks(hooks or [])
 
-    def add_hooks(self, hooks: Iterable[Tuple[Callable, Union[type, EventFilter]]]) -> None:
+    def add_hooks(self, hooks: Iterable[tuple[Callable, Union[type, EventFilter]]]) -> None:
         for hook, event in hooks:
             self.add_hook(hook, event)
 
