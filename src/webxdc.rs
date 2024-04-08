@@ -15,6 +15,9 @@
 //! - `last_serial` - serial number of the last status update to send
 //! - `descr` - text to send along with the updates
 
+mod integration;
+mod maps_integration;
+
 use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
@@ -456,6 +459,12 @@ impl Context {
             bail!("send_webxdc_status_update: message {instance_msg_id} is not a webxdc message, but a {viewtype} message.");
         }
 
+        if instance.param.get_int(Param::WebxdcIntegration).is_some() {
+            return self
+                .intercept_send_webxdc_status_update(instance, status_update)
+                .await;
+        }
+
         let chat_id = instance.chat_id;
         let chat = Chat::load_from_db(self, chat_id)
             .await
@@ -625,6 +634,14 @@ impl Context {
         instance_msg_id: MsgId,
         last_known_serial: StatusUpdateSerial,
     ) -> Result<String> {
+        let param = instance_msg_id.get_param(self).await?;
+        if param.get_int(Param::WebxdcIntegration).is_some() {
+            let instance = Message::load_from_db(self, instance_msg_id).await?;
+            return self
+                .intercept_get_webxdc_status_updates(instance, last_known_serial)
+                .await;
+        }
+
         let json = self
             .sql
             .query_map(

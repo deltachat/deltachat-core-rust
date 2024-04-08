@@ -2049,6 +2049,7 @@ impl Chat {
             msg.id = MsgId::new(u32::try_from(raw_id)?);
 
             maybe_set_logging_xdc(context, msg, self.id).await?;
+            context.update_webxdc_integration_database(msg).await?;
         }
         context.scheduler.interrupt_ephemeral_task().await;
         Ok(msg.id)

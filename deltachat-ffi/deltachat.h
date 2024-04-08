@@ -1178,6 +1178,39 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
  */
 char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t serial);
 
+
+#define DC_INTEGRATION_MAPS 1
+
+/**
+ * Init a Webxdc integration.
+ *
+ * A Webxdc integration is eg.
+ * a Webxdc showing a map, getting locations via setUpdateListener(), setting POIs via sendUpdate();
+ * core takes eg. care of feeding locations to the Webxdc or sending the data out.
+ *
+ * Currently, Webxdc integrations are Webxdc shipped together with the main app;
+ * before dc_init_webxdc_integration() can be called,
+ * UI has to mark a Webxdc using dc_msg_set_default_webxdc_integration().
+ * Later on,
+ * we can consider shipping Webxdc integrations with core or
+ * we can allow users to replace Webxdc integrations.
+ *
+ * dc_init_webxdc_integration() returns a Webxdc message ID that
+ * UI can open and use mostly as usual.
+ *
+ * There is no need to de-initialize the integration,
+ * however, the integration is valid only as long as not re-initialized.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param integration_type The integration to obtain, one of the DC_INTEGRATION_* constants.
+ * @param chat_id The chat to get the integration for.
+ * @return ID of the message that refers to the Webxdc instance.
+ *     UI can open a Webxdc as usual with this instance.
+ */
+uint32_t        dc_init_webxdc_integration    (dc_context_t* context, int integration_type, uint32_t chat_id);
+
+
 /**
  * Save a draft for a chat in the database.
  *
@@ -4107,7 +4140,6 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   true if the Webxdc should get full internet access, including Webrtc.
  *   currently, this is only true for encrypted Webxdc's in the self chat
  *   that have requested internet access in the manifest.
- *   this is useful for development and maybe for internal integrations at some point.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.
@@ -4676,6 +4708,16 @@ void            dc_msg_set_override_sender_name(dc_msg_t* msg, const char* name)
  * @param filemime The MIME type of the file. NULL if you don't know or don't care.
  */
 void            dc_msg_set_file               (dc_msg_t* msg, const char* file, const char* filemime);
+
+
+/**
+ * Mark Webxdc message shipped with the main app as a default integration.
+ * See dc_init_webxdc_integration() for details.
+ *
+ * @memberof dc_msg_t
+ * @param msg The Webxdc message object to mark as default integration.
+ */
+void             dc_msg_set_default_webxdc_integration (dc_msg_t* msg);
 
 
 /**

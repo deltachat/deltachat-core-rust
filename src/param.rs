@@ -187,6 +187,12 @@ pub enum Param {
     /// For Webxdc Message Instances: timestamp of summary update.
     WebxdcSummaryTimestamp = b'Q',
 
+    /// For Webxdc Message Instances: Webxdc is an integration, see init_webxdc_integration()
+    WebxdcIntegration = b'L',
+
+    /// For Webxdc Message Instances: Chat to integrate in.
+    WebxdcIntegrateFor = b'2',
+
     /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
     ForceSticker = b'X',
     // 'L' was defined as ProtectionSettingsTimestamp for Chats, however, never used in production.
