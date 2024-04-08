@@ -1,6 +1,5 @@
 import base64
 import os
-import logging
 
 from deltachat_rpc_client import Account, EventType, const
 
