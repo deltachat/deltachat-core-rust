@@ -756,17 +756,18 @@ fn encrypted_and_signed(
 
 #[cfg(test)]
 mod tests {
+    use deltachat_contact_utils::{ContactAddress, EmailAddress};
+
     use super::*;
     use crate::chat::remove_contact_from_chat;
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
-    use crate::contact::ContactAddress;
     use crate::imex::{imex, ImexMode};
     use crate::receive_imf::receive_imf;
     use crate::stock_str::chat_protection_enabled;
     use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
-    use crate::tools::{EmailAddress, SystemTime};
+    use crate::tools::SystemTime;
     use std::collections::HashSet;
     use std::time::Duration;
 

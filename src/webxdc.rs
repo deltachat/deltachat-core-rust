@@ -19,6 +19,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
+use deltachat_contact_utils::strip_rtlo_characters;
 use deltachat_derive::FromSql;
 use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;
@@ -37,7 +38,6 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::tools::create_id;
-use crate::tools::strip_rtlo_characters;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 
 /// The current API version.

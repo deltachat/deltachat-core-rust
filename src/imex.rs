@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
+use deltachat_contact_utils::EmailAddress;
 use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
@@ -31,7 +32,6 @@ use crate::sql;
 use crate::stock_str;
 use crate::tools::{
     create_folder, delete_file, get_filesuffix_lc, open_file_std, read_file, time, write_file,
-    EmailAddress,
 };
 
 mod transfer;

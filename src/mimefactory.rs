@@ -1582,6 +1582,7 @@ fn maybe_encode_words(words: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use deltachat_contact_utils::ContactAddress;
     use mailparse::{addrparse_header, MailHeaderMap};
     use std::str;
 
@@ -1592,7 +1593,7 @@ mod tests {
     };
     use crate::chatlist::Chatlist;
     use crate::constants;
-    use crate::contact::{ContactAddress, Origin};
+    use crate::contact::Origin;
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};

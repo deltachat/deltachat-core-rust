@@ -8,6 +8,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
+use deltachat_contact_utils::{strip_rtlo_characters, ContactAddress};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -22,7 +23,7 @@ use crate::constants::{
     self, Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
     DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
-use crate::contact::{self, Contact, ContactAddress, ContactId, Origin};
+use crate::contact::{self, Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
@@ -44,7 +45,7 @@ use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
-    smeared_time, strip_rtlo_characters, time, IsNoneOrEmpty, SystemTime,
+    smeared_time, time, IsNoneOrEmpty, SystemTime,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 

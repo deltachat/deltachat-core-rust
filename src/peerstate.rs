@@ -3,6 +3,7 @@
 use std::mem;
 
 use anyhow::{Context as _, Error, Result};
+use deltachat_contact_utils::{addr_cmp, ContactAddress};
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
@@ -10,7 +11,7 @@ use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::contact::{addr_cmp, Contact, ContactAddress, Origin};
+use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};

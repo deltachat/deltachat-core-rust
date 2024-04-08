@@ -16,6 +16,7 @@ mod server_params;
 use anyhow::{bail, ensure, Context as _, Result};
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
+use deltachat_contact_utils::EmailAddress;
 use futures::FutureExt;
 use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
@@ -23,7 +24,6 @@ use server_params::{expand_param_vector, ServerParams};
 use tokio::task;
 
 use crate::config::{self, Config};
-use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::imap::{session::Session as ImapSession, Imap};
 use crate::log::LogExt;
@@ -35,8 +35,9 @@ use crate::smtp::Smtp;
 use crate::socks::Socks5Config;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{time, EmailAddress};
+use crate::tools::time;
 use crate::{chat, e2ee, provider};
+use deltachat_contact_utils::addr_cmp;
 
 macro_rules! progress {
     ($context:tt, $progress:expr, $comment:expr) => {

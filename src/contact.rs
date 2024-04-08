@@ -3,15 +3,17 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::fmt;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
+pub use deltachat_contact_utils::may_be_valid_addr;
+use deltachat_contact_utils::{
+    addr_cmp, addr_normalize, normalize_name, sanitize_name_and_addr, strip_rtlo_characters,
+    ContactAddress,
+};
 use deltachat_derive::{FromSql, ToSql};
-use once_cell::sync::Lazy;
-use regex::Regex;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tokio::task;
@@ -33,59 +35,11 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::sql::{self, params_iter};
 use crate::sync::{self, Sync::*};
-use crate::tools::{
-    duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
-    EmailAddress, SystemTime,
-};
+use crate::tools::{duration_to_str, get_abs_path, improve_single_line_input, time, SystemTime};
 use crate::{chat, chatlist_events, stock_str};
 
 /// Time during which a contact is considered as seen recently.
 const SEEN_RECENTLY_SECONDS: i64 = 600;
-
-/// Valid contact address.
-#[derive(Debug, Clone)]
-pub(crate) struct ContactAddress(String);
-
-impl Deref for ContactAddress {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<str> for ContactAddress {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for ContactAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl ContactAddress {
-    /// Constructs a new contact address from string,
-    /// normalizing and validating it.
-    pub fn new(s: &str) -> Result<Self> {
-        let addr = addr_normalize(s);
-        if !may_be_valid_addr(&addr) {
-            bail!("invalid address {:?}", s);
-        }
-        Ok(Self(addr.to_string()))
-    }
-}
-
-/// Allow converting [`ContactAddress`] to an SQLite type.
-impl rusqlite::types::ToSql for ContactAddress {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Text(self.0.to_string());
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
 
 /// Contact ID, including reserved IDs.
 ///
@@ -1415,46 +1369,6 @@ impl Contact {
     }
 }
 
-/// Returns false if addr is an invalid address, otherwise true.
-pub fn may_be_valid_addr(addr: &str) -> bool {
-    let res = EmailAddress::new(addr);
-    res.is_ok()
-}
-
-/// Returns address lowercased,
-/// with whitespace trimmed and `mailto:` prefix removed.
-pub fn addr_normalize(addr: &str) -> String {
-    let norm = addr.trim().to_lowercase();
-
-    if norm.starts_with("mailto:") {
-        norm.get(7..).unwrap_or(&norm).to_string()
-    } else {
-        norm
-    }
-}
-
-fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
-    static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
-    if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
-        (
-            if name.is_empty() {
-                strip_rtlo_characters(
-                    &captures
-                        .get(1)
-                        .map_or("".to_string(), |m| normalize_name(m.as_str())),
-                )
-            } else {
-                strip_rtlo_characters(name)
-            },
-            captures
-                .get(2)
-                .map_or("".to_string(), |m| m.as_str().to_string()),
-        )
-    } else {
-        (strip_rtlo_characters(name), addr.to_string())
-    }
-}
-
 pub(crate) async fn set_blocked(
     context: &Context,
     sync: sync::Sync,
@@ -1643,26 +1557,6 @@ pub(crate) async fn update_last_seen(
     Ok(())
 }
 
-/// Normalize a name.
-///
-/// - Remove quotes (come from some bad MUA implementations)
-/// - Trims the resulting string
-///
-/// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
-pub fn normalize_name(full_name: &str) -> String {
-    let full_name = full_name.trim();
-    if full_name.is_empty() {
-        return full_name.into();
-    }
-
-    match full_name.as_bytes() {
-        [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => full_name
-            .get(1..full_name.len() - 1)
-            .map_or("".to_string(), |s| s.trim().to_string()),
-        _ => full_name.to_string(),
-    }
-}
-
 fn cat_fingerprint(
     ret: &mut String,
     addr: &str,
@@ -1684,14 +1578,6 @@ fn cat_fingerprint(
     {
         *ret += &format!("\n\n{addr} (alternative):\n{fingerprint_unverified}");
     }
-}
-
-/// Compares two email addresses, normalizing them beforehand.
-pub fn addr_cmp(addr1: &str, addr2: &str) -> bool {
-    let norm1 = addr_normalize(addr1);
-    let norm2 = addr_normalize(addr2);
-
-    norm1 == norm2
 }
 
 fn split_address_book(book: &str) -> Vec<(&str, &str)> {
@@ -1866,6 +1752,8 @@ impl RecentlySeenLoop {
 
 #[cfg(test)]
 mod tests {
+    use deltachat_contact_utils::may_be_valid_addr;
+
     use super::*;
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
     use crate::chatlist::Chatlist;
@@ -2001,18 +1889,6 @@ mod tests {
         t.configure_addr("you@you.net").await;
         assert_eq!(t.is_self_addr("me@me.org").await?, false);
         assert_eq!(t.is_self_addr("you@you.net").await?, true);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_contact_address() -> Result<()> {
-        let alice_addr = "alice@example.org";
-        let contact_address = ContactAddress::new(alice_addr)?;
-        assert_eq!(contact_address.as_ref(), alice_addr);
-
-        let invalid_addr = "<> foobar";
-        assert!(ContactAddress::new(invalid_addr).is_err());
 
         Ok(())
     }
