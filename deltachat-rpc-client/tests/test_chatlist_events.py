@@ -1,5 +1,6 @@
 import base64
 import os
+import logging
 
 from deltachat_rpc_client import Account, EventType, const
 
@@ -176,6 +177,7 @@ def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
     alice._rpc.provide_backup.future(alice.id)
     backup_code = alice._rpc.get_backup_qr(alice.id)
     alice_second_device._rpc.get_backup(alice_second_device.id, backup_code)
+    alice_second_device.start_io()
     alice.clear_all_events()
     alice_second_device.clear_all_events()
     bob.clear_all_events()
@@ -189,6 +191,7 @@ def test_imap_sync_seen_msgs(acfactory) -> None:
     """
     alice, alice_second_device, bob, alice_chat_bob = get_multi_account_test_setup(acfactory)
 
+    alice_chat_bob.send_text("hello")
     while True:
         event = bob.wait_for_event()
         if event.kind == EventType.INCOMING_MSG:
