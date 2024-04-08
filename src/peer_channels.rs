@@ -1,7 +1,7 @@
 //! Peer channels for webxdc updates using iroh.
 
 use anyhow::{anyhow, Context as _, Result};
-use iroh_gossip::net::{Gossip, GOSSIP_ALPN};
+use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
@@ -20,8 +20,9 @@ impl Context {
     /// Create magic endpoint and gossip for the context.
     pub async fn create_gossip(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
-
-        if self.gossip.lock().await.is_some() {
+        info!(self, "secret key: {}", secret_key.to_string());
+        let mut ctx_gossip = self.gossip.lock().await;
+        if ctx_gossip.is_some() {
             warn!(
                 self,
                 "Tried to create endpoint even though there is already one."
@@ -33,6 +34,12 @@ impl Context {
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
+            .peers_data_path(
+                self.blobdir
+                    .parent()
+                    .context("Can't get parent of blob dir")?
+                    .to_path_buf(),
+            )
             .relay_mode(RelayMode::Default)
             .bind(0)
             .await?;
@@ -45,34 +52,35 @@ impl Context {
         let context = self.clone();
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
 
-        *self.gossip.lock().await = Some(gossip.clone());
+        *ctx_gossip = Some(gossip.clone());
         *self.endpoint.lock().await = Some(endpoint);
+
+        info!(self, "created gossip endpoint at {my_addr:?}");
         Ok(())
     }
 
     /// Join a topic and create the subscriber loop for it.
     /// If there is no gossip, create it.
-    pub async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<()> {
-        let gossip = if let Some(ref gossip) = *self.gossip.lock().await {
-            gossip.clone()
-        } else {
+    pub async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
+        let mut gossip = (*self.gossip.lock().await).clone();
+        if gossip.is_none() {
             self.create_gossip().await?;
-            todo!()
-        };
+            gossip = (*self.gossip.lock().await).clone();
+        }
+        let gossip = gossip.unwrap();
 
         let peers = self.get_gossip_peers(msg_id).await?;
         if peers.is_empty() {
             warn!(self, "joining gossip with zero peers");
+        } else {
+            info!(self, "joining gossip with {peers:?}");
         }
 
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let connect_future = gossip.join(topic, peers).await?;
-        self.channels.lock().await.insert(topic);
 
-        tokio::spawn(connect_future);
         tokio::spawn(subscribe_loop(self.clone(), gossip.clone(), topic, msg_id));
-
-        Ok(())
+        Ok(connect_future)
     }
 
     /// Cache a peers [NodeId] for one topic.
@@ -150,7 +158,7 @@ impl Context {
             .lock()
             .await
             .as_ref()
-            .context("no Gossip")?
+            .context("iroh endpoint not initialized")?
             .my_addr()
             .await
     }
@@ -178,52 +186,49 @@ impl Context {
         status_update: &str,
     ) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
+        info!(self, "Sending: {status_update}");
 
-        match self.channels.lock().await.get(&topic) {
-            Some(_) => {
-                let message = GossipMessage {
-                    payload: status_update.to_string(),
-                    uid: create_id(),
-                };
-
-                self.gossip
-                    .lock()
-                    .await
-                    .as_ref()
-                    .context("No gossip")?
-                    .broadcast(topic, serde_json::to_vec(&message)?.into())
-                    .await?
-            }
-            None => {
-                self.send_gossip_advertisement(msg_id).await?;
-
-                let message = GossipMessage {
-                    payload: status_update.to_string(),
-                    uid: create_id(),
-                };
-
-                self.gossip
-                    .lock()
-                    .await
-                    .as_ref()
-                    .context("No gossip")?
-                    .broadcast(topic, serde_json::to_vec(&message)?.into())
-                    .await?;
-            }
+        if self.gossip.lock().await.as_ref().is_none() {
+            warn!(self, "Endpoint not yet ready");
+            return Ok(());
         }
+
+        let message = GossipMessage {
+            payload: status_update.to_string(),
+            uid: create_id(),
+        };
+
+        self.gossip
+            .lock()
+            .await
+            .as_ref()
+            .context("No gossip")?
+            .broadcast(topic, serde_json::to_vec(&message)?.into())
+            .await?;
         Ok(())
     }
 
     /// Send a gossip advertisement to the chat of a given [MsgId].
     /// Automatically join the gossip for the [MsgId] if not already done.
-    pub async fn send_gossip_advertisement(&self, msg_id: MsgId) -> Result<()> {
-        self.join_and_subscribe_gossip(msg_id).await?;
+    pub async fn send_gossip_advertisement(
+        &self,
+        msg_id: MsgId,
+        topic: TopicId,
+    ) -> Result<Option<JoinTopicFut>> {
+        let mut channels = self.channels.lock().await;
+        let fut = if channels.get(&topic).is_some() {
+            return Ok(None);
+        } else {
+            channels.insert(topic);
+            self.join_and_subscribe_gossip(msg_id).await?
+        };
+        drop(channels);
         let mut msg = Message::new(Viewtype::Text);
         let webxdc = Message::load_from_db(self, msg_id).await?;
         msg.param.set_cmd(SystemMessage::IrohGossipAdvertisement);
         msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
         send_msg(self, webxdc.chat_id, &mut msg).await?;
-        Ok(())
+        Ok(Some(fut))
     }
 }
 
@@ -304,8 +309,6 @@ async fn subscribe_loop(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use crate::{
         chat::send_msg,
         message::{Message, Viewtype},
@@ -344,9 +347,11 @@ mod tests {
 
         bob_webdxc.chat_id.accept(bob).await.unwrap();
 
+        let topic = alice.get_topic_for_msg_id(alice_webxdc.id).await.unwrap();
+
         // Alice advertises herself.
         alice
-            .send_gossip_advertisement(alice_webxdc.id)
+            .send_gossip_advertisement(alice_webxdc.id, topic)
             .await
             .unwrap();
 
@@ -359,9 +364,12 @@ mod tests {
             vec![alice.get_iroh_node_addr().await.unwrap().node_id]
         );
 
-        bob.join_and_subscribe_gossip(bob_webdxc.id).await.unwrap();
+        bob.join_and_subscribe_gossip(bob_webdxc.id)
+            .await
+            .unwrap()
+            .await
+            .unwrap();
 
-        tokio::time::sleep(Duration::from_millis(1000)).await;
         // Alice sends ephemeral message
         alice
             .send_webxdc_ephemeral_status_update(alice_webxdc.id, "alice -> bob")

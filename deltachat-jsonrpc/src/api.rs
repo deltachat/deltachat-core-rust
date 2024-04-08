@@ -16,6 +16,7 @@ use deltachat::constants::DC_MSG_ID_DAYMARKER;
 use deltachat::contact::{may_be_valid_addr, Contact, ContactId, Origin};
 use deltachat::context::get_info;
 use deltachat::ephemeral::Timer;
+use deltachat::imex;
 use deltachat::location;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::message::{
@@ -28,7 +29,6 @@ use deltachat::reaction::{get_msg_reactions, send_reaction};
 use deltachat::securejoin;
 use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
-use deltachat::{error, imex};
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
@@ -1738,8 +1738,16 @@ impl CommandApi {
         instance_msg_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.send_gossip_advertisement(MsgId::new(instance_msg_id))
-            .await
+        let topic_id = ctx
+            .get_topic_for_msg_id(MsgId::new(instance_msg_id))
+            .await?;
+        if let Some(conn_fut) = ctx
+            .send_gossip_advertisement(MsgId::new(instance_msg_id), topic_id)
+            .await?
+        {
+            conn_fut.await?;
+        }
+        Ok(())
     }
 
     async fn get_webxdc_status_updates(
