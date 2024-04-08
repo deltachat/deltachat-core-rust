@@ -1,8 +1,10 @@
 """High-level classes for event processing and filtering."""
 
+from __future__ import annotations
+
 import re
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Optional, Union
 
 from .const import EventType
 
@@ -263,9 +265,9 @@ class HookCollection:
     """
 
     def __init__(self) -> None:
-        self._hooks: Set[Tuple[Callable, Union[type, EventFilter]]] = set()
+        self._hooks: set[tuple[Callable, Union[type, EventFilter]]] = set()
 
-    def __iter__(self) -> Iterator[Tuple[Callable, Union[type, EventFilter]]]:
+    def __iter__(self) -> Iterator[tuple[Callable, Union[type, EventFilter]]]:
         return iter(self._hooks)
 
     def on(self, event: Union[type, EventFilter]) -> Callable:  # noqa

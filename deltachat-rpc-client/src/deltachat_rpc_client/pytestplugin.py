@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 import random
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, Optional
 
 import pytest
 
@@ -57,7 +59,7 @@ class ACFactory:
         account.bring_online()
         return account
 
-    def get_online_accounts(self, num: int) -> List[Account]:
+    def get_online_accounts(self, num: int) -> list[Account]:
         futures = [self.get_online_account.future() for _ in range(num)]
         return [f() for f in futures]
 
