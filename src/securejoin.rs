@@ -5,6 +5,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{Contact, ContactId, Origin};
@@ -23,7 +24,6 @@ use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::token;
 use crate::tools::time;
-use crate::chatlist_events;
 
 mod bob;
 mod bobstate;

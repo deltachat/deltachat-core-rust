@@ -16,6 +16,7 @@ use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
     self, DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
@@ -37,7 +38,6 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{self, create_id, duration_to_str, time, time_elapsed};
-use crate::chatlist_events;
 
 /// Builder for the [`Context`].
 ///

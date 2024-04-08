@@ -14,7 +14,7 @@ use crate::events::EventType;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::tools::{duration_to_str, time};
-use crate::{stock_str, chatlist_events};
+use crate::{chatlist_events, stock_str};
 
 /// Location record.
 #[derive(Debug, Clone, Default)]

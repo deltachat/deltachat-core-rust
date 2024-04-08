@@ -13,7 +13,7 @@ use crate::imap::session::Session;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
 use crate::tools::time;
-use crate::{stock_str, chatlist_events, EventType};
+use crate::{chatlist_events, stock_str, EventType};
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
 ///

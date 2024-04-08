@@ -15,6 +15,7 @@ use strum_macros::EnumIter;
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
 use crate::chatlist::Chatlist;
+use crate::chatlist_events;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
@@ -45,7 +46,6 @@ use crate::tools::{
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
     smeared_time, strip_rtlo_characters, time, IsNoneOrEmpty, SystemTime,
 };
-use crate::chatlist_events;
 use crate::webxdc::WEBXDC_SUFFIX;
 
 /// An chat item, such as a message or a marker.

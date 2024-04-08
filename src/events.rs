@@ -3,8 +3,8 @@
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
 use pin_project::pin_project;
 
-mod payload;
 pub(crate) mod chatlist_events;
+mod payload;
 
 pub use self::payload::EventType;
 

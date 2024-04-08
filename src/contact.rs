@@ -37,7 +37,7 @@ use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
     EmailAddress, SystemTime,
 };
-use crate::{chat, stock_str, chatlist_events};
+use crate::{chat, chatlist_events, stock_str};
 
 /// Time during which a contact is considered as seen recently.
 const SEEN_RECENTLY_SECONDS: i64 = 600;
@@ -1850,8 +1850,11 @@ impl RecentlySeenLoop {
                 // Event is already in the past.
                 if let Some(contact_id) = contact_id {
                     context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
-                    chatlist_events::emit_chatlist_item_changed_for_contact_chat(&context, *contact_id)
-                        .await;
+                    chatlist_events::emit_chatlist_item_changed_for_contact_chat(
+                        &context,
+                        *contact_id,
+                    )
+                    .await;
                 }
                 unseen_queue.pop();
             }

@@ -1626,7 +1626,7 @@ impl CommandApi {
     /// the current device.
     ///
     /// Can be cancelled by stopping the ongoing process.
-    /// 
+    ///
     /// Do not forget to call start_io on the account after a successful import,
     /// otherwise it will not connect to the email server
     async fn get_backup(&self, account_id: u32, qr_text: String) -> Result<()> {

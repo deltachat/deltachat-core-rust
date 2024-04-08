@@ -39,8 +39,8 @@ use crate::sync::Sync::*;
 use crate::tools::{
     self, buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters, validate_id,
 };
+use crate::{chatlist_events, location};
 use crate::{contact, imap};
-use crate::{location, chatlist_events};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///

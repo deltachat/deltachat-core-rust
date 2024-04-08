@@ -17,7 +17,7 @@ use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
-use crate::{stock_str, chatlist_events};
+use crate::{chatlist_events, stock_str};
 
 /// Type of the public key stored inside the peerstate.
 #[derive(Debug)]

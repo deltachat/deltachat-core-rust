@@ -37,7 +37,7 @@ use crate::tools::{
     create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time,
     strip_rtlo_characters, truncate_by_lines,
 };
-use crate::{location, stock_str, tools, chatlist_events};
+use crate::{chatlist_events, location, stock_str, tools};
 
 /// A parsed MIME message.
 ///

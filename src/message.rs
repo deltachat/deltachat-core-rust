@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::blob::BlobObject;
 use crate::chat::{Chat, ChatId};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
@@ -30,7 +31,6 @@ use crate::tools::{
     buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
     timestamp_to_str, truncate,
 };
-use crate::chatlist_events;
 
 /// Message ID, including reserved IDs.
 ///

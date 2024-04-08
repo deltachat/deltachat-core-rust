@@ -21,12 +21,12 @@ use std::fmt;
 use anyhow::Result;
 
 use crate::chat::{send_msg, Chat, ChatId};
+use crate::chatlist_events;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::message::{rfc724_mid_exists, Message, MsgId, Viewtype};
 use crate::param::Param;
-use crate::chatlist_events;
 
 /// A single reaction consisting of multiple emoji sequences.
 ///

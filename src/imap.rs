@@ -22,6 +22,7 @@ use ratelimit::Ratelimit;
 use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails};
 use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
@@ -41,7 +42,6 @@ use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{create_id, duration_to_str};
-use crate::chatlist_events;
 
 pub(crate) mod capabilities;
 mod client;
