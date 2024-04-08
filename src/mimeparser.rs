@@ -607,7 +607,7 @@ impl MimeMessage {
                 let mut filepart = self.parts.swap_remove(1);
 
                 // insert new one
-                filepart.msg = self.parts[0].msg.clone();
+                filepart.msg.clone_from(&self.parts[0].msg);
                 if let Some(quote) = self.parts[0].param.get(Param::Quote) {
                     filepart.param.set(Param::Quote, quote);
                 }

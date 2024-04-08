@@ -784,7 +784,7 @@ pub(crate) async fn maybe_do_aeap_transition(
             .await?;
 
         let old_addr = mem::take(&mut peerstate.addr);
-        peerstate.addr = info.from.clone();
+        peerstate.addr.clone_from(&info.from);
         let header = info.autocrypt_header.as_ref().context(
             "Internal error: Tried to do an AEAP transition without an autocrypt header??",
         )?;
