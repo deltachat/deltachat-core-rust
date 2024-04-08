@@ -133,12 +133,11 @@ impl Context {
 
     /// Get the iroh gossip secret key from the database or generate a new one and persist it.
     pub async fn get_or_generate_iroh_keypair(&self) -> Result<SecretKey> {
-        // Replacing this with `todo!()` fixes the circle problem
         match self.get_config_parsed(Config::IrohSecretKey).await? {
             Some(key) => Ok(key),
             None => {
                 let key = SecretKey::generate();
-                self.set_config(Config::IrohSecretKey, Some(&key.to_string()))
+                self.set_config_internal(Config::IrohSecretKey, Some(&key.to_string()))
                     .await?;
                 Ok(key)
             }
@@ -162,7 +161,7 @@ impl Context {
             .sql
             .query_row(
                 "SELECT topic FROM iroh_gossip_peers WHERE msg_id = ? LIMIT 1",
-                (msg_id, self.get_iroh_node_addr().await?.node_id.as_bytes()),
+                (msg_id,),
                 |row| {
                     let data = row.get::<_, Vec<u8>>(0)?;
                     Ok(data)
