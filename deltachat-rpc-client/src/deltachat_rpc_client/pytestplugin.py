@@ -4,7 +4,7 @@ from typing import AsyncGenerator, List, Optional
 
 import pytest
 
-from . import Account, AttrDict, Bot, Client, DeltaChat, EventType, Message
+from . import Account, AttrDict, Bot, Chat, Client, DeltaChat, EventType, Message
 from ._utils import futuremethod
 from .rpc import Rpc
 
@@ -70,6 +70,10 @@ class ACFactory:
         ac.remove()
         ac_clone.configure()
         return ac_clone
+
+    def get_accepted_chat(self, ac1: Account, ac2: Account) -> Chat:
+        ac2.create_chat(ac1)
+        return ac1.create_chat(ac2)
 
     def send_message(
         self,
