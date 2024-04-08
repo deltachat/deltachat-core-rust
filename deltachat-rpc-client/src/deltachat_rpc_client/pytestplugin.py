@@ -54,11 +54,7 @@ class ACFactory:
     @futuremethod
     def get_online_account(self):
         account = yield self.new_configured_account.future()
-        account.start_io()
-        while True:
-            event = account.wait_for_event()
-            if event.kind == EventType.IMAP_INBOX_IDLE:
-                break
+        account.bring_online()
         return account
 
     def get_online_accounts(self, num: int) -> List[Account]:

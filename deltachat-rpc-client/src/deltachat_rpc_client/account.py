@@ -87,6 +87,14 @@ class Account:
         """Configure an account."""
         yield self._rpc.configure.future(self.id)
 
+    def bring_online(self):
+        """Start I/O and wait until IMAP becomes IDLE."""
+        self.start_io()
+        while True:
+            event = self.wait_for_event()
+            if event.kind == EventType.IMAP_INBOX_IDLE:
+                break
+
     def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.
 
