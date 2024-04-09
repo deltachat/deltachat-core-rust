@@ -61,8 +61,8 @@ def test_delivery_status(acfactory: ACFactory) -> None:
 
     event = bob.wait_for_incoming_msg_event()
     msg = bob.get_message_by_id(event.msg_id)
-    bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
-    bob.mark_seen_messages([msg])
+    msg.get_snapshot().chat.accept()
+    msg.mark_seen()
 
     chat_item = alice._rpc.get_chatlist_items_by_entries(alice.id, [alice_chat_bob.id])[str(alice_chat_bob.id)]
     assert chat_item["summaryStatus"] == const.MessageState.OUT_DELIVERED
@@ -123,7 +123,7 @@ def test_download_on_demand(acfactory: ACFactory) -> None:
     event = bob.wait_for_incoming_msg_event()
     msg = bob.get_message_by_id(event.msg_id)
     chat_id = msg.get_snapshot().chat_id
-    bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
+    msg.get_snapshot().chat.accept()
     bob.get_chat_by_id(chat_id).send_message(
         "Hello World, this message is bigger than 5 bytes",
         html=base64.b64encode(os.urandom(300000)).decode("utf-8"),
@@ -174,7 +174,7 @@ def test_imap_sync_seen_msgs(acfactory: ACFactory) -> None:
     event = bob.wait_for_incoming_msg_event()
     msg = bob.get_message_by_id(event.msg_id)
     bob_chat_id = msg.get_snapshot().chat_id
-    bob._rpc.accept_chat(bob.id, bob_chat_id)
+    msg.get_snapshot().chat.accept()
 
     alice.clear_all_events()
     alice_second_device.clear_all_events()
@@ -186,7 +186,7 @@ def test_imap_sync_seen_msgs(acfactory: ACFactory) -> None:
     event = alice.wait_for_incoming_msg_event()
     msg = alice.get_message_by_id(event.msg_id)
     alice_second_device.clear_all_events()
-    alice.mark_seen_messages([msg])
+    msg.mark_seen()
 
     wait_for_chatlist_specific_item(bob, bob_chat_id)
     wait_for_chatlist_specific_item(alice, alice_chat_bob.id)
