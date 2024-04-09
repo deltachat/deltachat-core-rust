@@ -2669,7 +2669,7 @@ sth_for_the = "future""#
         let alice_instance = send_webxdc_instance(alice, alice_chat.id).await?;
         let bob_instance = bob.recv_msg(&alice.pop_sent_msg().await).await;
 
-        SystemTime::shift(Duration::from_secs(1800));
+        SystemTime::shift(Duration::from_secs(1800)).await;
         let mut update = Message {
             chat_id: alice_chat.id,
             viewtype: Viewtype::Text,
@@ -2690,7 +2690,7 @@ sth_for_the = "future""#
             r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
 
-        SystemTime::shift(Duration::from_secs(2700));
+        SystemTime::shift(Duration::from_secs(2700)).await;
         ephemeral::delete_expired_messages(bob, tools::time()).await?;
         let bob_instance = Message::load_from_db(bob, bob_instance.id).await?;
         assert_eq!(bob_instance.chat_id.is_trash(), false);

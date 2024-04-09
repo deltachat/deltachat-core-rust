@@ -929,7 +929,7 @@ mod tests {
         assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), false);
 
         if case == SetupContactCase::CheckProtectionTimestamp {
-            SystemTime::shift(Duration::from_secs(3600));
+            SystemTime::shift(Duration::from_secs(3600)).await;
         }
 
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm

@@ -4831,7 +4831,7 @@ mod tests {
         // Bob receives a msg about Alice adding Claire to the group.
         bob.recv_msg(&alice_sent_add_msg).await;
 
-        SystemTime::shift(Duration::from_secs(3600));
+        SystemTime::shift(Duration::from_secs(3600)).await;
         // This adds Bob because they left quite long ago.
         let alice_sent_msg = alice.send_text(alice_chat_id, "What a silence!").await;
         bob.recv_msg(&alice_sent_msg).await;
@@ -4884,7 +4884,7 @@ mod tests {
         let sent_msg = alice.send_text(alice_chat_id, "Welcome, Fiona!").await;
         bob.recv_msg(&sent_msg).await;
 
-        SystemTime::shift(Duration::from_secs(3600));
+        SystemTime::shift(Duration::from_secs(3600)).await;
         let sent_msg = alice.send_text(alice_chat_id, "Welcome back, Fiona!").await;
         bob.recv_msg(&sent_msg).await;
         bob.golden_test_chat(bob_chat_id, "chat_test_msg_with_implicit_member_add")

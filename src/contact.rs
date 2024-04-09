@@ -2852,7 +2852,7 @@ Hi."#;
 
             // Wait for `was_seen_recently()` to turn off.
             while bob.evtracker.try_recv().is_ok() {}
-            SystemTime::shift(Duration::from_secs(SEEN_RECENTLY_SECONDS as u64 * 2));
+            SystemTime::shift(Duration::from_secs(SEEN_RECENTLY_SECONDS as u64 * 2)).await;
             recently_seen_loop.interrupt(ContactId::UNDEFINED, 0).await;
             let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
             assert!(!contact.was_seen_recently());

@@ -644,7 +644,7 @@ Here's my footer -- bob@example.net"
         let bob_msg1 = bob.recv_msg(&alice_msg1).await;
 
         // Bob reacts to Alice's message, this is shown in the summaries
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         bob_msg1.chat_id.accept(&bob).await?;
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
@@ -661,7 +661,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&alice, "BOB reacted 👍 to \"Party?\"").await;
 
         // Alice reacts to own message as well
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
         bob.recv_msg(&alice_send_reaction).await;
@@ -670,7 +670,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
 
         // Alice sends a newer message, this overwrites reaction summaries
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         let alice_msg2 = alice.send_text(alice_chat.id, "kewl").await;
         bob.recv_msg(&alice_msg2).await;
 
@@ -678,7 +678,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "kewl").await;
 
         // Reactions to older messages still overwrite newer messages
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice, alice_msg1.sender_msg_id, "🤘").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
         bob.recv_msg(&alice_send_reaction).await;
@@ -687,7 +687,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "ALICE reacted 🤘 to \"Party?\"").await;
 
         // Retracted reactions remove all summary reactions
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice, alice_msg1.sender_msg_id, "").await?;
         let alice_remove_reaction = alice.pop_sent_msg().await;
         bob.recv_msg(&alice_remove_reaction).await;
@@ -696,7 +696,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&bob, "kewl").await;
 
         // Alice adds another reaction and then deletes the message reacted to; this will also delete reaction summary
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice, alice_msg1.sender_msg_id, "🧹").await?;
         assert_summary(&alice, "You reacted 🧹 to \"Party?\"").await;
 
@@ -718,7 +718,7 @@ Here's my footer -- bob@example.net"
         assert_summary(&alice, "foo").await;
 
         // Alice reacts to that message
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice, msg_id, "🐫").await?;
         assert_summary(&alice, "You reacted 🐫 to \"foo\"").await;
         let reactions = get_msg_reactions(&alice, msg_id).await?;
@@ -736,7 +736,7 @@ Here's my footer -- bob@example.net"
 
         // Alice reacts to forwarded message:
         // For reaction summary neither original message author nor "Forwarded" prefix is shown
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice, forwarded_msg_id, "🐳").await?;
         assert_summary(&alice, "You reacted 🐳 to \"foo\"").await;
         let reactions = get_msg_reactions(&alice, msg_id).await?;
@@ -754,7 +754,7 @@ Here's my footer -- bob@example.net"
         let msg_id = send_text_msg(&alice0, chat.id, "mom's birthday!".to_string()).await?;
         alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
-        SystemTime::shift(Duration::from_secs(10));
+        SystemTime::shift(Duration::from_secs(10)).await;
         send_reaction(&alice0, msg_id, "👆").await?;
         let sync = alice0.pop_sent_msg().await;
         receive_imf(&alice1, sync.payload().as_bytes(), false).await?;

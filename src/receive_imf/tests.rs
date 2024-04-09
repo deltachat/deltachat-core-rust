@@ -3664,7 +3664,7 @@ async fn test_ignore_outdated_membership_changes() -> Result<()> {
     send_text_msg(bob, bob_chat_id, "i'm bob".to_string()).await?;
     let msg = &bob.pop_sent_msg().await;
 
-    SystemTime::shift(Duration::from_secs(3600));
+    SystemTime::shift(Duration::from_secs(3600)).await;
 
     // Alice leaves.
     remove_contact_from_chat(alice, alice_chat_id, ContactId::SELF).await?;
@@ -3675,7 +3675,7 @@ async fn test_ignore_outdated_membership_changes() -> Result<()> {
     alice.recv_msg(msg).await;
     assert!(!is_contact_in_chat(alice, alice_chat_id, ContactId::SELF).await?);
 
-    SystemTime::shift(Duration::from_secs(3600));
+    SystemTime::shift(Duration::from_secs(3600)).await;
 
     // Bob replies again adding Alice back.
     send_text_msg(bob, bob_chat_id, "i'm bob".to_string()).await?;
@@ -3728,7 +3728,7 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
     alice.recv_msg(&bob.pop_sent_msg().await).await;
     assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 3);
 
-    SystemTime::shift(Duration::from_secs(3600));
+    SystemTime::shift(Duration::from_secs(3600)).await;
     send_text_msg(
         &alice,
         alice_chat_id,
@@ -3811,7 +3811,7 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
     remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 1);
 
-    SystemTime::shift(Duration::from_secs(3600));
+    SystemTime::shift(Duration::from_secs(3600)).await;
     add_contact_to_chat(
         &alice,
         alice_chat_id,

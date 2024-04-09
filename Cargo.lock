@@ -1283,6 +1283,9 @@ dependencies = [
 [[package]]
 name = "deltachat-time"
 version = "1.0.0"
+dependencies = [
+ "tokio",
+]
 
 [[package]]
 name = "deltachat_derive"

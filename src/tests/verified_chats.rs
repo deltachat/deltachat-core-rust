@@ -62,7 +62,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
         bob2.set_name("bob2");
         bob2.configure_addr("bob@example.net").await;
 
-        SystemTime::shift(std::time::Duration::from_secs(3600));
+        SystemTime::shift(std::time::Duration::from_secs(3600)).await;
         tcm.send_recv(&bob2, &alice, "Using another device now")
             .await;
         let contact = alice.add_or_lookup_contact(&bob).await;
@@ -71,7 +71,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     }
 
     tcm.section("Bob sends another message from DC");
-    SystemTime::shift(std::time::Duration::from_secs(3600));
+    SystemTime::shift(std::time::Duration::from_secs(3600)).await;
     tcm.send_recv(&bob, &alice, "Using DC again").await;
 
     // Bob's chat is marked as verified again
@@ -797,7 +797,7 @@ async fn test_create_protected_grp_multidev() -> Result<()> {
     let sent = alice.send_text(group_id, "Hey").await;
     // This time shift is necessary to reproduce the bug when the original message is sorted over
     // the "protection enabled" message so that these messages have different timestamps.
-    SystemTime::shift(std::time::Duration::from_secs(3600));
+    SystemTime::shift(std::time::Duration::from_secs(3600)).await;
     let msg = alice1.recv_msg(&sent).await;
     let group1 = Chat::load_from_db(alice1, msg.chat_id).await?;
     assert_eq!(group1.get_type(), Chattype::Group);
