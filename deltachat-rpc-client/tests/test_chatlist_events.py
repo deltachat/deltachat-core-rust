@@ -59,13 +59,10 @@ def test_delivery_status(acfactory: ACFactory) -> None:
     bob.clear_all_events()
     bob.start_io()
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            msg = bob.get_message_by_id(event.msg_id)
-            bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
-            bob.mark_seen_messages([msg])
-            break
+    event = bob.wait_for_incoming_msg_event()
+    msg = bob.get_message_by_id(event.msg_id)
+    bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
+    bob.mark_seen_messages([msg])
 
     chat_item = alice._rpc.get_chatlist_items_by_entries(alice.id, [alice_chat_bob.id])[str(alice_chat_bob.id)]
     assert chat_item["summaryStatus"] == const.MessageState.OUT_DELIVERED
@@ -123,23 +120,16 @@ def test_download_on_demand(acfactory: ACFactory) -> None:
 
     alice.set_config("download_limit", "1")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            msg = bob.get_message_by_id(event.msg_id)
-            chat_id = msg.get_snapshot().chat_id
-            bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
-            bob.get_chat_by_id(chat_id).send_message(
-                "Hello World, this message is bigger than 5 bytes",
-                html=base64.b64encode(os.urandom(300000)).decode("utf-8"),
-            )
-            break
+    event = bob.wait_for_incoming_msg_event()
+    msg = bob.get_message_by_id(event.msg_id)
+    chat_id = msg.get_snapshot().chat_id
+    bob._rpc.accept_chat(bob.id, msg.get_snapshot().chat_id)
+    bob.get_chat_by_id(chat_id).send_message(
+        "Hello World, this message is bigger than 5 bytes",
+        html=base64.b64encode(os.urandom(300000)).decode("utf-8"),
+    )
 
-    while True:
-        event = alice.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            msg_id = event.msg_id
-            break
+    msg_id = alice.wait_for_incoming_msg_event().msg_id
 
     assert alice.get_message_by_id(msg_id).get_snapshot().download_state == const.DownloadState.AVAILABLE
 
@@ -158,10 +148,7 @@ def get_multi_account_test_setup(acfactory: ACFactory) -> [Account, Account, Acc
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("hi")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            break
+    bob.wait_for_incoming_msg_event()
 
     alice_second_device: Account = acfactory.get_unconfigured_account()
 
@@ -183,31 +170,23 @@ def test_imap_sync_seen_msgs(acfactory: ACFactory) -> None:
     alice, alice_second_device, bob, alice_chat_bob = get_multi_account_test_setup(acfactory)
 
     alice_chat_bob.send_text("hello")
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            msg = bob.get_message_by_id(event.msg_id)
-            bob_chat_id = msg.get_snapshot().chat_id
-            bob._rpc.accept_chat(bob.id, bob_chat_id)
-            break
+
+    event = bob.wait_for_incoming_msg_event()
+    msg = bob.get_message_by_id(event.msg_id)
+    bob_chat_id = msg.get_snapshot().chat_id
+    bob._rpc.accept_chat(bob.id, bob_chat_id)
 
     alice.clear_all_events()
     alice_second_device.clear_all_events()
     bob.get_chat_by_id(bob_chat_id).send_text("hello")
 
     # make sure alice_second_device already received the message
-    while True:
-        event = alice_second_device.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            break
+    alice_second_device.wait_for_incoming_msg_event()
 
-    while True:
-        event = alice.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            msg = alice.get_message_by_id(event.msg_id)
-            alice_second_device.clear_all_events()
-            alice.mark_seen_messages([msg])
-            break
+    event = alice.wait_for_incoming_msg_event()
+    msg = alice.get_message_by_id(event.msg_id)
+    alice_second_device.clear_all_events()
+    alice.mark_seen_messages([msg])
 
     wait_for_chatlist_specific_item(bob, bob_chat_id)
     wait_for_chatlist_specific_item(alice, alice_chat_bob.id)
