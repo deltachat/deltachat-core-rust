@@ -225,6 +225,7 @@ impl Context {
         };
         drop(channels);
         let mut msg = Message::new(Viewtype::Text);
+        msg.hidden = true;
         let webxdc = Message::load_from_db(self, msg_id).await?;
         msg.param.set_cmd(SystemMessage::IrohGossipAdvertisement);
         msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
