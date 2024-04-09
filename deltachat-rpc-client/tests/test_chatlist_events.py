@@ -3,6 +3,9 @@ import os
 
 from deltachat_rpc_client import Account, EventType, const
 
+# vscode needs this extra import for autocompletion
+from deltachat_rpc_client.pytestplugin import ACFactory
+
 
 def wait_for_chatlist_order_and_specific_item(account, chat_id):
     while True:
@@ -33,13 +36,10 @@ def wait_for_chatlist_order(account):
             break
 
 
-def test_delivery_status(acfactory) -> None:
+def test_delivery_status(acfactory: ACFactory) -> None:
     """
     Test change status on chatlistitem when status changes (delivered, read)
     """
-    # explicit type Annotations are needed for vscode
-    alice: Account
-    bob: Account
     alice, bob = acfactory.get_online_accounts(2)
 
     bob_addr = bob.get_config("addr")
@@ -82,12 +82,10 @@ def test_delivery_status(acfactory) -> None:
     assert chat_item["summaryStatus"] == const.MessageState.OUT_MDN_RCVD
 
 
-def test_delivery_status_failed(acfactory) -> None:
+def test_delivery_status_failed(acfactory: ACFactory) -> None:
     """
     Test change status on chatlistitem when status changes failed
     """
-    # explicit type Annotations are needed for vscode
-    alice: Account
     (alice,) = acfactory.get_online_accounts(1)
 
     invalid_contact = alice.create_contact("example@example.com", "invalid address")
@@ -111,14 +109,11 @@ def test_delivery_status_failed(acfactory) -> None:
     assert failing_message.get_snapshot().state == const.MessageState.OUT_FAILED
 
 
-def test_download_on_demand(acfactory) -> None:
+def test_download_on_demand(acfactory: ACFactory) -> None:
     """
     Test if download on demand emits chatlist update events.
     This is only needed for last message in chat, but finding that out is too expensive, so it's always emitted
     """
-    # explicit type Annotations are needed for vscode
-    alice: Account
-    bob: Account
     alice, bob = acfactory.get_online_accounts(2)
 
     bob_addr = bob.get_config("addr")
@@ -155,10 +150,7 @@ def test_download_on_demand(acfactory) -> None:
     wait_for_chatlist_specific_item(alice, chat_id)
 
 
-def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
-    # explicit type Annotations are needed for vscode
-    alice: Account
-    bob: Account
+def get_multi_account_test_setup(acfactory: ACFactory) -> [Account, Account, Account]:
     alice, bob = acfactory.get_online_accounts(2)
 
     bob_addr = bob.get_config("addr")
@@ -183,7 +175,7 @@ def get_multi_account_test_setup(acfactory) -> [Account, Account, Account]:
     return [alice, alice_second_device, bob, alice_chat_bob]
 
 
-def test_imap_sync_seen_msgs(acfactory) -> None:
+def test_imap_sync_seen_msgs(acfactory: ACFactory) -> None:
     """
     Test that chatlist changed events are emitted for the second device
     when the message is marked as read on the first device
@@ -221,7 +213,7 @@ def test_imap_sync_seen_msgs(acfactory) -> None:
     wait_for_chatlist_specific_item(alice, alice_chat_bob.id)
 
 
-def test_multidevice_sync_chat(acfactory) -> None:
+def test_multidevice_sync_chat(acfactory: ACFactory) -> None:
     """
     Test multidevice sync: syncing chat visibility and muting across multiple devices
     """
