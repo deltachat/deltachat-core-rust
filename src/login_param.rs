@@ -80,7 +80,7 @@ impl LoginParam {
         // Only check for IMAP password, SMTP password is an "advanced" setting.
         ensure!(!param.imap.password.is_empty(), "Missing (IMAP) password.");
         if param.smtp.password.is_empty() {
-            param.smtp.password = param.imap.password.clone()
+            param.smtp.password.clone_from(&param.imap.password)
         }
         Ok(param)
     }

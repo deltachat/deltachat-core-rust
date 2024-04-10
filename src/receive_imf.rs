@@ -2079,7 +2079,7 @@ async fn apply_group_changes(
             } else if let Some(added_id) = added_id {
                 diff.insert(added_id);
             }
-            new_members = chat_contacts.clone();
+            new_members.clone_from(&chat_contacts);
             // Don't delete any members locally, but instead add absent ones to provide group
             // membership consistency for all members:
             // - Classical MUA users usually don't intend to remove users from an email thread, so
@@ -2268,7 +2268,7 @@ fn compute_mailinglist_name(
     // and we can detect these lists by a unique `ListId`-suffix.
     if listid.ends_with(".list-id.mcsv.net") {
         if let Some(display_name) = &mime_parser.from.display_name {
-            name = display_name.clone();
+            name.clone_from(display_name);
         }
     }
 
@@ -2296,7 +2296,7 @@ fn compute_mailinglist_name(
             || listid.ends_with(".xt.local"))
     {
         if let Some(display_name) = &mime_parser.from.display_name {
-            name = display_name.clone();
+            name.clone_from(display_name);
         }
     }
 

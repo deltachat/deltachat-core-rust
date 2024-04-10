@@ -1527,7 +1527,7 @@ impl Chat {
                     Ok(contacts) => {
                         if let Some(contact_id) = contacts.first() {
                             if let Ok(contact) = Contact::get_by_id(context, *contact_id).await {
-                                chat_name = contact.get_display_name().to_owned();
+                                contact.get_display_name().clone_into(&mut chat_name);
                             }
                         }
                     }
@@ -2861,7 +2861,7 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         msg.update_param(context).await?;
     }
 
-    msg.subject = rendered_msg.subject.clone();
+    msg.subject.clone_from(&rendered_msg.subject);
     msg.update_subject(context).await?;
     let chunk_size = context
         .get_configured_provider()

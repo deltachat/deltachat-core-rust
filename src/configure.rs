@@ -356,8 +356,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         let mut smtp_configured = false;
         let mut errors = Vec::new();
         for smtp_server in smtp_servers {
-            smtp_param.user = smtp_server.username.clone();
-            smtp_param.server = smtp_server.hostname.clone();
+            smtp_param.user.clone_from(&smtp_server.username);
+            smtp_param.server.clone_from(&smtp_server.hostname);
             smtp_param.port = smtp_server.port;
             smtp_param.security = smtp_server.socket;
             smtp_param.certificate_checks = match smtp_server.strict_tls {
@@ -403,8 +403,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let imap_servers_count = imap_servers.len();
     let mut errors = Vec::new();
     for (imap_server_index, imap_server) in imap_servers.into_iter().enumerate() {
-        param.imap.user = imap_server.username.clone();
-        param.imap.server = imap_server.hostname.clone();
+        param.imap.user.clone_from(&imap_server.username);
+        param.imap.server.clone_from(&imap_server.hostname);
         param.imap.port = imap_server.port;
         param.imap.security = imap_server.socket;
         param.imap.certificate_checks = match imap_server.strict_tls {
