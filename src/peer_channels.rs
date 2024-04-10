@@ -153,7 +153,7 @@ impl Context {
         }
     }
 
-    /// Get own iroh gossip public key.
+    /// Get the iroh node address.
     pub async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
         self.endpoint
             .lock()

@@ -494,8 +494,8 @@ impl Context {
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
-        // self.endpoint.lock().await.take();
-        // self.gossip.lock().await.take();
+        self.endpoint.lock().await.take();
+        self.gossip.lock().await.take();
         self.scheduler.stop(self).await;
     }
 
