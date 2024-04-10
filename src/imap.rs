@@ -388,7 +388,7 @@ impl Imap {
             Ok(session) => {
                 // Store server ID in the context to display in account info.
                 let mut lock = context.server_id.write().await;
-                *lock = session.capabilities.server_id.clone();
+                lock.clone_from(&session.capabilities.server_id);
 
                 self.login_failed_once = false;
                 context.emit_event(EventType::ImapConnected(format!(
@@ -420,7 +420,7 @@ impl Imap {
                     drop(lock);
 
                     let mut msg = Message::new(Viewtype::Text);
-                    msg.text = message.clone();
+                    msg.text.clone_from(&message);
                     if let Err(e) =
                         chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
                             .await
