@@ -1056,8 +1056,10 @@ pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
         0,
     );
 
-    peerstate.verified_key = peerstate.public_key.clone();
-    peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
+    peerstate.verified_key.clone_from(&peerstate.public_key);
+    peerstate
+        .verified_key
+        .clone_from(&peerstate.public_key_fingerprint);
     peerstate.backward_verified_key_id = Some(this.get_config_i64(Config::KeyId).await.unwrap());
 
     peerstate.save_to_db(&this.sql).await.unwrap();

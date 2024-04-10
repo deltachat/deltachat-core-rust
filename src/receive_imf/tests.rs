@@ -9,7 +9,7 @@ use crate::chat::{
     ChatVisibility,
 };
 use crate::chatlist::Chatlist;
-use crate::constants::{ShowEmails, DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
+use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
 use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};

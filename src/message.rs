@@ -362,7 +362,7 @@ impl rusqlite::types::FromSql for MsgId {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
         // Would be nice if we could use match here, but alas.
         i64::column_result(value).and_then(|val| {
-            if 0 <= val && val <= i64::from(std::u32::MAX) {
+            if 0 <= val && val <= i64::from(u32::MAX) {
                 Ok(MsgId::new(val as u32))
             } else {
                 Err(rusqlite::types::FromSqlError::OutOfRange(val))
