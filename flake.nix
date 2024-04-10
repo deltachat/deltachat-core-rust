@@ -11,12 +11,7 @@
   outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix, android }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = (import nixpkgs {
-          inherit system;
-          overlays = [
-            fenix.overlays.default
-          ];
-        });
+        pkgs = nixpkgs.legacyPackages.${system};
         inherit (pkgs.stdenv) isDarwin;
         fenixPkgs = fenix.packages.${system};
         naersk' = pkgs.callPackage naersk { };
