@@ -1,4 +1,4 @@
-name: Build & Deploy Documentation on rs.delta.chat, c.delta.chat, py.delta.chat
+name: Build & deploy documentation on rs.delta.chat, c.delta.chat, and py.delta.chat
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build C documentation
         run: nix build .#docs
-      - name: Upload to py.delta.chat
+      - name: Upload to c.delta.chat
         run: |
           mkdir -p "$HOME/.ssh"
           echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
