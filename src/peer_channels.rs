@@ -18,7 +18,7 @@ use crate::EventType;
 
 impl Context {
     /// Create magic endpoint and gossip for the context.
-    pub async fn create_gossip(&self) -> Result<()> {
+    pub(crate) async fn create_gossip(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
         info!(self, "secret key: {}", secret_key.to_string());
         let mut ctx_gossip = self.gossip.lock().await;
@@ -62,7 +62,7 @@ impl Context {
 
     /// Join a topic and create the subscriber loop for it.
     /// If there is no gossip, create it.
-    pub async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
+    async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
         let mut gossip = (*self.gossip.lock().await).clone();
         if gossip.is_none() {
             self.create_gossip().await?;
@@ -85,7 +85,7 @@ impl Context {
     }
 
     /// Cache a peers [NodeId] for one topic.
-    pub async fn add_peer_for_topic(
+    pub(crate) async fn add_peer_for_topic(
         &self,
         msg_id: MsgId,
         topic: TopicId,
@@ -101,7 +101,7 @@ impl Context {
     }
 
     /// Get list of [NodeId]s for one webxdc.
-    pub async fn get_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeId>> {
+    async fn get_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeId>> {
         self.sql
             .query_map(
                 "SELECT public_key FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
@@ -126,11 +126,7 @@ impl Context {
     }
 
     /// Remove one cached peer from a topic.
-    pub async fn delete_webxdc_gossip_peer_for_msg(
-        &self,
-        topic: TopicId,
-        peer: NodeId,
-    ) -> Result<()> {
+    async fn delete_webxdc_gossip_peer_for_msg(&self, topic: TopicId, peer: NodeId) -> Result<()> {
         self.sql
             .execute(
                 "DELETE FROM iroh_gossip_peers WHERE public_key = ? topic = ?",
@@ -140,8 +136,8 @@ impl Context {
         Ok(())
     }
 
-    /// Get the iroh gossip secret key from the database or generate a new one and persist it.
-    pub async fn get_or_generate_iroh_keypair(&self) -> Result<SecretKey> {
+    /// Get the iroh secret key from the database or generate a new one and persist it.
+    pub(crate) async fn get_or_generate_iroh_keypair(&self) -> Result<SecretKey> {
         match self.get_config_parsed(Config::IrohSecretKey).await? {
             Some(key) => Ok(key),
             None => {
@@ -154,7 +150,7 @@ impl Context {
     }
 
     /// Get the iroh node address.
-    pub async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
+    pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
         self.endpoint
             .lock()
             .await
@@ -165,7 +161,7 @@ impl Context {
     }
 
     /// Get the topic for given [MsgId].
-    pub async fn get_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
+    pub(crate) async fn get_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
         let bytes = self
             .sql
             .query_row(
@@ -180,7 +176,7 @@ impl Context {
         Ok(TopicId::from_bytes(bytes.try_into().unwrap()))
     }
 
-    /// Send a webxdc ephemeral status update to the gossip network.
+    /// Send a webxdc ephemeral status update to the gossip swarm.
     pub async fn send_webxdc_ephemeral_status_update(
         &self,
         msg_id: MsgId,
@@ -210,12 +206,11 @@ impl Context {
     }
 
     /// Send a gossip advertisement to the chat of a given [MsgId].
-    /// Automatically join the gossip for the [MsgId] if not already done.
-    pub async fn send_gossip_advertisement(
-        &self,
-        msg_id: MsgId,
-        topic: TopicId,
-    ) -> Result<Option<JoinTopicFut>> {
+    /// Automatically join the gossip for the [MsgId] if not already joined.
+    /// Creates magic endpoint and gossip if not already created.
+    /// This method should be called from the frontend when `setEphemeralListener` is called.
+    pub async fn send_gossip_advertisement(&self, msg_id: MsgId) -> Result<Option<JoinTopicFut>> {
+        let topic = self.get_topic_for_msg_id(msg_id).await?;
         let mut channels = self.channels.lock().await;
         let fut = if channels.get(&topic).is_some() {
             return Ok(None);
@@ -224,6 +219,7 @@ impl Context {
             self.join_and_subscribe_gossip(msg_id).await?
         };
         drop(channels);
+        
         let mut msg = Message::new(Viewtype::Text);
         msg.hidden = true;
         let webxdc = Message::load_from_db(self, msg_id).await?;
@@ -349,11 +345,9 @@ mod tests {
 
         bob_webdxc.chat_id.accept(bob).await.unwrap();
 
-        let topic = alice.get_topic_for_msg_id(alice_webxdc.id).await.unwrap();
-
         // Alice advertises herself.
         alice
-            .send_gossip_advertisement(alice_webxdc.id, topic)
+            .send_gossip_advertisement(alice_webxdc.id)
             .await
             .unwrap();
 
@@ -427,4 +421,7 @@ mod tests {
             }
         }
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_can_reconnect() {}
 }

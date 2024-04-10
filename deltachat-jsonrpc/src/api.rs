@@ -1738,11 +1738,8 @@ impl CommandApi {
         instance_msg_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        let topic_id = ctx
-            .get_topic_for_msg_id(MsgId::new(instance_msg_id))
-            .await?;
         if let Some(conn_fut) = ctx
-            .send_gossip_advertisement(MsgId::new(instance_msg_id), topic_id)
+            .send_gossip_advertisement(MsgId::new(instance_msg_id))
             .await?
         {
             conn_fut.await?;
