@@ -740,7 +740,6 @@ fn add_white_bg(img: &mut DynamicImage) {
 #[cfg(test)]
 mod tests {
     use fs::File;
-    use image::Pixel;
 
     use super::*;
     use crate::chat::{self, create_group_chat, ProtectionStatus};
