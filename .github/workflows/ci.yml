@@ -105,10 +105,15 @@ jobs:
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
 
+      - name: Install nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
       - name: Tests
         env:
           RUST_BACKTRACE: 1
-        run: cargo test --workspace
+        run: cargo nextest run --workspace
 
       - name: Test cargo vendor
         run: cargo vendor
