@@ -538,3 +538,40 @@ def test_reactions_for_a_reordering_move(acfactory):
     assert len(contacts) == 1
     assert contacts[0].get_snapshot().address == ac1.get_config("addr")
     assert list(reactions.reactions_by_contact.values())[0] == [react_str]
+
+
+def test_download_limit_chat_assignment(acfactory, tmp_path):
+    download_limit = 300000
+    alice, bob, carol = acfactory.get_online_accounts(3)
+
+    for account in bob, carol:
+        chat = account.create_chat(alice)
+        chat.send_text("Hello Alice!")
+        assert alice.get_message_by_id(alice.wait_for_incoming_msg_event().msg_id).get_snapshot().text == "Hello Alice!"
+
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+
+    carol_addr = carol.get_config("addr")
+    alice_contact_carol = alice.create_contact(carol_addr, "Carol")
+
+    alice_group = alice.create_group("test group")
+    alice_group.add_contact(alice_contact_bob)
+    alice_group.add_contact(alice_contact_carol)
+
+    bob.set_config("download_limit", str(download_limit))
+
+    alice_group.send_text("hi")
+    snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "hi"
+    bob_group = snapshot.chat
+
+    path = tmp_path / "large"
+    path.write_bytes(os.urandom(download_limit + 1))
+
+    for i in range(10):
+        logging.info("Sending message %s", i)
+        alice_group.send_file(str(path))
+        snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
+        assert snapshot.download_state == DownloadState.AVAILABLE
+        assert snapshot.chat == bob_group
