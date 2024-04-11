@@ -209,24 +209,11 @@ impl ChatId {
     }
 
     /// Returns [`ChatId`] of a chat that `msg` belongs to.
-    ///
-    /// Checks that `msg` is assigned to the right chat.
     pub(crate) fn lookup_by_message(msg: &Message) -> Option<Self> {
         if msg.chat_id == DC_CHAT_ID_TRASH {
             return None;
         }
-        if msg.download_state != DownloadState::Done
-            // TODO (2023-09-12): Added for backward compatibility with versions that did not have
-            // `DownloadState::Undecipherable`. Remove eventually with the comment in
-            // `MimeMessage::from_bytes()`.
-            || msg
-                .error
-                .as_ref()
-                .filter(|e| e.starts_with("Decrypting failed:"))
-                .is_some()
-        {
-            // If `msg` is not fully downloaded or undecipherable, it may have been assigned to the
-            // wrong chat (they often get assigned to the 1:1 chat with the sender).
+        if msg.download_state == DownloadState::Undecipherable {
             return None;
         }
         Some(msg.chat_id)
