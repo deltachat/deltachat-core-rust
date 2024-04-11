@@ -115,6 +115,11 @@ jobs:
           RUST_BACKTRACE: 1
         run: cargo nextest run --workspace
 
+      - name: Doc-Tests
+        env:
+          RUST_BACKTRACE: 1
+        run: cargo test --workspace --doc
+
       - name: Test cargo vendor
         run: cargo vendor
 
