@@ -49,12 +49,10 @@ impl Context {
                     .await
                     .as_ref()
                     .map(|conf| {
-                        conf.iroh_relay.as_ref().map(|relay| {
-                            let url = RelayUrl::from(Url::parse(relay)?);
-                            Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
-                        })
+                        let url = conf.iroh_relay.as_deref().unwrap_or("iroh.testrun.org");
+                        let url = RelayUrl::from(Url::parse(url)?);
+                        Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
                     })
-                    .flatten()
                     .transpose()?
                     // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
                     .unwrap_or(RelayMode::Default),
