@@ -1749,7 +1749,19 @@ async fn create_or_lookup_group(
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
-    } else if allow_creation {
+    } else if !allow_creation {
+        info!(context, "Creating ad-hoc group prevented from caller.");
+        return Ok(None);
+    } else if is_partial_download {
+        // Partial download may be an encrypted message with protected Subject header.
+        //
+        // We do not want to create a group with "..." or "Encrypted message" as a subject.
+        info!(
+            context,
+            "Ad-hoc group cannot be created from partial download."
+        );
+        return Ok(None);
+    } else {
         let mut member_ids: Vec<ContactId> = to_ids.to_vec();
         if !member_ids.contains(&(from_id)) {
             member_ids.push(from_id);
@@ -1763,9 +1775,6 @@ async fn create_or_lookup_group(
             .context("could not create ad hoc group")?
             .map(|chat_id| (chat_id, create_blocked));
         return Ok(res);
-    } else {
-        info!(context, "Creating ad-hoc group prevented from caller.");
-        return Ok(None);
     };
 
     let mut chat_id;
