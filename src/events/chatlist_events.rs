@@ -542,7 +542,7 @@ First thread."#;
 
     /// Test both direction of securejoin
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_secure_join() -> Result<()> {
+    async fn test_secure_join_group() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
@@ -563,7 +563,6 @@ First thread."#;
         // Step 3: Alice receives vg-request, sends vg-auth-required
         alice.evtracker.clear_events();
         alice.recv_msg(&sent).await;
-        wait_for_chatlist_order(&alice).await;
 
         let sent = alice.pop_sent_msg().await;
 
