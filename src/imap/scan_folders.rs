@@ -89,9 +89,16 @@ impl Imap {
             Config::ConfiguredSentboxFolder,
             Config::ConfiguredTrashFolder,
         ] {
-            context
-                .set_config_internal(conf, folder_configs.get(&conf).map(|s| s.as_str()))
-                .await?;
+            let val = folder_configs.get(&conf).map(|s| s.as_str());
+            let interrupt = conf == Config::ConfiguredTrashFolder
+                && val.is_some()
+                && context.get_config(conf).await?.is_none();
+            context.set_config_internal(conf, val).await?;
+            if interrupt {
+                // `Imap::fetch_move_delete()` is possible now for other folders (NB: we are in the
+                // Inbox loop).
+                context.scheduler.interrupt_oboxes().await;
+            }
         }
 
         last_scan.replace(tools::Time::now());

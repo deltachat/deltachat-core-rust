@@ -21,6 +21,9 @@ classifiers = [
     "Topic :: Communications :: Email"
 ]
 readme = "README.md"
+dependencies = [
+    "imap-tools",
+]
 
 [tool.setuptools.package-data]
 deltachat_rpc_client = [

@@ -17,7 +17,6 @@ typedef struct _dc_array     dc_array_t;
 typedef struct _dc_chatlist  dc_chatlist_t;
 typedef struct _dc_chat      dc_chat_t;
 typedef struct _dc_msg       dc_msg_t;
-typedef struct _dc_reactions dc_reactions_t;
 typedef struct _dc_contact   dc_contact_t;
 typedef struct _dc_lot       dc_lot_t;
 typedef struct _dc_provider  dc_provider_t;
@@ -1115,36 +1114,6 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  *     or 0 for errors.
  */
 uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
-
-
-/**
- * Send a reaction to message.
- *
- * Reaction is a string of emojis separated by spaces. Reaction to a
- * single message can be sent multiple times. The last reaction
- * received overrides all previously received reactions. It is
- * possible to remove all reactions by sending an empty string.
- *
- * @deprecated 2023-11-27, use jsonrpc method `send_reaction` instead
- * @memberof dc_context_t
- * @param context The context object.
- * @param msg_id ID of the message you react to.
- * @param reaction A string consisting of emojis separated by spaces.
- * @return The ID of the message sent out or 0 for errors.
- */
-uint32_t dc_send_reaction (dc_context_t* context, uint32_t msg_id, char *reaction);
-
-
-/**
- * Get a structure with reactions to the message.
- *
- * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
- * @memberof dc_context_t
- * @param context The context object.
- * @param msg_id The message ID to get reactions for.
- * @return A structure with all reactions to the message.
- */
-dc_reactions_t* dc_get_msg_reactions (dc_context_t *context, int msg_id);
 
 
 /**
@@ -5318,52 +5287,6 @@ uint32_t        dc_lot_get_id            (const dc_lot_t* lot);
  * @return The timestamp as defined by the creator of the object. 0 if there is not timestamp or on errors.
  */
 int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
-
-
-/**
- * @class dc_reactions_t
- * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
- *
- * An object representing all reactions for a single message.
- */
-
-/**
- * Returns array of contacts which reacted to the given message.
- *
- * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
- * @memberof dc_reactions_t
- * @param reactions The object containing message reactions.
- * @return array of contact IDs. Use dc_array_get_cnt() to get array length and
- *         dc_array_get_id() to get the IDs. Should be freed using `dc_array_unref()` after usage.
- */
-dc_array_t*     dc_reactions_get_contacts(dc_reactions_t* reactions);
-
-
-/**
- * Returns a string containing space-separated reactions of a single contact.
- *
- * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
- * @memberof dc_reactions_t
- * @param reactions The object containing message reactions.
- * @param contact_id ID of the contact.
- * @return Space-separated list of emoji sequences, which could be empty.
- *         Returned string should not be modified and should be freed
- *         with dc_str_unref() after usage.
- */
-char*           dc_reactions_get_by_contact_id(dc_reactions_t* reactions, uint32_t contact_id);
-
-
-/**
- * Frees an object containing message reactions.
- *
- * Reactions objects are created by dc_get_msg_reactions().
- *
- * @deprecated 2023-11-27
- * @memberof dc_reactions_t
- * @param reactions The object to free.
- *     If NULL is given, nothing is done.
- */
-void            dc_reactions_unref       (dc_reactions_t* reactions);
 
 
 /**

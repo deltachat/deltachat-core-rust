@@ -12,6 +12,12 @@ else()
        set(DYNAMIC_EXT "dll")
 endif()
 
+if(DEFINED ENV{CARGO_BUILD_TARGET})
+    set(ARCH_DIR "$ENV{CARGO_BUILD_TARGET}")
+else()
+    set(ARCH_DIR "./")
+endif()
+
 add_custom_command(
 	OUTPUT
 	"${CMAKE_BINARY_DIR}/target/release/libdeltachat.a"
@@ -35,6 +41,6 @@ add_custom_target(
 )
 
 install(FILES "deltachat-ffi/deltachat.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES "${CMAKE_BINARY_DIR}/target/release/libdeltachat.a" DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES "${CMAKE_BINARY_DIR}/target/release/libdeltachat.${DYNAMIC_EXT}" DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES "${CMAKE_BINARY_DIR}/target/release/pkgconfig/deltachat.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+install(FILES "${CMAKE_BINARY_DIR}/target/${ARCH_DIR}/release/libdeltachat.a" DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES "${CMAKE_BINARY_DIR}/target/${ARCH_DIR}/release/libdeltachat.${DYNAMIC_EXT}" DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES "${CMAKE_BINARY_DIR}/target/${ARCH_DIR}/release/pkgconfig/deltachat.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

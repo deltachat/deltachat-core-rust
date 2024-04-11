@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Dict, List
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from ._utils import AttrDict
 from .account import Account
@@ -21,7 +23,7 @@ class DeltaChat:
         account_id = self.rpc.add_account()
         return Account(self, account_id)
 
-    def get_all_accounts(self) -> List[Account]:
+    def get_all_accounts(self) -> list[Account]:
         """Return a list of all available accounts."""
         account_ids = self.rpc.get_all_account_ids()
         return [Account(self, account_id) for account_id in account_ids]
@@ -44,6 +46,6 @@ class DeltaChat:
         """Get information about the Delta Chat core in this system."""
         return AttrDict(self.rpc.get_system_info())
 
-    def set_translations(self, translations: Dict[str, str]) -> None:
+    def set_translations(self, translations: dict[str, str]) -> None:
         """Set stock translation strings."""
         self.rpc.set_stock_strings(translations)

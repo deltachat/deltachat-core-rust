@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
 
 from ._utils import AttrDict
+from .const import EventType
 from .contact import Contact
 
 if TYPE_CHECKING:
@@ -21,9 +22,10 @@ class Message:
     def _rpc(self) -> "Rpc":
         return self.account._rpc
 
-    def send_reaction(self, *reaction: str):
+    def send_reaction(self, *reaction: str) -> "Message":
         """Send a reaction to this message."""
-        self._rpc.send_reaction(self.account.id, self.id, reaction)
+        msg_id = self._rpc.send_reaction(self.account.id, self.id, reaction)
+        return Message(self.account, msg_id)
 
     def get_snapshot(self) -> AttrDict:
         """Get a snapshot with the properties of this message."""
@@ -61,3 +63,10 @@ class Message:
 
     def get_webxdc_info(self) -> dict:
         return self._rpc.get_webxdc_info(self.account.id, self.id)
+
+    def wait_until_delivered(self) -> None:
+        """Consume events until the message is delivered."""
+        while True:
+            event = self.account.wait_for_event()
+            if event.kind == EventType.MSG_DELIVERED and event.msg_id == self.id:
+                break

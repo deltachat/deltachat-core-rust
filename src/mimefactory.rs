@@ -1612,7 +1612,6 @@ mod tests {
     use std::str;
 
     use super::*;
-    use crate::chat::ChatId;
     use crate::chat::{
         add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg,
         ProtectionStatus,

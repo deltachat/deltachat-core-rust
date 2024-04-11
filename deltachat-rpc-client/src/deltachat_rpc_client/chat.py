@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import calendar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from ._utils import AttrDict
 from .const import ChatVisibility, ViewType
@@ -93,7 +95,7 @@ class Chat:
         """Return encryption info for this chat."""
         return self._rpc.get_chat_encryption_info(self.account.id, self.id)
 
-    def get_qr_code(self) -> Tuple[str, str]:
+    def get_qr_code(self) -> tuple[str, str]:
         """Get Join-Group QR code text and SVG data."""
         return self._rpc.get_chat_securejoin_qr_code_svg(self.account.id, self.id)
 
@@ -117,7 +119,7 @@ class Chat:
         html: Optional[str] = None,
         viewtype: Optional[ViewType] = None,
         file: Optional[str] = None,
-        location: Optional[Tuple[float, float]] = None,
+        location: Optional[tuple[float, float]] = None,
         override_sender_name: Optional[str] = None,
         quoted_msg: Optional[Union[int, Message]] = None,
     ) -> Message:
@@ -142,6 +144,10 @@ class Chat:
         msg_id = self._rpc.misc_send_text_message(self.account.id, self.id, text)
         return Message(self.account, msg_id)
 
+    def send_file(self, path):
+        """Send a file and return the resulting Message instance."""
+        return self.send_message(file=path)
+
     def send_videochat_invitation(self) -> Message:
         """Send a videochat invitation and return the resulting Message instance."""
         msg_id = self._rpc.send_videochat_invitation(self.account.id, self.id)
@@ -152,7 +158,7 @@ class Chat:
         msg_id = self._rpc.send_sticker(self.account.id, self.id, path)
         return Message(self.account, msg_id)
 
-    def forward_messages(self, messages: List[Message]) -> None:
+    def forward_messages(self, messages: list[Message]) -> None:
         """Forward a list of messages to this chat."""
         msg_ids = [msg.id for msg in messages]
         self._rpc.forward_messages(self.account.id, msg_ids, self.id)
@@ -184,7 +190,7 @@ class Chat:
         snapshot["message"] = Message(self.account, snapshot.id)
         return snapshot
 
-    def get_messages(self, info_only: bool = False, add_daymarker: bool = False) -> List[Message]:
+    def get_messages(self, info_only: bool = False, add_daymarker: bool = False) -> list[Message]:
         """get the list of messages in this chat."""
         msgs = self._rpc.get_message_ids(self.account.id, self.id, info_only, add_daymarker)
         return [Message(self.account, msg_id) for msg_id in msgs]
@@ -219,7 +225,7 @@ class Chat:
                 contact_id = cnt
             self._rpc.remove_contact_from_chat(self.account.id, self.id, contact_id)
 
-    def get_contacts(self) -> List[Contact]:
+    def get_contacts(self) -> list[Contact]:
         """Get the contacts belonging to this chat.
 
         For single/direct chats self-address is not included.
@@ -243,7 +249,7 @@ class Chat:
         contact: Optional[Contact] = None,
         timestamp_from: Optional["datetime"] = None,
         timestamp_to: Optional["datetime"] = None,
-    ) -> List[AttrDict]:
+    ) -> list[AttrDict]:
         """Get list of location snapshots for the given contact in the given timespan."""
         time_from = calendar.timegm(timestamp_from.utctimetuple()) if timestamp_from else 0
         time_to = calendar.timegm(timestamp_to.utctimetuple()) if timestamp_to else 0
@@ -251,7 +257,7 @@ class Chat:
 
         result = self._rpc.get_locations(self.account.id, self.id, contact_id, time_from, time_to)
         locations = []
-        contacts: Dict[int, Contact] = {}
+        contacts: dict[int, Contact] = {}
         for loc in result:
             location = AttrDict(loc)
             location["chat"] = self
