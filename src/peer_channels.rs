@@ -36,26 +36,25 @@ impl Context {
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
-            .peers_data_path(
-                self.blobdir
-                    .parent()
-                    .context("Can't get parent of blob dir")?
-                    .join("iroh_gossip_peers")
-                    .to_path_buf(),
-            )
             .relay_mode(
-                self.metadata
-                    .read()
-                    .await
-                    .as_ref()
-                    .map(|conf| {
-                        let url = conf.iroh_relay.as_deref().unwrap_or("iroh.testrun.org");
-                        let url = RelayUrl::from(Url::parse(url)?);
-                        Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
-                    })
-                    .transpose()?
-                    // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
-                    .unwrap_or(RelayMode::Default),
+                /* self.metadata
+                .read()
+                .await
+                .as_ref()
+                .map(|conf| {
+                    let url = conf
+                        .iroh_relay
+                        .as_deref()
+                        .unwrap_or("https://iroh.testrun.org:4443");
+                    let url = RelayUrl::from(Url::parse(url)?);
+                    Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
+                })
+                .transpose()?
+                // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
+                .unwrap_or(RelayMode::Default), */
+                RelayMode::Custom(RelayMap::from_url(RelayUrl::from(
+                    Url::parse("https://iroh.testrun.org:4443").unwrap(),
+                ))),
             )
             .bind(0)
             .await?;
@@ -92,8 +91,19 @@ impl Context {
             info!(self, "joining gossip with {peers:?}");
         }
 
+        for peer in &peers {
+            self.endpoint
+                .lock()
+                .await
+                .as_ref()
+                .context("iroh endpoint not initialized")?
+                .add_node_addr(peer.clone())?;
+        }
+
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let connect_future = gossip.join(topic, peers).await?;
+        let connect_future = gossip
+            .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
+            .await?;
 
         tokio::spawn(subscribe_loop(self.clone(), gossip.clone(), topic, msg_id));
         Ok(connect_future)
@@ -105,33 +115,37 @@ impl Context {
         msg_id: MsgId,
         topic: TopicId,
         peer: NodeId,
+        relay_server: Option<&str>,
     ) -> Result<()> {
         self.sql
             .execute(
-                "INSERT INTO iroh_gossip_peers (msg_id, public_key, topic) VALUES (?, ?, ?)",
-                (msg_id, peer.as_bytes(), topic.as_bytes()),
+                "INSERT OR IGNORE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
+                (msg_id, peer.as_bytes(), topic.as_bytes(), relay_server),
             )
             .await?;
         Ok(())
     }
 
-    /// Get list of [NodeId]s for one webxdc.
-    async fn get_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeId>> {
+    /// Get list of [NodeAddr]s for one webxdc.
+    async fn get_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
         self.sql
             .query_map(
-                "SELECT public_key FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
+                "SELECT public_key, relay_server FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
                 (msg_id, self.get_iroh_node_addr().await?.node_id.as_bytes()),
                 |row| {
-                    let data = row.get::<_, Vec<u8>>(0)?;
-                    Ok(data)
+                    let key = row.get::<_, Vec<u8>>(0)?;
+                    let server = row.get::<_, Option<String>>(1)?;
+                    Ok((key, server))
                 },
                 |g| {
                     g.map(|data| {
-                        Ok::<NodeId, anyhow::Error>(NodeId::from_bytes(
-                            &data?
-                                .try_into()
-                                .map_err(|_| anyhow!("Can't convert sql data to [u8; 32]"))?,
-                        )?)
+                        let (key, server) = data?;
+                        let server = server.map(|data| Ok::<_, url::ParseError>(RelayUrl::from(Url::parse(&data)?))).transpose()?;
+                        let id = NodeId::from_bytes(&key.try_into()
+                        .map_err(|_| anyhow!("Can't convert sql data to [u8; 32]"))?)?;
+                        Ok::<_, anyhow::Error>(NodeAddr::from_parts(
+                            id, server, vec![]
+                        ))
                     })
                     .collect::<std::result::Result<Vec<_>, _>>()
                     .map_err(Into::into)
@@ -141,7 +155,7 @@ impl Context {
     }
 
     /// Remove one cached peer from a topic.
-    async fn delete_webxdc_gossip_peer_for_msg(&self, topic: TopicId, peer: NodeId) -> Result<()> {
+    async fn _delete_webxdc_gossip_peer_for_msg(&self, topic: TopicId, peer: NodeId) -> Result<()> {
         self.sql
             .execute(
                 "DELETE FROM iroh_gossip_peers WHERE public_key = ? topic = ?",
@@ -164,15 +178,21 @@ impl Context {
         }
     }
 
-    /// Get the iroh node address.
+    /// Get the iroh node address without local and publicly facing ip addresses.
     pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
-        self.endpoint
-            .lock()
-            .await
+        let endpoint = self.endpoint.lock().await;
+        let relay = endpoint
             .as_ref()
             .context("iroh endpoint not initialized")?
-            .my_addr()
-            .await
+            .my_relay();
+        Ok(NodeAddr::from_parts(
+            endpoint
+                .as_ref()
+                .context("iroh endpoint not initialized")?
+                .node_id(),
+            relay,
+            vec![],
+        ))
     }
 
     /// Get the topic for given [MsgId].
@@ -300,12 +320,8 @@ async fn subscribe_loop(
         match event {
             IrohEvent::NeighborUp(node) => {
                 info!(context, "NeighborUp: {:?}", node);
-                context.add_peer_for_topic(msg_id, topic, node).await?;
-            }
-            IrohEvent::NeighborDown(node) => {
-                info!(context, "NeighborDown: {:?}", node);
                 context
-                    .delete_webxdc_gossip_peer_for_msg(topic, node)
+                    .add_peer_for_topic(msg_id, topic, node, None)
                     .await?;
             }
             IrohEvent::Received(event) => {
@@ -316,6 +332,7 @@ async fn subscribe_loop(
                     status_update: status_update.payload,
                 });
             }
+            _ => (),
         };
     }
 }
@@ -369,7 +386,13 @@ mod tests {
         bob.recv_msg(&alice.pop_sent_msg().await).await;
 
         // Bob adds alice to gossip peers.
-        let members = bob.get_gossip_peers(bob_webdxc.id).await.unwrap();
+        let members = bob
+            .get_gossip_peers(bob_webdxc.id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|addr| addr.node_id)
+            .collect::<Vec<_>>();
         assert_eq!(
             members,
             vec![alice.get_iroh_node_addr().await.unwrap().node_id]
@@ -415,7 +438,14 @@ mod tests {
         }
 
         // Alice adds bob to gossip peers.
-        let members = alice.get_gossip_peers(alice_webxdc.id).await.unwrap();
+        let members = alice
+            .get_gossip_peers(alice_webxdc.id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|addr| addr.node_id)
+            .collect::<Vec<_>>();
+
         assert_eq!(
             members,
             vec![bob.get_iroh_node_addr().await.unwrap().node_id]
@@ -438,5 +468,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_can_reconnect() {}
+    async fn test_can_reconnect() {
+        //TODO: test if peers can reconnect after initial connection teardown
+    }
 }

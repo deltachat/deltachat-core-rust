@@ -1323,6 +1323,7 @@ impl<'a> MimeFactory<'a> {
                     self.msg.id,
                     topic,
                     context.get_iroh_node_addr().await.unwrap().node_id,
+                    None,
                 )
                 .await?;
             headers.protected.push(Header::new(
@@ -1613,7 +1614,7 @@ mod tests {
 
     use super::*;
     use crate::chat::{
-        add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg,
+        add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg, ChatId,
         ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
