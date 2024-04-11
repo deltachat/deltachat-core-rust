@@ -4,9 +4,11 @@ use anyhow::{anyhow, Context as _, Result};
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
+use iroh_net::relay::{RelayMap, RelayUrl};
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::chat::send_msg;
 use crate::config::Config;
@@ -41,7 +43,22 @@ impl Context {
                     .join("iroh_gossip_peers")
                     .to_path_buf(),
             )
-            .relay_mode(RelayMode::Default)
+            .relay_mode(
+                self.metadata
+                    .read()
+                    .await
+                    .as_ref()
+                    .map(|conf| {
+                        conf.iroh_relay.as_ref().map(|relay| {
+                            let url = RelayUrl::from(Url::parse(relay)?);
+                            Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
+                        })
+                    })
+                    .flatten()
+                    .transpose()?
+                    // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
+                    .unwrap_or(RelayMode::Default),
+            )
             .bind(0)
             .await?;
 
@@ -219,7 +236,7 @@ impl Context {
             self.join_and_subscribe_gossip(msg_id).await?
         };
         drop(channels);
-        
+
         let mut msg = Message::new(Viewtype::Text);
         msg.hidden = true;
         let webxdc = Message::load_from_db(self, msg_id).await?;
