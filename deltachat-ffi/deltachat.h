@@ -4732,6 +4732,7 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
  * dc_msg_t* webxdc_instance = dc_init_webxdc_integration(context, 0);
  * ~~~
  *
+ * The returned webxdc_instance can be used the same way as any other Webxdc.
  * see dc_init_webxdc_integration() for more details about Webxdc integrations.
  *
  * @memberof dc_msg_t
