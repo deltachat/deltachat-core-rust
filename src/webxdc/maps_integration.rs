@@ -33,7 +33,7 @@
 // (not by `DC_EVENT_WEBXDC_STATUS_UPDATE`).
 
 use crate::{chat, location};
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 
 use crate::context::Context;
 use crate::message::{Message, MsgId, Viewtype};
@@ -106,14 +106,12 @@ pub(crate) async fn intercept_get_updates(
     let locations = location::get_range(context, chat_id, None, 0, 0).await?;
     for location in locations.iter().rev() {
         if location.location_id > last_known_serial.to_u32() {
-            if !contact_data.contains_key(&location.contact_id) {
+            if let hash_map::Entry::Vacant(e) = contact_data.entry(location.contact_id) {
                 let contact = Contact::get_by_id(context, location.contact_id).await?;
                 let color = color_int_to_hex_string(contact.get_color());
-                contact_data.insert(
-                    location.contact_id,
-                    (contact.get_display_name().to_string(), color.to_string()),
-                );
+                e.insert((contact.get_display_name().to_string(), color.to_string()));
             }
+
             let (name, color) = contact_data
                 .get(&location.contact_id)
                 .ok_or_else(|| anyhow!("cannot read contact_data"))?;
