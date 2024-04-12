@@ -42,7 +42,7 @@ use crate::chat::ChatId;
 use crate::color::color_int_to_hex_string;
 use crate::contact::{Contact, ContactId};
 use crate::webxdc::{StatusUpdateItem, StatusUpdateItemAndSerial, StatusUpdateSerial};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -106,15 +106,15 @@ pub(crate) async fn intercept_get_updates(
     let locations = location::get_range(context, chat_id, None, 0, 0).await?;
     for location in locations.iter().rev() {
         if location.location_id > last_known_serial.to_u32() {
-            if let hash_map::Entry::Vacant(e) = contact_data.entry(location.contact_id) {
-                let contact = Contact::get_by_id(context, location.contact_id).await?;
-                let color = color_int_to_hex_string(contact.get_color());
-                e.insert((contact.get_display_name().to_string(), color.to_string()));
-            }
-
-            let (name, color) = contact_data
-                .get(&location.contact_id)
-                .ok_or_else(|| anyhow!("cannot read contact_data"))?;
+            let (name, color) = match contact_data.entry(location.contact_id) {
+                hash_map::Entry::Vacant(e) => {
+                    let contact = Contact::get_by_id(context, location.contact_id).await?;
+                    let name = contact.get_display_name().to_string();
+                    let color = color_int_to_hex_string(contact.get_color());
+                    e.insert((name, color)).clone()
+                }
+                hash_map::Entry::Occupied(e) => e.get().clone(),
+            };
 
             let mut label = String::new();
             if location.independent != 0 {
@@ -137,8 +137,8 @@ pub(crate) async fn intercept_get_updates(
                 independent: location.independent != 0,
                 timestamp: location.timestamp,
                 label,
-                name: name.to_string(),
-                color: color.to_string(),
+                name,
+                color,
             };
 
             let update_item = StatusUpdateItemAndSerial {
