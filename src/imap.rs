@@ -20,7 +20,6 @@ use futures::{FutureExt as _, StreamExt, TryStreamExt};
 use futures_lite::FutureExt;
 use num_traits::FromPrimitive;
 use ratelimit::Ratelimit;
-use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::chatlist_events;
@@ -90,7 +89,7 @@ pub(crate) struct Imap {
     /// e.g. the server returning invalid response to SELECT command
     /// immediately after logging in or returning an error in response to LOGIN command
     /// due to internal server error.
-    ratelimit: RwLock<Ratelimit>,
+    ratelimit: Ratelimit,
 }
 
 #[derive(Debug)]
@@ -249,7 +248,7 @@ impl Imap {
             login_failed_once: false,
             connectivity: Default::default(),
             // 1 connection per minute + a burst of 2.
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(120, 0), 2.0)),
+            ratelimit: Ratelimit::new(Duration::new(120, 0), 2.0),
         };
 
         Ok(imap)
@@ -293,7 +292,7 @@ impl Imap {
             bail!("IMAP operation attempted while it is torn down");
         }
 
-        let ratelimit_duration = self.ratelimit.read().await.until_can_send();
+        let ratelimit_duration = self.ratelimit.until_can_send();
         if !ratelimit_duration.is_zero() {
             warn!(
                 context,
@@ -316,7 +315,7 @@ impl Imap {
 
         info!(context, "Connecting to IMAP server");
         self.connectivity.set_connecting(context).await;
-        self.ratelimit.write().await.send();
+        self.ratelimit.send();
         let connection_res: Result<Client> =
             if self.lp.security == Socket::Starttls || self.lp.security == Socket::Plain {
                 let imap_server: &str = self.lp.server.as_ref();
