@@ -1179,8 +1179,6 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
 char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t serial);
 
 
-#define DC_INTEGRATION_MAPS 1
-
 /**
  * Init a Webxdc integration.
  *
@@ -1205,12 +1203,11 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @param integration_type The integration to obtain, one of the DC_INTEGRATION_* constants.
  * @param chat_id The chat to get the integration for.
  * @return ID of the message that refers to the Webxdc instance.
  *     UI can open a Webxdc as usual with this instance.
  */
-uint32_t        dc_init_webxdc_integration    (dc_context_t* context, int integration_type, uint32_t chat_id);
+uint32_t        dc_init_webxdc_integration    (dc_context_t* context, uint32_t chat_id);
 
 
 /**

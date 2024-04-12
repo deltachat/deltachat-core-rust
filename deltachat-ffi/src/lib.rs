@@ -1066,10 +1066,9 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
 #[no_mangle]
 pub unsafe extern "C" fn dc_init_webxdc_integration(
     context: *mut dc_context_t,
-    integration_type: libc::c_int,
     chat_id: u32,
 ) -> u32 {
-    if context.is_null() || integration_type == 0 {
+    if context.is_null() {
         eprintln!("ignoring careless call to dc_init_webxdc_integration()");
         return 0;
     }
