@@ -1,36 +1,40 @@
-// # Maps Webxdc Integration.
-//
-// A Maps Webxdc Integration uses `sendUpdate()` and `setUpdateListener()` as usual,
-// however, it agrees with the core on the following update format:
-//
-// ## Setting POIs via `sendUpdate()`
-//
-//     payload: {
-//       action: "pos",
-//       lat:    53.550556,
-//       lng:    9.993333,
-//       label:  "my poi"
-//     }
-//
-// Just sent POI are received via `setUpdateListener()`, as well as old POI.
-//
-// ## Receiving Locations via `setUpdateListener()`
-//
-//     payload: {
-//       action:     "pos",
-//       lat:        47.994828,
-//       lng:        7.849881,
-//       timestamp:  1712928222,
-//       contactId:  123,    // can be used as a unique ID to differ tracks etc
-//       name:       "Alice",
-//       color:      "#ff8080",
-//       independent: false, // false: current or past position of contact, true: a POI
-//       label:       ""     // used for POI only
-//     }
-//
-// For messenger implementors adding support for these Webxdc:
-// New locations, are announced by `DC_EVENT_LOCATION_CHANGED`
-// (not by `DC_EVENT_WEBXDC_STATUS_UPDATE`).
+//! # Maps Webxdc Integration.
+//!
+//! A Maps Webxdc Integration uses `sendUpdate()` and `setUpdateListener()` as usual,
+//! however, it agrees with the core on the following update format:
+//!
+//! ## Setting POIs via `sendUpdate()`
+//!
+//! ```json
+//! payload: {
+//!     action: "pos",
+//!     lat:    53.550556,
+//!     lng:    9.993333,
+//!     label:  "my poi"
+//! }
+//! ```
+//!
+//! Just sent POI are received via `setUpdateListener()`, as well as old POI.
+//!
+//! ## Receiving Locations via `setUpdateListener()`
+//!
+//! ```json
+//! payload: {
+//!     action:     "pos",
+//!     lat:        47.994828,
+//!     lng:        7.849881,
+//!     timestamp:  1712928222,
+//!     contactId:  123,    // can be used as a unique ID to differ tracks etc
+//!     name:       "Alice",
+//!     color:      "#ff8080",
+//!     independent: false, // false: current or past position of contact, true: a POI
+//!     label:       ""     // used for POI only
+//! }
+//! ```
+//!
+//! For messenger implementors adding support for these Webxdc:
+//! New locations, are announced by `DC_EVENT_LOCATION_CHANGED`
+//! (not by `DC_EVENT_WEBXDC_STATUS_UPDATE`).
 
 use crate::{chat, location};
 use std::collections::{hash_map, HashMap};
