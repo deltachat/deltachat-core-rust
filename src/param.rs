@@ -188,7 +188,7 @@ pub enum Param {
     WebxdcSummaryTimestamp = b'Q',
 
     /// For Webxdc Message Instances: Webxdc is an integration, see init_webxdc_integration()
-    WebxdcIntegration = b'L',
+    WebxdcIntegration = b'3',
 
     /// For Webxdc Message Instances: Chat to integrate in.
     WebxdcIntegrateFor = b'2',
