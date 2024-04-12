@@ -20,22 +20,25 @@ impl Context {
         &self,
         integrate_for: Option<ChatId>,
     ) -> Result<Option<MsgId>> {
-        if let Some(instance_id) = self.sql.get_raw_config_int("webxdc_integration").await? {
-            if let Some(mut instance) =
-                Message::load_from_db_optional(self, MsgId::new(instance_id as u32)).await?
-            {
-                if instance.viewtype == Viewtype::Webxdc && !instance.chat_id.is_trash() {
-                    let integrate_for = integrate_for.unwrap_or_default().to_u32() as i32;
-                    if instance.param.get_int(Param::WebxdcIntegrateFor) != Some(integrate_for) {
-                        instance
-                            .param
-                            .set_int(Param::WebxdcIntegrateFor, integrate_for);
-                        instance.update_param(self).await?;
-                    }
-                    return Ok(Some(instance.id));
+        let Some(instance_id) = self.sql.get_raw_config_int("webxdc_integration").await? else {
+            return Ok(None);
+        };
+
+        if let Some(mut instance) =
+            Message::load_from_db_optional(self, MsgId::new(instance_id as u32)).await?
+        {
+            if instance.viewtype == Viewtype::Webxdc && !instance.chat_id.is_trash() {
+                let integrate_for = integrate_for.unwrap_or_default().to_u32() as i32;
+                if instance.param.get_int(Param::WebxdcIntegrateFor) != Some(integrate_for) {
+                    instance
+                        .param
+                        .set_int(Param::WebxdcIntegrateFor, integrate_for);
+                    instance.update_param(self).await?;
                 }
+                return Ok(Some(instance.id));
             }
         }
+
         Ok(None)
     }
 
