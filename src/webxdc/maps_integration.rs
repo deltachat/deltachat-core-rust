@@ -41,6 +41,7 @@ use crate::message::{Message, MsgId, Viewtype};
 use crate::chat::ChatId;
 use crate::color::color_int_to_hex_string;
 use crate::contact::{Contact, ContactId};
+use crate::tools::time;
 use crate::webxdc::{StatusUpdateItem, StatusUpdateItemAndSerial, StatusUpdateSerial};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -103,7 +104,8 @@ pub(crate) async fn intercept_get_updates(
     let mut json = String::default();
     let mut contact_data: HashMap<ContactId, (String, String)> = HashMap::new();
 
-    let locations = location::get_range(context, chat_id, None, 0, 0).await?;
+    let begin = time() - 24 * 60 * 60;
+    let locations = location::get_range(context, chat_id, None, begin, 0).await?;
     for location in locations.iter().rev() {
         if location.location_id > last_known_serial.to_u32() {
             let (name, color) = match contact_data.entry(location.contact_id) {
