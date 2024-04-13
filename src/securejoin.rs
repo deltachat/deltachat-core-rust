@@ -833,7 +833,7 @@ mod tests {
         assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
 
         // Step 3: Alice receives vc-request, sends vc-auth-required
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
         assert_eq!(
             Chatlist::try_load(&alice, 0, None, None)
                 .await
@@ -851,7 +851,7 @@ mod tests {
         );
 
         // Step 4: Bob receives vc-auth-required, sends vc-request-with-auth
-        bob.recv_msg(&sent).await;
+        bob.recv_msg_trash(&sent).await;
 
         // Check Bob emitted the JoinerProgress event.
         let event = bob
@@ -933,7 +933,7 @@ mod tests {
         }
 
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
         assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), true);
 
         // exactly one one-to-one chat should be visible for both now
@@ -982,7 +982,7 @@ mod tests {
         assert_eq!(contact_bob.is_verified(&bob.ctx).await.unwrap(), false);
 
         // Step 7: Bob receives vc-contact-confirm
-        bob.recv_msg(&sent).await;
+        bob.recv_msg_trash(&sent).await;
         assert_eq!(contact_alice.is_verified(&bob.ctx).await.unwrap(), true);
 
         // Check Bob got the verified message in his 1:1 chat.
@@ -1083,7 +1083,7 @@ mod tests {
         assert_eq!(contact_bob.is_verified(&alice.ctx).await?, false);
 
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
         assert_eq!(contact_bob.is_verified(&alice.ctx).await?, true);
 
         let sent = alice.pop_sent_msg().await;
@@ -1104,7 +1104,7 @@ mod tests {
         assert_eq!(contact_bob.is_verified(&bob.ctx).await?, false);
 
         // Step 7: Bob receives vc-contact-confirm
-        bob.recv_msg(&sent).await;
+        bob.recv_msg_trash(&sent).await;
         assert_eq!(contact_alice.is_verified(&bob.ctx).await?, true);
 
         Ok(())
@@ -1182,7 +1182,7 @@ mod tests {
         assert!(msg.get_header(HeaderDef::SecureJoinGroup).is_none());
 
         // Step 3: Alice receives vg-request, sends vg-auth-required
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
 
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
@@ -1193,7 +1193,7 @@ mod tests {
         );
 
         // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
-        bob.recv_msg(&sent).await;
+        bob.recv_msg_trash(&sent).await;
         let sent = bob.pop_sent_msg().await;
 
         // Check Bob emitted the JoinerProgress event.
@@ -1240,7 +1240,7 @@ mod tests {
         assert_eq!(contact_bob.is_verified(&alice.ctx).await?, false);
 
         // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
         assert_eq!(contact_bob.is_verified(&alice.ctx).await?, true);
 
         let sent = alice.pop_sent_msg().await;
@@ -1388,15 +1388,15 @@ First thread."#;
 
         // vc-request
         let sent = bob.pop_sent_msg().await;
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
 
         // vc-auth-required
         let sent = alice.pop_sent_msg().await;
-        bob.recv_msg(&sent).await;
+        bob.recv_msg_trash(&sent).await;
 
         // vc-request-with-auth
         let sent = bob.pop_sent_msg().await;
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
 
         // Alice has Bob verified now.
         let contact_bob_id =

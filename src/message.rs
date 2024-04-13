@@ -506,7 +506,7 @@ impl Message {
                     "    m.location_id AS location,",
                     "    c.blocked AS blocked",
                     " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                    " WHERE m.id=?;"
+                    " WHERE m.id=? AND chat_id!=3;"
                 ),
                 (id,),
                 |row| {
@@ -1145,13 +1145,8 @@ impl Message {
     pub async fn parent(&self, context: &Context) -> Result<Option<Message>> {
         if let Some(in_reply_to) = &self.in_reply_to {
             if let Some((msg_id, _ts_sent)) = rfc724_mid_exists(context, in_reply_to).await? {
-                let msg = Message::load_from_db(context, msg_id).await?;
-                return if msg.chat_id.is_trash() {
-                    // If message is already moved to trash chat, pretend it does not exist.
-                    Ok(None)
-                } else {
-                    Ok(Some(msg))
-                };
+                let msg = Message::load_from_db_optional(context, msg_id).await?;
+                return Ok(msg);
             }
         }
         Ok(None)
@@ -1881,8 +1876,7 @@ pub(crate) async fn get_latest_by_rfc724_mids(
 ) -> Result<Option<Message>> {
     for id in mids.iter().rev() {
         if let Some((msg_id, _)) = rfc724_mid_exists(context, id).await? {
-            let msg = Message::load_from_db(context, msg_id).await?;
-            if msg.chat_id != DC_CHAT_ID_TRASH {
+            if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
                 return Ok(Some(msg));
             }
         }
