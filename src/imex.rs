@@ -1158,7 +1158,8 @@ mod tests {
         // Send a message that cannot be decrypted because the keys are
         // not synchronized yet.
         let sent = alice2.send_text(msg.chat_id, "Test").await;
-        alice.recv_msg(&sent).await;
+        let trashed_message = alice.recv_msg_opt(&sent).await;
+        assert!(trashed_message.is_none());
         assert_ne!(alice.get_last_msg().await.get_text(), "Test");
 
         // Transfer the key.

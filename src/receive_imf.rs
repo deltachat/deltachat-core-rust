@@ -476,11 +476,46 @@ pub(crate) async fn receive_imf_inner(
     }
 
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
-        if let Err(err) = context
-            .receive_status_update(from_id, insert_msg_id, status_update)
-            .await
+        let can_info_msg;
+        let instance = if mime_parser
+            .parts
+            .first()
+            .filter(|part| part.typ == Viewtype::Webxdc)
+            .is_some()
         {
-            warn!(context, "receive_imf cannot update status: {err:#}.");
+            can_info_msg = false;
+            Some(Message::load_from_db(context, insert_msg_id).await?)
+        } else if let Some(field) = mime_parser.get_header(HeaderDef::InReplyTo) {
+            if let Some(instance) = get_rfc724_mid_in_list(context, field).await? {
+                can_info_msg = instance.download_state() == DownloadState::Done;
+                Some(instance)
+            } else {
+                can_info_msg = false;
+                None
+            }
+        } else {
+            can_info_msg = false;
+            None
+        };
+
+        if let Some(instance) = instance {
+            if let Err(err) = context
+                .receive_status_update(
+                    from_id,
+                    &instance,
+                    received_msg.sort_timestamp,
+                    can_info_msg,
+                    status_update,
+                )
+                .await
+            {
+                warn!(context, "receive_imf cannot update status: {err:#}.");
+            }
+        } else {
+            warn!(
+                context,
+                "Received webxdc update, but cannot assign it to message."
+            );
         }
     }
 
@@ -2694,8 +2729,6 @@ async fn mark_recipients_as_verified(
 /// Returns the last message referenced from `References` header if it is in the database.
 ///
 /// For Delta Chat messages it is the last message in the chat of the sender.
-///
-/// Note that the returned message may be trashed.
 async fn get_previous_message(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -2703,7 +2736,7 @@ async fn get_previous_message(
     if let Some(field) = mime_parser.get_header(HeaderDef::References) {
         if let Some(rfc724mid) = parse_message_ids(field).last() {
             if let Some((msg_id, _)) = rfc724_mid_exists(context, rfc724mid).await? {
-                return Ok(Some(Message::load_from_db(context, msg_id).await?));
+                return Message::load_from_db_optional(context, msg_id).await;
             }
         }
     }

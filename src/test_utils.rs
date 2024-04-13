@@ -27,8 +27,7 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::DC_GCL_NO_SPECIALS;
-use crate::constants::{Blocked, Chattype};
+use crate::constants::{Blocked, Chattype, DC_CHAT_ID_TRASH, DC_GCL_NO_SPECIALS};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
@@ -179,9 +178,9 @@ impl TestContextManager {
 
         loop {
             if let Some(sent) = scanner.pop_sent_msg_opt(Duration::ZERO).await {
-                scanned.recv_msg(&sent).await;
+                scanned.recv_msg_opt(&sent).await;
             } else if let Some(sent) = scanned.pop_sent_msg_opt(Duration::ZERO).await {
-                scanner.recv_msg(&sent).await;
+                scanner.recv_msg_opt(&sent).await;
             } else {
                 break;
             }
@@ -537,6 +536,16 @@ impl TestContext {
         receive_imf(self, msg.payload().as_bytes(), false)
             .await
             .unwrap()
+            .filter(|msg| msg.chat_id != DC_CHAT_ID_TRASH)
+    }
+
+    /// Recevies a message and asserts that it goes to trash chat.
+    pub async fn recv_msg_trash(&self, msg: &SentMessage<'_>) {
+        let received = receive_imf(self, msg.payload().as_bytes(), false)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(received.chat_id, DC_CHAT_ID_TRASH);
     }
 
     /// Gets the most recent message of a chat.
@@ -1069,7 +1078,8 @@ pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 /// alice0's side that implies sending a sync message.
 pub(crate) async fn sync(alice0: &TestContext, alice1: &TestContext) {
     let sync_msg = alice0.pop_sent_msg().await;
-    alice1.recv_msg(&sync_msg).await;
+    let no_msg = alice1.recv_msg_opt(&sync_msg).await;
+    assert!(no_msg.is_none());
 }
 
 /// Pretty-print an event to stdout

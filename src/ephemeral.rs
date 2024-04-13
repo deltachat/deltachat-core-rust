@@ -1098,8 +1098,8 @@ mod tests {
             })
             .await;
 
-        let loaded = Message::load_from_db(t, msg_id).await?;
-        assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
+        let loaded = Message::load_from_db_optional(t, msg_id).await?;
+        assert!(loaded.is_none());
 
         // Check that the msg was deleted locally.
         check_msg_is_deleted(t, chat, msg_id).await;
