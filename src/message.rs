@@ -464,7 +464,7 @@ impl Message {
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message> {
         let message = Self::load_from_db_optional(context, id)
             .await?
-            .context("Message {id} does not exist")?;
+            .with_context(|| format!("Message {id} does not exist"))?;
         Ok(message)
     }
 
