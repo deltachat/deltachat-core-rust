@@ -189,7 +189,7 @@ mod tests {
         let mut msg = Message::new(Viewtype::Webxdc);
         msg.set_file_from_bytes(&t, "my-maps.xdc", bytes, None)
             .await?;
-        msg.set_default_webxdc_integration();
+        msg.set_webxdc_integration();
         let msg_id = send_msg(&t, chat.id, &mut msg).await?;
 
         let msg = Message::load_from_db(&t, msg_id).await?;

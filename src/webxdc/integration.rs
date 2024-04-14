@@ -8,7 +8,7 @@ use anyhow::Result;
 
 impl Message {
     /// Mark Webxdc message shipped with the main app as a default integration.
-    pub fn set_default_webxdc_integration(&mut self) {
+    pub fn set_webxdc_integration(&mut self) {
         self.hidden = true;
         self.param.set_int(Param::WebxdcIntegration, 1);
     }
@@ -114,7 +114,7 @@ mod tests {
         let mut msg = Message::new(Viewtype::Webxdc);
         msg.set_file_from_bytes(&t, "my-maps.xdc", bytes, None)
             .await?;
-        msg.set_default_webxdc_integration();
+        msg.set_webxdc_integration();
         send_msg(&t, chat.id, &mut msg).await?;
 
         // default integrations are shipped with the apps and should not be sent over the wire

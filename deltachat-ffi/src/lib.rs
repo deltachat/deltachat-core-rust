@@ -3766,13 +3766,13 @@ pub unsafe extern "C" fn dc_msg_set_file(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_default_webxdc_integration(msg: *mut dc_msg_t) {
+pub unsafe extern "C" fn dc_msg_set_webxdc_integration(msg: *mut dc_msg_t) {
     if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_set_default_webxdc_integration()");
+        eprintln!("ignoring careless call to dc_msg_set_webxdc_integration()");
         return;
     }
     let ffi_msg = &mut *msg;
-    ffi_msg.message.set_default_webxdc_integration()
+    ffi_msg.message.set_webxdc_integration()
 }
 
 #[no_mangle]

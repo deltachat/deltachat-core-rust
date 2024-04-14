@@ -1188,7 +1188,7 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  *
  * Currently, Webxdc integrations are Webxdc shipped together with the main app;
  * before dc_init_webxdc_integration() can be called,
- * UI has to mark a Webxdc using dc_msg_set_default_webxdc_integration().
+ * UI has to mark a Webxdc using dc_msg_set_webxdc_integration().
  * Later on,
  * we can consider shipping Webxdc integrations with core or
  * we can allow users to replace Webxdc integrations.
@@ -1199,7 +1199,7 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  * There is no need to de-initialize the integration,
  * however, the integration is valid only as long as not re-initialized.
  *
- * See dc_msg_set_default_webxdc_integration() for an example.
+ * See dc_msg_set_webxdc_integration() for an example.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4716,7 +4716,7 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
  * ~~~
  * dc_msg_t* msg = dc_msg_new(context, DC_MSG_WEBXDC);
  * dc_msg_set_file(msg, path_to_maps_xdc);
- * dc_msg_set_default_webxdc_integration(msg);
+ * dc_msg_set_webxdc_integration(msg);
  * dc_send_msg(dc_create_chat_by_contact_id(context, DC_CONTACT_ID_SELF), msg);
  * ~~~
  *
@@ -4738,7 +4738,7 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
  * @memberof dc_msg_t
  * @param msg The Webxdc message object to mark as default integration.
  */
-void             dc_msg_set_default_webxdc_integration (dc_msg_t* msg);
+void             dc_msg_set_webxdc_integration (dc_msg_t* msg);
 
 
 /**
