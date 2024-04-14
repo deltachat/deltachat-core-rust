@@ -175,6 +175,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::contact::Contact;
     use crate::location;
+    use crate::message::Message;
     use crate::test_utils::TestContext;
     use crate::webxdc::StatusUpdateSerial;
     use anyhow::Result;
@@ -183,7 +184,7 @@ mod tests {
     async fn test_maps_integration() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        let bytes = include_bytes!("../../test-data/webxdc/minimal.xdc");
+        let bytes = include_bytes!("../../test-data/webxdc/mapstest.xdc");
         let file = t.get_blobdir().join("maps.xdc");
         tokio::fs::write(&file, bytes).await.unwrap();
         t.set_webxdc_integration(file.to_str().unwrap().to_string())
@@ -199,6 +200,11 @@ mod tests {
         let bob_chat_id = ChatId::create_for_contact(&t, bob_id).await?;
         let integration_id = t.init_webxdc_integration(Some(bob_chat_id)).await?.unwrap();
         assert!(!integration_id.is_special());
+
+        let integration = Message::load_from_db(&t, integration_id).await?;
+        let info = integration.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "Maps Test");
+        assert_eq!(info.internet_access, true);
 
         t.send_webxdc_status_update(
             integration_id,

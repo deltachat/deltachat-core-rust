@@ -15,6 +15,7 @@ impl Context {
         msg.set_file(file.as_str(), None);
         msg.hidden = true;
         msg.param.set_int(Param::WebxdcIntegration, 1);
+        msg.param.set_int(Param::GuaranteeE2ee, 1); // needed to pass `internet_access` requirements
         send_msg(self, chat_id, &mut msg).await?;
         Ok(())
     }
