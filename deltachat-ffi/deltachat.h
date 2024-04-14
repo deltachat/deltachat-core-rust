@@ -4723,13 +4723,13 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
  * Later on, you can use dc_init_webxdc_integration() to integrate the map to any chat:
  *
  * ~~~
- * dc_msg_t* webxdc_instance = dc_init_webxdc_integration(context, any_chat_id);
+ * uint32_t webxdc_instance = dc_init_webxdc_integration(context, any_chat_id);
  * ~~~
  *
  * Or use it as a global map, showing locations of all chats:
  *
  * ~~~
- * dc_msg_t* webxdc_instance = dc_init_webxdc_integration(context, 0);
+ * uint32_t webxdc_instance = dc_init_webxdc_integration(context, 0);
  * ~~~
  *
  * The returned webxdc_instance can be used the same way as any other Webxdc.
