@@ -1,4 +1,5 @@
 use crate::chat::ChatId;
+use crate::config::Config;
 use crate::context::Context;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::param::Param;
@@ -20,12 +21,15 @@ impl Context {
         &self,
         integrate_for: Option<ChatId>,
     ) -> Result<Option<MsgId>> {
-        let Some(instance_id) = self.sql.get_raw_config_int("webxdc_integration").await? else {
+        let Some(instance_id) = self
+            .get_config_parsed::<u32>(Config::WebxdcIntegration)
+            .await?
+        else {
             return Ok(None);
         };
 
         if let Some(mut instance) =
-            Message::load_from_db_optional(self, MsgId::new(instance_id as u32)).await?
+            Message::load_from_db_optional(self, MsgId::new(instance_id)).await?
         {
             if instance.viewtype == Viewtype::Webxdc && !instance.chat_id.is_trash() {
                 let integrate_for = integrate_for.unwrap_or_default().to_u32() as i32;
@@ -46,10 +50,11 @@ impl Context {
     pub(crate) async fn update_webxdc_integration_database(&self, msg: &Message) -> Result<()> {
         if msg.viewtype == Viewtype::Webxdc && msg.param.get_int(Param::WebxdcIntegration).is_some()
         {
-            // using set_config_internal() leads to recursion warning because of sync messages
-            self.sql
-                .set_raw_config_int("webxdc_integration", msg.id.to_u32() as i32)
-                .await?;
+            self.set_config_internal(
+                Config::WebxdcIntegration,
+                Some(&msg.id.to_u32().to_string()),
+            )
+            .await?;
         }
         Ok(())
     }
