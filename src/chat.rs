@@ -2782,6 +2782,11 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         recipients.push(from);
     }
 
+    // Webxdc integrations are messages, however, shipped with main app and must not be sent out
+    if msg.param.get_int(Param::WebxdcIntegration).is_some() {
+        recipients.clear();
+    }
+
     if recipients.is_empty() {
         // may happen eg. for groups with only SELF and bcc_self disabled
         info!(
