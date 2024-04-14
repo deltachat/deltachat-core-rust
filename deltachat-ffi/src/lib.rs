@@ -1064,12 +1064,12 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_webxdc_integration(
+pub unsafe extern "C" fn dc_set_webxdc_integration(
     context: *mut dc_context_t,
     file: *const libc::c_char,
 ) {
     if context.is_null() || file.is_null() {
-        eprintln!("ignoring careless call to dc_msg_set_webxdc_integration()");
+        eprintln!("ignoring careless call to dc_set_webxdc_integration()");
         return;
     }
     let ctx = &*context;

@@ -1199,7 +1199,7 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
  *
  * Currently, Webxdc integrations are Webxdc shipped together with the main app;
  * before dc_init_webxdc_integration() can be called,
- * UI has to mark a Webxdc using dc_msg_set_webxdc_integration().
+ * UI has to call dc_set_webxdc_integration() to define a .xdc file to be used as integration.
  * Later on,
  * we can consider shipping Webxdc integrations with core or
  * we can allow users to replace Webxdc integrations.
@@ -1213,12 +1213,13 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
  * Example:
  *
  * ~~~
- * dc_msg_set_webxdc_integration(context, path_to_maps_xdc);
+ * // Define a .xdc file to be used as maps integration
+ * dc_set_webxdc_integration(context, path_to_maps_xdc);
  *
- * // Later on, you can use dc_init_webxdc_integration() to integrate the map to any chat:
+ * // Integrate the map to a chat, the map will show locations for this chat then:
  * uint32_t webxdc_instance = dc_init_webxdc_integration(context, any_chat_id);
  *
- * // Or use it as a global map, showing locations of all chats:
+ * // Or use the Webxdc as a global map, showing locations of all chats:
  * uint32_t webxdc_instance = dc_init_webxdc_integration(context, 0);
  * ~~~
  *
