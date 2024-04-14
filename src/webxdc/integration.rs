@@ -94,3 +94,33 @@ impl Context {
         Ok(chat_id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::chat::send_msg;
+    use crate::config::Config;
+    use crate::message::{Message, Viewtype};
+    use crate::test_utils::TestContext;
+    use anyhow::Result;
+    use std::time::Duration;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_default_integrations_are_single_device() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config_bool(Config::BccSelf, false).await?;
+        let chat = t.get_self_chat().await;
+
+        let bytes = include_bytes!("../../test-data/webxdc/minimal.xdc");
+        let mut msg = Message::new(Viewtype::Webxdc);
+        msg.set_file_from_bytes(&t, "my-maps.xdc", bytes, None)
+            .await?;
+        msg.set_default_webxdc_integration();
+        send_msg(&t, chat.id, &mut msg).await?;
+
+        // default integrations are shipped with the apps and should not be sent over the wire
+        let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
+        assert!(sent.is_none());
+
+        Ok(())
+    }
+}
