@@ -338,44 +338,43 @@ impl Chat {
         context: &Context,
         timestamp: i64,
     ) -> Result<Option<(Message, ContactId, String)>> {
-        if let Some(reaction_timestamp) = self.param.get_i64(Param::LastReactionTimestamp) {
-            if reaction_timestamp > timestamp {
-                let reaction_msg_id = MsgId::new(
-                    self.param
-                        .get_int(Param::LastReactionMsgId)
-                        .unwrap_or_default() as u32,
-                );
-                // The message reacted to may be deleted physically (`load_from_db()` fails) or marked as a tombstone (`is_trash()`).
-                // These are no errors as `Param::LastReaction*` are just weak pointers.
-                // Instead, just return `Ok(None)` and let the caller create another summary.
-                if let Some(reaction_msg) =
-                    Message::load_from_db_optional(context, reaction_msg_id).await?
-                {
-                    if !reaction_msg.chat_id.is_trash() {
-                        let reaction_contact_id = ContactId::new(
-                            self.param
-                                .get_int(Param::LastReactionContactId)
-                                .unwrap_or_default() as u32,
-                        );
-                        if let Some(reaction) = context
-                            .sql
-                            .query_row_optional(
-                                r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
-                                (reaction_msg.id, reaction_contact_id),
-                                |row| {
-                                    let reaction: String = row.get(0)?;
-                                    Ok(reaction)
-                                },
-                            )
-                            .await?
-                        {
-                            return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
-                        }
-                    }
-                }
-            }
+        if self
+            .param
+            .get_i64(Param::LastReactionTimestamp)
+            .filter(|&reaction_timestamp| reaction_timestamp > timestamp)
+            .is_none()
+        {
+            return Ok(None);
+        };
+        let reaction_msg_id = MsgId::new(
+            self.param
+                .get_int(Param::LastReactionMsgId)
+                .unwrap_or_default() as u32,
+        );
+        let Some(reaction_msg) = Message::load_from_db_optional(context, reaction_msg_id).await?
+        else {
+            // The message reacted to may be deleted.
+            // These are no errors as `Param::LastReaction*` are just weak pointers.
+            // Instead, just return `Ok(None)` and let the caller create another summary.
+            return Ok(None);
+        };
+        let reaction_contact_id = ContactId::new(
+            self.param
+                .get_int(Param::LastReactionContactId)
+                .unwrap_or_default() as u32,
+        );
+        if let Some(reaction) = context
+            .sql
+            .query_get_value(
+                "SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?",
+                (reaction_msg.id, reaction_contact_id),
+            )
+            .await?
+        {
+            Ok(Some((reaction_msg, reaction_contact_id, reaction)))
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 }
 
