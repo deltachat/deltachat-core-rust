@@ -171,11 +171,10 @@ pub(crate) async fn intercept_get_updates(
 
 #[cfg(test)]
 mod tests {
-    use crate::chat::{create_group_chat, send_msg, ChatId, ProtectionStatus};
+    use crate::chat::{create_group_chat, ChatId, ProtectionStatus};
     use crate::chatlist::Chatlist;
     use crate::contact::Contact;
     use crate::location;
-    use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContext;
     use crate::webxdc::StatusUpdateSerial;
     use anyhow::Result;
@@ -183,19 +182,15 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_maps_integration() -> Result<()> {
         let t = TestContext::new_alice().await;
-        let chat = t.get_self_chat().await;
 
         let bytes = include_bytes!("../../test-data/webxdc/minimal.xdc");
-        let mut msg = Message::new(Viewtype::Webxdc);
-        msg.set_file_from_bytes(&t, "my-maps.xdc", bytes, None)
+        let file = t.get_blobdir().join("maps.xdc");
+        tokio::fs::write(&file, bytes).await.unwrap();
+        t.set_webxdc_integration(file.to_str().unwrap().to_string())
             .await?;
-        msg.set_webxdc_integration();
-        let msg_id = send_msg(&t, chat.id, &mut msg).await?;
 
-        let msg = Message::load_from_db(&t, msg_id).await?;
         let chatlist = Chatlist::try_load(&t, 0, None, None).await?;
         let summary = chatlist.get_summary(&t, 0, None).await?;
-        assert!(msg.hidden);
         assert_eq!(summary.text, "No messages.");
 
         // Integrate Webxdc into a chat with Bob;

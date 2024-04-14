@@ -1,20 +1,24 @@
-use crate::chat::ChatId;
+use crate::chat::{send_msg, ChatId};
 use crate::config::Config;
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::param::Param;
 use crate::webxdc::{maps_integration, StatusUpdateItem, StatusUpdateSerial};
 use anyhow::Result;
 
-impl Message {
-    /// Mark Webxdc message shipped with the main app as a default integration.
-    pub fn set_webxdc_integration(&mut self) {
-        self.hidden = true;
-        self.param.set_int(Param::WebxdcIntegration, 1);
-    }
-}
-
 impl Context {
+    /// Set Webxdc file as integration.
+    pub async fn set_webxdc_integration(&self, file: String) -> Result<()> {
+        let chat_id = ChatId::create_for_contact(self, ContactId::SELF).await?;
+        let mut msg = Message::new(Viewtype::Webxdc);
+        msg.set_file(file.as_str(), None);
+        msg.hidden = true;
+        msg.param.set_int(Param::WebxdcIntegration, 1);
+        send_msg(self, chat_id, &mut msg).await?;
+        Ok(())
+    }
+
     /// Get Webxdc instance used for optional integrations.
     /// If there is no integration, the caller may decide to add a default one.
     pub async fn init_webxdc_integration(
@@ -45,7 +49,7 @@ impl Context {
                 .set_int(Param::WebxdcIntegrateFor, integrate_for);
             instance.update_param(self).await?;
         }
-        return Ok(Some(instance.id));
+        Ok(Some(instance.id))
     }
 
     // Check if a Webxdc shall be used as an integration and remember that.
@@ -99,9 +103,7 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use crate::chat::send_msg;
     use crate::config::Config;
-    use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContext;
     use anyhow::Result;
     use std::time::Duration;
@@ -110,14 +112,12 @@ mod tests {
     async fn test_default_integrations_are_single_device() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config_bool(Config::BccSelf, false).await?;
-        let chat = t.get_self_chat().await;
 
         let bytes = include_bytes!("../../test-data/webxdc/minimal.xdc");
-        let mut msg = Message::new(Viewtype::Webxdc);
-        msg.set_file_from_bytes(&t, "my-maps.xdc", bytes, None)
+        let file = t.get_blobdir().join("maps.xdc");
+        tokio::fs::write(&file, bytes).await.unwrap();
+        t.set_webxdc_integration(file.to_str().unwrap().to_string())
             .await?;
-        msg.set_webxdc_integration();
-        send_msg(&t, chat.id, &mut msg).await?;
 
         // default integrations are shipped with the apps and should not be sent over the wire
         let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;

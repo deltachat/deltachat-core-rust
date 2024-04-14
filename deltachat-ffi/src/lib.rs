@@ -1064,6 +1064,21 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_webxdc_integration(
+    context: *mut dc_context_t,
+    file: *const libc::c_char,
+) {
+    if context.is_null() || file.is_null() {
+        eprintln!("ignoring careless call to dc_msg_set_webxdc_integration()");
+        return;
+    }
+    let ctx = &*context;
+    block_on(ctx.set_webxdc_integration(to_string_lossy(file)))
+        .log_err(ctx)
+        .unwrap_or_default();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_init_webxdc_integration(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -3763,16 +3778,6 @@ pub unsafe extern "C" fn dc_msg_set_file(
         to_string_lossy(file),
         to_opt_string_lossy(filemime).as_deref(),
     )
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_webxdc_integration(msg: *mut dc_msg_t) {
-    if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_set_webxdc_integration()");
-        return;
-    }
-    let ffi_msg = &mut *msg;
-    ffi_msg.message.set_webxdc_integration()
 }
 
 #[no_mangle]

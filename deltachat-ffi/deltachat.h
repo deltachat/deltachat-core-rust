@@ -1180,6 +1180,17 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
 
 
 /**
+ * Set Webxdc file as integration.
+ * see dc_init_webxdc_integration() for more details about Webxdc integrations.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param file The .xdc file to use as Webxdc integration.
+ */
+void             dc_set_webxdc_integration (dc_context_t* context, const char* file);
+
+
+/**
  * Init a Webxdc integration.
  *
  * A Webxdc integration is eg.
@@ -1199,7 +1210,17 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  * There is no need to de-initialize the integration,
  * however, the integration is valid only as long as not re-initialized.
  *
- * See dc_msg_set_webxdc_integration() for an example.
+ * Example:
+ *
+ * ~~~
+ * dc_msg_set_webxdc_integration(context, path_to_maps_xdc);
+ *
+ * // Later on, you can use dc_init_webxdc_integration() to integrate the map to any chat:
+ * uint32_t webxdc_instance = dc_init_webxdc_integration(context, any_chat_id);
+ *
+ * // Or use it as a global map, showing locations of all chats:
+ * uint32_t webxdc_instance = dc_init_webxdc_integration(context, 0);
+ * ~~~
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4707,38 +4728,6 @@ void            dc_msg_set_override_sender_name(dc_msg_t* msg, const char* name)
  * @param filemime The MIME type of the file. NULL if you don't know or don't care.
  */
 void            dc_msg_set_file               (dc_msg_t* msg, const char* file, const char* filemime);
-
-
-/**
- * Mark Webxdc message shipped with the main app as a default integration.
- * Example:
- *
- * ~~~
- * dc_msg_t* msg = dc_msg_new(context, DC_MSG_WEBXDC);
- * dc_msg_set_file(msg, path_to_maps_xdc);
- * dc_msg_set_webxdc_integration(msg);
- * dc_send_msg(dc_create_chat_by_contact_id(context, DC_CONTACT_ID_SELF), msg);
- * ~~~
- *
- * Later on, you can use dc_init_webxdc_integration() to integrate the map to any chat:
- *
- * ~~~
- * uint32_t webxdc_instance = dc_init_webxdc_integration(context, any_chat_id);
- * ~~~
- *
- * Or use it as a global map, showing locations of all chats:
- *
- * ~~~
- * uint32_t webxdc_instance = dc_init_webxdc_integration(context, 0);
- * ~~~
- *
- * The returned webxdc_instance can be used the same way as any other Webxdc.
- * see dc_init_webxdc_integration() for more details about Webxdc integrations.
- *
- * @memberof dc_msg_t
- * @param msg The Webxdc message object to mark as default integration.
- */
-void             dc_msg_set_webxdc_integration (dc_msg_t* msg);
 
 
 /**
