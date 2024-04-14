@@ -28,22 +28,24 @@ impl Context {
             return Ok(None);
         };
 
-        if let Some(mut instance) =
+        let Some(mut instance) =
             Message::load_from_db_optional(self, MsgId::new(instance_id)).await?
-        {
-            if instance.viewtype == Viewtype::Webxdc && !instance.chat_id.is_trash() {
-                let integrate_for = integrate_for.unwrap_or_default().to_u32() as i32;
-                if instance.param.get_int(Param::WebxdcIntegrateFor) != Some(integrate_for) {
-                    instance
-                        .param
-                        .set_int(Param::WebxdcIntegrateFor, integrate_for);
-                    instance.update_param(self).await?;
-                }
-                return Ok(Some(instance.id));
-            }
+        else {
+            return Ok(None);
+        };
+
+        if instance.viewtype != Viewtype::Webxdc {
+            return Ok(None);
         }
 
-        Ok(None)
+        let integrate_for = integrate_for.unwrap_or_default().to_u32() as i32;
+        if instance.param.get_int(Param::WebxdcIntegrateFor) != Some(integrate_for) {
+            instance
+                .param
+                .set_int(Param::WebxdcIntegrateFor, integrate_for);
+            instance.update_param(self).await?;
+        }
+        return Ok(Some(instance.id));
     }
 
     // Check if a Webxdc shall be used as an integration and remember that.
