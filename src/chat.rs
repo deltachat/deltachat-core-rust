@@ -2715,7 +2715,7 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         }
 
         if msg.param.exists(Param::SetLatitude) {
-            context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
+            context.emit_location_changed(Some(ContactId::SELF)).await?;
         }
 
         context.scheduler.interrupt_smtp().await;

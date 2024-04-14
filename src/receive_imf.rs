@@ -1687,7 +1687,7 @@ async fn save_locations(
         }
     }
     if send_event {
-        context.emit_event(EventType::LocationChanged(Some(from_id)));
+        context.emit_location_changed(Some(from_id)).await?;
     }
     Ok(())
 }

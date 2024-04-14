@@ -605,6 +605,23 @@ impl Context {
         chatlist_events::emit_chatlist_item_changed(self, chat_id);
     }
 
+    /// Emits an LocationChanged event and a WebxdcStatusUpdate in case there is a maps integration
+    pub async fn emit_location_changed(&self, contact_id: Option<ContactId>) -> Result<()> {
+        self.emit_event(EventType::LocationChanged(contact_id));
+
+        if let Some(msg_id) = self
+            .get_config_parsed::<u32>(Config::WebxdcIntegration)
+            .await?
+        {
+            self.emit_event(EventType::WebxdcStatusUpdate {
+                msg_id: MsgId::new(msg_id),
+                status_update_serial: Default::default(),
+            })
+        }
+
+        Ok(())
+    }
+
     /// Returns a receiver for emitted events.
     ///
     /// Multiple emitters can be created, but note that in this case each emitted event will

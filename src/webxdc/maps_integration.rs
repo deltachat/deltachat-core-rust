@@ -31,10 +31,6 @@
 //!     label:       ""     // used for POI only
 //! }
 //! ```
-//!
-//! For messenger implementors adding support for these Webxdc:
-//! New locations, are announced by `DC_EVENT_LOCATION_CHANGED`
-//! (not by `DC_EVENT_WEBXDC_STATUS_UPDATE`).
 
 use crate::{chat, location};
 use std::collections::{hash_map, HashMap};
@@ -174,10 +170,10 @@ mod tests {
     use crate::chat::{create_group_chat, ChatId, ProtectionStatus};
     use crate::chatlist::Chatlist;
     use crate::contact::Contact;
-    use crate::location;
     use crate::message::Message;
     use crate::test_utils::TestContext;
     use crate::webxdc::StatusUpdateSerial;
+    use crate::{location, EventType};
     use anyhow::Result;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -212,6 +208,9 @@ mod tests {
             "descr",
         )
         .await?;
+        t.evtracker
+            .get_matching(|evt| matches!(evt, EventType::WebxdcStatusUpdate { .. }))
+            .await;
         let updates = t
             .get_webxdc_status_updates(integration_id, StatusUpdateSerial(0))
             .await?;
