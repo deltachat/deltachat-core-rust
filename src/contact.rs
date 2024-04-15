@@ -802,28 +802,6 @@ impl Contact {
         Ok((contact_id, sth_modified))
     }
 
-    /// Get all chats the contact is part of
-    pub async fn get_chats_with_contact(
-        context: &Context,
-        contact_id: &ContactId,
-    ) -> Result<Vec<ChatId>> {
-        context
-            .sql
-            .query_map(
-                "SELECT chat_id FROM chats_contacts WHERE contact_id=?",
-                (contact_id,),
-                |row| {
-                    let chat_id: ChatId = row.get(0)?;
-                    Ok(chat_id)
-                },
-                |rows| {
-                    rows.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
-            )
-            .await
-    }
-
     /// Add a number of contacts.
     ///
     /// Typically used to add the whole address book from the OS. As names here are typically not
