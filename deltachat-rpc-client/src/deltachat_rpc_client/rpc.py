@@ -6,7 +6,7 @@ import logging
 import os
 import subprocess
 import sys
-from queue import Queue
+from queue import Empty, Queue
 from threading import Event, Thread
 from typing import Any, Iterator, Optional
 
@@ -187,6 +187,15 @@ class Rpc:
         """Waits for the next event from the given account and returns it."""
         queue = self.get_queue(account_id)
         return queue.get()
+
+    def clear_all_events(self, account_id: int):
+        """Removes all queued-up events for a given account. Useful for tests."""
+        queue = self.get_queue(account_id)
+        try:
+            while True:
+                queue.get_nowait()
+        except Empty:
+            pass
 
     def __getattr__(self, attr: str):
         return RpcMethod(self, attr)

@@ -16,6 +16,7 @@ use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
     self, DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
@@ -593,11 +594,15 @@ impl Context {
     /// Emits a MsgsChanged event with specified chat and message ids
     pub fn emit_msgs_changed(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+        chatlist_events::emit_chatlist_changed(self);
+        chatlist_events::emit_chatlist_item_changed(self, chat_id);
     }
 
     /// Emits an IncomingMsg event with specified chat and message ids
     pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
+        chatlist_events::emit_chatlist_changed(self);
+        chatlist_events::emit_chatlist_item_changed(self, chat_id);
     }
 
     /// Returns a receiver for emitted events.

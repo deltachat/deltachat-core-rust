@@ -22,6 +22,7 @@ use ratelimit::Ratelimit;
 use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails};
 use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
@@ -1170,6 +1171,7 @@ impl Session {
             .with_context(|| format!("failed to set MODSEQ for folder {folder}"))?;
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+            chatlist_events::emit_chatlist_item_changed(context, updated_chat_id);
         }
 
         Ok(())

@@ -6213,7 +6213,24 @@ void dc_event_unref(dc_event_t* event);
  * This event is only emitted by the account manager
  */
 
-#define DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE  2200
+#define DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE   2200
+
+/**
+ * Inform that set of chats or the order of the chats in the chatlist has changed.
+ *
+ * Sometimes this is emitted together with `DC_EVENT_CHATLIST_ITEM_CHANGED`.
+ */
+
+#define DC_EVENT_CHATLIST_CHANGED              2300
+
+/**
+ * Inform that all or a single chat list item changed and needs to be rerendered
+ * If `chat_id` is set to 0, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
+ * 
+ * @param data1 (int) chat_id chat id of chatlist item to be rerendered, if chat_id = 0 all (cached & visible) items need to be rerendered
+ */
+
+#define DC_EVENT_CHATLIST_ITEM_CHANGED         2301
 
 /**
  * @}

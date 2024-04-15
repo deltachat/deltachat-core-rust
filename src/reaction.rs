@@ -21,6 +21,7 @@ use std::fmt;
 use anyhow::Result;
 
 use crate::chat::{send_msg, Chat, ChatId};
+use crate::chatlist_events;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
@@ -214,6 +215,7 @@ async fn set_msg_id_reaction(
         msg_id,
         contact_id,
     });
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
     Ok(())
 }
 

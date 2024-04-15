@@ -30,6 +30,10 @@ class Account:
         """Wait until the next event and return it."""
         return AttrDict(self._rpc.wait_for_event(self.id))
 
+    def clear_all_events(self):
+        """Removes all queued-up events for a given account. Useful for tests."""
+        self._rpc.clear_all_events(self.id)
+
     def remove(self) -> None:
         """Remove the account."""
         self._rpc.remove_account(self.id)
