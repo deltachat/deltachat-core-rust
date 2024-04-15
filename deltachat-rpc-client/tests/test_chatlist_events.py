@@ -1,24 +1,30 @@
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
 import base64
 import os
+from typing import TYPE_CHECKING
 
 from deltachat_rpc_client import Account, EventType, const
 
 if TYPE_CHECKING:
     from deltachat_rpc_client.pytestplugin import ACFactory
 
+
 def wait_for_chatlist_and_specific_item(account, chat_id):
+    first_event = ""
     while True:
         event = account.wait_for_event()
         if event.kind == EventType.CHATLIST_CHANGED:
+            first_event = "change"
             break
         if event.kind == EventType.CHATLIST_ITEM_CHANGED and event.chat_id == chat_id:
+            first_event = "item_change"
             break
     while True:
         event = account.wait_for_event()
-        if event.kind == EventType.CHATLIST_CHANGED:
+        if event.kind == EventType.CHATLIST_CHANGED and first_event == "item_change":
             break
-        if event.kind == EventType.CHATLIST_ITEM_CHANGED and event.chat_id == chat_id:
+        if event.kind == EventType.CHATLIST_ITEM_CHANGED and event.chat_id == chat_id and first_event == "change":
             break
 
 

@@ -58,7 +58,10 @@ pub(crate) fn emit_chatlist_items_changed_for_contact(context: &Context, _contac
 #[cfg(test)]
 mod test_chatlist_events {
 
-    use std::time::Duration;
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        time::Duration,
+    };
 
     use crate::{
         chat::{
@@ -79,26 +82,29 @@ mod test_chatlist_events {
     use anyhow::Result;
 
     async fn wait_for_chatlist_and_specific_item(context: &TestContext, chat_id: ChatId) {
+        let first_event_is_item = AtomicBool::new(false);
         context
             .evtracker
             .get_matching(|evt| match evt {
                 EventType::ChatlistItemChanged {
                     chat_id: Some(ev_chat_id),
-                } => ev_chat_id == &chat_id,
+                } => {
+                    if ev_chat_id == &chat_id {
+                        first_event_is_item.store(true, Ordering::Relaxed);
+                        true
+                    } else {
+                        false
+                    }
+                }
                 EventType::ChatlistChanged => true,
                 _ => false,
             })
             .await;
-        context
-            .evtracker
-            .get_matching(|evt| match evt {
-                EventType::ChatlistItemChanged {
-                    chat_id: Some(ev_chat_id),
-                } => ev_chat_id == &chat_id,
-                EventType::ChatlistChanged => true,
-                _ => false,
-            })
-            .await;
+        if first_event_is_item.load(Ordering::Relaxed) {
+            wait_for_chatlist(context).await;
+        } else {
+            wait_for_chatlist_specific_item(context, chat_id).await;
+        }
     }
 
     async fn wait_for_chatlist_specific_item(context: &TestContext, chat_id: ChatId) {
