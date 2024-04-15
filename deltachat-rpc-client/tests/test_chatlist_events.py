@@ -1,11 +1,11 @@
+from typing import TYPE_CHECKING
 import base64
 import os
 
 from deltachat_rpc_client import Account, EventType, const
 
-# vscode needs this extra import for autocompletion
-from deltachat_rpc_client.pytestplugin import ACFactory
-
+if TYPE_CHECKING:
+    from deltachat_rpc_client.pytestplugin import ACFactory
 
 def wait_for_chatlist_order_and_specific_item(account, chat_id):
     while True:
