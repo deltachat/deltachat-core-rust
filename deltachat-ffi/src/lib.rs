@@ -2008,7 +2008,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
                     );
                     message::Message::default()
                 } else {
-                    error!(ctx, "dc_get_msg could not retrieve msg_id {msg_id}: {e:#}");
+                    warn!(ctx, "dc_get_msg could not retrieve msg_id {msg_id}: {e:#}");
                     return ptr::null_mut();
                 }
             }
