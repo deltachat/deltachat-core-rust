@@ -395,7 +395,7 @@ class Message:
 
     def is_outgoing(self):
         """Return True if Message is outgoing."""
-        return self._msgstate in (
+        return lib.dc_msg_get_state(self._dc_msg) in (
             const.DC_STATE_OUT_PREPARING,
             const.DC_STATE_OUT_PENDING,
             const.DC_STATE_OUT_FAILED,
