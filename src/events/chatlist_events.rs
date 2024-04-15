@@ -78,7 +78,7 @@ mod test_chatlist_events {
 
     use anyhow::Result;
 
-    async fn wait_for_chatlist_order_and_specific_item(context: &TestContext, chat_id: ChatId) {
+    async fn wait_for_chatlist_and_specific_item(context: &TestContext, chat_id: ChatId) {
         context
             .evtracker
             .get_matching(|evt| match evt {
@@ -120,7 +120,7 @@ mod test_chatlist_events {
             .await;
     }
 
-    async fn wait_for_chatlist_order(context: &TestContext) {
+    async fn wait_for_chatlist(context: &TestContext) {
         context
             .evtracker
             .get_matching(|evt| matches!(evt, EventType::ChatlistChanged))
@@ -141,17 +141,17 @@ mod test_chatlist_events {
         chat_id
             .set_visibility(&alice, ChatVisibility::Pinned)
             .await?;
-        wait_for_chatlist_order_and_specific_item(&alice, chat_id).await;
+        wait_for_chatlist_and_specific_item(&alice, chat_id).await;
 
         chat_id
             .set_visibility(&alice, ChatVisibility::Archived)
             .await?;
-        wait_for_chatlist_order_and_specific_item(&alice, chat_id).await;
+        wait_for_chatlist_and_specific_item(&alice, chat_id).await;
 
         chat_id
             .set_visibility(&alice, ChatVisibility::Normal)
             .await?;
-        wait_for_chatlist_order_and_specific_item(&alice, chat_id).await;
+        wait_for_chatlist_and_specific_item(&alice, chat_id).await;
 
         Ok(())
     }
@@ -287,7 +287,7 @@ mod test_chatlist_events {
 
         alice.evtracker.clear_events();
         chat.delete(&alice).await?;
-        wait_for_chatlist_order(&alice).await;
+        wait_for_chatlist(&alice).await;
         Ok(())
     }
 
@@ -298,7 +298,7 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         alice.evtracker.clear_events();
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
-        wait_for_chatlist_order_and_specific_item(&alice, chat).await;
+        wait_for_chatlist_and_specific_item(&alice, chat).await;
         Ok(())
     }
 
@@ -309,7 +309,7 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         alice.evtracker.clear_events();
         create_broadcast_list(&alice).await?;
-        wait_for_chatlist_order(&alice).await;
+        wait_for_chatlist(&alice).await;
         Ok(())
     }
 
@@ -440,7 +440,7 @@ mod test_chatlist_events {
 
         bob.evtracker.clear_events();
         chat_id_for_bob.block(&bob).await?;
-        wait_for_chatlist_order(&bob).await;
+        wait_for_chatlist(&bob).await;
 
         Ok(())
     }
@@ -495,11 +495,11 @@ mod test_chatlist_events {
 
         alice.evtracker.clear_events();
         Contact::block(&alice, contact_id).await?;
-        wait_for_chatlist_order(&alice).await;
+        wait_for_chatlist(&alice).await;
 
         alice.evtracker.clear_events();
         Contact::unblock(&alice, contact_id).await?;
-        wait_for_chatlist_order(&alice).await;
+        wait_for_chatlist(&alice).await;
 
         Ok(())
     }
@@ -516,7 +516,7 @@ mod test_chatlist_events {
 
         alice.evtracker.clear_events();
         tokio::time::sleep(Duration::from_secs(2)).await;
-        wait_for_chatlist_order_and_specific_item(&alice, chat).await;
+        wait_for_chatlist_and_specific_item(&alice, chat).await;
 
         Ok(())
     }
@@ -535,7 +535,7 @@ First thread."#;
 
         alice.evtracker.clear_events();
         receive_imf(&alice, mime, false).await?;
-        wait_for_chatlist_order(&alice).await;
+        wait_for_chatlist(&alice).await;
 
         Ok(())
     }
@@ -556,7 +556,7 @@ First thread."#;
         // Step 2: Bob scans QR-code, sends vg-request
         bob.evtracker.clear_events();
         let bob_chatid = join_securejoin(&bob.ctx, &qr).await?;
-        wait_for_chatlist_order(&bob).await;
+        wait_for_chatlist(&bob).await;
 
         let sent = bob.pop_sent_msg().await;
 
@@ -569,21 +569,21 @@ First thread."#;
         // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
         bob.evtracker.clear_events();
         bob.recv_msg(&sent).await;
-        wait_for_chatlist_order_and_specific_item(&bob, bob_chatid).await;
+        wait_for_chatlist_and_specific_item(&bob, bob_chatid).await;
 
         let sent = bob.pop_sent_msg().await;
 
         // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
         alice.evtracker.clear_events();
         alice.recv_msg(&sent).await;
-        wait_for_chatlist_order_and_specific_item(&alice, alice_chatid).await;
+        wait_for_chatlist_and_specific_item(&alice, alice_chatid).await;
 
         let sent = alice.pop_sent_msg().await;
 
         // Step 7: Bob receives vg-member-added
         bob.evtracker.clear_events();
         bob.recv_msg(&sent).await;
-        wait_for_chatlist_order_and_specific_item(&bob, bob_chatid).await;
+        wait_for_chatlist_and_specific_item(&bob, bob_chatid).await;
 
         Ok(())
     }

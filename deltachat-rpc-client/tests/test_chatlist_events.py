@@ -7,7 +7,7 @@ from deltachat_rpc_client import Account, EventType, const
 if TYPE_CHECKING:
     from deltachat_rpc_client.pytestplugin import ACFactory
 
-def wait_for_chatlist_order_and_specific_item(account, chat_id):
+def wait_for_chatlist_and_specific_item(account, chat_id):
     while True:
         event = account.wait_for_event()
         if event.kind == EventType.CHATLIST_CHANGED:
@@ -29,7 +29,7 @@ def wait_for_chatlist_specific_item(account, chat_id):
             break
 
 
-def wait_for_chatlist_order(account):
+def wait_for_chatlist(account):
     while True:
         event = account.wait_for_event()
         if event.kind == EventType.CHATLIST_CHANGED:
@@ -50,7 +50,7 @@ def test_delivery_status(acfactory: ACFactory) -> None:
     bob.stop_io()
     alice.stop_io()
     alice_chat_bob.send_text("hi")
-    wait_for_chatlist_order_and_specific_item(alice, chat_id=alice_chat_bob.id)
+    wait_for_chatlist_and_specific_item(alice, chat_id=alice_chat_bob.id)
 
     alice.clear_all_events()
     alice.start_io()
@@ -92,7 +92,7 @@ def test_delivery_status_failed(acfactory: ACFactory) -> None:
 
     failing_message = invalid_chat.send_text("test")
 
-    wait_for_chatlist_order_and_specific_item(alice, invalid_chat.id)
+    wait_for_chatlist_and_specific_item(alice, invalid_chat.id)
 
     assert failing_message.get_snapshot().state == const.MessageState.OUT_PENDING
 
