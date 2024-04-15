@@ -364,6 +364,9 @@ class Message:
         else:
             # load message from db to get a fresh/current state
             dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
+            # Message could be trashed, use the cached object if so.
+            if dc_msg == ffi.NULL:
+                dc_msg = self._dc_msg
         return lib.dc_msg_get_state(dc_msg)
 
     def is_in_fresh(self):
@@ -484,6 +487,9 @@ class Message:
 
         # load message from db to get a fresh/current state
         dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
+        # Message could be trashed, use the cached object if so.
+        if dc_msg == ffi.NULL:
+            dc_msg = self._dc_msg
         return lib.dc_msg_get_download_state(dc_msg)
 
     def download_full(self) -> None:
