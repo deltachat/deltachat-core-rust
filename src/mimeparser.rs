@@ -6,6 +6,7 @@ use std::path::Path;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
+use deltachat_contact_tools::{addr_cmp, addr_normalize, strip_rtlo_characters};
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::Mime;
@@ -16,7 +17,7 @@ use crate::blob::BlobObject;
 use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
 use crate::constants::{self, Chattype, DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
-use crate::contact::{addr_cmp, addr_normalize, Contact, ContactId, Origin};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
     keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
@@ -34,8 +35,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::sync::SyncItems;
 use crate::tools::{
-    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time,
-    strip_rtlo_characters, truncate_by_lines,
+    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time, truncate_by_lines,
 };
 use crate::{chatlist_events, location, stock_str, tools};
 

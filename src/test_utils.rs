@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use ansi_term::Color;
 use async_channel::{self as channel, Receiver, Sender};
 use chat::ChatItem;
+use deltachat_contact_tools::{ContactAddress, EmailAddress};
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
 use rand::Rng;
@@ -27,8 +28,10 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::{Blocked, Chattype, DC_CHAT_ID_TRASH, DC_GCL_NO_SPECIALS};
-use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
+use crate::constants::DC_CHAT_ID_TRASH;
+use crate::constants::DC_GCL_NO_SPECIALS;
+use crate::constants::{Blocked, Chattype};
+use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventType, Events};
@@ -40,7 +43,6 @@ use crate::pgp::KeyPair;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
-use crate::tools::EmailAddress;
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");

@@ -3,6 +3,9 @@
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
+use deltachat_contact_tools::{
+    addr_cmp, may_be_valid_addr, normalize_name, strip_rtlo_characters, ContactAddress,
+};
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -12,9 +15,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
-use crate::contact::{
-    addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin,
-};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc_inner;
 use crate::download::DownloadState;
@@ -36,9 +37,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{
-    self, buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters, validate_id,
-};
+use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid, validate_id};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
 

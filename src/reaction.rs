@@ -382,11 +382,13 @@ impl Chat {
 
 #[cfg(test)]
 mod tests {
+    use deltachat_contact_tools::ContactAddress;
+
     use super::*;
     use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};
     use crate::chatlist::Chatlist;
     use crate::config::Config;
-    use crate::contact::{Contact, ContactAddress, Origin};
+    use crate::contact::{Contact, Origin};
     use crate::download::DownloadState;
     use crate::message::{delete_msgs, MessageState};
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};

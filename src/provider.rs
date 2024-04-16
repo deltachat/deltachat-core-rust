@@ -3,12 +3,12 @@
 mod data;
 
 use anyhow::Result;
+use deltachat_contact_tools::EmailAddress;
 use hickory_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;
 use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS};
-use crate::tools::EmailAddress;
 
 /// Provider status according to manual testing.
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]

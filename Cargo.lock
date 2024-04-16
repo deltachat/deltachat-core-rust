@@ -1159,6 +1159,7 @@ dependencies = [
  "brotli",
  "chrono",
  "criterion",
+ "deltachat-contact-tools",
  "deltachat-time",
  "deltachat_derive",
  "email",
@@ -1222,6 +1223,16 @@ dependencies = [
  "toml",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "deltachat-contact-tools"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "regex",
+ "rusqlite",
 ]
 
 [[package]]

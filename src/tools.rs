@@ -4,7 +4,6 @@
 #![allow(missing_docs)]
 
 use std::borrow::Cow;
-use std::fmt;
 use std::io::{Cursor, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -23,6 +22,7 @@ pub use std::time::SystemTime;
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
+use deltachat_contact_tools::{strip_rtlo_characters, EmailAddress};
 #[cfg(test)]
 pub use deltachat_time::SystemTimeTools as SystemTime;
 use futures::{StreamExt, TryStreamExt};
@@ -536,80 +536,6 @@ pub fn parse_mailto(mailto_url: &str) -> Option<MailTo> {
     }
 }
 
-///
-/// Represents an email address, right now just the `name@domain` portion.
-///
-/// # Example
-///
-/// ```
-/// use deltachat::tools::EmailAddress;
-/// let email = match EmailAddress::new("someone@example.com") {
-///     Ok(addr) => addr,
-///     Err(e) => panic!("Error parsing address, error was {}", e),
-/// };
-/// assert_eq!(&email.local, "someone");
-/// assert_eq!(&email.domain, "example.com");
-/// assert_eq!(email.to_string(), "someone@example.com");
-/// ```
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct EmailAddress {
-    /// Local part of the email address.
-    pub local: String,
-
-    /// Email address domain.
-    pub domain: String,
-}
-
-impl fmt::Display for EmailAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}@{}", self.local, self.domain)
-    }
-}
-
-impl EmailAddress {
-    /// Performs a dead-simple parse of an email address.
-    pub fn new(input: &str) -> Result<EmailAddress> {
-        if input.is_empty() {
-            bail!("empty string is not valid");
-        }
-        let parts: Vec<&str> = input.rsplitn(2, '@').collect();
-
-        if input
-            .chars()
-            .any(|c| c.is_whitespace() || c == '<' || c == '>')
-        {
-            bail!("Email {:?} must not contain whitespaces, '>' or '<'", input);
-        }
-
-        match &parts[..] {
-            [domain, local] => {
-                if local.is_empty() {
-                    bail!("empty string is not valid for local part in {:?}", input);
-                }
-                if domain.is_empty() {
-                    bail!("missing domain after '@' in {:?}", input);
-                }
-                if domain.ends_with('.') {
-                    bail!("Domain {domain:?} should not contain the dot in the end");
-                }
-                Ok(EmailAddress {
-                    local: (*local).to_string(),
-                    domain: (*domain).to_string(),
-                })
-            }
-            _ => bail!("Email {:?} must contain '@' character", input),
-        }
-    }
-}
-
-impl rusqlite::types::ToSql for EmailAddress {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let val = rusqlite::types::Value::Text(self.to_string());
-        let out = rusqlite::types::ToSqlOutput::Owned(val);
-        Ok(out)
-    }
-}
-
 /// Sanitizes user input
 /// - strip newlines
 /// - strip malicious bidi characters
@@ -751,13 +677,6 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
     decompressor.write_all(buf)?;
     decompressor.flush()?;
     Ok(mem::take(decompressor.get_mut()))
-}
-
-const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
-/// This method strips all occurrences of the RTLO Unicode character.
-/// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
-pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
-    input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
 }
 
 #[cfg(test)]
@@ -1040,40 +959,6 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert!(mid.starts_with("Mr."));
         assert!(mid.ends_with("@localhost"));
         assert!(extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
-    }
-
-    #[test]
-    fn test_emailaddress_parse() {
-        assert_eq!(EmailAddress::new("").is_ok(), false);
-        assert_eq!(
-            EmailAddress::new("user@domain.tld").unwrap(),
-            EmailAddress {
-                local: "user".into(),
-                domain: "domain.tld".into(),
-            }
-        );
-        assert_eq!(
-            EmailAddress::new("user@localhost").unwrap(),
-            EmailAddress {
-                local: "user".into(),
-                domain: "localhost".into()
-            }
-        );
-        assert_eq!(EmailAddress::new("uuu").is_ok(), false);
-        assert_eq!(EmailAddress::new("dd.tt").is_ok(), false);
-        assert!(EmailAddress::new("tt.dd@uu").is_ok());
-        assert!(EmailAddress::new("u@d").is_ok());
-        assert!(EmailAddress::new("u@d.").is_err());
-        assert!(EmailAddress::new("u@d.t").is_ok());
-        assert_eq!(
-            EmailAddress::new("u@d.tt").unwrap(),
-            EmailAddress {
-                local: "u".into(),
-                domain: "d.tt".into(),
-            }
-        );
-        assert!(EmailAddress::new("u@tt").is_ok());
-        assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
     }
 
     use chrono::NaiveDate;

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
 pub use dclogin_scheme::LoginOptions;
+use deltachat_contact_tools::{addr_normalize, may_be_valid_addr, ContactAddress};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -13,9 +14,7 @@ use self::dclogin_scheme::configure_from_login_qr;
 use crate::chat::{get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
-use crate::contact::{
-    addr_normalize, may_be_valid_addr, Contact, ContactAddress, ContactId, Origin,
-};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::Fingerprint;

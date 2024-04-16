@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{ensure, Context as _, Result};
 use base64::Engine as _;
+use deltachat_contact_tools::addr_cmp;
 use serde::{Deserialize, Serialize};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
@@ -13,7 +14,6 @@ use tokio::fs;
 
 use crate::blob::BlobObject;
 use crate::constants::{self, DC_VERSION_STR};
-use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;

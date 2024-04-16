@@ -5,6 +5,7 @@ use std::io;
 use std::io::Cursor;
 
 use anyhow::{bail, Context as _, Result};
+use deltachat_contact_tools::EmailAddress;
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -20,7 +21,6 @@ use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
-use crate::tools::EmailAddress;
 
 #[allow(missing_docs)]
 #[cfg(test)]

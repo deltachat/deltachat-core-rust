@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 
 use anyhow::{bail, Context as _, Result};
+
+use deltachat_contact_tools::may_be_valid_addr;
 use num_traits::cast::ToPrimitive;
 
 use super::{Qr, DCLOGIN_SCHEME};
 use crate::config::Config;
 use crate::context::Context;
+use crate::login_param::CertificateChecks;
 use crate::provider::Socket;
-use crate::{contact, login_param::CertificateChecks};
 
 /// Options for `dclogin:` scheme.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,7 +90,7 @@ pub(super) fn decode_login(qr: &str) -> Result<Qr> {
             .collect();
 
         // check if username is there
-        if !contact::may_be_valid_addr(addr) {
+        if !may_be_valid_addr(addr) {
             bail!("invalid DCLOGIN payload: invalid username E5");
         }
 
