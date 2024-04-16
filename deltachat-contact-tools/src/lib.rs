@@ -33,6 +33,99 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+// TODOs to clean up:
+// - Check if sanitizing is done correctly everywhere
+// - Apply lints everywhere (https://doc.rust-lang.org/cargo/reference/workspaces.html#the-lints-table)
+
+#[derive(Debug, Default)]
+pub struct VcardContact {
+    pub addr: String,
+    pub display_name: String,
+    pub key: Option<String>,
+    pub profile_photo: Option<String>,
+    pub timestamp: u64,
+}
+
+trait StringExt {
+    fn strip_prefix_ignore_ascii_case(&self, prefix: &str) -> Option<&str>;
+    fn vcard_property(&self, property: &str) -> Option<&str>;
+}
+impl StringExt for str {
+    fn strip_prefix_ignore_ascii_case(&self, prefix: &str) -> Option<&str> {
+        let start_of_self = self.get(..prefix.len())?;
+
+        if start_of_self.eq_ignore_ascii_case(prefix) {
+            self.get(prefix.len()..)
+        } else {
+            None
+        }
+    }
+
+    fn vcard_property(&self, property: &str) -> Option<&str> {
+        // TODO this doesn't handle the case where there are quotes around a colon
+        let remainder = self.strip_prefix_ignore_ascii_case(property)?;
+        let (_params, value) = remainder.split_once(':')?;
+        Some(value)
+    }
+}
+
+pub fn parse_vcard(vcard: String) -> Result<Vec<VcardContact>> {
+    let mut lines = vcard.lines().peekable();
+    let mut contacts = Vec::new();
+
+    while lines.peek().is_some() {
+        // Skip to the start of the vcard:
+        for line in lines.by_ref() {
+            if line.eq_ignore_ascii_case("BEGIN:VCARD") {
+                break;
+            }
+        }
+
+        let mut new_contact = VcardContact::default();
+
+        let mut display_name = "";
+        let mut addr = "";
+        let mut key = None;
+        let mut photo = None;
+        let mut timestamp = None;
+
+        for line in lines.by_ref() {
+            if let Some(email) = line.vcard_property("email") {
+                addr = email;
+            } else if let Some(name) = line.vcard_property("fn") {
+                display_name = name;
+            } else if let Some(k) = line
+                .strip_prefix_ignore_ascii_case("KEY;PGP;ENCODING=BASE64:")
+                .or(line.strip_prefix_ignore_ascii_case("KEY;TYPE=PGP;ENCODING=b:"))
+                .or(line.strip_prefix_ignore_ascii_case("KEY:data:application/pgp-keys;base64,"))
+            {
+                key = Some(key.unwrap_or(k));
+            } else if let Some(p) = line
+                .strip_prefix_ignore_ascii_case("PHOTO;JPEG;ENCODING=BASE64:")
+                .or(line.strip_prefix_ignore_ascii_case("PHOTO;TYPE=JPEG;ENCODING=b:"))
+                .or(line.strip_prefix_ignore_ascii_case("PHOTO;ENCODING=BASE64;TYPE=JPEG:"))
+            {
+                photo = Some(photo.unwrap_or(p));
+            } else if let Some(rev) = line.vcard_property("rev") {
+                timestamp = Some(timestamp.unwrap_or(rev));
+            } else if line.eq_ignore_ascii_case("END:VCARD") {
+                break;
+            }
+        }
+
+        let (display_name, addr) = sanitize_name_and_addr(display_name, addr);
+        new_contact.display_name = display_name;
+        new_contact.addr = addr;
+
+        new_contact.key = key.map(|s| s.to_string());
+        new_contact.profile_photo = photo.map(|s| s.to_string());
+
+        contacts.push(new_contact);
+    }
+
+    Ok(contacts)
+}
+
 /// Valid contact address.
 #[derive(Debug, Clone)]
 pub struct ContactAddress(String);
