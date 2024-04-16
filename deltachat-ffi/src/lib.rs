@@ -1073,7 +1073,7 @@ pub unsafe extern "C" fn dc_set_webxdc_integration(
         return;
     }
     let ctx = &*context;
-    block_on(ctx.set_webxdc_integration(to_string_lossy(file)))
+    block_on(ctx.set_webxdc_integration(&to_string_lossy(file)))
         .log_err(ctx)
         .unwrap_or_default();
 }

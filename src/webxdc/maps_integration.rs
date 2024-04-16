@@ -183,8 +183,7 @@ mod tests {
         let bytes = include_bytes!("../../test-data/webxdc/mapstest.xdc");
         let file = t.get_blobdir().join("maps.xdc");
         tokio::fs::write(&file, bytes).await.unwrap();
-        t.set_webxdc_integration(file.to_str().unwrap().to_string())
-            .await?;
+        t.set_webxdc_integration(file.to_str().unwrap()).await?;
 
         let chatlist = Chatlist::try_load(&t, 0, None, None).await?;
         let summary = chatlist.get_summary(&t, 0, None).await?;

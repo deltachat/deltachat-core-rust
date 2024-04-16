@@ -9,10 +9,10 @@ use anyhow::Result;
 
 impl Context {
     /// Set Webxdc file as integration.
-    pub async fn set_webxdc_integration(&self, file: String) -> Result<()> {
+    pub async fn set_webxdc_integration(&self, file: &str) -> Result<()> {
         let chat_id = ChatId::create_for_contact(self, ContactId::SELF).await?;
         let mut msg = Message::new(Viewtype::Webxdc);
-        msg.set_file(file.as_str(), None);
+        msg.set_file(file, None);
         msg.hidden = true;
         msg.param.set_int(Param::WebxdcIntegration, 1);
         msg.param.set_int(Param::GuaranteeE2ee, 1); // needed to pass `internet_access` requirements
@@ -117,8 +117,7 @@ mod tests {
         let bytes = include_bytes!("../../test-data/webxdc/minimal.xdc");
         let file = t.get_blobdir().join("maps.xdc");
         tokio::fs::write(&file, bytes).await.unwrap();
-        t.set_webxdc_integration(file.to_str().unwrap().to_string())
-            .await?;
+        t.set_webxdc_integration(file.to_str().unwrap()).await?;
 
         // default integrations are shipped with the apps and should not be sent over the wire
         let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
