@@ -568,20 +568,20 @@ First thread."#;
 
         // Step 3: Alice receives vg-request, sends vg-auth-required
         alice.evtracker.clear_events();
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
 
         let sent = alice.pop_sent_msg().await;
 
         // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
         bob.evtracker.clear_events();
-        bob.recv_msg(&sent).await;
+        bob.recv_msg_trash(&sent).await;
         wait_for_chatlist_and_specific_item(&bob, bob_chatid).await;
 
         let sent = bob.pop_sent_msg().await;
 
         // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
         alice.evtracker.clear_events();
-        alice.recv_msg(&sent).await;
+        alice.recv_msg_trash(&sent).await;
         wait_for_chatlist_and_specific_item(&alice, alice_chatid).await;
 
         let sent = alice.pop_sent_msg().await;
