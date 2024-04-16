@@ -1,6 +1,6 @@
 [package]
 name = "deltachat-repl"
-version = "1.137.2"
+version = "1.137.3"
 license = "MPL-2.0"
 edition = "2021"
 repository = "https://github.com/deltachat/deltachat-core-rust"
