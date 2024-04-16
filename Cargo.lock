@@ -1159,7 +1159,7 @@ dependencies = [
  "brotli",
  "chrono",
  "criterion",
- "deltachat-contact-utils",
+ "deltachat-contact-tools",
  "deltachat-time",
  "deltachat_derive",
  "email",
@@ -1226,7 +1226,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "deltachat-contact-utils"
+name = "deltachat-contact-tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",

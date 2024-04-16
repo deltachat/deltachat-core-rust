@@ -1582,7 +1582,7 @@ fn maybe_encode_words(words: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use deltachat_contact_utils::ContactAddress;
+    use deltachat_contact_tools::ContactAddress;
     use mailparse::{addrparse_header, MailHeaderMap};
     use std::str;
 

@@ -34,7 +34,7 @@ strip = true
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 deltachat-time = { path = "./deltachat-time" }
-deltachat-contact-utils = { path = "./deltachat-contact-utils" }
+deltachat-contact-tools = { path = "./deltachat-contact-tools" }
 format-flowed = { path = "./format-flowed" }
 ratelimit = { path = "./deltachat-ratelimit" }
 
@@ -133,7 +133,7 @@ members = [
   "deltachat-repl",
   "deltachat-time",
   "format-flowed",
-  "deltachat-contact-utils",
+  "deltachat-contact-tools",
 ]
 
 [[bench]]

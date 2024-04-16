@@ -19,7 +19,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
-use deltachat_contact_utils::strip_rtlo_characters;
+use deltachat_contact_tools::strip_rtlo_characters;
 use deltachat_derive::FromSql;
 use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;

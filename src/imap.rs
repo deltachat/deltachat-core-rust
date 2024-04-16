@@ -15,7 +15,7 @@ use std::{
 use anyhow::{bail, format_err, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
-use deltachat_contact_utils::{normalize_name, ContactAddress};
+use deltachat_contact_tools::{normalize_name, ContactAddress};
 use futures::{FutureExt as _, StreamExt, TryStreamExt};
 use futures_lite::FutureExt;
 use num_traits::FromPrimitive;

@@ -756,7 +756,7 @@ fn encrypted_and_signed(
 
 #[cfg(test)]
 mod tests {
-    use deltachat_contact_utils::{ContactAddress, EmailAddress};
+    use deltachat_contact_tools::{ContactAddress, EmailAddress};
 
     use super::*;
     use crate::chat::remove_contact_from_chat;

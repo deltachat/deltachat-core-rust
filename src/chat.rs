@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
-use deltachat_contact_utils::{strip_rtlo_characters, ContactAddress};
+use deltachat_contact_tools::{strip_rtlo_characters, ContactAddress};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;

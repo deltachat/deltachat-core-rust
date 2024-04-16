@@ -8,8 +8,8 @@ use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
-pub use deltachat_contact_utils::may_be_valid_addr;
-use deltachat_contact_utils::{
+pub use deltachat_contact_tools::may_be_valid_addr;
+use deltachat_contact_tools::{
     addr_cmp, addr_normalize, normalize_name, sanitize_name_and_addr, strip_rtlo_characters,
     ContactAddress,
 };
@@ -1752,7 +1752,7 @@ impl RecentlySeenLoop {
 
 #[cfg(test)]
 mod tests {
-    use deltachat_contact_utils::may_be_valid_addr;
+    use deltachat_contact_tools::may_be_valid_addr;
 
     use super::*;
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};

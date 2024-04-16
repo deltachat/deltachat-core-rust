@@ -382,7 +382,7 @@ impl Chat {
 
 #[cfg(test)]
 mod tests {
-    use deltachat_contact_utils::ContactAddress;
+    use deltachat_contact_tools::ContactAddress;
 
     use super::*;
     use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};

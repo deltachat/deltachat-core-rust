@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use ansi_term::Color;
 use async_channel::{self as channel, Receiver, Sender};
 use chat::ChatItem;
-use deltachat_contact_utils::{ContactAddress, EmailAddress};
+use deltachat_contact_tools::{ContactAddress, EmailAddress};
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
 use rand::Rng;

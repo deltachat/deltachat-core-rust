@@ -6,7 +6,7 @@ use std::path::Path;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
-use deltachat_contact_utils::{addr_cmp, addr_normalize, strip_rtlo_characters};
+use deltachat_contact_tools::{addr_cmp, addr_normalize, strip_rtlo_characters};
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::Mime;

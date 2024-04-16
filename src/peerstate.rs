@@ -3,7 +3,7 @@
 use std::mem;
 
 use anyhow::{Context as _, Error, Result};
-use deltachat_contact_utils::{addr_cmp, ContactAddress};
+use deltachat_contact_tools::{addr_cmp, ContactAddress};
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};

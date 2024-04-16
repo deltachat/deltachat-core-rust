@@ -3,7 +3,7 @@
 mod data;
 
 use anyhow::Result;
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use hickory_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;

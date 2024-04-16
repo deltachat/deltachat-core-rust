@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};

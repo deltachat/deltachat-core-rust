@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use anyhow::Result;
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use mailparse::MailHeaderMap;
 use mailparse::ParsedMail;
 use once_cell::sync::Lazy;

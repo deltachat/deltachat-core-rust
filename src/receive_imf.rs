@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
-use deltachat_contact_utils::{
+use deltachat_contact_tools::{
     addr_cmp, may_be_valid_addr, normalize_name, strip_rtlo_characters, ContactAddress,
 };
 use mailparse::{parse_mail, SingleInfo};

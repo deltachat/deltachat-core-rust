@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{bail, Context as _, Result};
 
-use deltachat_contact_utils::may_be_valid_addr;
+use deltachat_contact_tools::may_be_valid_addr;
 use num_traits::cast::ToPrimitive;
 
 use super::{Qr, DCLOGIN_SCHEME};

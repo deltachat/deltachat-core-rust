@@ -22,7 +22,7 @@ pub use std::time::SystemTime;
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
-use deltachat_contact_utils::{strip_rtlo_characters, EmailAddress};
+use deltachat_contact_tools::{strip_rtlo_characters, EmailAddress};
 #[cfg(test)]
 pub use deltachat_time::SystemTimeTools as SystemTime;
 use futures::{StreamExt, TryStreamExt};

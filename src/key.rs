@@ -6,7 +6,7 @@ use std::io::Cursor;
 
 use anyhow::{ensure, Context as _, Result};
 use base64::Engine as _;
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};

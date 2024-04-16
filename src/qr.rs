@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
 pub use dclogin_scheme::LoginOptions;
-use deltachat_contact_utils::{addr_normalize, may_be_valid_addr, ContactAddress};
+use deltachat_contact_tools::{addr_normalize, may_be_valid_addr, ContactAddress};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;

@@ -1,5 +1,5 @@
 [package]
-name = "deltachat-contact-utils"
+name = "deltachat-contact-tools"
 version = "0.1.0"
 edition = "2021"
 description = "Contact-related tools, like parsing vcards and sanitizing name and address"

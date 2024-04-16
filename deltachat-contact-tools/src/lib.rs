@@ -160,7 +160,7 @@ pub fn addr_cmp(addr1: &str, addr2: &str) -> bool {
 /// # Example
 ///
 /// ```
-/// use deltachat_contact_utils::EmailAddress;
+/// use deltachat_contact_tools::EmailAddress;
 /// let email = match EmailAddress::new("someone@example.com") {
 ///     Ok(addr) => addr,
 ///     Err(e) => panic!("Error parsing address, error was {}", e),

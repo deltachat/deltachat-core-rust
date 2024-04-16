@@ -1,7 +1,7 @@
 //! Migrations module.
 
 use anyhow::{Context as _, Result};
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use rusqlite::OptionalExtension;
 
 use crate::config::Config;

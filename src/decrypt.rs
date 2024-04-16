@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use anyhow::Result;
-use deltachat_contact_utils::addr_cmp;
+use deltachat_contact_tools::addr_cmp;
 use mailparse::ParsedMail;
 
 use crate::aheader::Aheader;

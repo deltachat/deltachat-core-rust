@@ -5,7 +5,7 @@ use std::io;
 use std::io::Cursor;
 
 use anyhow::{bail, Context as _, Result};
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,

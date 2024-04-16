@@ -16,7 +16,7 @@ mod server_params;
 use anyhow::{bail, ensure, Context as _, Result};
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
-use deltachat_contact_utils::EmailAddress;
+use deltachat_contact_tools::EmailAddress;
 use futures::FutureExt;
 use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
@@ -37,7 +37,7 @@ use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::time;
 use crate::{chat, e2ee, provider};
-use deltachat_contact_utils::addr_cmp;
+use deltachat_contact_tools::addr_cmp;
 
 macro_rules! progress {
     ($context:tt, $progress:expr, $comment:expr) => {

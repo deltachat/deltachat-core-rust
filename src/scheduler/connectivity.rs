@@ -414,7 +414,7 @@ impl Context {
         // =============================================================================================
 
         let domain =
-            &deltachat_contact_utils::EmailAddress::new(&self.get_primary_self_addr().await?)?
+            &deltachat_contact_tools::EmailAddress::new(&self.get_primary_self_addr().await?)?
                 .domain;
         let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
         ret += &format!("<h3>{storage_on_domain}</h3><ul>");
