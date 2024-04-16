@@ -9,6 +9,7 @@ use anyhow::Result;
 
 impl Context {
     /// Set Webxdc file as integration.
+    /// @param file The .xdc file to use as Webxdc integration.
     pub async fn set_webxdc_integration(&self, file: &str) -> Result<()> {
         let chat_id = ChatId::create_for_contact(self, ContactId::SELF).await?;
         let mut msg = Message::new(Viewtype::Webxdc);
@@ -21,7 +22,9 @@ impl Context {
     }
 
     /// Get Webxdc instance used for optional integrations.
-    /// If there is no integration, the caller may decide to add a default one.
+    /// @param integrate_for The chat to get the integration for.
+    /// @return Message ID that refers to the Webxdc instance; UI can open the Webxdc as usual.
+    ///     `None` if there is no integration; the caller can add one using `set_webxdc_integration` then.
     pub async fn init_webxdc_integration(
         &self,
         integrate_for: Option<ChatId>,

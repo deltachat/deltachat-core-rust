@@ -190,7 +190,7 @@ pub enum Param {
     /// For Webxdc Message Instances: Webxdc is an integration, see init_webxdc_integration()
     WebxdcIntegration = b'3',
 
-    /// For Webxdc Message Instances: Chat to integrate in.
+    /// For Webxdc Message Instances: Chat to integrate the Webxdc for.
     WebxdcIntegrateFor = b'2',
 
     /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
