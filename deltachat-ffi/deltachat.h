@@ -1183,6 +1183,8 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  * Set Webxdc file as integration.
  * see dc_init_webxdc_integration() for more details about Webxdc integrations.
  *
+ * @warning This is an experimental API which may change in the future
+ *
  * @memberof dc_context_t
  * @param context The context object.
  * @param file The .xdc file to use as Webxdc integration.
@@ -1197,8 +1199,10 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
  * a Webxdc showing a map, getting locations via setUpdateListener(), setting POIs via sendUpdate();
  * core takes eg. care of feeding locations to the Webxdc or sending the data out.
  *
- * Currently, Webxdc integrations are Webxdc shipped together with the main app;
- * before dc_init_webxdc_integration() can be called,
+ * @warning This is an experimental API, esp. support of integration types (eg. image editor, tools) is left out for simplicity
+ *
+ * Currently, Webxdc integrations are .xdc files shipped together with the main app.
+ * Before dc_init_webxdc_integration() can be called,
  * UI has to call dc_set_webxdc_integration() to define a .xdc file to be used as integration.
  * Later on,
  * we can consider shipping Webxdc integrations with core or
@@ -1207,8 +1211,12 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
  * dc_init_webxdc_integration() returns a Webxdc message ID that
  * UI can open and use mostly as usual.
  *
+ * Concrete behaviour and status updates depend on the integration, driven by UI needs.
+ *
  * There is no need to de-initialize the integration,
- * however, the integration is valid only as long as not re-initialized.
+ * however, unless documented otherwise,
+ * the integration is valid only as long as not re-initialized
+ * In other words, unless documented otherwise, UI must not have a Webxdc with the same integration open twice.
  *
  * Example:
  *
