@@ -79,6 +79,7 @@ mod test_chatlist_events {
         EventType,
     };
 
+    use crate::tools::SystemTime;
     use anyhow::Result;
 
     async fn wait_for_chatlist_and_specific_item(context: &TestContext, chat_id: ChatId) {
@@ -352,7 +353,7 @@ mod test_chatlist_events {
         );
         chat::set_muted(&alice, chat, mute_duration).await?;
         alice.evtracker.clear_events();
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        SystemTime::shift(Duration::from_secs(3));
         wait_for_chatlist_specific_item(&alice, chat).await;
 
         Ok(())
@@ -521,7 +522,7 @@ mod test_chatlist_events {
         let _ = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
 
         alice.evtracker.clear_events();
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        SystemTime::shift(Duration::from_secs(3));
         wait_for_chatlist_and_specific_item(&alice, chat).await;
 
         Ok(())
