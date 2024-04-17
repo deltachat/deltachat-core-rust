@@ -263,6 +263,15 @@ impl Context {
         send_msg(self, webxdc.chat_id, &mut msg).await?;
         Ok(Some(fut))
     }
+
+    /// Leave the gossip of the webxdc with given [MsgId].
+    pub async fn leave_gossip(&self, msg_id: MsgId) -> Result<()> {
+        let topic = self.get_topic_for_msg_id(msg_id).await?;
+        let gossip = self.gossip.lock().await;
+        gossip.as_ref().context("No gossip")?.quit(topic).await?;
+        info!(self, "Left gossip for {msg_id}");
+        Ok(())
+    }
 }
 
 // Maybe we can add the timstamp in the byte sequence of the message?

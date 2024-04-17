@@ -1747,6 +1747,16 @@ impl CommandApi {
         Ok(())
     }
 
+    async fn leave_gossip(
+        &self,
+        account_id: u32,
+        instance_message_id: u32,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.leave_gossip(MsgId::new(instance_message_id)).await?;
+        Ok(())
+    }
+
     async fn get_webxdc_status_updates(
         &self,
         account_id: u32,
