@@ -59,10 +59,10 @@ hickory-resolver = "0.24"
 humansize = "2"
 image = { version = "0.24.9", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh_old = { version = "0.4.2", default-features = false, package = "iroh"}
-iroh = { version = "0.13.0", default-features = false }
-iroh-net = "0.13.0"
-iroh-base ="0.13.0"
-iroh-gossip = { version = "0.13.0", features = ["net"] }
+iroh = { version = "0.14.0", default-features = false }
+iroh-net = "0.14.0"
+iroh-base ="0.14.0"
+iroh-gossip = { version = "0.14.0", features = ["net"] }
 quinn = "0.10"
 kamadak-exif = "0.5.3"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
