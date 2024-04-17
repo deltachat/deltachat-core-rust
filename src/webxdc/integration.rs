@@ -75,7 +75,7 @@ impl Context {
         instance: Message,
         status_update: StatusUpdateItem,
     ) -> Result<()> {
-        let chat_id = self.integrate_for(&instance)?;
+        let chat_id = self.webxdc_integrate_for(&instance)?;
         maps_integration::intercept_send_update(self, chat_id, status_update).await
     }
 
@@ -85,13 +85,13 @@ impl Context {
         instance: Message,
         last_known_serial: StatusUpdateSerial,
     ) -> Result<String> {
-        let chat_id = self.integrate_for(&instance)?;
+        let chat_id = self.webxdc_integrate_for(&instance)?;
         maps_integration::intercept_get_updates(self, chat_id, last_known_serial).await
     }
 
     // Get chat the Webxdc is integrated for.
     // This is the chat given to `init_webxdc_integration()`.
-    fn integrate_for(&self, instance: &Message) -> Result<Option<ChatId>> {
+    fn webxdc_integrate_for(&self, instance: &Message) -> Result<Option<ChatId>> {
         let raw_id = instance
             .param
             .get_int(Param::WebxdcIntegrateFor)
