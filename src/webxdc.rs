@@ -2672,6 +2672,8 @@ sth_for_the = "future""#
         Ok(())
     }
 
+    // NB: This test also checks that a contact is not marked as bot after receiving from it a
+    // webxdc instance and status updates.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_status_update_vs_delete_device_after() -> Result<()> {
         let alice = &TestContext::new_alice().await;
@@ -2681,6 +2683,7 @@ sth_for_the = "future""#
         let alice_chat = alice.create_chat(bob).await;
         let alice_instance = send_webxdc_instance(alice, alice_chat.id).await?;
         let bob_instance = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(bob.add_or_lookup_contact(alice).await.is_bot(), false);
 
         SystemTime::shift(Duration::from_secs(1800));
         let mut update = Message {
@@ -2697,11 +2700,13 @@ sth_for_the = "future""#
         update.set_quote(alice, Some(&alice_instance)).await?;
         let sent_msg = alice.send_msg(alice_chat.id, &mut update).await;
         bob.recv_msg_trash(&sent_msg).await;
+        assert_eq!(bob.add_or_lookup_contact(alice).await.is_bot(), false);
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
             r#"[{"payload":{"foo":"bar"},"serial":1,"max_serial":1}]"#
         );
+        assert_eq!(bob.add_or_lookup_contact(alice).await.is_bot(), false);
 
         SystemTime::shift(Duration::from_secs(2700));
         ephemeral::delete_expired_messages(bob, tools::time()).await?;
