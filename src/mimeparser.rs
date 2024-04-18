@@ -494,7 +494,7 @@ impl MimeMessage {
             },
         };
 
-        if parser.mdn_reports.is_empty() {
+        if parser.mdn_reports.is_empty() && parser.webxdc_status_update.is_none() {
             // "Auto-Submitted" is also set by holiday-notices so we also check "chat-version".
             let is_bot = parser.headers.get("auto-submitted")
                 == Some(&"auto-generated".to_string())
