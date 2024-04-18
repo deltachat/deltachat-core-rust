@@ -511,18 +511,25 @@ mod test_chatlist_events {
         Ok(())
     }
 
-    /// ephemeral / disappearing messages
+    /// Tests that expired disappearing message
+    /// produces events about chatlist being modified.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_update_after_ephemeral_messages() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
-        chat.set_ephemeral_timer(&alice, crate::ephemeral::Timer::Enabled { duration: 1 })
+        chat.set_ephemeral_timer(&alice, crate::ephemeral::Timer::Enabled { duration: 60 })
             .await?;
-        let _ = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
+        alice
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ChatEphemeralTimerModified { .. }))
+            .await;
 
-        alice.evtracker.clear_events();
-        SystemTime::shift(Duration::from_secs(3));
+        let _ = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
+        wait_for_chatlist_and_specific_item(&alice, chat).await;
+
+        SystemTime::shift(Duration::from_secs(70));
+        crate::ephemeral::delete_expired_messages(&alice, crate::tools::time()).await?;
         wait_for_chatlist_and_specific_item(&alice, chat).await;
 
         Ok(())
