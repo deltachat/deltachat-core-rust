@@ -2708,7 +2708,18 @@ Hi."#;
 
         bob.recv_msg(&sent_msg).await;
         let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
-        assert!(contact.was_seen_recently());
+
+        let green = ansi_term::Color::Green.normal();
+        assert!(
+            contact.was_seen_recently(),
+            "{}",
+            green.paint(
+                "\nNOTE: This test failure is probably a false-positive, caused by tests running in parallel and shifting the time with `SystemTime::shift()`.
+Until the false-positive is fixed:
+- Use `cargo test -- --test-threads 1` instead of `cargo test`
+- Or use `cargo nextest run` (install with `cargo install cargo-nextest --locked`)\n"
+            )
+        );
 
         let self_contact = Contact::get_by_id(&bob, ContactId::SELF).await?;
         assert!(!self_contact.was_seen_recently());
