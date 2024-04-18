@@ -1025,9 +1025,16 @@ impl EventTracker {
             .await;
     }
 
-    /// Clears event queue
-    pub fn clear_events(&self) {
-        while self.try_recv().is_ok() {}
+    /// Clears event queue.
+    ///
+    /// This spends 1 second instead of using `try_recv`
+    /// to avoid accidentally leaving an event that
+    /// was emitted right before calling `clear_events()`.
+    ///
+    /// Avoid using this function if you can
+    /// by waiting for specific events you expect to receive.
+    pub async fn clear_events(&self) {
+        while let Ok(_ev) = tokio::time::timeout(Duration::from_secs(1), self.recv()).await {}
     }
 }
 
