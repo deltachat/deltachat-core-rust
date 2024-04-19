@@ -47,7 +47,7 @@ use crate::stock_str::StockStrings;
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
 
-/// Map of [`Context::id`] to names for [`TestContext`]s.
+/// Map of context IDs to names for [`TestContext`]s.
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
@@ -190,6 +190,7 @@ impl TestContextManager {
     }
 }
 
+/// Builder for the [TestContext].
 #[derive(Debug, Clone, Default)]
 pub struct TestContextBuilder {
     key_pair: Option<KeyPair>,
@@ -199,21 +200,21 @@ pub struct TestContextBuilder {
 impl TestContextBuilder {
     /// Configures as alice@example.org with fixed secret key.
     ///
-    /// This is a shortcut for `.with_key_pair(alice_keypair()).
+    /// This is a shortcut for `.with_key_pair(alice_keypair())`.
     pub fn configure_alice(self) -> Self {
         self.with_key_pair(alice_keypair())
     }
 
     /// Configures as bob@example.net with fixed secret key.
     ///
-    /// This is a shortcut for `.with_key_pair(bob_keypair()).
+    /// This is a shortcut for `.with_key_pair(bob_keypair())`.
     pub fn configure_bob(self) -> Self {
         self.with_key_pair(bob_keypair())
     }
 
     /// Configures as fiona@example.net with fixed secret key.
     ///
-    /// This is a shortcut for `.with_key_pair(bob_keypair()).
+    /// This is a shortcut for `.with_key_pair(fiona_keypair())`.
     pub fn configure_fiona(self) -> Self {
         self.with_key_pair(fiona_keypair())
     }
@@ -257,13 +258,13 @@ impl TestContextBuilder {
 }
 
 /// A Context and temporary directory.
-///
-/// The temporary directory can be used to store the SQLite database,
-/// see e.g. [test_context] which does this.
 #[derive(Debug)]
 pub struct TestContext {
     pub ctx: Context,
+
+    /// Temporary directory used to store SQLite database.
     pub dir: TempDir,
+
     pub evtracker: EventTracker,
     /// Channels which should receive events from this context.
     event_senders: Arc<RwLock<Vec<Sender<Event>>>>,
@@ -298,9 +299,7 @@ impl TestContext {
 
     /// Creates a new configured [`TestContext`].
     ///
-    /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
-    /// creating the context.
-    /// alice-email: alice@example.org
+    /// This is a shortcut which configures alice@example.org with a fixed key.
     pub async fn new_alice() -> Self {
         Self::builder().configure_alice().build().await
     }
@@ -498,7 +497,7 @@ impl TestContext {
     ///
     /// Parsing a message does not run the entire receive pipeline, but is not without
     /// side-effects either.  E.g. if the message includes autocrypt headers the relevant
-    /// peerstates will be updated.  Later receiving the message using [recv_msg] is
+    /// peerstates will be updated.  Later receiving the message using [Self.recv_msg()] is
     /// unlikely to be affected as the peerstate would be processed again in exactly the
     /// same way.
     pub(crate) async fn parse_msg(&self, msg: &SentMessage<'_>) -> MimeMessage {
