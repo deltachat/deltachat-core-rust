@@ -152,6 +152,13 @@ impl CommandApi {
         tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await
     }
 
+    /// Emit the test checkpoint event, used for tests.
+    /// Returns a unique id of the emitted `TestCheckpointEvent`.
+    async fn trigger_checkpoint_event(&self, account_id: u32) -> Result<usize> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ctx.emit_test_checkpoint_event().await)
+    }
+
     // ---------------------------------------------
     //  Misc top level functions
     // ---------------------------------------------

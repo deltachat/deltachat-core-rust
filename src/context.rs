@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -288,6 +288,9 @@ pub struct InnerContext {
 
     /// True if account has subscribed to push notifications via IMAP.
     pub(crate) push_subscribed: AtomicBool,
+
+    /// Counter for the id for the test checkpoint event that is used by tests.
+    pub(crate) test_event_checkpoint_counter: Mutex<usize>,
 }
 
 /// The state of ongoing process.
@@ -445,6 +448,7 @@ impl Context {
             debug_logging: std::sync::RwLock::new(None),
             push_subscriber,
             push_subscribed: AtomicBool::new(false),
+            test_event_checkpoint_counter: Mutex::new(0),
         };
 
         let ctx = Context {
@@ -1361,6 +1365,15 @@ impl Context {
         wal_fname.push(dbfile.file_name().unwrap_or_default());
         wal_fname.push("-wal");
         dbfile.with_file_name(wal_fname)
+    }
+
+    /// Emit the test checkpoint event, used for tests.
+    /// Returns a unique id of the emitted `TestCheckpointEvent`.
+    pub async fn emit_test_checkpoint_event(&self) -> usize {
+        let mut counter = self.inner.test_event_checkpoint_counter.lock().await;
+        *counter = counter.wrapping_add(1);
+        self.emit_event(EventType::TestCheckpointEvent { id: *counter });
+        *counter
     }
 }
 

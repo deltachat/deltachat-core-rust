@@ -259,6 +259,13 @@ pub enum EventType {
     /// If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
     #[serde(rename_all = "camelCase")]
     ChatlistItemChanged { chat_id: Option<u32> },
+
+    /// Tests can trigger this event and then wait for it, to make sure all events before it were consumed.
+    /// Useful for tests that test whether a specific event is emitted,
+    TestCheckpointEvent {
+        /// unique id to recognize the event
+        id: usize,
+    },
 }
 
 impl From<CoreEventType> for EventType {
@@ -370,6 +377,7 @@ impl From<CoreEventType> for EventType {
                 chat_id: chat_id.map(|id| id.to_u32()),
             },
             CoreEventType::ChatlistChanged => ChatlistChanged,
+            CoreEventType::TestCheckpointEvent { id } => TestCheckpointEvent { id },
         }
     }
 }

@@ -302,4 +302,11 @@ pub enum EventType {
         /// ID of the changed chat
         chat_id: Option<ChatId>,
     },
+
+    /// Tests can trigger this event and then wait for it, to make sure all events before it were consumed.
+    /// Useful for tests that test whether a specific event is emitted,
+    TestCheckpointEvent {
+        /// unique id to recognize the event
+        id: usize,
+    },
 }
