@@ -785,6 +785,17 @@ impl TestContext {
 
         chat_id
     }
+
+    /// Clears event queue.
+    /// Works by emitting a `TestCheckpointEvent` and consuming all events until.
+    /// times out after 10 seconds.
+    pub async fn clear_events(&self) {
+        let event_id = self.emit_test_checkpoint_event().await;
+        self.evtracker.get_matching(|ev| match ev {
+            EventType::TestCheckpointEvent { id } => event_id == *id,
+            _ => false
+        }).await;
+    }
 }
 
 impl Deref for TestContext {
