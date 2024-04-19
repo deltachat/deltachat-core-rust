@@ -181,7 +181,7 @@ mod test_chatlist_events {
             .await?;
         set_muted(&bob, bob_chat.id, MuteDuration::Forever).await?;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
 
         let sent_msg = alice.send_text(chat.id, "moin2").await;
         bob.recv_msg(&sent_msg).await;
@@ -216,7 +216,7 @@ mod test_chatlist_events {
         let sent_msg = alice.send_text(chat.id, "moin2").await;
         bob.recv_msg(&sent_msg).await;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         chat::marknoticed_chat(&bob, DC_CHAT_ID_ARCHIVED_LINK).await?;
         wait_for_chatlist_specific_item(&bob, DC_CHAT_ID_ARCHIVED_LINK).await;
 
@@ -233,7 +233,7 @@ mod test_chatlist_events {
         let sent_msg = alice.send_text(alice_to_bob_chat.id, "hello").await;
         bob.recv_msg(&sent_msg).await;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         // set alice name then receive messagefrom her with bob
         alice.set_config(Config::Displayname, Some("Alice")).await?;
         let sent_msg = alice
@@ -245,7 +245,7 @@ mod test_chatlist_events {
 
         wait_for_chatlist_all_items(&bob).await;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         // set name
         let addr = alice_on_bob.get_addr();
         Contact::create(&bob, "Alice2", addr).await?;
@@ -266,7 +266,7 @@ mod test_chatlist_events {
         let sent_msg = alice.send_text(alice_to_bob_chat.id, "hello").await;
         bob.recv_msg(&sent_msg).await;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         // set alice avatar then receive messagefrom her with bob
         let file = alice.dir.path().join("avatar.png");
         let bytes = include_bytes!("../../test-data/image/avatar64x64.png");
@@ -292,7 +292,7 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         chat.delete(&alice).await?;
         wait_for_chatlist(&alice).await;
         Ok(())
@@ -303,7 +303,7 @@ mod test_chatlist_events {
     async fn test_create_group_chat() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
         wait_for_chatlist_and_specific_item(&alice, chat).await;
         Ok(())
@@ -314,7 +314,7 @@ mod test_chatlist_events {
     async fn test_create_broadcastlist() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         create_broadcast_list(&alice).await?;
         wait_for_chatlist(&alice).await;
         Ok(())
@@ -327,11 +327,11 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         chat::set_muted(&alice, chat, MuteDuration::Forever).await?;
         wait_for_chatlist_specific_item(&alice, chat).await;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         chat::set_muted(&alice, chat, MuteDuration::NotMuted).await?;
         wait_for_chatlist_specific_item(&alice, chat).await;
 
@@ -352,7 +352,7 @@ mod test_chatlist_events {
                 .unwrap(),
         );
         chat::set_muted(&alice, chat, mute_duration).await?;
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         SystemTime::shift(Duration::from_secs(3));
         wait_for_chatlist_specific_item(&alice, chat).await;
 
@@ -366,7 +366,7 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         chat::set_chat_name(&alice, chat, "New Name").await?;
         wait_for_chatlist_specific_item(&alice, chat).await;
 
@@ -380,7 +380,7 @@ mod test_chatlist_events {
         let alice = tcm.alice().await;
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         let file = alice.dir.path().join("avatar.png");
         let bytes = include_bytes!("../../test-data/image/avatar64x64.png");
         tokio::fs::write(&file, bytes).await?;
@@ -405,7 +405,7 @@ mod test_chatlist_events {
         wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
         chat_id_for_bob.accept(&bob).await?;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         chat::set_chat_name(&alice, chat, "New Name").await?;
         let sent_msg = alice.send_text(chat, "Hello").await;
         bob.recv_msg(&sent_msg).await;
@@ -426,7 +426,7 @@ mod test_chatlist_events {
         let sent_msg = alice.send_text(chat, "Hello").await;
         let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         chat_id_for_bob.accept(&bob).await?;
         wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
 
@@ -445,7 +445,7 @@ mod test_chatlist_events {
         let sent_msg = alice.send_text(chat, "Hello").await;
         let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         chat_id_for_bob.block(&bob).await?;
         wait_for_chatlist(&bob).await;
 
@@ -460,7 +460,7 @@ mod test_chatlist_events {
         let chat = create_group_chat(&alice, ProtectionStatus::Protected, "My Group").await?;
         let message = chat::send_text_msg(&alice, chat, "Hello World".to_owned()).await?;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         message::delete_msgs(&alice, &[message]).await?;
         wait_for_chatlist_specific_item(&alice, chat).await;
 
@@ -485,7 +485,7 @@ mod test_chatlist_events {
         let chat_id_for_bob = bob.recv_msg(&sent_msg).await.chat_id;
         assert!(chat_id_for_bob.get_fresh_msg_cnt(&bob).await? >= 1);
 
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         chat::marknoticed_chat(&bob, chat_id_for_bob).await?;
         wait_for_chatlist_specific_item(&bob, chat_id_for_bob).await;
 
@@ -500,11 +500,11 @@ mod test_chatlist_events {
         let contact_id = Contact::create(&alice, "example", "example@example.com").await?;
         let _ = ChatId::create_for_contact(&alice, contact_id).await;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         Contact::block(&alice, contact_id).await?;
         wait_for_chatlist(&alice).await;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         Contact::unblock(&alice, contact_id).await?;
         wait_for_chatlist(&alice).await;
 
@@ -547,7 +547,7 @@ Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 First thread."#;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         receive_imf(&alice, mime, false).await?;
         wait_for_chatlist(&alice).await;
 
@@ -568,34 +568,34 @@ First thread."#;
         let qr = get_securejoin_qr(&alice.ctx, Some(alice_chatid)).await?;
 
         // Step 2: Bob scans QR-code, sends vg-request
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         let bob_chatid = join_securejoin(&bob.ctx, &qr).await?;
         wait_for_chatlist(&bob).await;
 
         let sent = bob.pop_sent_msg().await;
 
         // Step 3: Alice receives vg-request, sends vg-auth-required
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         alice.recv_msg_trash(&sent).await;
 
         let sent = alice.pop_sent_msg().await;
 
         // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         bob.recv_msg_trash(&sent).await;
         wait_for_chatlist_and_specific_item(&bob, bob_chatid).await;
 
         let sent = bob.pop_sent_msg().await;
 
         // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         alice.recv_msg_trash(&sent).await;
         wait_for_chatlist_and_specific_item(&alice, alice_chatid).await;
 
         let sent = alice.pop_sent_msg().await;
 
         // Step 7: Bob receives vg-member-added
-        bob.evtracker.clear_events().await;
+        bob.evtracker.clear_events();
         bob.recv_msg(&sent).await;
         wait_for_chatlist_and_specific_item(&bob, bob_chatid).await;
 
@@ -617,7 +617,7 @@ First thread."#;
         let message = Message::load_from_db(&alice, msg_id).await?;
         assert_eq!(message.get_state(), MessageState::OutDelivered);
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         chat::resend_msgs(&alice, &[msg_id]).await?;
         wait_for_chatlist_specific_item(&alice, chat).await;
 
@@ -633,7 +633,7 @@ First thread."#;
         let msg_id = chat::send_text_msg(&alice, chat, "Hello".to_owned()).await?;
         let _ = alice.pop_sent_msg().await;
 
-        alice.evtracker.clear_events().await;
+        alice.evtracker.clear_events();
         reaction::send_reaction(&alice, msg_id, "👍").await?;
         let _ = alice.pop_sent_msg().await;
         wait_for_chatlist_specific_item(&alice, chat).await;

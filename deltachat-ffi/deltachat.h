@@ -362,8 +362,12 @@ uint32_t        dc_get_id                    (dc_context_t* context);
  *     Must be freed using dc_event_emitter_unref() after usage.
  *
  * Note: Use only one event emitter per context.
- * Having more than one event emitter running at the same time on the same context
- * will result in events being randomly delivered to one of the emitters.
+ * The result of having multiple event emitters is unspecified.
+ * Currently events are broadcasted to all existing event emitters,
+ * but previous versions delivered events to only one event emitter
+ * and this behavior may change again in the future.
+ * Events emitted before creation of event emitter
+ * may or may not be available to event emitter.
  */
 dc_event_emitter_t* dc_get_event_emitter(dc_context_t* context);
 
