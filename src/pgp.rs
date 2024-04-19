@@ -449,7 +449,8 @@ mod tests {
         assert_ne!(keypair0.public, keypair1.public);
     }
 
-    /// [Key] objects to use in tests.
+    /// [SignedSecretKey] and [SignedPublicKey] objects
+    /// to use in tests.
     struct TestKeys {
         alice_secret: SignedSecretKey,
         alice_public: SignedPublicKey,
