@@ -1,6 +1,7 @@
 //! # Events specification.
 
-use async_channel::{self as channel, Receiver, Sender, TrySendError};
+use anyhow::Result;
+use tokio::sync::Mutex;
 
 pub(crate) mod chatlist_events;
 mod payload;
@@ -10,8 +11,11 @@ pub use self::payload::EventType;
 /// Event channel.
 #[derive(Debug, Clone)]
 pub struct Events {
-    receiver: Receiver<Event>,
-    sender: Sender<Event>,
+    /// Unused receiver to prevent the channel from closing.
+    _receiver: async_broadcast::InactiveReceiver<Event>,
+
+    /// Sender side of the event channel.
+    sender: async_broadcast::Sender<Event>,
 }
 
 impl Default for Events {
@@ -23,33 +27,30 @@ impl Default for Events {
 impl Events {
     /// Creates a new event channel.
     pub fn new() -> Self {
-        let (sender, receiver) = channel::bounded(1_000);
+        let (mut sender, _receiver) = async_broadcast::broadcast(1_000);
 
-        Self { receiver, sender }
+        // We only keep this receiver around
+        // to prevent the channel from closing.
+        // Deactivating it to prevent it from consuming memory
+        // holding events that are not going to be received.
+        let _receiver = _receiver.deactivate();
+
+        // Remove oldest event on overflow.
+        sender.set_overflow(true);
+
+        Self { _receiver, sender }
     }
 
     /// Emits an event into event channel.
     ///
     /// If the channel is full, deletes the oldest event first.
     pub fn emit(&self, event: Event) {
-        match self.sender.try_send(event) {
-            Ok(()) => {}
-            Err(TrySendError::Full(event)) => {
-                // when we are full, we pop remove the oldest event and push on the new one
-                let _ = self.receiver.try_recv();
-
-                // try again
-                self.emit(event);
-            }
-            Err(TrySendError::Closed(_)) => {
-                unreachable!("unable to emit event, channel disconnected");
-            }
-        }
+        self.sender.try_broadcast(event).ok();
     }
 
     /// Creates an event emitter.
     pub fn get_emitter(&self) -> EventEmitter {
-        EventEmitter(self.receiver.clone())
+        EventEmitter(Mutex::new(self.sender.new_receiver()))
     }
 }
 
@@ -61,13 +62,32 @@ impl Events {
 ///
 /// [`Context`]: crate::context::Context
 /// [`Context::get_event_emitter`]: crate::context::Context::get_event_emitter
-#[derive(Debug, Clone)]
-pub struct EventEmitter(Receiver<Event>);
+#[derive(Debug)]
+pub struct EventEmitter(Mutex<async_broadcast::Receiver<Event>>);
 
 impl EventEmitter {
     /// Async recv of an event. Return `None` if the `Sender` has been dropped.
+    ///
+    /// [`try_recv`]: Self::try_recv
     pub async fn recv(&self) -> Option<Event> {
-        self.0.recv().await.ok()
+        let mut lock = self.0.lock().await;
+        lock.recv().await.ok()
+    }
+
+    /// Tries to receive an event without blocking.
+    ///
+    /// Returns error if no events are available for reception
+    /// or if receiver mutex is locked by a concurrent call to [`recv`]
+    /// or `try_recv`.
+    ///
+    /// [`recv`]: Self::recv
+    pub fn try_recv(&self) -> Result<Event> {
+        // Using `try_lock` instead of `lock`
+        // to avoid blocking
+        // in case there is a concurrent call to `recv`.
+        let mut lock = self.0.try_lock()?;
+        let event = lock.try_recv()?;
+        Ok(event)
     }
 }
 

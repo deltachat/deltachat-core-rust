@@ -29,6 +29,7 @@ use deltachat::reaction::{get_msg_reactions, send_reaction};
 use deltachat::securejoin;
 use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
+use deltachat::EventEmitter;
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
@@ -81,21 +82,30 @@ impl Default for AccountState {
 pub struct CommandApi {
     pub(crate) accounts: Arc<RwLock<Accounts>>,
 
+    /// Receiver side of the event channel.
+    ///
+    /// Events from it can be received by calling `get_next_event` method.
+    event_emitter: Arc<EventEmitter>,
+
     states: Arc<Mutex<BTreeMap<u32, AccountState>>>,
 }
 
 impl CommandApi {
     pub fn new(accounts: Accounts) -> Self {
+        let event_emitter = Arc::new(accounts.get_event_emitter());
         CommandApi {
             accounts: Arc::new(RwLock::new(accounts)),
+            event_emitter,
             states: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
     #[allow(dead_code)]
-    pub fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
+    pub async fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
+        let event_emitter = Arc::new(accounts.read().await.get_event_emitter());
         CommandApi {
             accounts,
+            event_emitter,
             states: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
@@ -158,8 +168,7 @@ impl CommandApi {
 
     /// Get the next event.
     async fn get_next_event(&self) -> Result<Event> {
-        let event_emitter = self.accounts.read().await.get_event_emitter();
-        event_emitter
+        self.event_emitter
             .recv()
             .await
             .map(|event| event.into())

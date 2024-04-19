@@ -68,7 +68,7 @@ async fn main_impl() -> Result<()> {
 
     log::info!("Creating JSON-RPC API.");
     let accounts = Arc::new(RwLock::new(accounts));
-    let state = CommandApi::from_arc(accounts.clone());
+    let state = CommandApi::from_arc(accounts.clone()).await;
 
     let (client, mut out_receiver) = RpcClient::new();
     let session = RpcSession::new(client.clone(), state.clone());
