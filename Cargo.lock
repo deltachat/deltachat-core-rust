@@ -1239,9 +1239,10 @@ dependencies = [
 
 [[package]]
 name = "deltachat-contact-tools"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "once_cell",
  "regex",
  "rusqlite",
