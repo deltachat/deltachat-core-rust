@@ -1,7 +1,6 @@
 //! # Events specification.
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
-use pin_project::pin_project;
 
 pub(crate) mod chatlist_events;
 mod payload;
@@ -60,30 +59,15 @@ impl Events {
 /// created events emitted by the [`Context`] will only be delivered to one of the
 /// `EventEmitter`s.
 ///
-/// The `EventEmitter` is also a [`Stream`], so a typical usage is in a `while let` loop.
-///
 /// [`Context`]: crate::context::Context
 /// [`Context::get_event_emitter`]: crate::context::Context::get_event_emitter
-/// [`Stream`]: futures::stream::Stream
 #[derive(Debug, Clone)]
-#[pin_project]
-pub struct EventEmitter(#[pin] Receiver<Event>);
+pub struct EventEmitter(Receiver<Event>);
 
 impl EventEmitter {
     /// Async recv of an event. Return `None` if the `Sender` has been dropped.
     pub async fn recv(&self) -> Option<Event> {
         self.0.recv().await.ok()
-    }
-}
-
-impl futures::stream::Stream for EventEmitter {
-    type Item = Event;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        self.project().0.poll_next(cx)
     }
 }
 
