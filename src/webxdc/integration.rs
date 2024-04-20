@@ -69,7 +69,7 @@ impl Context {
         Ok(())
     }
 
-    // Intercept sending updates from Webxdc to core.
+    // Intercepts sending updates from Webxdc to core.
     pub(crate) async fn intercept_send_webxdc_status_update(
         &self,
         instance: Message,
