@@ -1643,9 +1643,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         _curr_ephemeral_timer,
     ) in msgs
     {
-        if curr_blocked == Blocked::Not
-            && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
-        {
+        if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
             update_msg_state(context, id, MessageState::InSeen).await?;
             info!(context, "Seen message {}.", id);
 
@@ -1657,7 +1655,11 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             // "Group left by me", a read receipt will quote "Group left by <name>", and the name can
             // be a display name stored in address book rather than the name sent in the From field by
             // the user.
-            if curr_param.get_bool(Param::WantsMdn).unwrap_or_default()
+            //
+            // We also don't send read receipts for contact requests.
+            // Read receipts will not be sent even after accepting the chat.
+            if curr_blocked == Blocked::Not
+                && curr_param.get_bool(Param::WantsMdn).unwrap_or_default()
                 && curr_param.get_cmd() == SystemMessage::Unknown
             {
                 let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
