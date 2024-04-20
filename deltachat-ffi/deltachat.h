@@ -1195,7 +1195,7 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
 /**
  * Init a Webxdc integration.
  *
- * A Webxdc integration is eg.
+ * A Webxdc integration is
  * a Webxdc showing a map, getting locations via setUpdateListener(), setting POIs via sendUpdate();
  * core takes eg. care of feeding locations to the Webxdc or sending the data out.
  *
@@ -1204,9 +1204,6 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
  * Currently, Webxdc integrations are .xdc files shipped together with the main app.
  * Before dc_init_webxdc_integration() can be called,
  * UI has to call dc_set_webxdc_integration() to define a .xdc file to be used as integration.
- * Later on,
- * we can consider shipping Webxdc integrations with core or
- * we can allow users to replace Webxdc integrations.
  *
  * dc_init_webxdc_integration() returns a Webxdc message ID that
  * UI can open and use mostly as usual.
