@@ -4443,19 +4443,6 @@ where
     }
 }
 
-trait ResultNullableExt<T> {
-    fn into_raw(self) -> *mut T;
-}
-
-impl<T, E> ResultNullableExt<T> for Result<T, E> {
-    fn into_raw(self) -> *mut T {
-        match self {
-            Ok(t) => Box::into_raw(Box::new(t)),
-            Err(_) => ptr::null_mut(),
-        }
-    }
-}
-
 fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> Vec<MsgId> {
     let ids = unsafe { std::slice::from_raw_parts(msg_ids, msg_cnt as usize) };
     let msg_ids: Vec<MsgId> = ids
