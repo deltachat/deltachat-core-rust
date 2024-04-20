@@ -35,6 +35,7 @@
             ./CMakeLists.txt
             ./CONTRIBUTING.md
             ./deltachat_derive
+            ./deltachat-contact-tools
             ./deltachat-ffi
             ./deltachat-jsonrpc
             ./deltachat-ratelimit
