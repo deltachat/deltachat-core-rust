@@ -1,4 +1,4 @@
-//! Verified contact protocol implementation as [specified by countermitm project](https://securejoin.readthedocs.io/en/latest/new.html#setup-contact-protocol).
+//! Implementation of [SecureJoin protocols](https://securejoin.delta.chat/).
 
 use anyhow::{bail, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};

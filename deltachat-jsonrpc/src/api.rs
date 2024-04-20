@@ -690,8 +690,7 @@ impl CommandApi {
     ///     the Verified-Group-Invite protocol is offered in the QR code;
     ///     works for protected groups as well as for normal groups.
     ///     If not set, the Setup-Contact protocol is offered in the QR code.
-    ///     See https://securejoin.readthedocs.io/en/latest/new.html
-    ///     for details about both protocols.
+    ///     See https://securejoin.delta.chat/ for details about both protocols.
     ///
     /// return format: `[code, svg]`
     async fn get_chat_securejoin_qr_code_svg(
@@ -719,8 +718,7 @@ impl CommandApi {
     ///
     /// Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
     ///
-    /// See https://securejoin.readthedocs.io/en/latest/new.html
-    /// for details about both protocols.
+    /// See https://securejoin.delta.chat/ for details about both protocols.
     ///
     /// **qr**: The text of the scanned QR code. Typically, the same string as given
     ///     to `check_qr()`.
