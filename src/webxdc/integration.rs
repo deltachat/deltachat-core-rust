@@ -8,7 +8,7 @@ use crate::webxdc::{maps_integration, StatusUpdateItem, StatusUpdateSerial};
 use anyhow::Result;
 
 impl Context {
-    /// Set Webxdc file as integration.
+    /// Sets Webxdc file as integration.
     /// @param file The .xdc file to use as Webxdc integration.
     pub async fn set_webxdc_integration(&self, file: &str) -> Result<()> {
         let chat_id = ChatId::create_for_contact(self, ContactId::SELF).await?;
