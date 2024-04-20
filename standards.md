@@ -29,7 +29,7 @@ Return receipts                  | Message Disposition Notification (MDN, [RFC 8
 Locations                        | KML ([Open Geospatial Consortium](http://www.opengeospatial.org/standards/kml/), [Google Dev](https://developers.google.com/kml/))
 
 [Autocrypt Level 1]: https://autocrypt.org/level1.html
-[securejoin]: https://securejoin.readthedocs.io/en/latest/
+[securejoin]: https://securejoin.delta.chat/
 [openpgp4fpr]: https://metacode.biz/openpgp/openpgp4fpr
 [Autodiscover]: https://learn.microsoft.com/en-us/exchange/autodiscover-service-for-exchange-2013
 [XEP-0392]: https://xmpp.org/extensions/xep-0392.html
