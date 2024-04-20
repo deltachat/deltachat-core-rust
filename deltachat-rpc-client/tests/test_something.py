@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from deltachat_rpc_client import Contact, EventType, Message, events
-from deltachat_rpc_client.const import DownloadState
+from deltachat_rpc_client.const import DownloadState, MessageState
 from deltachat_rpc_client.direct_imap import DirectImap
 from deltachat_rpc_client.rpc import JsonRpcError
 
@@ -584,3 +584,32 @@ def test_download_limit_chat_assignment(acfactory, tmp_path, n_accounts):
             #
             # Message may be a private reply, so we assign it to 1:1 chat with Alice.
             assert snapshot.chat == bob_chat_alice
+
+
+def test_markseen_contact_request(acfactory, tmp_path):
+    """
+    Test that seen status is synchronized for contact request messages
+    even though read receipt is not sent.
+    """
+    alice, bob = acfactory.get_online_accounts(2)
+
+    # Bob sets up a second device.
+    bob.export_backup(tmp_path)
+    files = list(tmp_path.glob("*.tar"))
+    bob2 = acfactory.get_unconfigured_account()
+    bob2.import_backup(files[0])
+    bob2.start_io()
+
+    alice_chat_bob = alice.create_chat(bob)
+    alice_chat_bob.send_text("Hello Bob!")
+
+    message = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id)
+    message2 = bob2.get_message_by_id(bob2.wait_for_incoming_msg_event().msg_id)
+    assert message2.get_snapshot().state == MessageState.IN_FRESH
+
+    message.mark_seen()
+    while True:
+        event = bob2.wait_for_event()
+        if event.kind == EventType.MSGS_NOTICED:
+            break
+    assert message2.get_snapshot().state == MessageState.IN_SEEN
