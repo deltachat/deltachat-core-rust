@@ -482,6 +482,7 @@
                 format = "pyproject";
                 propagatedBuildInputs = [
                   pkgs.python3Packages.setuptools
+                  pkgs.python3Packages.imap-tools
                 ];
               };
 
