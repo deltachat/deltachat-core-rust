@@ -79,7 +79,7 @@ impl Context {
         maps_integration::intercept_send_update(self, chat_id, status_update).await
     }
 
-    // Intercept Webxdc requesting updates from core.
+    // Intercepts Webxdc requesting updates from core.
     pub(crate) async fn intercept_get_webxdc_status_updates(
         &self,
         instance: Message,
