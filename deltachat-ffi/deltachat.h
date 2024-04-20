@@ -2662,10 +2662,10 @@ uint32_t        dc_join_securejoin           (dc_context_t* context, const char*
  * Locations are sent to all members of the chat for the given number of seconds;
  * after that, location streaming is automatically disabled for the chat.
  * The current location streaming state of a chat
- * can be checked using dc_is_sending_locations_to_chat().
+ * can be checked using dc_chat_is_sending_locations().
  *
  * The locations that should be sent to the chat can be set using
- * dc_set_location().
+ * dc_accounts_set_location().
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -2678,46 +2678,18 @@ void        dc_send_locations_to_chat       (dc_context_t* context, uint32_t cha
 
 /**
  * Check if location streaming is enabled.
- * Location stream can be enabled or disabled using dc_send_locations_to_chat().
- * If you have already a dc_chat_t object,
- * dc_chat_is_sending_locations() may be more handy.
  *
+ * @deprecated Deprecated 2024-04, use dc_chat_is_sending_locations() or dc_accounts_is_sending_locations() instead
  * @memberof dc_context_t
- * @param context The context object.
- * @param chat_id >0: Check if location streaming is enabled for the given chat.
- *     0: Check of location streaming is enabled for any chat.
- * @return 1: location streaming is enabled for the given chat(s);
- *     0: location streaming is disabled for the given chat(s).
  */
 int         dc_is_sending_locations_to_chat (dc_context_t* context, uint32_t chat_id);
 
 
 /**
  * Set current location.
- * The location is sent to all chats where location streaming is enabled
- * using dc_send_locations_to_chat().
  *
- * Typically results in the event #DC_EVENT_LOCATION_CHANGED with
- * contact_id set to DC_CONTACT_ID_SELF.
- *
- * The UI should call this function on all location changes.
- * The locations set by this function are not sent immediately,
- * instead a message with the last locations is sent out every some minutes
- * or when the user sends out a normal message,
- * the last locations are attached.
- *
+ * @deprecated Deprecated 2024-04, use dc_accounts_set_location() instead
  * @memberof dc_context_t
- * @param context The context object.
- * @param latitude A north-south position of the location.
- *     Set to 0.0 if the latitude is not known.
- * @param longitude East-west position of the location.
- *     Set to 0.0 if the longitude is not known.
- * @param accuracy Estimated accuracy of the location, radial, in meters.
- *     Set to 0.0 if the accuracy is not known.
- * @return 1: location streaming is still enabled for at least one chat,
- *     this dc_set_location() should be called as soon as the location changes;
- *     0: location streaming is no longer needed,
- *     dc_is_sending_locations_to_chat() is false for all chats.
  */
 int         dc_set_location                 (dc_context_t* context, double latitude, double longitude, double accuracy);
 
@@ -3293,7 +3265,7 @@ double           dc_array_get_longitude      (const dc_array_t* array, size_t in
 
 /**
  * Return the accuracy of the item at the given index.
- * See dc_set_location() for more information about the accuracy.
+ * See dc_accounts_set_location() for more information about the accuracy.
  *
  * @memberof dc_array_t
  * @param array The array object.
@@ -3832,7 +3804,7 @@ int             dc_chat_is_protection_broken (const dc_chat_t* chat);
  * Check if locations are sent to the chat
  * at the time the object was created using dc_get_chat().
  * To check if locations are sent to _any_ chat,
- * use dc_is_sending_locations_to_chat().
+ * use dc_accounts_is_sending_locations().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
@@ -4767,7 +4739,7 @@ void            dc_msg_set_duration           (dc_msg_t* msg, int duration);
  * at a position different from the self-location.
  * You should not call this function
  * if you want to bind the current self-location to a message;
- * this is done by dc_set_location() and dc_send_locations_to_chat().
+ * this is done by dc_accounts_set_location() and dc_send_locations_to_chat().
  *
  * Typically results in the event #DC_EVENT_LOCATION_CHANGED with
  * contact ID set to DC_CONTACT_ID_SELF.
