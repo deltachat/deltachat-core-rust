@@ -1064,6 +1064,43 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_webxdc_integration(
+    context: *mut dc_context_t,
+    file: *const libc::c_char,
+) {
+    if context.is_null() || file.is_null() {
+        eprintln!("ignoring careless call to dc_set_webxdc_integration()");
+        return;
+    }
+    let ctx = &*context;
+    block_on(ctx.set_webxdc_integration(&to_string_lossy(file)))
+        .log_err(ctx)
+        .unwrap_or_default();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_init_webxdc_integration(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> u32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_init_webxdc_integration()");
+        return 0;
+    }
+    let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
+
+    block_on(ctx.init_webxdc_integration(chat_id))
+        .log_err(ctx)
+        .map(|msg_id| msg_id.map(|id| id.to_u32()).unwrap_or_default())
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_set_draft(
     context: *mut dc_context_t,
     chat_id: u32,

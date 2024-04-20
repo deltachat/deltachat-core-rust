@@ -83,6 +83,16 @@ impl MsgId {
         Ok(result)
     }
 
+    pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
+        let res: Option<String> = context
+            .sql
+            .query_get_value("SELECT param FROM msgs WHERE id=?", (self,))
+            .await?;
+        Ok(res
+            .map(|s| s.parse().unwrap_or_default())
+            .unwrap_or_default())
+    }
+
     /// Put message into trash chat and delete message text.
     ///
     /// It means the message is deleted locally, but not on the server.

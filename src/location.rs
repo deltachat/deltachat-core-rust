@@ -367,7 +367,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         continue_streaming = true;
     }
     if continue_streaming {
-        context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
+        context.emit_location_changed(Some(ContactId::SELF)).await?;
     };
 
     Ok(continue_streaming)
@@ -457,7 +457,7 @@ fn is_marker(txt: &str) -> bool {
 /// Deletes all locations from the database.
 pub async fn delete_all(context: &Context) -> Result<()> {
     context.sql.execute("DELETE FROM locations;", ()).await?;
-    context.emit_event(EventType::LocationChanged(None));
+    context.emit_location_changed(None).await?;
     Ok(())
 }
 

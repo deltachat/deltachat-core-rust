@@ -1178,6 +1178,65 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
  */
 char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t serial);
 
+
+/**
+ * Set Webxdc file as integration.
+ * see dc_init_webxdc_integration() for more details about Webxdc integrations.
+ *
+ * @warning This is an experimental API which may change in the future
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param file The .xdc file to use as Webxdc integration.
+ */
+void             dc_set_webxdc_integration (dc_context_t* context, const char* file);
+
+
+/**
+ * Init a Webxdc integration.
+ *
+ * A Webxdc integration is
+ * a Webxdc showing a map, getting locations via setUpdateListener(), setting POIs via sendUpdate();
+ * core takes eg. care of feeding locations to the Webxdc or sending the data out.
+ *
+ * @warning This is an experimental API, esp. support of integration types (eg. image editor, tools) is left out for simplicity
+ *
+ * Currently, Webxdc integrations are .xdc files shipped together with the main app.
+ * Before dc_init_webxdc_integration() can be called,
+ * UI has to call dc_set_webxdc_integration() to define a .xdc file to be used as integration.
+ *
+ * dc_init_webxdc_integration() returns a Webxdc message ID that
+ * UI can open and use mostly as usual.
+ *
+ * Concrete behaviour and status updates depend on the integration, driven by UI needs.
+ *
+ * There is no need to de-initialize the integration,
+ * however, unless documented otherwise,
+ * the integration is valid only as long as not re-initialized
+ * In other words, UI must not have a Webxdc with the same integration open twice.
+ *
+ * Example:
+ *
+ * ~~~
+ * // Define a .xdc file to be used as maps integration
+ * dc_set_webxdc_integration(context, path_to_maps_xdc);
+ *
+ * // Integrate the map to a chat, the map will show locations for this chat then:
+ * uint32_t webxdc_instance = dc_init_webxdc_integration(context, any_chat_id);
+ *
+ * // Or use the Webxdc as a global map, showing locations of all chats:
+ * uint32_t webxdc_instance = dc_init_webxdc_integration(context, 0);
+ * ~~~
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param chat_id The chat to get the integration for.
+ * @return ID of the message that refers to the Webxdc instance.
+ *     UI can open a Webxdc as usual with this instance.
+ */
+uint32_t        dc_init_webxdc_integration    (dc_context_t* context, uint32_t chat_id);
+
+
 /**
  * Save a draft for a chat in the database.
  *
@@ -4107,7 +4166,6 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   true if the Webxdc should get full internet access, including Webrtc.
  *   currently, this is only true for encrypted Webxdc's in the self chat
  *   that have requested internet access in the manifest.
- *   this is useful for development and maybe for internal integrations at some point.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.

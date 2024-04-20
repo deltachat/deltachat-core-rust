@@ -2049,6 +2049,7 @@ impl Chat {
             msg.id = MsgId::new(u32::try_from(raw_id)?);
 
             maybe_set_logging_xdc(context, msg, self.id).await?;
+            context.update_webxdc_integration_database(msg).await?;
         }
         context.scheduler.interrupt_ephemeral_task().await;
         Ok(msg.id)
@@ -2714,7 +2715,7 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         }
 
         if msg.param.exists(Param::SetLatitude) {
-            context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
+            context.emit_location_changed(Some(ContactId::SELF)).await?;
         }
 
         context.scheduler.interrupt_smtp().await;
@@ -2779,6 +2780,11 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
             .any(|x| x.to_lowercase() == lowercase_from)
     {
         recipients.push(from);
+    }
+
+    // Webxdc integrations are messages, however, shipped with main app and must not be sent out
+    if msg.param.get_int(Param::WebxdcIntegration).is_some() {
+        recipients.clear();
     }
 
     if recipients.is_empty() {

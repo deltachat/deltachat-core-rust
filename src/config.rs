@@ -356,6 +356,9 @@ pub enum Config {
     /// This key is sent to the self_reporting bot so that the bot can recognize the user
     /// without storing the email address
     SelfReportingId,
+
+    /// MsgId of webxdc map integration.
+    WebxdcIntegration,
 }
 
 impl Config {
@@ -668,7 +671,7 @@ impl Context {
         {
             return Ok(());
         }
-        self.send_sync_msg().await.log_err(self).ok();
+        Box::pin(self.send_sync_msg()).await.log_err(self).ok();
         Ok(())
     }
 
