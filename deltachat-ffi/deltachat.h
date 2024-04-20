@@ -1216,7 +1216,7 @@ void             dc_set_webxdc_integration (dc_context_t* context, const char* f
  * There is no need to de-initialize the integration,
  * however, unless documented otherwise,
  * the integration is valid only as long as not re-initialized
- * In other words, unless documented otherwise, UI must not have a Webxdc with the same integration open twice.
+ * In other words, UI must not have a Webxdc with the same integration open twice.
  *
  * Example:
  *
