@@ -3198,6 +3198,47 @@ dc_event_emitter_t* dc_accounts_get_event_emitter (dc_accounts_t* accounts);
 
 
 /**
+ * Set current location.
+ * The location is sent to all chats of all accounts
+ * with location streaming enabled using dc_send_locations_to_chat().
+ *
+ * Typically results in the event #DC_EVENT_LOCATION_CHANGED with
+ * contact_id set to DC_CONTACT_ID_SELF.
+ *
+ * The UI should call this function on all location changes.
+ * The locations set by this function are not sent immediately,
+ * instead a message with the last locations is sent out every some minutes
+ * or when the user sends out a normal message,
+ * the last locations are attached.
+ *
+ * @memberof dc_accounts_t
+ * @param accounts The account manager as created by dc_accounts_new().
+ * @param latitude A north-south position of the location.
+ *     Set to 0.0 if the latitude is not known.
+ * @param longitude East-west position of the location.
+ *     Set to 0.0 if the longitude is not known.
+ * @param accuracy Estimated accuracy of the location, radial, in meters.
+ *     Set to 0.0 if the accuracy is not known.
+ * @return 1: location streaming is enabled for at least one chat,
+ *     dc_accounts_set_location() should be called again as soon as the location changes;
+ *     0: location streaming is no longer needed, dc_accounts_is_sending_locations() is false.
+ */
+int dc_accounts_set_location (dc_accounts_t* accounts, double latitude, double longitude, double accuracy);
+
+
+/**
+ * Check if location streaming is enabled.
+ * Location stream can be enabled or disabled using dc_send_locations_to_chat().
+ *
+ * @memberof dc_accounts_t
+ * @param accounts The account manager as created by dc_accounts_new().
+ * @return 1: location streaming is enabled for some chat of some account;
+ *     0: location streaming is not enabled for any chat.
+ */
+int dc_accounts_is_sending_locations (dc_accounts_t* accounts);
+
+
+/**
  * @class dc_array_t
  *
  * An object containing a simple array.
