@@ -21,7 +21,7 @@ impl Context {
         Ok(())
     }
 
-    /// Get Webxdc instance used for optional integrations.
+    /// Returns Webxdc instance used for optional integrations.
     /// @param integrate_for The chat to get the integration for.
     /// @return Message ID that refers to the Webxdc instance; UI can open the Webxdc as usual.
     ///     `None` if there is no integration; the caller can add one using `set_webxdc_integration` then.
