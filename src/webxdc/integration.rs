@@ -95,12 +95,11 @@ impl Message {
     // This is the chat given to `init_webxdc_integration()`.
     fn webxdc_integrated_for(&self) -> Option<ChatId> {
         let raw_id = self.param.get_int(Param::WebxdcIntegrateFor).unwrap_or(0) as u32;
-        let chat_id = if raw_id > 0 {
+        if raw_id > 0 {
             Some(ChatId::new(raw_id))
         } else {
             None
-        };
-        chat_id
+        }
     }
 }
 
