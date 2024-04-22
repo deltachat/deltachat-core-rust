@@ -1,5 +1,4 @@
 #define NAPI_VERSION 4
-#define NAPI_EXPERIMENTAL
 
 #include <stdlib.h>
 #include <stdio.h>
