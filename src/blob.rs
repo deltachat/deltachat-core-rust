@@ -698,7 +698,10 @@ fn encode_img(
         ImageOutputFormat::Png => img.write_to(&mut buf, ImageFormat::Png)?,
         ImageOutputFormat::Jpeg { quality } => {
             let encoder = JpegEncoder::new_with_quality(&mut buf, quality);
-            img.write_with_encoder(encoder)?;
+            // Convert image into RGB8 to avoid the error
+            // "The encoder or decoder for Jpeg does not support the color type Rgba8"
+            // (<https://github.com/image-rs/image/issues/2211>).
+            img.clone().into_rgb8().write_with_encoder(encoder)?;
         }
     }
     Ok(())
