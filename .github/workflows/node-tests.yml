@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - if: ${{ matrix.os }} == "macos-latest"
+        run: sudo xcode-select --switch /Applications/Xcode_15.3.app/Contents/Developer
       - name: System info
         run: |
           rustc -vV
@@ -37,6 +39,7 @@ jobs:
           cargo -vV
           npm --version
           node --version
+          cc --version
 
       - name: Cache node modules
         uses: actions/cache@v4
