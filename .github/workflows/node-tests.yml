@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - if: ${{ matrix.os }} == "macos-latest"
+      - if: matrix.os == "macos-latest"
         run: sudo xcode-select --switch /Applications/Xcode_15.3.app/Contents/Developer
       - name: System info
         run: |
