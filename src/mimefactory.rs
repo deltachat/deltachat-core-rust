@@ -31,6 +31,7 @@ use crate::tools::IsNoneOrEmpty;
 use crate::tools::{
     create_outgoing_rfc724_mid, create_smeared_timestamp, remove_subject_prefix, time,
 };
+use crate::webxdc::StatusUpdateSerial;
 use crate::{location, peer_channels};
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -1369,8 +1370,13 @@ impl MimeFactory {
         } else if msg.viewtype == Viewtype::Webxdc {
             let topic = peer_channels::create_random_topic();
             headers.push(create_iroh_header(context, topic, msg.id).await?);
-            if let Some(json) = context
-                .render_webxdc_status_update_object(msg.id, None)
+            if let (Some(json), _) = context
+                .render_webxdc_status_update_object(
+                    msg.id,
+                    StatusUpdateSerial::MIN,
+                    StatusUpdateSerial::MAX,
+                    None,
+                )
                 .await?
             {
                 parts.push(context.build_status_update_part(&json));

@@ -49,6 +49,7 @@ use crate::tools::{
     create_smeared_timestamps, get_abs_path, gm2local_offset, smeared_time, time, IsNoneOrEmpty,
     SystemTime,
 };
+use crate::webxdc::StatusUpdateSerial;
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -4272,9 +4273,39 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         msg.timestamp_sort = create_smeared_timestamp(context);
         // note(treefit): only matters if it is the last message in chat (but probably to expensive to check, debounce also solves it)
         chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
-        if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
-            context.scheduler.interrupt_smtp().await;
+        if create_send_msg_jobs(context, &mut msg).await?.is_empty() {
+            continue;
         }
+        if msg.viewtype == Viewtype::Webxdc {
+            let conn_fn = |conn: &mut rusqlite::Connection| {
+                let range = conn.query_row(
+                    "SELECT IFNULL(min(id), 1), IFNULL(max(id), 0) \
+                     FROM msgs_status_updates WHERE msg_id=?",
+                    (msg.id,),
+                    |row| {
+                        let min_id: StatusUpdateSerial = row.get(0)?;
+                        let max_id: StatusUpdateSerial = row.get(1)?;
+                        Ok((min_id, max_id))
+                    },
+                )?;
+                if range.0 > range.1 {
+                    return Ok(());
+                };
+                // `first_serial` must be decreased, otherwise if `Context::flush_status_updates()`
+                // runs in parallel, it would miss the race and instead of resending just remove the
+                // updates thinking that they have been already sent.
+                conn.execute(
+                    "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) \
+                     VALUES(?, ?, ?, '') \
+                     ON CONFLICT(msg_id) \
+                     DO UPDATE SET first_serial=min(first_serial - 1, excluded.first_serial)",
+                    (msg.id, range.0, range.1),
+                )?;
+                Ok(())
+            };
+            context.sql.call_write(conn_fn).await?;
+        }
+        context.scheduler.interrupt_smtp().await;
     }
     Ok(())
 }
