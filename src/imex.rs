@@ -193,7 +193,9 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
-    let encr = pgp::symm_encrypt(passphrase, private_key_asc.as_bytes()).await?;
+    let encr = pgp::symm_encrypt(passphrase, private_key_asc.as_bytes())
+        .await?
+        .replace('\n', "\r\n");
 
     let replacement = format!(
         concat!(
@@ -834,15 +836,17 @@ mod tests {
         let msg = render_setup_file(&t, "hello").await.unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
-        // In particular note the mixing of `\r\n` and `\n` depending
-        // on who generated the strings.
         assert!(msg.contains("<title>Autocrypt Setup Message</title"));
         assert!(msg.contains("<h1>Autocrypt Setup Message</h1>"));
         assert!(msg.contains("<p>This is the Autocrypt Setup Message used to"));
         assert!(msg.contains("-----BEGIN PGP MESSAGE-----\r\n"));
         assert!(msg.contains("Passphrase-Format: numeric9x4\r\n"));
-        assert!(msg.contains("Passphrase-Begin: he\n"));
-        assert!(msg.contains("-----END PGP MESSAGE-----\n"));
+        assert!(msg.contains("Passphrase-Begin: he\r\n"));
+        assert!(msg.contains("-----END PGP MESSAGE-----\r\n"));
+
+        for line in msg.rsplit_terminator('\n') {
+            assert!(line.ends_with('\r'));
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
