@@ -862,6 +862,7 @@ impl Message {
 mod tests {
     use std::time::Duration;
 
+    use regex::Regex;
     use serde_json::json;
 
     use super::*;
@@ -1711,8 +1712,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_webxdc_status_update_object_range() -> Result<()> {
-        use regex::Regex;
-
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
         let instance = send_webxdc_instance(&t, chat_id).await?;

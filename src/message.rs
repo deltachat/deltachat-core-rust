@@ -2002,6 +2002,7 @@ mod tests {
     use super::*;
     use crate::chat::{self, marknoticed_chat, send_text_msg, ChatItem};
     use crate::chatlist::Chatlist;
+    use crate::config::Config;
     use crate::reaction::send_reaction;
     use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
@@ -2025,8 +2026,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prepare_message_and_send() {
-        use crate::config::Config;
-
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
@@ -2165,8 +2164,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quote() {
-        use crate::config::Config;
-
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 

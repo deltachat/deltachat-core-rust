@@ -683,7 +683,12 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
+    use chrono::NaiveDate;
+    use proptest::prelude::*;
+
     use super::*;
+    use crate::chatlist::Chatlist;
+    use crate::{chat, test_utils};
     use crate::{receive_imf::receive_imf, test_utils::TestContext};
 
     #[test]
@@ -960,12 +965,6 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert!(mid.ends_with("@localhost"));
         assert!(extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
     }
-
-    use chrono::NaiveDate;
-    use proptest::prelude::*;
-
-    use crate::chatlist::Chatlist;
-    use crate::{chat, test_utils};
 
     proptest! {
         #[test]
