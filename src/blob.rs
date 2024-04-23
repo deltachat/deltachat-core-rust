@@ -1205,6 +1205,28 @@ mod tests {
         .unwrap();
     }
 
+    /// Tests that RGBA PNG can be recoded into JPEG
+    /// by dropping alpha channel.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_recode_image_rgba_png_to_jpeg() {
+        let bytes = include_bytes!("../test-data/image/screenshot-rgba.png");
+
+        send_image_check_mediaquality(
+            Viewtype::Image,
+            Some("1"),
+            bytes,
+            "png",
+            false, // no Exif
+            1920,
+            1080,
+            0,
+            constants::WORSE_IMAGE_SIZE,
+            constants::WORSE_IMAGE_SIZE * 1080 / 1920,
+        )
+        .await
+        .unwrap();
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_huge_jpg() {
         let bytes = include_bytes!("../test-data/image/screenshot.jpg");
