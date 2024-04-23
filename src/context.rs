@@ -297,7 +297,7 @@ pub struct InnerContext {
     /// [Gossip] needed for iroh peer channels.
     pub(crate) gossip: Mutex<Option<Gossip>>,
 
-    /// Open channels
+    /// Open iroh peer channels.
     pub(crate) channels: Mutex<HashSet<TopicId>>,
 }
 
@@ -488,14 +488,11 @@ impl Context {
                 *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
             }
         }
-
         self.scheduler.start(self.clone()).await;
     }
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
-        self.endpoint.lock().await.take();
-        self.gossip.lock().await.take();
         self.scheduler.stop(self).await;
     }
 

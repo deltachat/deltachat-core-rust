@@ -240,8 +240,9 @@ pub enum EventType {
         status_update_serial: u32,
     },
 
+    /// Data received over an ephemeral peer channel.
     #[serde(rename_all = "camelCase")]
-    WebxdcEphemeralStatusUpdate { msg_id: u32, status_update: String },
+    WebxdcRealtimeData { msg_id: u32, data: Vec<u8> },
 
     /// Inform that a message containing a webxdc instance has been deleted
     #[serde(rename_all = "camelCase")]
@@ -356,12 +357,12 @@ impl From<CoreEventType> for EventType {
                 msg_id: msg_id.to_u32(),
                 status_update_serial: status_update_serial.to_u32(),
             },
-            CoreEventType::WebxdcEphemeralStatusUpdate {
+            CoreEventType::WebxdcRealtimeData {
                 msg_id,
-                status_update,
-            } => WebxdcEphemeralStatusUpdate {
+                data,
+            } => WebxdcRealtimeData {
                 msg_id: msg_id.to_u32(),
-                status_update,
+                data,
             },
             CoreEventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),

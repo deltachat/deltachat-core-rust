@@ -1151,10 +1151,10 @@ impl<'a> MimeFactory<'a> {
             }
             SystemMessage::IrohGossipAdvertisement => {
                 if context.endpoint.lock().await.as_ref().is_none() {
-                    Box::pin(context.create_gossip()).await?;
+                    Box::pin(context.inite_peer_channels()).await?;
                 }
                 headers.protected.push(Header::new(
-                    HeaderDef::IrohPublicKey.get_headername().to_string(),
+                    HeaderDef::IrohNodeAddr.get_headername().to_string(),
                     serde_json::to_string(&context.get_iroh_node_addr().await?)?,
                 ));
             }
@@ -1316,7 +1316,7 @@ impl<'a> MimeFactory<'a> {
         } else if self.msg.viewtype == Viewtype::Webxdc {
             let topic = create_random_topic();
             if context.endpoint.lock().await.as_ref().is_none() {
-                Box::pin(context.create_gossip()).await?;
+                Box::pin(context.inite_peer_channels()).await?;
             }
             context
                 .add_peer_for_topic(

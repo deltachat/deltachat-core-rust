@@ -563,7 +563,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::ConfigSynced { .. } => 2111,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
-        EventType::WebxdcEphemeralStatusUpdate { .. } => 2150,
+        EventType::WebxdcRealtimeData { .. } => 2150,
         EventType::AccountsBackgroundFetchDone => 2200,
     }
 }
@@ -616,7 +616,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::SecurejoinJoinerProgress { contact_id, .. } => {
             contact_id.to_u32() as libc::c_int
         }
-        EventType::WebxdcEphemeralStatusUpdate { msg_id, .. }
+        EventType::WebxdcRealtimeData { msg_id, .. }
         | EventType::WebxdcStatusUpdate { msg_id, .. }
         | EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
     }
@@ -652,7 +652,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::MsgsNoticed(_)
         | EventType::ConnectivityChanged
         | EventType::WebxdcInstanceDeleted { .. }
-        | EventType::WebxdcEphemeralStatusUpdate { .. } => 0,
+        | EventType::WebxdcRealtimeData { .. } => 0,
         EventType::IncomingMsgBunch { .. }
         | EventType::SelfavatarChanged
         | EventType::AccountsBackgroundFetchDone
@@ -718,7 +718,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SelfavatarChanged
         | EventType::WebxdcStatusUpdate { .. }
         | EventType::WebxdcInstanceDeleted { .. }
-        | EventType::WebxdcEphemeralStatusUpdate { .. }
+        | EventType::WebxdcRealtimeData { .. }
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. }
         | EventType::IncomingMsgBunch { .. } => ptr::null_mut(),

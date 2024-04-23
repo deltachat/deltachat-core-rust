@@ -7,7 +7,7 @@ use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::relay::{RelayMap, RelayUrl};
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
-use serde::{Deserialize, Serialize};
+use rand::{thread_rng, Rng};
 use url::Url;
 
 use crate::chat::send_msg;
@@ -15,24 +15,23 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
-use crate::tools::create_id;
 use crate::EventType;
 
 impl Context {
     /// Create magic endpoint and gossip for the context.
-    pub(crate) async fn create_gossip(&self) -> Result<()> {
+    pub(crate) async fn inite_peer_channels(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
-        info!(self, "secret key: {}", secret_key.to_string());
+        info!(self, "Iroh secret key: {}", secret_key.to_string());
+
         let mut ctx_gossip = self.gossip.lock().await;
         if ctx_gossip.is_some() {
             warn!(
                 self,
-                "Tried to create endpoint even though there is already one."
+                "Tried to create endpoint even though there already is one"
             );
             return Ok(());
         }
 
-        // build magic endpoint
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
@@ -70,20 +69,22 @@ impl Context {
         *ctx_gossip = Some(gossip.clone());
         *self.endpoint.lock().await = Some(endpoint);
 
-        info!(self, "created gossip endpoint at {my_addr:?}");
         Ok(())
     }
 
     /// Join a topic and create the subscriber loop for it.
+    ///
     /// If there is no gossip, create it.
+    ///
+    /// The returned future resolves when the swarm becomes operational.
     async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
         let mut gossip = (*self.gossip.lock().await).clone();
         if gossip.is_none() {
-            self.create_gossip().await?;
+            self.inite_peer_channels().await?;
             gossip = (*self.gossip.lock().await).clone();
         }
-        let gossip = gossip.unwrap();
 
+        let gossip = gossip.context("no gossip")?;
         let peers = self.get_gossip_peers(msg_id).await?;
         if peers.is_empty() {
             warn!(self, "joining gossip with zero peers");
@@ -106,6 +107,7 @@ impl Context {
             .await?;
 
         tokio::spawn(subscribe_loop(self.clone(), gossip.clone(), topic, msg_id));
+
         Ok(connect_future)
     }
 
@@ -178,7 +180,7 @@ impl Context {
         }
     }
 
-    /// Get the iroh node address without local and publicly facing ip addresses.
+    /// Get the iroh node address without local and publicly facing IP addresses.
     pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
         let endpoint = self.endpoint.lock().await;
         let relay = endpoint
@@ -195,7 +197,7 @@ impl Context {
         ))
     }
 
-    /// Get the topic for given [MsgId].
+    /// Get the topic for a given [MsgId].
     pub(crate) async fn get_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
         let bytes = self
             .sql
@@ -211,23 +213,25 @@ impl Context {
         Ok(TopicId::from_bytes(bytes.try_into().unwrap()))
     }
 
-    /// Send a webxdc ephemeral status update to the gossip swarm.
-    pub async fn send_webxdc_ephemeral_status_update(
-        &self,
-        msg_id: MsgId,
-        status_update: &str,
-    ) -> Result<()> {
+    /// Send realtime data to the gossip swarm.
+    pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        info!(self, "Sending: {status_update}");
-
+        info!(self, "Sending: {data:?}");
         if self.gossip.lock().await.as_ref().is_none() {
             warn!(self, "Endpoint not yet ready");
             return Ok(());
         }
 
-        let message = GossipMessage {
-            payload: status_update.to_string(),
-            uid: create_id(),
+        // Wrapped because rng is not `send`
+        let data = {
+            let mut rng = thread_rng();
+
+            // Generate 64 random bits.
+            let mut salt = [0u8; 8];
+            rng.fill(&mut salt[..]);
+
+            data.extend(salt);
+            data
         };
 
         self.gossip
@@ -235,15 +239,15 @@ impl Context {
             .await
             .as_ref()
             .context("No gossip")?
-            .broadcast(topic, serde_json::to_vec(&message)?.into())
+            .broadcast(topic, data.into())
             .await?;
         Ok(())
     }
 
-    /// Send a gossip advertisement to the chat of a given [MsgId].
+    /// Send a gossip advertisement to the chat that [MsgId] belongs to.
     /// Automatically join the gossip for the [MsgId] if not already joined.
     /// Creates magic endpoint and gossip if not already created.
-    /// This method should be called from the frontend when `setEphemeralListener` is called.
+    /// This method should be called from the frontend when `setRealtimeListener` is called.
     pub async fn send_gossip_advertisement(&self, msg_id: MsgId) -> Result<Option<JoinTopicFut>> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let mut channels = self.channels.lock().await;
@@ -272,13 +276,6 @@ impl Context {
         info!(self, "Left gossip for {msg_id}");
         Ok(())
     }
-}
-
-// Maybe we can add the timstamp in the byte sequence of the message?
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct GossipMessage {
-    payload: String,
-    uid: String,
 }
 
 pub(crate) fn create_random_topic() -> TopicId {
@@ -335,10 +332,9 @@ async fn subscribe_loop(
             }
             IrohEvent::Received(event) => {
                 info!(context, "Received: {:?}", event);
-                let status_update: GossipMessage = serde_json::from_slice(&event.content)?;
-                context.emit_event(EventType::WebxdcEphemeralStatusUpdate {
+                context.emit_event(EventType::WebxdcRealtimeData {
                     msg_id,
-                    status_update: status_update.payload,
+                    data: event.content[0..event.content.len() - 8].into(),
                 });
             }
             _ => (),
@@ -415,33 +411,33 @@ mod tests {
 
         // Alice sends ephemeral message
         alice
-            .send_webxdc_ephemeral_status_update(alice_webxdc.id, "alice -> bob")
+            .send_webxdc_realtime_data(alice_webxdc.id, "alice -> bob".as_bytes().to_vec())
             .await
             .unwrap();
 
         loop {
             let event = bob.evtracker.recv().await.unwrap();
-            if let EventType::WebxdcEphemeralStatusUpdate { status_update, .. } = event.typ {
-                if status_update.contains("alice -> bob") {
+            if let EventType::WebxdcRealtimeData { data, .. } = event.typ {
+                if data == "alice -> bob".as_bytes() {
                     break;
                 } else {
-                    panic!("Unexpected status update: {status_update}");
+                    panic!("Unexpected status update: {}", String::from_utf8_lossy(&data).to_string());
                 }
             }
         }
 
         // Bob sends ephemeral message
-        bob.send_webxdc_ephemeral_status_update(bob_webdxc.id, "bob -> alice")
+        bob.send_webxdc_realtime_data(bob_webdxc.id, "alice -> bob".as_bytes().to_vec())
             .await
             .unwrap();
 
         loop {
             let event = alice.evtracker.recv().await.unwrap();
-            if let EventType::WebxdcEphemeralStatusUpdate { status_update, .. } = event.typ {
-                if status_update.contains("bob -> alice") {
+            if let EventType::WebxdcRealtimeData { data, .. } = event.typ {
+                if data == "alice -> bob".as_bytes() {
                     break;
                 } else {
-                    panic!("Unexpected status update: {status_update}");
+                    panic!("Unexpected status update: {}", String::from_utf8_lossy(&data).to_string());
                 }
             }
         }
@@ -460,24 +456,19 @@ mod tests {
             vec![bob.get_iroh_node_addr().await.unwrap().node_id]
         );
 
-        bob.send_webxdc_ephemeral_status_update(bob_webdxc.id, "bob -> alice 2")
+        bob.send_webxdc_realtime_data(bob_webdxc.id, "bob -> alice 2".as_bytes().to_vec())
             .await
             .unwrap();
 
         loop {
             let event = alice.evtracker.recv().await.unwrap();
-            if let EventType::WebxdcEphemeralStatusUpdate { status_update, .. } = event.typ {
-                if status_update.contains("bob -> alice 2") {
+            if let EventType::WebxdcRealtimeData { data, .. } = event.typ {
+                if data == "bob -> alice 2".as_bytes() {
                     break;
                 } else {
-                    panic!("Unexpected status update: {status_update}");
+                    panic!("Unexpected status update: {}", String::from_utf8_lossy(&data).to_string());
                 }
             }
         }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_can_reconnect() {
-        //TODO: test if peers can reconnect after initial connection teardown
     }
 }

@@ -93,8 +93,8 @@ pub enum HeaderDef {
     /// See <https://datatracker.ietf.org/doc/html/rfc8601>
     AuthenticationResults,
 
-    /// Public key to advertise to others.
-    IrohPublicKey,
+    /// Stripped [NodeAddr] from iroh.
+    IrohNodeAddr,
 
     /// Advertised gossip topic for one webxdc.
     GossipTopic,

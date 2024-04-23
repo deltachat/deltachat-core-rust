@@ -1719,15 +1719,15 @@ impl CommandApi {
             .await
     }
 
-    async fn send_webxdc_ephemeral_status_update(
+    async fn send_webxdc_realtime_data(
         &self,
         account_id: u32,
         instance_msg_id: u32,
-        update_str: String,
+        data: Vec<u8>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let res = ctx
-            .send_webxdc_ephemeral_status_update(MsgId::new(instance_msg_id), &update_str)
+            .send_webxdc_realtime_data(MsgId::new(instance_msg_id), data)
             .await;
         res
     }
@@ -1747,11 +1747,7 @@ impl CommandApi {
         Ok(())
     }
 
-    async fn leave_gossip(
-        &self,
-        account_id: u32,
-        instance_message_id: u32,
-    ) -> Result<()> {
+    async fn leave_gossip(&self, account_id: u32, instance_message_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ctx.leave_gossip(MsgId::new(instance_message_id)).await?;
         Ok(())

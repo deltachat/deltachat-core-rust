@@ -1375,7 +1375,7 @@ async fn add_parts(
         .await?;
     }
 
-    if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohPublicKey) {
+    if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohNodeAddr) {
         match serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address") {
             Ok(node_addr) => {
                 context
@@ -1388,9 +1388,7 @@ async fn add_parts(
                     .context("Failed to add node address")?;
 
                 let node_id = node_addr.node_id;
-                let relay_server = node_addr
-                    .relay_url()
-                    .map(|relay| relay.to_string());
+                let relay_server = node_addr.relay_url().map(|relay| relay.to_string());
                 let instance_id = parent.context("Failed to get parent message")?.id;
                 let topic = context.get_topic_for_msg_id(instance_id).await?;
                 context
@@ -1577,7 +1575,7 @@ RETURNING id
             if let Some(topic) = mime_parser.get_header(HeaderDef::GossipTopic) {
                 let topic = TopicId::from_str(topic).unwrap();
                 if context.endpoint.lock().await.is_none() {
-                    context.create_gossip().await?;
+                    context.inite_peer_channels().await?;
                 }
                 let peer = context.get_iroh_node_addr().await?.node_id;
                 context
