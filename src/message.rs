@@ -1127,7 +1127,7 @@ impl Message {
                 .get_bool(Param::GuaranteeE2ee)
                 .unwrap_or_default()
             {
-                self.param.set(Param::GuaranteeE2ee, "1");
+                self.param.set(Param::ProtectQuote, "1");
             }
 
             let text = quote.get_text();
@@ -2015,7 +2015,9 @@ mod tests {
     use num_traits::FromPrimitive;
 
     use super::*;
-    use crate::chat::{self, marknoticed_chat, send_text_msg, ChatItem};
+    use crate::chat::{
+        self, add_contact_to_chat, marknoticed_chat, send_text_msg, ChatItem, ProtectionStatus,
+    };
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::reaction::send_reaction;
@@ -2209,6 +2211,42 @@ mod tests {
             .expect("error while retrieving quoted message")
             .expect("quoted message not found");
         assert_eq!(quoted_msg.get_text(), msg2.quoted_text().unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_unencrypted_quote_encrypted_message() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let alice_group = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "Group chat", &[bob])
+            .await;
+        let sent = alice.send_text(alice_group, "Hi! I created a group").await;
+        let bob_received_message = bob.recv_msg(&sent).await;
+
+        let bob_group = bob_received_message.chat_id;
+        bob_group.accept(bob).await?;
+        let sent = bob.send_text(bob_group, "Encrypted message").await;
+        let alice_received_message = alice.recv_msg(&sent).await;
+        assert!(alice_received_message.get_showpadlock());
+
+        // Alice adds contact without key so chat becomes unencrypted.
+        let alice_flubby_contact_id =
+            Contact::create(alice, "Flubby", "flubby@example.org").await?;
+        add_contact_to_chat(alice, alice_group, alice_flubby_contact_id).await?;
+
+        // Alice quotes encrypted message in unencrypted chat.
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_quote(alice, Some(&alice_received_message)).await?;
+        chat::send_msg(alice, alice_group, &mut msg).await?;
+
+        let bob_received_message = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(bob_received_message.quoted_text().unwrap(), "...");
+        assert_eq!(bob_received_message.get_showpadlock(), false);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

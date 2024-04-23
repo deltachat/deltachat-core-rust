@@ -669,18 +669,18 @@ impl<'a> MimeFactory<'a> {
 
         let mut is_gossiped = false;
 
-        let (main_part, parts) = match self.loaded {
-            Loaded::Message { .. } => {
-                self.render_message(context, &mut headers, &grpimage)
-                    .await?
-            }
-            Loaded::Mdn { .. } => (self.render_mdn(context).await?, Vec::new()),
-        };
-
         let peerstates = self.peerstates_for_recipients(context).await?;
         let should_encrypt =
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
+
+        let (main_part, parts) = match self.loaded {
+            Loaded::Message { .. } => {
+                self.render_message(context, &mut headers, &grpimage, is_encrypted)
+                    .await?
+            }
+            Loaded::Mdn { .. } => (self.render_mdn(context).await?, Vec::new()),
+        };
 
         let message = if parts.is_empty() {
             // Single part, render as regular message.
@@ -960,6 +960,7 @@ impl<'a> MimeFactory<'a> {
         context: &Context,
         headers: &mut MessageHeaders,
         grpimage: &Option<String>,
+        is_encrypted: bool,
     ) -> Result<(PartBuilder, Vec<PartBuilder>)> {
         let chat = match &self.loaded {
             Loaded::Message { chat } => chat,
@@ -1221,6 +1222,16 @@ impl<'a> MimeFactory<'a> {
             .msg
             .quoted_text()
             .map(|quote| format_flowed_quote(&quote) + "\r\n\r\n");
+        if !is_encrypted
+            && self
+                .msg
+                .param
+                .get_bool(Param::ProtectQuote)
+                .unwrap_or_default()
+        {
+            // Message is not encrypted but quotes encrypted message.
+            quoted_text = Some("> ...\r\n\r\n".to_string());
+        }
         if quoted_text.is_none() && final_text.starts_with('>') {
             // Insert empty line to avoid receiver treating user-sent quote as topquote inserted by
             // Delta Chat.
