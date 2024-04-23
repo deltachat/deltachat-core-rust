@@ -6,9 +6,11 @@ import logging
 import os
 import subprocess
 import sys
-from queue import Empty, Queue
+from queue import Queue
 from threading import Event, Thread
 from typing import Any, Iterator, Optional
+
+from .const import EventType
 
 
 class JsonRpcError(Exception):
@@ -190,12 +192,11 @@ class Rpc:
 
     def clear_all_events(self, account_id: int):
         """Removes all queued-up events for a given account. Useful for tests."""
-        queue = self.get_queue(account_id)
-        try:
-            while True:
-                queue.get_nowait()
-        except Empty:
-            pass
+        id = self.trigger_checkpoint_event(account_id)
+        while True:
+            event = self.wait_for_event(account_id)
+            if event.kind == EventType.TEST_CHECKPOINT_EVENT and event.id == id:
+                break
 
     def __getattr__(self, attr: str):
         return RpcMethod(self, attr)
