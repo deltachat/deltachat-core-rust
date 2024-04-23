@@ -48,6 +48,11 @@ pub enum Param {
     /// For Messages: message is encrypted, outgoing: guarantee E2EE or the message is not send
     GuaranteeE2ee = b'c',
 
+    /// For Messages: quoted message is encrypted.
+    ///
+    /// If this message is sent unencrypted, quote text should be replaced.
+    ProtectQuote = b'0',
+
     /// For Messages: decrypted with validation errors or without mutual set, if neither
     /// 'c' nor 'e' are preset, the messages is only transport encrypted.
     ErroneousE2ee = b'e',
