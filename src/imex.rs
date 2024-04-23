@@ -284,7 +284,7 @@ pub async fn continue_key_transfer(
         let file = open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(&sc, file).await?;
-        set_self_key(context, &armored_key, true, true).await?;
+        set_self_key(context, &armored_key, true).await?;
         maybe_add_bcc_self_device_msg(context).await?;
 
         Ok(())
@@ -293,35 +293,32 @@ pub async fn continue_key_transfer(
     }
 }
 
-async fn set_self_key(
-    context: &Context,
-    armored: &str,
-    set_default: bool,
-    prefer_encrypt_required: bool,
-) -> Result<()> {
+async fn set_self_key(context: &Context, armored: &str, set_default: bool) -> Result<()> {
     // try hard to only modify key-state
     let (private_key, header) = SignedSecretKey::from_asc(armored)?;
     let public_key = private_key.split_public_key()?;
-    let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
-    match preferencrypt.map(|s| s.as_str()) {
-        Some(headerval) => {
-            let e2ee_enabled = match headerval {
-                "nopreference" => 0,
-                "mutual" => 1,
-                _ => {
-                    bail!("invalid Autocrypt-Prefer-Encrypt header: {:?}", header);
-                }
-            };
-            context
-                .sql
-                .set_raw_config_int("e2ee_enabled", e2ee_enabled)
-                .await?;
-        }
-        None => {
-            if prefer_encrypt_required {
-                bail!("missing Autocrypt-Prefer-Encrypt header");
+    if let Some(preferencrypt) = header.get("Autocrypt-Prefer-Encrypt") {
+        let e2ee_enabled = match preferencrypt.as_str() {
+            "nopreference" => 0,
+            "mutual" => 1,
+            _ => {
+                bail!("invalid Autocrypt-Prefer-Encrypt header: {:?}", header);
             }
-        }
+        };
+        context
+            .sql
+            .set_raw_config_int("e2ee_enabled", e2ee_enabled)
+            .await?;
+    } else {
+        // `Autocrypt-Prefer-Encrypt` is not included
+        // in keys exported to file.
+        //
+        // `Autocrypt-Prefer-Encrypt` also SHOULD be sent
+        // in Autocrypt Setup Message according to Autocrypt specification,
+        // but K-9 6.802 does not include this header.
+        //
+        // We keep current setting in this case.
+        info!(context, "No Autocrypt-Prefer-Encrypt header.");
     };
 
     let self_addr = context.get_primary_self_addr().await?;
@@ -604,7 +601,7 @@ async fn export_backup_inner(
 async fn import_secret_key(context: &Context, path: &Path, set_default: bool) -> Result<()> {
     let buf = read_file(context, &path).await?;
     let armored = std::string::String::from_utf8_lossy(&buf);
-    set_self_key(context, &armored, set_default, false).await?;
+    set_self_key(context, &armored, set_default).await?;
     Ok(())
 }
 
@@ -825,6 +822,7 @@ mod tests {
 
     use super::*;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
+    use crate::receive_imf::receive_imf;
     use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext, TestContextManager};
 
@@ -1190,6 +1188,24 @@ mod tests {
 
         let rcvd = bob.recv_msg(&sent).await;
         assert!(!rcvd.is_setupmessage());
+
+        Ok(())
+    }
+
+    /// Tests reception of Autocrypt Setup Message from K-9 6.802.
+    ///
+    /// Unlike Autocrypt Setup Message sent by Delta Chat,
+    /// this message does not contain `Autocrypt-Prefer-Encrypt` header.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_key_transfer_k_9() -> Result<()> {
+        let t = &TestContext::new().await;
+        t.configure_addr("autocrypt@nine.testrun.org").await;
+
+        let raw = include_bytes!("../test-data/message/k-9-autocrypt-setup-message.eml");
+        let received = receive_imf(t, raw, false).await?.unwrap();
+
+        let setup_code = "0655-9868-8252-5455-4232-5158-1237-5333-2638";
+        continue_key_transfer(t, *received.msg_ids.last().unwrap(), setup_code).await?;
 
         Ok(())
     }
