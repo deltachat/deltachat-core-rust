@@ -29,7 +29,6 @@ use std::fmt;
 use std::ops::Deref;
 
 use anyhow::bail;
-use anyhow::format_err;
 use anyhow::Context as _;
 use anyhow::Result;
 use chrono::DateTime;
@@ -40,100 +39,66 @@ use regex::Regex;
 // - Check if sanitizing is done correctly everywhere
 // - Apply lints everywhere (https://doc.rust-lang.org/cargo/reference/workspaces.html#the-lints-table)
 
-#[derive(Debug)]
-/// A Contact, as represented in a VCard.
-pub struct VcardContact {
-    /// The email address, vcard property `email`
-    pub addr: String,
-    /// The contact's display name, vcard property `fn`
-    pub display_name: String,
-    /// The contact's public PGP key, vcard property `key`
-    pub key: Option<String>,
-    /// The contact's profile photo (=avatar), vcard property `photo`
-    pub profile_photo: Option<String>,
-    /// The timestamp when the vcard was created / last updated, vcard property `rev`
-    pub timestamp: Result<u64>,
+#[derive(Debug, Default)]
+pub struct Contact {
+    addr: String,
+    display_name: String,
+    key: String,
+    profile_photo: String,
+    timestamp: u64,
 }
 
-pub fn parse_vcard(vcard: String) -> Result<Vec<VcardContact>> {
-    fn remove_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
-        let start_of_s = s.get(..prefix.len())?;
+pub fn parse_vcard(vcard: String) -> Result<Vec<Contact>> {
+    let reader = ical::VcardParser::new(vcard.as_bytes());
 
-        if start_of_s.eq_ignore_ascii_case(prefix) {
-            s.get(prefix.len()..)
-        } else {
-            None
-        }
-    }
-    fn vcard_property<'a>(s: &'a str, property: &str) -> Option<&'a str> {
-        let remainder = remove_prefix(s, property)?;
-
-        // TODO this doesn't handle the case where there are quotes around a colon
-        let (_params, value) = remainder.split_once(':')?;
-        Some(value)
-    }
-    fn parse_datetime(datetime: Option<&str>) -> Result<u64> {
-        let datetime = datetime.context("No timestamp in vcard")?;
-
-        // According to https://www.rfc-editor.org/rfc/rfc6350#section-4.3.5, the timestamp
-        // is in ISO.8601.2004 format. DateTime::parse_from_rfc3339() apparently parses
-        // ISO.8601, but fails to parse any of the examples given.
-        // So, instead just parse using a format string.
-        let datetime =
-            DateTime::parse_from_str(datetime, "%Y%m%dT%H%M%S%#z") // Parses 19961022T140000Z, 19961022T140000-05, or 19961022T140000-0500
-                .or_else(|_| DateTime::parse_from_str(datetime, "%Y%m%dT%H%M%S"))?; // Parses 19961022T140000
-        let timestamp = datetime.timestamp().try_into()?;
-        Ok(timestamp)
-    }
-
-    let mut lines = vcard.lines().peekable();
     let mut contacts = Vec::new();
+    for vcard_contact in reader {
+        let vcard_contact = vcard_contact?; // TODO should just continue with the next contact
+        let mut new_contact = Contact::default();
 
-    while lines.peek().is_some() {
-        // Skip to the start of the vcard:
-        for line in lines.by_ref() {
-            if line.eq_ignore_ascii_case("BEGIN:VCARD") {
-                break;
-            }
-        }
-
-        let mut display_name = "";
-        let mut addr = "";
+        let mut display_name = None;
+        let mut addr = None;
         let mut key = None;
         let mut photo = None;
-        let mut datetime = None;
+        let mut timestamp = None;
 
-        for line in lines.by_ref() {
-            if let Some(email) = vcard_property(line, "email") {
-                addr = email;
-            } else if let Some(name) = vcard_property(line, "fn") {
-                display_name = name;
-            } else if let Some(k) = remove_prefix(line, "KEY;PGP;ENCODING=BASE64:")
-                .or_else(|| remove_prefix(line, "KEY;TYPE=PGP;ENCODING=b:"))
-                .or_else(|| remove_prefix(line, "KEY:data:application/pgp-keys;base64,"))
-            {
-                key = Some(key.unwrap_or(k));
-            } else if let Some(p) = remove_prefix(line, "PHOTO;JPEG;ENCODING=BASE64:")
-                .or_else(|| remove_prefix(line, "PHOTO;TYPE=JPEG;ENCODING=b:"))
-                .or_else(|| remove_prefix(line, "PHOTO;ENCODING=BASE64;TYPE=JPEG:"))
-            {
-                photo = Some(photo.unwrap_or(p));
-            } else if let Some(rev) = vcard_property(line, "rev") {
-                datetime = Some(datetime.unwrap_or(rev));
-            } else if line.eq_ignore_ascii_case("END:VCARD") {
-                break;
+        for property in vcard_contact.properties {
+            match &*property.name.to_lowercase() {
+                "email" => addr = addr.or(property.value),
+                "fn" => display_name = display_name.or(property.value),
+                "key" => key = key.or(dbg!(property).value), // TODO hmmm, the ical crate can apparently only parse version 3.0
+                "photo" => photo = photo.or(property.value),
+                "rev" => {
+                    timestamp = timestamp.or(property.value);
+                }
+                _ => {}
             }
         }
 
-        let (display_name, addr) = sanitize_name_and_addr(display_name, addr);
+        let (display_name, addr) =
+            sanitize_name_and_addr(&display_name.unwrap_or_default(), &addr.unwrap_or_default());
+        new_contact.display_name = display_name;
+        new_contact.addr = addr;
 
-        contacts.push(VcardContact {
-            display_name,
-            addr,
-            key: key.map(|s| s.to_string()),
-            profile_photo: photo.map(|s| s.to_string()),
-            timestamp: parse_datetime(datetime),
-        });
+        if let Some(key) = key {
+            if let Some(base64_key) = key
+                .strip_prefix("PGP;ENCODING=BASE64:")
+                .or(key.strip_prefix("TYPE=PGP;ENCODING=b:"))
+                .or(key.strip_prefix("data:application/pgp-keys;base64,"))
+            {
+                new_contact.key = base64_key.to_string();
+            }
+        }
+
+        if let Some(photo) = photo {
+            if let Some(base64_photo) = photo
+                .strip_prefix("PGP;ENCODING=BASE64:")
+                .or(photo.strip_prefix("TYPE=PGP;ENCODING=b:"))
+                .or(photo.strip_prefix("data:application/pgp-keys;base64,"))
+            {}
+        }
+
+        contacts.push(new_contact);
     }
 
     Ok(contacts)
@@ -345,8 +310,6 @@ impl rusqlite::types::ToSql for EmailAddress {
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveDateTime;
-
     use super::*;
 
     #[test]
@@ -371,15 +334,13 @@ END:VCARD
 
         assert_eq!(contacts[0].addr, "alice.mueller@posteo.de".to_string());
         assert_eq!(contacts[0].display_name, "Alice Mueller".to_string());
-        assert_eq!(contacts[0].key, None);
-        assert_eq!(contacts[0].profile_photo, None);
-        assert!(contacts[0].timestamp.is_err());
+        assert_eq!(contacts[0].key, "".to_string());
+        assert_eq!(contacts[0].profile_photo, "".to_string());
 
         assert_eq!(contacts[1].addr, "bobzzz@freenet.de".to_string());
         assert_eq!(contacts[1].display_name, "".to_string());
-        assert_eq!(contacts[1].key, None);
-        assert_eq!(contacts[1].profile_photo, None);
-        assert!(contacts[1].timestamp.is_err());
+        assert_eq!(contacts[1].key, "".to_string());
+        assert_eq!(contacts[1].profile_photo, "".to_string());
 
         assert_eq!(contacts.len(), 2);
     }
@@ -403,9 +364,9 @@ END:VCARD"
 
         assert_eq!(contacts[0].addr, "alice@example.com".to_string());
         assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
-        assert_eq!(contacts[0].key, Some("[base64-data]".to_string()));
-        assert_eq!(contacts[0].profile_photo, None);
-        assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762); // I did not check whether this timestamp is correct
+        assert_eq!(contacts[0].key, "[base64-data]".to_string());
+        assert_eq!(contacts[0].profile_photo, "".to_string());
+        assert_eq!(contacts[0].timestamp, 1713465762); // I did not check whether this timestamp is correct
 
         assert_eq!(contacts.len(), 1);
     }
@@ -454,5 +415,39 @@ END:VCARD"
         );
         assert!(EmailAddress::new("u@tt").is_ok());
         assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
+    }
+
+    #[test]
+    fn test_android_contact_export() {
+        let contacts = parse_vcard(
+            "BEGIN:VCARD
+VERSION:2.1
+N:;Bob;;;
+FN:Bob
+TEL;CELL:+1-234-567-890
+EMAIL;HOME:bob@example.org
+END:VCARD
+BEGIN:VCARD
+VERSION:2.1
+N:;Alice;;;
+FN:Alice
+EMAIL;HOME:alice@example.org
+END:VCARD
+"
+            .to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(contacts[0].addr, "bob@example.org".to_string());
+        assert_eq!(contacts[0].display_name, "Bob".to_string());
+        assert_eq!(contacts[0].key, "".to_string());
+        assert_eq!(contacts[0].profile_photo, "".to_string());
+
+        assert_eq!(contacts[1].addr, "alice@example.org".to_string());
+        assert_eq!(contacts[1].display_name, "Alice".to_string());
+        assert_eq!(contacts[1].key, "".to_string());
+        assert_eq!(contacts[1].profile_photo, "".to_string());
+
+        assert_eq!(contacts.len(), 2);
     }
 }
