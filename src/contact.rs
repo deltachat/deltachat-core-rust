@@ -2714,7 +2714,8 @@ Hi."#;
             contact.was_seen_recently(),
             "{}",
             green.paint(
-                "\nNOTE: This test failure is probably a false-positive, caused by tests running in parallel and shifting the time with `SystemTime::shift()`.
+                "\nNOTE: This test failure is probably a false-positive, caused by tests running in parallel.
+The issue is that `SystemTime::shift()` (a utility function for tests) changes the time for all threads doing tests, and not only for the running test.
 Until the false-positive is fixed:
 - Use `cargo test -- --test-threads 1` instead of `cargo test`
 - Or use `cargo nextest run` (install with `cargo install cargo-nextest --locked`)\n"
