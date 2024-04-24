@@ -21,6 +21,9 @@
             inherit (sdkPkgs) ndk-24-0-8215888 cmdline-tools-latest;
           });
         androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/24.0.8215888";
+        nodejs = pkgs.nodejs_21;
+        node2nixOutput = import ./nix { inherit pkgs nodejs system; };
+        nodeDeps = node2nixOutput.nodeDependencies;
 
         rustSrc = nix-filter.lib {
           root = ./.;
@@ -523,16 +526,28 @@
                 buildPhase = ''sphinx-build -b html -a python/doc/ dist/html'';
                 installPhase = ''mkdir -p $out; cp -av dist/html $out'';
               };
-              jsonrpc-docs = pkgs.stdenv.mkDerivation {
-                pname = "docs";
-                version = manifest.version;
-                src = pkgs.lib.cleanSource ./.;
-                nativeBuildInputs = [
-                  pkgs.nodejs_21
-                ];
-                buildPhase = "npm i && npm run docs";
-                installPhase =
-                  "mkdir -p $out; cp -av deltachat-jsonrpc/typescript/docs $out";
+            jsonrpc-docs = pkgs.stdenv.mkDerivation {
+              pname = "docs";
+              version = manifest.version;
+              src = pkgs.lib.cleanSource ./.;
+              buildInputs = [ nodejs ];
+              nativeBuildInputs = [ pkgs.nodePackages.node2nix ];
+              buildPhase = ''
+                node2nix -21 --development \
+                  --input package.json \
+                  --lock package-lock.json \
+                  --node-env ./nix/node-env.nix \
+                  --composition ./nix/default.nix \
+                  --output ./nix/node-package.nix
+                nodeDeps=$(nix-build ./nix/default.nix -A nodeDependencies)
+                ln -sf ${nodeDeps}/lib/node_modules ./node_modules
+                export PATH="${nodeDeps}/bin:$PATH"
+                npm i && npm run docs
+              '';
+              installPhase = ''
+                mkdir -p $out
+                cp -av dist/html $out
+              '';
               };
           };
 
