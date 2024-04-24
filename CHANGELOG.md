@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.137.4] - 2024-04-24
+
+### API-Changes
+
+- [**breaking**] Remove `Stream` implementation for `EventEmitter`.
+- Experimental Webxdc Integration API, Maps Integration ([#5461](https://github.com/deltachat/deltachat-core-rust/pull/5461)).
+
+### Features / Changes
+
+- Add progressive backoff for failing IMAP connection attempts ([#5443](https://github.com/deltachat/deltachat-core-rust/pull/5443)).
+- Replace event channel with broadcast channel.
+- Mark contact request messages as seen on IMAP.
+
+### Fixes
+
+- Convert images to RGB8 (without alpha) before encoding into JPEG to fix sending of large RGBA images.
+- Don't set `is_bot` for webxdc status updates ([#5445](https://github.com/deltachat/deltachat-core-rust/pull/5445)).
+- Do not fail if Autocrypt Setup Message has no encryption preference to fix key transfer from K-9 Mail to Delta Chat.
+- Use only CRLF in Autocrypt Setup Message.
+- python: Use cached message object if `dc_get_msg()` returns `NULL`.
+- python: `Message::is_outgoing`: Don't reload message from db.
+- python: `_map_ffi_event`: Always check if `get_message_by_id()` returned None.
+- node: Undefine `NAPI_EXPERIMENTAL` to fix build with new clang.
+
+### Build system
+
+- nix: Add `imap-tools` as `deltachat-rpc-client` dependency.
+- nix: Add `./deltachat-contact-tools` to sources.
+- nix: Update nix flake.
+- deps: Update rustls to 0.21.11.
+
+### Documentation
+
+- Update references to SecureJoin protocols.
+- Fix broken references in documentation comments.
+
+### Refactor
+
+- imap: remove `RwLock` from `ratelimit`.
+- deltachat-ffi: Remove unused `ResultNullableExt`.
+- Remove duplicate clippy exceptions.
+- Group `use` at the top of the test modules.
+
 ## [1.137.3] - 2024-04-16
 
 ### API-Changes
@@ -3939,3 +3982,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.137.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.0...v1.137.1
 [1.137.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.1...v1.137.2
 [1.137.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.2...v1.137.3
+[1.137.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.3...v1.137.4
