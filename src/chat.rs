@@ -5038,6 +5038,32 @@ mod tests {
         Ok(())
     }
 
+    /// Tests that if member added message is completely lost,
+    /// member is eventually added.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_lost_member_added() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+        let alice_chat_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "Group", &[bob])
+            .await;
+        let alice_sent = alice.send_text(alice_chat_id, "Hi!").await;
+        let bob_chat_id = bob.recv_msg(&alice_sent).await.chat_id;
+        assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 2);
+
+        // Attempt to add member, but message is lost.
+        let claire_id = Contact::create(alice, "", "claire@foo.de").await?;
+        add_contact_to_chat(alice, alice_chat_id, claire_id).await?;
+        alice.pop_sent_msg().await;
+
+        let alice_sent = alice.send_text(alice_chat_id, "Hi again!").await;
+        bob.recv_msg(&alice_sent).await;
+        assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 3);
+
+        Ok(())
+    }
+
     /// Test that group updates are robust to lost messages and eventual out of order arrival.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_modify_chat_lost() -> Result<()> {
