@@ -80,7 +80,7 @@ impl Context {
         let mut gossip = (*self.gossip.lock().await).clone();
         if gossip.is_none() {
             self.inite_peer_channels().await?;
-            gossip = (*self.gossip.lock().await).clone();
+            gossip.clone_from(&(*self.gossip.lock().await));
         }
 
         let gossip = gossip.context("no gossip")?;
@@ -420,7 +420,7 @@ mod tests {
                 } else {
                     panic!(
                         "Unexpected status update: {}",
-                        String::from_utf8_lossy(&data).to_string()
+                        String::from_utf8_lossy(&data)
                     );
                 }
             }
@@ -439,7 +439,7 @@ mod tests {
                 } else {
                     panic!(
                         "Unexpected status update: {}",
-                        String::from_utf8_lossy(&data).to_string()
+                        String::from_utf8_lossy(&data)
                     );
                 }
             }
@@ -471,7 +471,7 @@ mod tests {
                 } else {
                     panic!(
                         "Unexpected status update: {}",
-                        String::from_utf8_lossy(&data).to_string()
+                        String::from_utf8_lossy(&data)
                     );
                 }
             }
@@ -543,7 +543,7 @@ mod tests {
                 } else {
                     panic!(
                         "Unexpected status update: {}",
-                        String::from_utf8_lossy(&data).to_string()
+                        String::from_utf8_lossy(&data)
                     );
                 }
             }
@@ -569,7 +569,7 @@ mod tests {
                 } else {
                     panic!(
                         "Unexpected status update: {}",
-                        String::from_utf8_lossy(&data).to_string()
+                        String::from_utf8_lossy(&data)
                     );
                 }
             }
