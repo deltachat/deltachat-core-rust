@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #![warn(unused, clippy::all)]
 #![allow(
     non_camel_case_types,
