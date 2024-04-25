@@ -216,10 +216,10 @@ impl Context {
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        info!(self, "Sending: {data:?}");
-        if self.gossip.lock().await.as_ref().is_none() {
-            warn!(self, "Endpoint not yet ready");
-            return Ok(());
+        let mut channels = self.channels.lock().await;
+        if channels.get(&topic).is_none() {
+            channels.insert(topic);
+            self.join_and_subscribe_gossip(msg_id).await?;
         }
 
         // Wrapped because rng is not `send`
@@ -273,6 +273,7 @@ impl Context {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let gossip = self.gossip.lock().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
+        self.channels.lock().await.remove(&topic);
         info!(self, "Left gossip for {msg_id}");
         Ok(())
     }
@@ -350,6 +351,7 @@ mod tests {
         test_utils::TestContextManager,
         EventType,
     };
+    use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_can_communicate() {
@@ -421,7 +423,10 @@ mod tests {
                 if data == "alice -> bob".as_bytes() {
                     break;
                 } else {
-                    panic!("Unexpected status update: {}", String::from_utf8_lossy(&data).to_string());
+                    panic!(
+                        "Unexpected status update: {}",
+                        String::from_utf8_lossy(&data).to_string()
+                    );
                 }
             }
         }
@@ -437,7 +442,10 @@ mod tests {
                 if data == "alice -> bob".as_bytes() {
                     break;
                 } else {
-                    panic!("Unexpected status update: {}", String::from_utf8_lossy(&data).to_string());
+                    panic!(
+                        "Unexpected status update: {}",
+                        String::from_utf8_lossy(&data).to_string()
+                    );
                 }
             }
         }
@@ -466,9 +474,117 @@ mod tests {
                 if data == "bob -> alice 2".as_bytes() {
                     break;
                 } else {
-                    panic!("Unexpected status update: {}", String::from_utf8_lossy(&data).to_string());
+                    panic!(
+                        "Unexpected status update: {}",
+                        String::from_utf8_lossy(&data).to_string()
+                    );
                 }
             }
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_can_reconnect() {
+        let mut tcm = TestContextManager::new();
+        let alice = &mut tcm.alice().await;
+        let bob = &mut tcm.bob().await;
+        alice.ctx.start_io().await;
+        bob.ctx.start_io().await;
+
+        // Alice sends webxdc to bob
+        let alice_chat = alice.create_chat(bob).await;
+        let mut instance = Message::new(Viewtype::File);
+        instance
+            .set_file_from_bytes(
+                alice,
+                "minimal.xdc",
+                include_bytes!("../test-data/webxdc/minimal.xdc"),
+                None,
+            )
+            .await
+            .unwrap();
+
+        send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
+        let alice_webxdc = alice.get_last_msg().await;
+        assert_eq!(alice_webxdc.get_viewtype(), Viewtype::Webxdc);
+
+        let webxdc = alice.pop_sent_msg().await;
+        let bob_webdxc = bob.recv_msg(&webxdc).await;
+        assert_eq!(bob_webdxc.get_viewtype(), Viewtype::Webxdc);
+
+        bob_webdxc.chat_id.accept(bob).await.unwrap();
+
+        // Alice advertises herself.
+        alice
+            .send_gossip_advertisement(alice_webxdc.id)
+            .await
+            .unwrap();
+
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        let fut = bob.join_and_subscribe_gossip(bob_webdxc.id).await.unwrap();
+        alice
+            .join_and_subscribe_gossip(alice_webxdc.id)
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(2), fut)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Alice sends ephemeral message
+        alice
+            .send_webxdc_realtime_data(alice_webxdc.id, "alice -> bob".as_bytes().to_vec())
+            .await
+            .unwrap();
+
+        loop {
+            let event = bob.evtracker.recv().await.unwrap();
+            if let EventType::WebxdcRealtimeData { data, .. } = event.typ {
+                if data == "alice -> bob".as_bytes() {
+                    break;
+                } else {
+                    panic!(
+                        "Unexpected status update: {}",
+                        String::from_utf8_lossy(&data).to_string()
+                    );
+                }
+            }
+        }
+
+        bob.leave_gossip(bob_webdxc.id).await.unwrap();
+
+        bob.join_and_subscribe_gossip(bob_webdxc.id)
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+
+        bob.send_webxdc_realtime_data(bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
+            .await
+            .unwrap();
+
+        loop {
+            let event = alice.evtracker.recv().await.unwrap();
+            if let EventType::WebxdcRealtimeData { data, .. } = event.typ {
+                if data == "bob -> alice".as_bytes() {
+                    break;
+                } else {
+                    panic!(
+                        "Unexpected status update: {}",
+                        String::from_utf8_lossy(&data).to_string()
+                    );
+                }
+            }
+        }
+
+        // channel is only used to remeber if an advertisement has been sent
+        // bob for example does not change the channels because he never sends an
+        // advertisement
+        assert_eq!(alice.channels.lock().await.len(), 1);
+        alice.leave_gossip(alice_webxdc.id).await.unwrap();
+        assert_eq!(alice.channels.lock().await.len(), 0);
     }
 }
