@@ -18,14 +18,14 @@ def test_db_busy_error(acfactory):
 
     # make a number of accounts
     accounts = acfactory.get_many_online_accounts(3)
-    log("created %s accounts" % len(accounts))
+    log(f"created {len(accounts)} accounts")
 
     # put a bigfile into each account
     for acc in accounts:
         acc.bigfile = os.path.join(acc.get_blobdir(), "bigfile")
         with open(acc.bigfile, "wb") as f:
             f.write(b"01234567890" * 1000_000)
-    log("created %s bigfiles" % len(accounts))
+    log(f"created {len(accounts)} bigfiles")
 
     contact_addrs = [acc.get_self_contact().addr for acc in accounts]
     chat = accounts[0].create_group_chat("stress-group")
