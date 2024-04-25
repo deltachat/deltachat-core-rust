@@ -76,10 +76,8 @@ jobs:
       - name: Build C documentation
         run: nix build .#jsonrpc-docs
       - name: Upload to ts.delta.chat
-        uses: up9cloud/action-rsync@v1.3
-        env:
-          USER: ${{ secrets.USERNAME }}
-          KEY: ${{ secrets.KEY }}
-          HOST: "delta.chat"
-          SOURCE: "target/doc"
-          TARGET: "/var/www/html/ts/"
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/result/html/ "delta@c.delta.chat:/home/delta/build-ts/master"
