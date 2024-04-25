@@ -37,7 +37,7 @@ deltachat_rpc_client = [
 line-length = 120
 
 [tool.ruff]
-select = [
+lint.select = [
   "E", "W", # pycodestyle
   "F", # Pyflakes
   "N", # pep8-naming
