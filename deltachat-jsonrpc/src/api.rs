@@ -1732,25 +1732,20 @@ impl CommandApi {
         res
     }
 
-    async fn send_webxdc_gossip_advertisement(
+    async fn send_webxdc_realtime_advertisement(
         &self,
         account_id: u32,
         instance_msg_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        if let Some(conn_fut) = ctx
-            .send_gossip_advertisement(MsgId::new(instance_msg_id))
-            .await?
-        {
-            conn_fut.await?;
-        }
+        ctx.send_webxdc_realtime_advertisement(MsgId::new(instance_msg_id))
+            .await?;
         Ok(())
     }
 
     async fn leave_gossip(&self, account_id: u32, instance_message_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.leave_gossip(MsgId::new(instance_message_id)).await?;
-        Ok(())
+        ctx.leave_gossip(MsgId::new(instance_message_id)).await
     }
 
     async fn get_webxdc_status_updates(

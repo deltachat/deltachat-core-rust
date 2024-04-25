@@ -1149,7 +1149,7 @@ impl<'a> MimeFactory<'a> {
                     "protection-disabled".to_string(),
                 ));
             }
-            SystemMessage::IrohGossipAdvertisement => {
+            SystemMessage::IrohNodeAddr => {
                 if context.endpoint.lock().await.as_ref().is_none() {
                     Box::pin(context.inite_peer_channels()).await?;
                 }
@@ -1315,14 +1315,12 @@ impl<'a> MimeFactory<'a> {
             parts.push(context.build_status_update_part(json));
         } else if self.msg.viewtype == Viewtype::Webxdc {
             let topic = create_random_topic();
-            if context.endpoint.lock().await.as_ref().is_none() {
-                Box::pin(context.inite_peer_channels()).await?;
-            }
+            let peer = Box::pin(context.get_or_generate_iroh_keypair()).await?.public();
             context
                 .add_peer_for_topic(
                     self.msg.id,
                     topic,
-                    context.get_iroh_node_addr().await.unwrap().node_id,
+                    peer,
                     None,
                 )
                 .await?;

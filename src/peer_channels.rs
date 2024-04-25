@@ -1,5 +1,4 @@
-//! Peer channels for webxdc updates using iroh.
-
+//! Peer channels for realtime communication in webxdcs.
 use anyhow::{anyhow, Context as _, Result};
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
@@ -86,12 +85,8 @@ impl Context {
 
         let gossip = gossip.context("no gossip")?;
         let peers = self.get_gossip_peers(msg_id).await?;
-        if peers.is_empty() {
-            warn!(self, "joining gossip with zero peers");
-        } else {
-            info!(self, "joining gossip with {peers:?}");
-        }
 
+        // connect to all peers
         for peer in &peers {
             self.endpoint
                 .lock()
@@ -128,7 +123,7 @@ impl Context {
         Ok(())
     }
 
-    /// Get list of [NodeAddr]s for one webxdc.
+    /// Get a list of [NodeAddr]s for one webxdc.
     async fn get_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
         self.sql
             .query_map(
@@ -180,7 +175,7 @@ impl Context {
         }
     }
 
-    /// Get the iroh node address without local and publicly facing IP addresses.
+    /// Get the iroh [NodeAddr] without direct IP addresses.
     pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
         let endpoint = self.endpoint.lock().await;
         let relay = endpoint
@@ -216,20 +211,17 @@ impl Context {
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let mut channels = self.channels.lock().await;
-        if channels.get(&topic).is_none() {
-            channels.insert(topic);
-            self.join_and_subscribe_gossip(msg_id).await?;
+        let has_joined = self.channels.lock().await.get(&topic).is_none();
+        if has_joined {
+            self.send_webxdc_realtime_advertisement(msg_id).await?;
         }
 
         // Wrapped because rng is not `send`
+        // Create some salt so that messages are not deduplicated by iroh.
         let data = {
             let mut rng = thread_rng();
-
-            // Generate 64 random bits.
             let mut salt = [0u8; 8];
             rng.fill(&mut salt[..]);
-
             data.extend(salt);
             data
         };
@@ -248,7 +240,10 @@ impl Context {
     /// Automatically join the gossip for the [MsgId] if not already joined.
     /// Creates magic endpoint and gossip if not already created.
     /// This method should be called from the frontend when `setRealtimeListener` is called.
-    pub async fn send_gossip_advertisement(&self, msg_id: MsgId) -> Result<Option<JoinTopicFut>> {
+    pub async fn send_webxdc_realtime_advertisement(
+        &self,
+        msg_id: MsgId,
+    ) -> Result<Option<JoinTopicFut>> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let mut channels = self.channels.lock().await;
         let fut = if channels.get(&topic).is_some() {
@@ -262,7 +257,7 @@ impl Context {
         let mut msg = Message::new(Viewtype::Text);
         msg.hidden = true;
         let webxdc = Message::load_from_db(self, msg_id).await?;
-        msg.param.set_cmd(SystemMessage::IrohGossipAdvertisement);
+        msg.param.set_cmd(SystemMessage::IrohNodeAddr);
         msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
         send_msg(self, webxdc.chat_id, &mut msg).await?;
         Ok(Some(fut))
@@ -386,12 +381,12 @@ mod tests {
 
         // Alice advertises herself.
         alice
-            .send_gossip_advertisement(alice_webxdc.id)
+            .send_webxdc_realtime_advertisement(alice_webxdc.id)
             .await
             .unwrap();
 
         bob.recv_msg(&alice.pop_sent_msg().await).await;
-
+        bob.inite_peer_channels().await.unwrap();
         // Bob adds alice to gossip peers.
         let members = bob
             .get_gossip_peers(bob_webdxc.id)
@@ -516,7 +511,7 @@ mod tests {
 
         // Alice advertises herself.
         alice
-            .send_gossip_advertisement(alice_webxdc.id)
+            .send_webxdc_realtime_advertisement(alice_webxdc.id)
             .await
             .unwrap();
 

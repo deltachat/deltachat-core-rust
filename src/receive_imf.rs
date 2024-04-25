@@ -1378,15 +1378,6 @@ async fn add_parts(
     if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohNodeAddr) {
         match serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address") {
             Ok(node_addr) => {
-                context
-                    .endpoint
-                    .lock()
-                    .await
-                    .as_ref()
-                    .context("Failed to get magic endpoint")?
-                    .add_node_addr(node_addr.clone())
-                    .context("Failed to add node address")?;
-
                 let node_id = node_addr.node_id;
                 let relay_server = node_addr.relay_url().map(|relay| relay.to_string());
                 let instance_id = parent.context("Failed to get parent message")?.id;
@@ -1574,10 +1565,7 @@ RETURNING id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::GossipTopic) {
                 let topic = TopicId::from_str(topic).unwrap();
-                if context.endpoint.lock().await.is_none() {
-                    context.inite_peer_channels().await?;
-                }
-                let peer = context.get_iroh_node_addr().await?.node_id;
+                let peer = context.get_or_generate_iroh_keypair().await?.public();
                 context
                     .add_peer_for_topic(*msg_id, topic, peer, None)
                     .await?;

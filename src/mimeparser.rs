@@ -193,7 +193,7 @@ pub enum SystemMessage {
     WebxdcInfoMessage = 32,
 
     /// This message contains a users iroh node address.
-    IrohGossipAdvertisement = 40,
+    IrohNodeAddr = 40,
 }
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";

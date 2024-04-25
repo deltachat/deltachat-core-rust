@@ -297,7 +297,7 @@ pub struct InnerContext {
     /// [Gossip] needed for iroh peer channels.
     pub(crate) gossip: Mutex<Option<Gossip>>,
 
-    /// Open iroh peer channels.
+    /// Topics for which an advertisement has already been send.
     pub(crate) channels: Mutex<HashSet<TopicId>>,
 }
 
@@ -1958,11 +1958,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_keypair_saving() -> Result<()> {
         let alice = TestContext::new_alice().await;
-
         let key = alice.get_or_generate_iroh_keypair().await?;
         let loaded_key = alice.get_or_generate_iroh_keypair().await?;
         assert_eq!(key.to_bytes(), loaded_key.to_bytes());
-
         Ok(())
     }
 }
