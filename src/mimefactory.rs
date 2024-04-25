@@ -1315,14 +1315,11 @@ impl<'a> MimeFactory<'a> {
             parts.push(context.build_status_update_part(json));
         } else if self.msg.viewtype == Viewtype::Webxdc {
             let topic = create_random_topic();
-            let peer = Box::pin(context.get_or_generate_iroh_keypair()).await?.public();
+            let peer = Box::pin(context.get_or_generate_iroh_keypair())
+                .await?
+                .public();
             context
-                .add_peer_for_topic(
-                    self.msg.id,
-                    topic,
-                    peer,
-                    None,
-                )
+                .add_peer_for_topic(self.msg.id, topic, peer, None)
                 .await?;
             headers.protected.push(Header::new(
                 HeaderDef::GossipTopic.get_headername().to_string(),

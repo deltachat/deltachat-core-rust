@@ -357,10 +357,7 @@ impl From<CoreEventType> for EventType {
                 msg_id: msg_id.to_u32(),
                 status_update_serial: status_update_serial.to_u32(),
             },
-            CoreEventType::WebxdcRealtimeData {
-                msg_id,
-                data,
-            } => WebxdcRealtimeData {
+            CoreEventType::WebxdcRealtimeData { msg_id, data } => WebxdcRealtimeData {
                 msg_id: msg_id.to_u32(),
                 data,
             },

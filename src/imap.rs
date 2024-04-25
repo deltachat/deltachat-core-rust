@@ -1429,7 +1429,11 @@ impl Session {
         let mailbox = "";
         let options = "";
         let metadata = self
-            .get_metadata(mailbox, options, "(/shared/comment /shared/admin /share/iroh_relay)")
+            .get_metadata(
+                mailbox,
+                options,
+                "(/shared/comment /shared/admin /share/iroh_relay)",
+            )
             .await?;
         for m in metadata {
             match m.entry.as_ref() {
@@ -1445,7 +1449,11 @@ impl Session {
                 _ => {}
             }
         }
-        *lock = Some(ServerMetadata { comment, admin, _iroh_relay });
+        *lock = Some(ServerMetadata {
+            comment,
+            admin,
+            _iroh_relay,
+        });
         Ok(())
     }
 
