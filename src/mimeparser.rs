@@ -662,32 +662,34 @@ impl MimeMessage {
             self.squash_attachment_parts();
         }
 
-        if let Some(ref subject) = self.get_subject() {
-            let mut prepend_subject = true;
-            if !self.decrypting_failed {
-                let colon = subject.find(':');
-                if colon == Some(2)
-                    || colon == Some(3)
-                    || self.has_chat_version()
-                    || subject.contains("Chat:")
-                {
-                    prepend_subject = false
+        if !context.get_config_bool(Config::Bot).await? {
+            if let Some(ref subject) = self.get_subject() {
+                let mut prepend_subject = true;
+                if !self.decrypting_failed {
+                    let colon = subject.find(':');
+                    if colon == Some(2)
+                        || colon == Some(3)
+                        || self.has_chat_version()
+                        || subject.contains("Chat:")
+                    {
+                        prepend_subject = false
+                    }
                 }
-            }
 
-            // For mailing lists, always add the subject because sometimes there are different topics
-            // and otherwise it might be hard to keep track:
-            if self.is_mailinglist_message() && !self.has_chat_version() {
-                prepend_subject = true;
-            }
+                // For mailing lists, always add the subject because sometimes there are different topics
+                // and otherwise it might be hard to keep track:
+                if self.is_mailinglist_message() && !self.has_chat_version() {
+                    prepend_subject = true;
+                }
 
-            if prepend_subject && !subject.is_empty() {
-                let part_with_text = self
-                    .parts
-                    .iter_mut()
-                    .find(|part| !part.msg.is_empty() && !part.is_reaction);
-                if let Some(part) = part_with_text {
-                    part.msg = format!("{} – {}", subject, part.msg);
+                if prepend_subject && !subject.is_empty() {
+                    let part_with_text = self
+                        .parts
+                        .iter_mut()
+                        .find(|part| !part.msg.is_empty() && !part.is_reaction);
+                    if let Some(part) = part_with_text {
+                        part.msg = format!("{} – {}", subject, part.msg);
+                    }
                 }
             }
         }
@@ -3932,5 +3934,32 @@ Content-Disposition: reaction\n\
         assert!(mime_message.timestamp_rcvd <= time());
 
         Ok(())
+    }
+
+    /// Tests that subject is not prepended to the message
+    /// when bot receives it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_bot_no_subject() {
+        let context = TestContext::new().await;
+        context.set_config(Config::Bot, Some("1")).await.unwrap();
+        let raw = br#"Message-ID: <foobar@example.org>
+From: foo <foo@example.org>
+Subject: Some subject
+To: bar@example.org
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+/help
+"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+            .await
+            .unwrap();
+        assert_eq!(message.get_subject(), Some("Some subject".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        // Not "Some subject – /help"
+        assert_eq!(message.parts[0].msg, "/help");
     }
 }
