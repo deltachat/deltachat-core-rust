@@ -62,3 +62,37 @@ jobs:
           echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
           chmod 600 "$HOME/.ssh/key"
           rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/result/html/ "delta@c.delta.chat:/home/delta/build-c/master"
+
+  build-ts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./deltachat-jsonrpc/typescript
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+          fetch-depth: 0 # Fetch history to calculate VCS version number.
+      - name: Use Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+      - name: npm build
+        run: npm build
+      - name: Install dependencies
+        run: npm install
+      - name: Run docs script
+        run: npm run docs
+      - name: Upload to ts.delta.chat
+        uses: up9cloud/action-rsync@v1.3
+        env:
+          USER: ${{ secrets.USERNAME }}
+          KEY: ${{ secrets.KEY }}
+          HOST: "delta.chat"
+          SOURCE: "/deltachat-jsonrpc/typescript/docs/"
+          TARGET: "/var/www/html/ts/"
