@@ -332,7 +332,7 @@ async fn subscribe_loop(
                 info!(context, "Received: {:?}", event);
                 context.emit_event(EventType::WebxdcRealtimeData {
                     msg_id,
-                    data: event.content[0..event.content.len() - 8].into(),
+                    data: event.content.get(0..event.content.len() - 8).context("too few bytes in iroh message")?.into(),
                 });
             }
             _ => (),
