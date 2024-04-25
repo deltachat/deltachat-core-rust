@@ -6,9 +6,11 @@ use std::path::{Path, PathBuf};
 use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
+use tokio::{fs, io};
 
 use crate::blob::BlobObject;
 use crate::chat::{Chat, ChatId};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
@@ -82,6 +84,16 @@ impl MsgId {
         Ok(result)
     }
 
+    pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
+        let res: Option<String> = context
+            .sql
+            .query_get_value("SELECT param FROM msgs WHERE id=?", (self,))
+            .await?;
+        Ok(res
+            .map(|s| s.parse().unwrap_or_default())
+            .unwrap_or_default())
+    }
+
     /// Put message into trash chat and delete message text.
     ///
     /// It means the message is deleted locally, but not on the server.
@@ -138,6 +150,7 @@ WHERE id=?;
             chat_id,
             msg_id: self,
         });
+        chatlist_events::emit_chatlist_item_changed(context, chat_id);
         Ok(())
     }
 
@@ -464,7 +477,7 @@ impl Message {
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message> {
         let message = Self::load_from_db_optional(context, id)
             .await?
-            .context("Message {id} does not exist")?;
+            .with_context(|| format!("Message {id} does not exist"))?;
         Ok(message)
     }
 
@@ -506,7 +519,7 @@ impl Message {
                     "    m.location_id AS location,",
                     "    c.blocked AS blocked",
                     " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                    " WHERE m.id=?;"
+                    " WHERE m.id=? AND chat_id!=3;"
                 ),
                 (id,),
                 |row| {
@@ -591,6 +604,19 @@ impl Message {
     /// Returns the full path to the file associated with a message.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
+    }
+
+    /// Save file copy at the user-provided path.
+    pub async fn save_file(&self, context: &Context, path: &Path) -> Result<()> {
+        let path_src = self.get_file(context).context("No file")?;
+        let mut src = fs::OpenOptions::new().read(true).open(path_src).await?;
+        let mut dst = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .await?;
+        io::copy(&mut src, &mut dst).await?;
+        Ok(())
     }
 
     /// If message is an image or gif, set Param::Width and Param::Height
@@ -1031,6 +1057,7 @@ impl Message {
         filemime: Option<&str>,
     ) -> Result<()> {
         let blob = BlobObject::create(context, suggested_name, data).await?;
+        self.param.set(Param::Filename, suggested_name);
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);
         Ok(())
@@ -1100,7 +1127,7 @@ impl Message {
                 .get_bool(Param::GuaranteeE2ee)
                 .unwrap_or_default()
             {
-                self.param.set(Param::GuaranteeE2ee, "1");
+                self.param.set(Param::ProtectQuote, "1");
             }
 
             let text = quote.get_text();
@@ -1145,13 +1172,8 @@ impl Message {
     pub async fn parent(&self, context: &Context) -> Result<Option<Message>> {
         if let Some(in_reply_to) = &self.in_reply_to {
             if let Some((msg_id, _ts_sent)) = rfc724_mid_exists(context, in_reply_to).await? {
-                let msg = Message::load_from_db(context, msg_id).await?;
-                return if msg.chat_id.is_trash() {
-                    // If message is already moved to trash chat, pretend it does not exist.
-                    Ok(None)
-                } else {
-                    Ok(Some(msg))
-                };
+                let msg = Message::load_from_db_optional(context, msg_id).await?;
+                return Ok(msg);
             }
         }
         Ok(None)
@@ -1532,9 +1554,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     for modified_chat_id in modified_chat_ids {
         context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+        chatlist_events::emit_chatlist_item_changed(context, modified_chat_id);
     }
 
     if !msg_ids.is_empty() {
+        context.emit_msgs_changed_without_ids();
+        chatlist_events::emit_chatlist_changed(context);
         // Run housekeeping to delete unused blobs.
         context
             .set_config_internal(Config::LastHousekeeping, None)
@@ -1633,9 +1658,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         _curr_ephemeral_timer,
     ) in msgs
     {
-        if curr_blocked == Blocked::Not
-            && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
-        {
+        if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
             update_msg_state(context, id, MessageState::InSeen).await?;
             info!(context, "Seen message {}.", id);
 
@@ -1647,7 +1670,11 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             // "Group left by me", a read receipt will quote "Group left by <name>", and the name can
             // be a display name stored in address book rather than the name sent in the From field by
             // the user.
-            if curr_param.get_bool(Param::WantsMdn).unwrap_or_default()
+            //
+            // We also don't send read receipts for contact requests.
+            // Read receipts will not be sent even after accepting the chat.
+            if curr_blocked == Blocked::Not
+                && curr_param.get_bool(Param::WantsMdn).unwrap_or_default()
                 && curr_param.get_cmd() == SystemMessage::Unknown
             {
                 let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
@@ -1669,6 +1696,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
 
     for updated_chat_id in updated_chat_ids {
         context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+        chatlist_events::emit_chatlist_item_changed(context, updated_chat_id);
     }
 
     Ok(())
@@ -1729,6 +1757,7 @@ pub(crate) async fn set_msg_failed(
         chat_id: msg.chat_id,
         msg_id: msg.id,
     });
+    chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
 
     Ok(())
 }
@@ -1881,8 +1910,7 @@ pub(crate) async fn get_latest_by_rfc724_mids(
 ) -> Result<Option<Message>> {
     for id in mids.iter().rev() {
         if let Some((msg_id, _)) = rfc724_mid_exists(context, id).await? {
-            let msg = Message::load_from_db(context, msg_id).await?;
-            if msg.chat_id != DC_CHAT_ID_TRASH {
+            if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
                 return Ok(Some(msg));
             }
         }
@@ -1987,8 +2015,11 @@ mod tests {
     use num_traits::FromPrimitive;
 
     use super::*;
-    use crate::chat::{self, marknoticed_chat, send_text_msg, ChatItem};
+    use crate::chat::{
+        self, add_contact_to_chat, marknoticed_chat, send_text_msg, ChatItem, ProtectionStatus,
+    };
     use crate::chatlist::Chatlist;
+    use crate::config::Config;
     use crate::reaction::send_reaction;
     use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
@@ -2012,8 +2043,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prepare_message_and_send() {
-        use crate::config::Config;
-
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
@@ -2152,8 +2181,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quote() {
-        use crate::config::Config;
-
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
@@ -2184,6 +2211,42 @@ mod tests {
             .expect("error while retrieving quoted message")
             .expect("quoted message not found");
         assert_eq!(quoted_msg.get_text(), msg2.quoted_text().unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_unencrypted_quote_encrypted_message() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let alice_group = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "Group chat", &[bob])
+            .await;
+        let sent = alice.send_text(alice_group, "Hi! I created a group").await;
+        let bob_received_message = bob.recv_msg(&sent).await;
+
+        let bob_group = bob_received_message.chat_id;
+        bob_group.accept(bob).await?;
+        let sent = bob.send_text(bob_group, "Encrypted message").await;
+        let alice_received_message = alice.recv_msg(&sent).await;
+        assert!(alice_received_message.get_showpadlock());
+
+        // Alice adds contact without key so chat becomes unencrypted.
+        let alice_flubby_contact_id =
+            Contact::create(alice, "Flubby", "flubby@example.org").await?;
+        add_contact_to_chat(alice, alice_group, alice_flubby_contact_id).await?;
+
+        // Alice quotes encrypted message in unencrypted chat.
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_quote(alice, Some(&alice_received_message)).await?;
+        chat::send_msg(alice, alice_group, &mut msg).await?;
+
+        let bob_received_message = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(bob_received_message.quoted_text().unwrap(), "...");
+        assert_eq!(bob_received_message.get_showpadlock(), false);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

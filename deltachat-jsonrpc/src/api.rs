@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashMap, str::FromStr};
@@ -29,6 +30,7 @@ use deltachat::reaction::{get_msg_reactions, send_reaction};
 use deltachat::securejoin;
 use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
+use deltachat::EventEmitter;
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
@@ -81,21 +83,30 @@ impl Default for AccountState {
 pub struct CommandApi {
     pub(crate) accounts: Arc<RwLock<Accounts>>,
 
+    /// Receiver side of the event channel.
+    ///
+    /// Events from it can be received by calling `get_next_event` method.
+    event_emitter: Arc<EventEmitter>,
+
     states: Arc<Mutex<BTreeMap<u32, AccountState>>>,
 }
 
 impl CommandApi {
     pub fn new(accounts: Accounts) -> Self {
+        let event_emitter = Arc::new(accounts.get_event_emitter());
         CommandApi {
             accounts: Arc::new(RwLock::new(accounts)),
+            event_emitter,
             states: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
     #[allow(dead_code)]
-    pub fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
+    pub async fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
+        let event_emitter = Arc::new(accounts.read().await.get_event_emitter());
         CommandApi {
             accounts,
+            event_emitter,
             states: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
@@ -158,8 +169,7 @@ impl CommandApi {
 
     /// Get the next event.
     async fn get_next_event(&self) -> Result<Event> {
-        let event_emitter = self.accounts.read().await.get_event_emitter();
-        event_emitter
+        self.event_emitter
             .recv()
             .await
             .map(|event| event.into())
@@ -690,8 +700,7 @@ impl CommandApi {
     ///     the Verified-Group-Invite protocol is offered in the QR code;
     ///     works for protected groups as well as for normal groups.
     ///     If not set, the Setup-Contact protocol is offered in the QR code.
-    ///     See https://securejoin.readthedocs.io/en/latest/new.html
-    ///     for details about both protocols.
+    ///     See https://securejoin.delta.chat/ for details about both protocols.
     ///
     /// return format: `[code, svg]`
     async fn get_chat_securejoin_qr_code_svg(
@@ -719,8 +728,7 @@ impl CommandApi {
     ///
     /// Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
     ///
-    /// See https://securejoin.readthedocs.io/en/latest/new.html
-    /// for details about both protocols.
+    /// See https://securejoin.delta.chat/ for details about both protocols.
     ///
     /// **qr**: The text of the scanned QR code. Typically, the same string as given
     ///     to `check_qr()`.
@@ -1626,6 +1634,9 @@ impl CommandApi {
     /// the current device.
     ///
     /// Can be cancelled by stopping the ongoing process.
+    ///
+    /// Do not forget to call start_io on the account after a successful import,
+    /// otherwise it will not connect to the email server.
     async fn get_backup(&self, account_id: u32, qr_text: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let qr = qr::check_qr(&ctx, &qr_text).await?;
@@ -1897,6 +1908,15 @@ impl CommandApi {
         Ok(can_send)
     }
 
+    /// Saves a file copy at the user-provided path.
+    ///
+    /// Fails if file already exists at the provided path.
+    async fn save_msg_file(&self, account_id: u32, msg_id: u32, path: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+        message.save_file(&ctx, Path::new(&path)).await
+    }
+
     // ---------------------------------------------
     //           functions for the composer
     //    the composer is the message input field
@@ -1969,19 +1989,21 @@ impl CommandApi {
         );
         let destination_path = account_folder.join("stickers").join(collection);
         fs::create_dir_all(&destination_path).await?;
-        let file = message.get_file(&ctx).context("no file")?;
-        fs::copy(
-            &file,
-            destination_path.join(format!(
-                "{}.{}",
-                msg_id,
-                file.extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-            )),
-        )
-        .await?;
+        let file = message.get_filename().context("no file?")?;
+        message
+            .save_file(
+                &ctx,
+                &destination_path.join(format!(
+                    "{}.{}",
+                    msg_id,
+                    Path::new(&file)
+                        .extension()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default()
+                )),
+            )
+            .await?;
         Ok(())
     }
 

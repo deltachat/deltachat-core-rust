@@ -3,8 +3,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    non_upper_case_globals,
-    non_camel_case_types,
     clippy::missing_safety_doc,
     clippy::expect_fun_call
 )]
@@ -565,6 +563,8 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::WebxdcInstanceDeleted { .. } => 2121,
         EventType::WebxdcRealtimeData { .. } => 2150,
         EventType::AccountsBackgroundFetchDone => 2200,
+        EventType::ChatlistChanged => 2300,
+        EventType::ChatlistItemChanged { .. } => 2301,
     }
 }
 
@@ -594,6 +594,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::AccountsBackgroundFetchDone => 0,
+        EventType::ChatlistChanged => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -619,6 +620,9 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         EventType::WebxdcRealtimeData { msg_id, .. }
         | EventType::WebxdcStatusUpdate { msg_id, .. }
         | EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        EventType::ChatlistItemChanged { chat_id } => {
+            chat_id.unwrap_or_default().to_u32() as libc::c_int
+        }
     }
 }
 
@@ -656,6 +660,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         EventType::IncomingMsgBunch { .. }
         | EventType::SelfavatarChanged
         | EventType::AccountsBackgroundFetchDone
+        | EventType::ChatlistChanged
+        | EventType::ChatlistItemChanged { .. }
         | EventType::ConfigSynced { .. } => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
@@ -721,7 +727,9 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::WebxdcRealtimeData { .. }
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. }
-        | EventType::IncomingMsgBunch { .. } => ptr::null_mut(),
+        | EventType::IncomingMsgBunch { .. }
+        | EventType::ChatlistItemChanged { .. }
+        | EventType::ChatlistChanged => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
                 comment.to_c_string().unwrap_or_default().into_raw()
@@ -1057,6 +1065,43 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
     ))
     .unwrap_or_else(|_| "".to_string())
     .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_webxdc_integration(
+    context: *mut dc_context_t,
+    file: *const libc::c_char,
+) {
+    if context.is_null() || file.is_null() {
+        eprintln!("ignoring careless call to dc_set_webxdc_integration()");
+        return;
+    }
+    let ctx = &*context;
+    block_on(ctx.set_webxdc_integration(&to_string_lossy(file)))
+        .log_err(ctx)
+        .unwrap_or_default();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_init_webxdc_integration(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> u32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_init_webxdc_integration()");
+        return 0;
+    }
+    let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
+
+    block_on(ctx.init_webxdc_integration(chat_id))
+        .log_err(ctx)
+        .map(|msg_id| msg_id.map(|id| id.to_u32()).unwrap_or_default())
+        .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -2004,7 +2049,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
                     );
                     message::Message::default()
                 } else {
-                    error!(ctx, "dc_get_msg could not retrieve msg_id {msg_id}: {e:#}");
+                    warn!(ctx, "dc_get_msg could not retrieve msg_id {msg_id}: {e:#}");
                     return ptr::null_mut();
                 }
             }
@@ -3328,6 +3373,34 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_save_file(
+    msg: *mut dc_msg_t,
+    path: *const libc::c_char,
+) -> libc::c_int {
+    if msg.is_null() || path.is_null() {
+        eprintln!("ignoring careless call to dc_msg_save_file()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+    let path = to_string_lossy(path);
+    let r = block_on(
+        ffi_msg
+            .message
+            .save_file(ctx, &std::path::PathBuf::from(path)),
+    );
+    match r {
+        Ok(()) => 1,
+        Err(_) => {
+            r.context("Failed to save file from message")
+                .log_err(ctx)
+                .unwrap_or_default();
+            0
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_filename()");
@@ -4402,19 +4475,6 @@ where
     }
 }
 
-trait ResultNullableExt<T> {
-    fn into_raw(self) -> *mut T;
-}
-
-impl<T, E> ResultNullableExt<T> for Result<T, E> {
-    fn into_raw(self) -> *mut T {
-        match self {
-            Ok(t) => Box::into_raw(Box::new(t)),
-            Err(_) => ptr::null_mut(),
-        }
-    }
-}
-
 fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> Vec<MsgId> {
     let ids = unsafe { std::slice::from_raw_parts(msg_ids, msg_cnt as usize) };
     let msg_ids: Vec<MsgId> = ids
@@ -4894,7 +4954,9 @@ mod jsonrpc {
         }
 
         let account_manager = &*account_manager;
-        let cmd_api = deltachat_jsonrpc::api::CommandApi::from_arc(account_manager.inner.clone());
+        let cmd_api = block_on(deltachat_jsonrpc::api::CommandApi::from_arc(
+            account_manager.inner.clone(),
+        ));
 
         let (request_handle, receiver) = RpcClient::new();
         let handle = RpcSession::new(request_handle, cmd_api);

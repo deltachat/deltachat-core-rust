@@ -5,26 +5,29 @@
 
 use std::{
     cmp::max,
+    cmp::min,
     collections::{BTreeMap, BTreeSet, HashMap},
     iter::Peekable,
     mem::take,
     sync::atomic::Ordering,
-    time::Duration,
+    time::{Duration, UNIX_EPOCH},
 };
 
 use anyhow::{bail, format_err, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
+use deltachat_contact_tools::{normalize_name, ContactAddress};
 use futures::{FutureExt as _, StreamExt, TryStreamExt};
 use futures_lite::FutureExt;
 use num_traits::FromPrimitive;
+use rand::Rng;
 use ratelimit::Ratelimit;
-use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails};
-use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
+use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -40,7 +43,7 @@ use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
-use crate::tools::{create_id, duration_to_str};
+use crate::tools::{self, create_id, duration_to_str};
 
 pub(crate) mod capabilities;
 mod client;
@@ -80,15 +83,17 @@ pub(crate) struct Imap {
 
     pub(crate) connectivity: ConnectivityStore,
 
-    /// Rate limit for IMAP connection attempts.
+    conn_last_try: tools::Time,
+    conn_backoff_ms: u64,
+
+    /// Rate limit for successful IMAP connections.
     ///
-    /// This rate limit prevents busy loop
-    /// in case the server refuses connections
+    /// This rate limit prevents busy loop in case the server refuses logins
     /// or in case connection gets dropped over and over due to IMAP bug,
     /// e.g. the server returning invalid response to SELECT command
     /// immediately after logging in or returning an error in response to LOGIN command
     /// due to internal server error.
-    ratelimit: RwLock<Ratelimit>,
+    ratelimit: Ratelimit,
 }
 
 #[derive(Debug)]
@@ -248,8 +253,10 @@ impl Imap {
             strict_tls,
             login_failed_once: false,
             connectivity: Default::default(),
+            conn_last_try: UNIX_EPOCH,
+            conn_backoff_ms: 0,
             // 1 connection per minute + a burst of 2.
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(120, 0), 2.0)),
+            ratelimit: Ratelimit::new(Duration::new(120, 0), 2.0),
         };
 
         Ok(imap)
@@ -293,7 +300,15 @@ impl Imap {
             bail!("IMAP operation attempted while it is torn down");
         }
 
-        let ratelimit_duration = self.ratelimit.read().await.until_can_send();
+        let now = tools::Time::now();
+        let until_can_send = max(
+            min(self.conn_last_try, now)
+                .checked_add(Duration::from_millis(self.conn_backoff_ms))
+                .unwrap_or(now),
+            now,
+        )
+        .duration_since(now)?;
+        let ratelimit_duration = max(until_can_send, self.ratelimit.until_can_send());
         if !ratelimit_duration.is_zero() {
             warn!(
                 context,
@@ -316,7 +331,16 @@ impl Imap {
 
         info!(context, "Connecting to IMAP server");
         self.connectivity.set_connecting(context).await;
-        self.ratelimit.write().await.send();
+
+        self.conn_last_try = tools::Time::now();
+        const BACKOFF_MIN_MS: u64 = 2000;
+        const BACKOFF_MAX_MS: u64 = 80_000;
+        self.conn_backoff_ms = min(self.conn_backoff_ms, BACKOFF_MAX_MS / 2);
+        self.conn_backoff_ms = self.conn_backoff_ms.saturating_add(
+            rand::thread_rng().gen_range((self.conn_backoff_ms / 2)..=self.conn_backoff_ms),
+        );
+        self.conn_backoff_ms = max(BACKOFF_MIN_MS, self.conn_backoff_ms);
+
         let connection_res: Result<Client> =
             if self.lp.security == Socket::Starttls || self.lp.security == Socket::Plain {
                 let imap_server: &str = self.lp.server.as_ref();
@@ -364,6 +388,8 @@ impl Imap {
                 }
             };
         let client = connection_res?;
+        self.conn_backoff_ms = BACKOFF_MIN_MS;
+        self.ratelimit.send();
 
         let imap_user: &str = self.lp.user.as_ref();
         let imap_pw: &str = self.lp.password.as_ref();
@@ -1172,6 +1198,7 @@ impl Session {
             .with_context(|| format!("failed to set MODSEQ for folder {folder}"))?;
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+            chatlist_events::emit_chatlist_item_changed(context, updated_chat_id);
         }
 
         Ok(())

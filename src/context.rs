@@ -17,6 +17,7 @@ use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
+use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
     self, DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
@@ -611,11 +612,32 @@ impl Context {
     /// Emits a MsgsChanged event with specified chat and message ids
     pub fn emit_msgs_changed(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+        chatlist_events::emit_chatlist_changed(self);
+        chatlist_events::emit_chatlist_item_changed(self, chat_id);
     }
 
     /// Emits an IncomingMsg event with specified chat and message ids
     pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
+        chatlist_events::emit_chatlist_changed(self);
+        chatlist_events::emit_chatlist_item_changed(self, chat_id);
+    }
+
+    /// Emits an LocationChanged event and a WebxdcStatusUpdate in case there is a maps integration
+    pub async fn emit_location_changed(&self, contact_id: Option<ContactId>) -> Result<()> {
+        self.emit_event(EventType::LocationChanged(contact_id));
+
+        if let Some(msg_id) = self
+            .get_config_parsed::<u32>(Config::WebxdcIntegration)
+            .await?
+        {
+            self.emit_event(EventType::WebxdcStatusUpdate {
+                msg_id: MsgId::new(msg_id),
+                status_update_serial: Default::default(),
+            })
+        }
+
+        Ok(())
     }
 
     /// Returns a receiver for emitted events.
@@ -1644,6 +1666,7 @@ mod tests {
             "socks5_user",
             "socks5_password",
             "key_id",
+            "webxdc_integration",
             "iroh_secret_key",
         ];
         let t = TestContext::new().await;

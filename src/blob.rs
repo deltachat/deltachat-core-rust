@@ -698,7 +698,10 @@ fn encode_img(
         ImageOutputFormat::Png => img.write_to(&mut buf, ImageFormat::Png)?,
         ImageOutputFormat::Jpeg { quality } => {
             let encoder = JpegEncoder::new_with_quality(&mut buf, quality);
-            img.write_with_encoder(encoder)?;
+            // Convert image into RGB8 to avoid the error
+            // "The encoder or decoder for Jpeg does not support the color type Rgba8"
+            // (<https://github.com/image-rs/image/issues/2211>).
+            img.clone().into_rgb8().write_with_encoder(encoder)?;
         }
     }
     Ok(())
@@ -1205,6 +1208,28 @@ mod tests {
         .unwrap();
     }
 
+    /// Tests that RGBA PNG can be recoded into JPEG
+    /// by dropping alpha channel.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_recode_image_rgba_png_to_jpeg() {
+        let bytes = include_bytes!("../test-data/image/screenshot-rgba.png");
+
+        send_image_check_mediaquality(
+            Viewtype::Image,
+            Some("1"),
+            bytes,
+            "png",
+            false, // no Exif
+            1920,
+            1080,
+            0,
+            constants::WORSE_IMAGE_SIZE,
+            constants::WORSE_IMAGE_SIZE * 1080 / 1920,
+        )
+        .await
+        .unwrap();
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_huge_jpg() {
         let bytes = include_bytes!("../test-data/image/screenshot.jpg");
@@ -1282,23 +1307,26 @@ mod tests {
         let alice_msg = alice.get_last_msg().await;
         assert_eq!(alice_msg.get_width() as u32, compressed_width);
         assert_eq!(alice_msg.get_height() as u32, compressed_height);
-        check_image_size(
-            alice_msg.get_file(&alice).unwrap(),
-            compressed_width,
-            compressed_height,
-        );
+        let file_saved = alice
+            .get_blobdir()
+            .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
+        alice_msg.save_file(&alice, &file_saved).await?;
+        check_image_size(file_saved, compressed_width, compressed_height);
 
         let bob_msg = bob.recv_msg(&sent).await;
         assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
         assert_eq!(bob_msg.get_width() as u32, compressed_width);
         assert_eq!(bob_msg.get_height() as u32, compressed_height);
-        let file = bob_msg.get_file(&bob).unwrap();
+        let file_saved = bob
+            .get_blobdir()
+            .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
+        bob_msg.save_file(&bob, &file_saved).await?;
 
-        let blob = BlobObject::new_from_path(&bob, &file).await?;
+        let blob = BlobObject::new_from_path(&bob, &file_saved).await?;
         let (_, exif) = blob.metadata()?;
         assert!(exif.is_none());
 
-        let img = check_image_size(file, compressed_width, compressed_height);
+        let img = check_image_size(file_saved, compressed_width, compressed_height);
         Ok(img)
     }
 

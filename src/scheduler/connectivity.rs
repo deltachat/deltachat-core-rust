@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 use crate::events::EventType;
 use crate::imap::{scan_folders::get_watched_folder_configs, FolderMeaning};
 use crate::quota::{QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_WARN_THRESHOLD_PERCENTAGE};
+use crate::stock_str;
 use crate::{context::Context, log::LogExt};
-use crate::{stock_str, tools};
 
 use super::InnerSchedulerState;
 
@@ -413,7 +413,9 @@ impl Context {
         //                                [======67%=====       ]
         // =============================================================================================
 
-        let domain = &tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
+        let domain =
+            &deltachat_contact_tools::EmailAddress::new(&self.get_primary_self_addr().await?)?
+                .domain;
         let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
         ret += &format!("<h3>{storage_on_domain}</h3><ul>");
         let quota = self.quota.read().await;

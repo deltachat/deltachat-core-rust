@@ -5,6 +5,7 @@ use std::io;
 use std::io::Cursor;
 
 use anyhow::{bail, Context as _, Result};
+use deltachat_contact_tools::EmailAddress;
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -20,7 +21,6 @@ use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
-use crate::tools::EmailAddress;
 
 #[allow(missing_docs)]
 #[cfg(test)]
@@ -449,7 +449,8 @@ mod tests {
         assert_ne!(keypair0.public, keypair1.public);
     }
 
-    /// [Key] objects to use in tests.
+    /// [SignedSecretKey] and [SignedPublicKey] objects
+    /// to use in tests.
     struct TestKeys {
         alice_secret: SignedSecretKey,
         alice_public: SignedPublicKey,

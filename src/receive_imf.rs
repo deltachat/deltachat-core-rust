@@ -4,6 +4,9 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
+use deltachat_contact_tools::{
+    addr_cmp, may_be_valid_addr, normalize_name, strip_rtlo_characters, ContactAddress,
+};
 use iroh_gossip::proto::TopicId;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
@@ -14,9 +17,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
-use crate::contact::{
-    addr_cmp, may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin,
-};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc_inner;
 use crate::download::DownloadState;
@@ -24,7 +25,6 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
-use crate::location;
 use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, rfc724_mid_exists_and, Message, MessageState, MessengerMessage, MsgId,
@@ -39,9 +39,8 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{
-    self, buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters, validate_id,
-};
+use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid, validate_id};
+use crate::{chatlist_events, location};
 use crate::{contact, imap};
 use iroh_net::NodeAddr;
 
@@ -479,11 +478,46 @@ pub(crate) async fn receive_imf_inner(
     }
 
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
-        if let Err(err) = context
-            .receive_status_update(from_id, insert_msg_id, status_update)
-            .await
+        let can_info_msg;
+        let instance = if mime_parser
+            .parts
+            .first()
+            .filter(|part| part.typ == Viewtype::Webxdc)
+            .is_some()
         {
-            warn!(context, "receive_imf cannot update status: {err:#}.");
+            can_info_msg = false;
+            Some(Message::load_from_db(context, insert_msg_id).await?)
+        } else if let Some(field) = mime_parser.get_header(HeaderDef::InReplyTo) {
+            if let Some(instance) = get_rfc724_mid_in_list(context, field).await? {
+                can_info_msg = instance.download_state() == DownloadState::Done;
+                Some(instance)
+            } else {
+                can_info_msg = false;
+                None
+            }
+        } else {
+            can_info_msg = false;
+            None
+        };
+
+        if let Some(instance) = instance {
+            if let Err(err) = context
+                .receive_status_update(
+                    from_id,
+                    &instance,
+                    received_msg.sort_timestamp,
+                    can_info_msg,
+                    status_update,
+                )
+                .await
+            {
+                warn!(context, "receive_imf cannot update status: {err:#}.");
+            }
+        } else {
+            warn!(
+                context,
+                "Received webxdc update, but cannot assign it to message."
+            );
         }
     }
 
@@ -1688,7 +1722,7 @@ async fn save_locations(
         }
     }
     if send_event {
-        context.emit_event(EventType::LocationChanged(Some(from_id)));
+        context.emit_location_changed(Some(from_id)).await?;
     }
     Ok(())
 }
@@ -1784,7 +1818,19 @@ async fn create_or_lookup_group(
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
-    } else if allow_creation {
+    } else if !allow_creation {
+        info!(context, "Creating ad-hoc group prevented from caller.");
+        return Ok(None);
+    } else if is_partial_download {
+        // Partial download may be an encrypted message with protected Subject header.
+        //
+        // We do not want to create a group with "..." or "Encrypted message" as a subject.
+        info!(
+            context,
+            "Ad-hoc group cannot be created from partial download."
+        );
+        return Ok(None);
+    } else {
         let mut member_ids: Vec<ContactId> = to_ids.to_vec();
         if !member_ids.contains(&(from_id)) {
             member_ids.push(from_id);
@@ -1798,9 +1844,6 @@ async fn create_or_lookup_group(
             .context("could not create ad hoc group")?
             .map(|chat_id| (chat_id, create_blocked));
         return Ok(res);
-    } else {
-        info!(context, "Creating ad-hoc group prevented from caller.");
-        return Ok(None);
     };
 
     let mut chat_id;
@@ -1894,6 +1937,8 @@ async fn create_or_lookup_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
         context.emit_event(EventType::ChatModified(new_chat_id));
+        chatlist_events::emit_chatlist_changed(context);
+        chatlist_events::emit_chatlist_item_changed(context, new_chat_id);
     }
 
     if let Some(chat_id) = chat_id {
@@ -2207,6 +2252,7 @@ async fn apply_group_changes(
 
     if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
+        chatlist_events::emit_chatlist_item_changed(context, chat_id);
     }
     Ok((group_changes_msgs, better_msg))
 }
@@ -2509,6 +2555,8 @@ async fn create_adhoc_group(
     chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));
+    chatlist_events::emit_chatlist_changed(context);
+    chatlist_events::emit_chatlist_item_changed(context, new_chat_id);
 
     Ok(Some(new_chat_id))
 }
@@ -2720,8 +2768,6 @@ async fn mark_recipients_as_verified(
 /// Returns the last message referenced from `References` header if it is in the database.
 ///
 /// For Delta Chat messages it is the last message in the chat of the sender.
-///
-/// Note that the returned message may be trashed.
 async fn get_previous_message(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -2729,7 +2775,7 @@ async fn get_previous_message(
     if let Some(field) = mime_parser.get_header(HeaderDef::References) {
         if let Some(rfc724mid) = parse_message_ids(field).last() {
             if let Some((msg_id, _)) = rfc724_mid_exists(context, rfc724mid).await? {
-                return Ok(Some(Message::load_from_db(context, msg_id).await?));
+                return Message::load_from_db_optional(context, msg_id).await;
             }
         }
     }

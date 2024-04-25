@@ -1,6 +1,7 @@
 //! Migrations module.
 
 use anyhow::{Context as _, Result};
+use deltachat_contact_tools::EmailAddress;
 use rusqlite::OptionalExtension;
 
 use crate::config::Config;
@@ -10,7 +11,6 @@ use crate::imap;
 use crate::message::MsgId;
 use crate::provider::get_provider_by_domain;
 use crate::sql::Sql;
-use crate::tools::EmailAddress;
 
 const DBVERSION: i32 = 68;
 const VERSION_CFG: &str = "dbversion";

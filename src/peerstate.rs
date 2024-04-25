@@ -3,6 +3,7 @@
 use std::mem;
 
 use anyhow::{Context as _, Error, Result};
+use deltachat_contact_tools::{addr_cmp, ContactAddress};
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
@@ -10,14 +11,14 @@ use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::contact::{addr_cmp, Contact, ContactAddress, Origin};
+use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
-use crate::stock_str;
+use crate::{chatlist_events, stock_str};
 
 /// Type of the public key stored inside the peerstate.
 #[derive(Debug)]
@@ -722,6 +723,9 @@ impl Peerstate {
             .await?;
         }
 
+        chatlist_events::emit_chatlist_changed(context);
+        // update the chats the contact is part of
+        chatlist_events::emit_chatlist_items_changed_for_contact(context, contact_id);
         Ok(())
     }
 

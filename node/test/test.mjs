@@ -26,6 +26,8 @@ function createTempUser(chatmailDomain) {
 }
 
 describe('static tests', function () {
+  this.timeout(60 * 5 * 1000) // increase timeout to 5 min
+
   it('reverse lookup of events', function () {
     const eventKeys = Object.keys(EventId2EventName).map((k) => Number(k))
     const eventValues = Object.values(EventId2EventName)
@@ -701,7 +703,7 @@ describe('Offline Tests with unconfigured account', function () {
 })
 
 describe('Integration tests', function () {
-  this.timeout(60 * 3000) // increase timeout to 1min
+  this.timeout(60 * 5 * 1000) // increase timeout to 5 min
 
   let [dc, context, accountId, directory, account] = [
     null,

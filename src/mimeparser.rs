@@ -6,6 +6,7 @@ use std::path::Path;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
+use deltachat_contact_tools::{addr_cmp, addr_normalize, strip_rtlo_characters};
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::Mime;
@@ -16,7 +17,7 @@ use crate::blob::BlobObject;
 use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
 use crate::constants::{self, Chattype, DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
-use crate::contact::{addr_cmp, addr_normalize, Contact, ContactId, Origin};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
     keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
@@ -32,13 +33,11 @@ use crate::message::{
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
-use crate::stock_str;
 use crate::sync::SyncItems;
 use crate::tools::{
-    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time,
-    strip_rtlo_characters, truncate_by_lines,
+    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time, truncate_by_lines,
 };
-use crate::{location, tools};
+use crate::{chatlist_events, location, stock_str, tools};
 
 /// A parsed MIME message.
 ///
@@ -498,7 +497,7 @@ impl MimeMessage {
             },
         };
 
-        if parser.mdn_reports.is_empty() {
+        if parser.mdn_reports.is_empty() && parser.webxdc_status_update.is_none() {
             // "Auto-Submitted" is also set by holiday-notices so we also check "chat-version".
             let is_bot = parser.headers.get("auto-submitted")
                 == Some(&"auto-generated".to_string())
@@ -666,32 +665,34 @@ impl MimeMessage {
             self.squash_attachment_parts();
         }
 
-        if let Some(ref subject) = self.get_subject() {
-            let mut prepend_subject = true;
-            if !self.decrypting_failed {
-                let colon = subject.find(':');
-                if colon == Some(2)
-                    || colon == Some(3)
-                    || self.has_chat_version()
-                    || subject.contains("Chat:")
-                {
-                    prepend_subject = false
+        if !context.get_config_bool(Config::Bot).await? {
+            if let Some(ref subject) = self.get_subject() {
+                let mut prepend_subject = true;
+                if !self.decrypting_failed {
+                    let colon = subject.find(':');
+                    if colon == Some(2)
+                        || colon == Some(3)
+                        || self.has_chat_version()
+                        || subject.contains("Chat:")
+                    {
+                        prepend_subject = false
+                    }
                 }
-            }
 
-            // For mailing lists, always add the subject because sometimes there are different topics
-            // and otherwise it might be hard to keep track:
-            if self.is_mailinglist_message() && !self.has_chat_version() {
-                prepend_subject = true;
-            }
+                // For mailing lists, always add the subject because sometimes there are different topics
+                // and otherwise it might be hard to keep track:
+                if self.is_mailinglist_message() && !self.has_chat_version() {
+                    prepend_subject = true;
+                }
 
-            if prepend_subject && !subject.is_empty() {
-                let part_with_text = self
-                    .parts
-                    .iter_mut()
-                    .find(|part| !part.msg.is_empty() && !part.is_reaction);
-                if let Some(part) = part_with_text {
-                    part.msg = format!("{} – {}", subject, part.msg);
+                if prepend_subject && !subject.is_empty() {
+                    let part_with_text = self
+                        .parts
+                        .iter_mut()
+                        .find(|part| !part.msg.is_empty() && !part.is_reaction);
+                    if let Some(part) = part_with_text {
+                        part.msg = format!("{} – {}", subject, part.msg);
+                    }
                 }
             }
         }
@@ -2156,6 +2157,8 @@ async fn handle_mdn(
     {
         update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await?;
         context.emit_event(EventType::MsgRead { chat_id, msg_id });
+        // note(treefit): only matters if it is the last message in chat (but probably too expensive to check, debounce also solves it)
+        chatlist_events::emit_chatlist_item_changed(context, chat_id);
     }
     Ok(())
 }
@@ -3934,5 +3937,32 @@ Content-Disposition: reaction\n\
         assert!(mime_message.timestamp_rcvd <= time());
 
         Ok(())
+    }
+
+    /// Tests that subject is not prepended to the message
+    /// when bot receives it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_bot_no_subject() {
+        let context = TestContext::new().await;
+        context.set_config(Config::Bot, Some("1")).await.unwrap();
+        let raw = br#"Message-ID: <foobar@example.org>
+From: foo <foo@example.org>
+Subject: Some subject
+To: bar@example.org
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+/help
+"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+            .await
+            .unwrap();
+        assert_eq!(message.get_subject(), Some("Some subject".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Text);
+        // Not "Some subject – /help"
+        assert_eq!(message.parts[0].msg, "/help");
     }
 }

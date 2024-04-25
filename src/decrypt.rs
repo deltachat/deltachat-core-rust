@@ -4,12 +4,12 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use anyhow::Result;
+use deltachat_contact_tools::addr_cmp;
 use mailparse::ParsedMail;
 
 use crate::aheader::Aheader;
 use crate::authres::handle_authres;
 use crate::authres::{self, DkimResults};
-use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};

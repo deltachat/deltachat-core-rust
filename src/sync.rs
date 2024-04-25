@@ -571,7 +571,7 @@ mod tests {
         let sent_msg = alice.pop_sent_msg().await;
         let alice2 = TestContext::new_alice().await;
         alice2.set_config_bool(Config::SyncMsgs, true).await?;
-        alice2.recv_msg(&sent_msg).await;
+        alice2.recv_msg_trash(&sent_msg).await;
         assert!(token::exists(&alice2, token::Namespace::Auth, "testtoken").await?);
         assert_eq!(Chatlist::try_load(&alice2, 0, None, None).await?.len(), 0);
 

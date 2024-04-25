@@ -2994,11 +2994,15 @@ async fn test_long_and_duplicated_filenames() -> Result<()> {
             let resulting_filename = msg.get_filename().unwrap();
             assert_eq!(resulting_filename, filename);
             let path = msg.get_file(t).unwrap();
+            let path2 = path.with_file_name("saved.txt");
+            msg.save_file(t, &path2).await.unwrap();
             assert!(
                 path.to_str().unwrap().ends_with(".tar.gz"),
                 "path {path:?} doesn't end with .tar.gz"
             );
-            assert_eq!(fs::read_to_string(path).await.unwrap(), content);
+            assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
+            assert_eq!(fs::read_to_string(&path2).await.unwrap(), content);
+            fs::remove_file(path2).await.unwrap();
         }
         check_message(&msg_alice, &alice, filename_sent, &content).await;
         check_message(&msg_bob, &bob, filename_sent, &content).await;
@@ -4014,8 +4018,7 @@ async fn test_member_left_does_not_create_chat() -> Result<()> {
     // which some members simply deleted and some members left,
     // recreating the chat for others.
     remove_contact_from_chat(&alice, alice_chat_id, ContactId::SELF).await?;
-    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
-    assert!(bob_chat_id.is_trash());
+    bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
 
     Ok(())
 }
@@ -4365,8 +4368,8 @@ async fn test_forged_from() -> Result<()> {
         .payload
         .replace("bob@example.net", "notbob@example.net");
 
-    let msg = alice.recv_msg(&sent_msg).await;
-    assert!(msg.chat_id.is_trash());
+    let msg = alice.recv_msg_opt(&sent_msg).await;
+    assert!(msg.is_none());
     Ok(())
 }
 

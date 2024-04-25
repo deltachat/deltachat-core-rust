@@ -21,6 +21,7 @@ use std::fmt;
 use anyhow::Result;
 
 use crate::chat::{send_msg, Chat, ChatId};
+use crate::chatlist_events;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
@@ -214,6 +215,7 @@ async fn set_msg_id_reaction(
         msg_id,
         contact_id,
     });
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
     Ok(())
 }
 
@@ -338,55 +340,55 @@ impl Chat {
         context: &Context,
         timestamp: i64,
     ) -> Result<Option<(Message, ContactId, String)>> {
-        if let Some(reaction_timestamp) = self.param.get_i64(Param::LastReactionTimestamp) {
-            if reaction_timestamp > timestamp {
-                let reaction_msg_id = MsgId::new(
-                    self.param
-                        .get_int(Param::LastReactionMsgId)
-                        .unwrap_or_default() as u32,
-                );
-                // The message reacted to may be deleted physically (`load_from_db()` fails) or marked as a tombstone (`is_trash()`).
-                // These are no errors as `Param::LastReaction*` are just weak pointers.
-                // Instead, just return `Ok(None)` and let the caller create another summary.
-                if let Some(reaction_msg) =
-                    Message::load_from_db_optional(context, reaction_msg_id).await?
-                {
-                    if !reaction_msg.chat_id.is_trash() {
-                        let reaction_contact_id = ContactId::new(
-                            self.param
-                                .get_int(Param::LastReactionContactId)
-                                .unwrap_or_default() as u32,
-                        );
-                        if let Some(reaction) = context
-                            .sql
-                            .query_row_optional(
-                                r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
-                                (reaction_msg.id, reaction_contact_id),
-                                |row| {
-                                    let reaction: String = row.get(0)?;
-                                    Ok(reaction)
-                                },
-                            )
-                            .await?
-                        {
-                            return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
-                        }
-                    }
-                }
-            }
+        if self
+            .param
+            .get_i64(Param::LastReactionTimestamp)
+            .filter(|&reaction_timestamp| reaction_timestamp > timestamp)
+            .is_none()
+        {
+            return Ok(None);
+        };
+        let reaction_msg_id = MsgId::new(
+            self.param
+                .get_int(Param::LastReactionMsgId)
+                .unwrap_or_default() as u32,
+        );
+        let Some(reaction_msg) = Message::load_from_db_optional(context, reaction_msg_id).await?
+        else {
+            // The message reacted to may be deleted.
+            // These are no errors as `Param::LastReaction*` are just weak pointers.
+            // Instead, just return `Ok(None)` and let the caller create another summary.
+            return Ok(None);
+        };
+        let reaction_contact_id = ContactId::new(
+            self.param
+                .get_int(Param::LastReactionContactId)
+                .unwrap_or_default() as u32,
+        );
+        if let Some(reaction) = context
+            .sql
+            .query_get_value(
+                "SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?",
+                (reaction_msg.id, reaction_contact_id),
+            )
+            .await?
+        {
+            Ok(Some((reaction_msg, reaction_contact_id, reaction)))
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use deltachat_contact_tools::ContactAddress;
+
     use super::*;
     use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};
     use crate::chatlist::Chatlist;
     use crate::config::Config;
-    use crate::constants::DC_CHAT_ID_TRASH;
-    use crate::contact::{Contact, ContactAddress, Origin};
+    use crate::contact::{Contact, Origin};
     use crate::download::DownloadState;
     use crate::message::{delete_msgs, MessageState};
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
@@ -594,8 +596,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
-        let alice_reaction_msg = alice.recv_msg_opt(&bob_reaction_msg).await.unwrap();
-        assert_eq!(alice_reaction_msg.chat_id, DC_CHAT_ID_TRASH);
+        alice.recv_msg_trash(&bob_reaction_msg).await;
         assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 2);
 
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
@@ -648,8 +649,7 @@ Here's my footer -- bob@example.net"
         bob_msg1.chat_id.accept(&bob).await?;
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
-        let alice_rcvd_reaction = alice.recv_msg(&bob_send_reaction).await;
-        assert!(alice_rcvd_reaction.get_timestamp() > bob_msg1.get_timestamp());
+        alice.recv_msg_trash(&bob_send_reaction).await;
 
         let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
         let summary = chatlist.get_summary(&bob, 0, None).await?;
@@ -664,7 +664,7 @@ Here's my footer -- bob@example.net"
         SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
-        bob.recv_msg(&alice_send_reaction).await;
+        bob.recv_msg_opt(&alice_send_reaction).await;
 
         assert_summary(&alice, "You reacted 🍿 to \"Party?\"").await;
         assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
@@ -681,7 +681,7 @@ Here's my footer -- bob@example.net"
         SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "🤘").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
-        bob.recv_msg(&alice_send_reaction).await;
+        bob.recv_msg_opt(&alice_send_reaction).await;
 
         assert_summary(&alice, "You reacted 🤘 to \"Party?\"").await;
         assert_summary(&bob, "ALICE reacted 🤘 to \"Party?\"").await;
@@ -690,7 +690,7 @@ Here's my footer -- bob@example.net"
         SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "").await?;
         let alice_remove_reaction = alice.pop_sent_msg().await;
-        bob.recv_msg(&alice_remove_reaction).await;
+        bob.recv_msg_opt(&alice_remove_reaction).await;
 
         assert_summary(&alice, "kewl").await;
         assert_summary(&bob, "kewl").await;
@@ -807,7 +807,7 @@ Here's my footer -- bob@example.net"
         let bob_reaction_msg = bob.pop_sent_msg().await;
 
         // Alice receives a reaction.
-        alice.recv_msg_opt(&bob_reaction_msg).await.unwrap();
+        alice.recv_msg_trash(&bob_reaction_msg).await;
 
         let reactions = get_msg_reactions(&alice, alice_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍1");
@@ -859,7 +859,7 @@ Here's my footer -- bob@example.net"
         {
             send_reaction(&alice2, alice2_msg.id, "👍").await?;
             let msg = alice2.pop_sent_msg().await;
-            alice1.recv_msg(&msg).await;
+            alice1.recv_msg_trash(&msg).await;
         }
 
         // Check that the status is still the same.
@@ -881,7 +881,7 @@ Here's my footer -- bob@example.net"
         let alice1_msg = alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
         send_reaction(&alice0, alice0_msg_id, "👀").await?;
-        alice1.recv_msg(&alice0.pop_sent_msg().await).await;
+        alice1.recv_msg_trash(&alice0.pop_sent_msg().await).await;
 
         expect_reactions_changed_event(&alice0, chat_id, alice0_msg_id, ContactId::SELF).await?;
         expect_reactions_changed_event(&alice1, alice1_msg.chat_id, alice1_msg.id, ContactId::SELF)

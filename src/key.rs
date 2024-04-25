@@ -6,6 +6,7 @@ use std::io::Cursor;
 
 use anyhow::{ensure, Context as _, Result};
 use base64::Engine as _;
+use deltachat_contact_tools::EmailAddress;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
@@ -18,7 +19,7 @@ use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::log::LogExt;
 use crate::pgp::KeyPair;
-use crate::tools::{self, time_elapsed, EmailAddress};
+use crate::tools::{self, time_elapsed};
 
 /// Convenience trait for working with keys.
 ///

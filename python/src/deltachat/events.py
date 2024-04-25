@@ -328,10 +328,12 @@ class EventThread(threading.Thread):
         elif name == "DC_EVENT_REACTIONS_CHANGED":
             assert ffi_event.data1 > 0
             msg = account.get_message_by_id(ffi_event.data2)
-            yield "ac_reactions_changed", {"message": msg}
+            if msg is not None:
+                yield "ac_reactions_changed", {"message": msg}
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = account.get_message_by_id(ffi_event.data2)
-            yield "ac_message_delivered", {"message": msg}
+            if msg is not None:
+                yield "ac_message_delivered", {"message": msg}
         elif name == "DC_EVENT_CHAT_MODIFIED":
             chat = account.get_chat_by_id(ffi_event.data1)
             yield "ac_chat_modified", {"chat": chat}

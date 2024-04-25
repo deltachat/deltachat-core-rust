@@ -8,6 +8,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
+use deltachat_contact_tools::{strip_rtlo_characters, ContactAddress};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -15,13 +16,14 @@ use strum_macros::EnumIter;
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
 use crate::chatlist::Chatlist;
+use crate::chatlist_events;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
     self, Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
     DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
-use crate::contact::{self, Contact, ContactAddress, ContactId, Origin};
+use crate::contact::{self, Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
@@ -43,7 +45,7 @@ use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
-    smeared_time, strip_rtlo_characters, time, IsNoneOrEmpty, SystemTime,
+    smeared_time, time, IsNoneOrEmpty, SystemTime,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 
@@ -209,24 +211,11 @@ impl ChatId {
     }
 
     /// Returns [`ChatId`] of a chat that `msg` belongs to.
-    ///
-    /// Checks that `msg` is assigned to the right chat.
     pub(crate) fn lookup_by_message(msg: &Message) -> Option<Self> {
         if msg.chat_id == DC_CHAT_ID_TRASH {
             return None;
         }
-        if msg.download_state != DownloadState::Done
-            // TODO (2023-09-12): Added for backward compatibility with versions that did not have
-            // `DownloadState::Undecipherable`. Remove eventually with the comment in
-            // `MimeMessage::from_bytes()`.
-            || msg
-                .error
-                .as_ref()
-                .filter(|e| e.starts_with("Decrypting failed:"))
-                .is_some()
-        {
-            // If `msg` is not fully downloaded or undecipherable, it may have been assigned to the
-            // wrong chat (they often get assigned to the 1:1 chat with the sender).
+        if msg.download_state == DownloadState::Undecipherable {
             return None;
         }
         Some(msg.chat_id)
@@ -308,6 +297,8 @@ impl ChatId {
             }
         };
         context.emit_msgs_changed_without_ids();
+        chatlist_events::emit_chatlist_changed(context);
+        chatlist_events::emit_chatlist_item_changed(context, chat_id);
         Ok(chat_id)
     }
 
@@ -424,6 +415,7 @@ impl ChatId {
                 }
             }
         }
+        chatlist_events::emit_chatlist_changed(context);
 
         if sync.into() {
             // NB: For a 1:1 chat this currently triggers `Contact::block()` on other devices.
@@ -446,6 +438,8 @@ impl ChatId {
     pub(crate) async fn unblock_ex(self, context: &Context, sync: sync::Sync) -> Result<()> {
         self.set_blocked(context, Blocked::Not).await?;
 
+        chatlist_events::emit_chatlist_changed(context);
+
         if sync.into() {
             let chat = Chat::load_from_db(context, self).await?;
             // TODO: For a 1:1 chat this currently triggers `Contact::unblock()` on other devices.
@@ -456,6 +450,7 @@ impl ChatId {
                 .log_err(context)
                 .ok();
         }
+
         Ok(())
     }
 
@@ -499,6 +494,7 @@ impl ChatId {
 
         if self.set_blocked(context, Blocked::Not).await? {
             context.emit_event(EventType::ChatModified(self));
+            chatlist_events::emit_chatlist_item_changed(context, self);
         }
 
         if sync.into() {
@@ -541,6 +537,7 @@ impl ChatId {
             .await?;
 
         context.emit_event(EventType::ChatModified(self));
+        chatlist_events::emit_chatlist_item_changed(context, self);
 
         // make sure, the receivers will get all keys
         self.reset_gossiped_timestamp(context).await?;
@@ -589,6 +586,7 @@ impl ChatId {
                 if protection_status_modified {
                     self.add_protection_msg(context, protect, contact_id, timestamp_sort)
                         .await?;
+                    chatlist_events::emit_chatlist_item_changed(context, self);
                 }
                 Ok(())
             }
@@ -675,6 +673,8 @@ impl ChatId {
             .await?;
 
         context.emit_msgs_changed_without_ids();
+        chatlist_events::emit_chatlist_changed(context);
+        chatlist_events::emit_chatlist_item_changed(context, self);
 
         if sync.into() {
             let chat = Chat::load_from_db(context, self).await?;
@@ -781,6 +781,7 @@ impl ChatId {
             .await?;
 
         context.emit_msgs_changed_without_ids();
+        chatlist_events::emit_chatlist_changed(context);
 
         context
             .set_config_internal(Config::LastHousekeeping, None)
@@ -792,6 +793,7 @@ impl ChatId {
             msg.text = stock_str::self_deleted_msg_body(context).await;
             add_device_msg(context, None, Some(&mut msg)).await?;
         }
+        chatlist_events::emit_chatlist_changed(context);
 
         Ok(())
     }
@@ -2047,6 +2049,7 @@ impl Chat {
             msg.id = MsgId::new(u32::try_from(raw_id)?);
 
             maybe_set_logging_xdc(context, msg, self.id).await?;
+            context.update_webxdc_integration_database(msg).await?;
         }
         context.scheduler.interrupt_ephemeral_task().await;
         Ok(msg.id)
@@ -2712,7 +2715,7 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         }
 
         if msg.param.exists(Param::SetLatitude) {
-            context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
+            context.emit_location_changed(Some(ContactId::SELF)).await?;
         }
 
         context.scheduler.interrupt_smtp().await;
@@ -2777,6 +2780,11 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
             .any(|x| x.to_lowercase() == lowercase_from)
     {
         recipients.push(from);
+    }
+
+    // Webxdc integrations are messages, however, shipped with main app and must not be sent out
+    if msg.param.get_int(Param::WebxdcIntegration).is_some() {
+        recipients.clear();
     }
 
     if recipients.is_empty() {
@@ -3116,7 +3124,9 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             .await?;
         for chat_id_in_archive in chat_ids_in_archive {
             context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
+            chatlist_events::emit_chatlist_item_changed(context, chat_id_in_archive);
         }
+        chatlist_events::emit_chatlist_item_changed(context, DC_CHAT_ID_ARCHIVED_LINK);
     } else {
         let exists = context
             .sql
@@ -3143,6 +3153,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
     }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
 
     Ok(())
 }
@@ -3210,6 +3221,7 @@ pub(crate) async fn mark_old_messages_as_noticed(
 
     for c in changed_chats {
         context.emit_event(EventType::MsgsNoticed(c));
+        chatlist_events::emit_chatlist_item_changed(context, c);
     }
 
     Ok(())
@@ -3372,6 +3384,8 @@ pub async fn create_group_chat(
     }
 
     context.emit_msgs_changed_without_ids();
+    chatlist_events::emit_chatlist_changed(context);
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
 
     if protect == ProtectionStatus::Protected {
         chat_id
@@ -3459,11 +3473,14 @@ pub(crate) async fn create_broadcast_list_ex(
     let chat_id = ChatId::new(u32::try_from(row_id)?);
 
     context.emit_msgs_changed_without_ids();
+    chatlist_events::emit_chatlist_changed(context);
+
     if sync.into() {
         let id = SyncId::Grpid(grpid);
         let action = SyncAction::CreateBroadcast(chat_name);
         self::sync(context, id, action).await.log_err(context).ok();
     }
+
     Ok(chat_id)
 }
 
@@ -3734,6 +3751,7 @@ pub(crate) async fn set_muted_ex(
         .await
         .context(format!("Failed to set mute duration for {chat_id}"))?;
     context.emit_event(EventType::ChatModified(chat_id));
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
     if sync.into() {
         let chat = Chat::load_from_db(context, chat_id).await?;
         chat.sync(context, SyncAction::SetMuted(duration))
@@ -3894,6 +3912,7 @@ async fn rename_ex(
                 sync = Nosync;
             }
             context.emit_event(EventType::ChatModified(chat_id));
+            chatlist_events::emit_chatlist_item_changed(context, chat_id);
             success = true;
         }
     }
@@ -3954,6 +3973,7 @@ pub async fn set_chat_profile_image(
         context.emit_msgs_changed(chat_id, msg.id);
     }
     context.emit_event(EventType::ChatModified(chat_id));
+    chatlist_events::emit_chatlist_item_changed(context, chat_id);
     Ok(())
 }
 
@@ -4100,6 +4120,8 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             msg_id: msg.id,
         });
         msg.timestamp_sort = create_smeared_timestamp(context);
+        // note(treefit): only matters if it is the last message in chat (but probably to expensive to check, debounce also solves it)
+        chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
         if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
             context.scheduler.interrupt_smtp().await;
         }

@@ -1007,8 +1007,6 @@ pub fn repeat_vars(count: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use async_channel as channel;
-
     use super::*;
     use crate::{test_utils::TestContext, EventType};
 
@@ -1085,8 +1083,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (event_sink, event_source) = channel::unbounded();
-        t.add_event_sender(event_sink).await;
+        let event_source = t.get_event_emitter();
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(avatar_bytes, &tokio::fs::read(&a).await.unwrap()[..]);

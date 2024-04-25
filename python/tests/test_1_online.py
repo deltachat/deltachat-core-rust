@@ -1343,7 +1343,6 @@ def test_quote_encrypted(acfactory, lp):
 
     for quoted_msg in msg1, msg3:
         # Save the draft with a quote.
-        # It should be encrypted if quoted message is encrypted.
         msg_draft = Message.new_empty(ac1, "text")
         msg_draft.set_text("message reply")
         msg_draft.quote = quoted_msg
@@ -1357,10 +1356,14 @@ def test_quote_encrypted(acfactory, lp):
         chat.set_draft(None)
         assert chat.get_draft() is None
 
+        # Quote should be replaced with "..." if quoted message is encrypted.
         msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == "message reply"
-        assert msg_in.quoted_text == quoted_msg.text
-        assert msg_in.is_encrypted() == quoted_msg.is_encrypted()
+        assert not msg_in.is_encrypted()
+        if quoted_msg.is_encrypted():
+            assert msg_in.quoted_text == "..."
+        else:
+            assert msg_in.quoted_text == quoted_msg.text
 
 
 def test_quote_attachment(tmp_path, acfactory, lp):

@@ -35,6 +35,7 @@
             ./CMakeLists.txt
             ./CONTRIBUTING.md
             ./deltachat_derive
+            ./deltachat-contact-tools
             ./deltachat-ffi
             ./deltachat-jsonrpc
             ./deltachat-ratelimit
@@ -482,6 +483,7 @@
                 format = "pyproject";
                 propagatedBuildInputs = [
                   pkgs.python3Packages.setuptools
+                  pkgs.python3Packages.imap-tools
                 ];
               };
 
@@ -525,15 +527,12 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            (fenixPkgs.complete.withComponents [
-              "cargo"
-              "clippy"
-              "rust-src"
-              "rustc"
-              "rustfmt"
-            ])
+            cargo
+            clippy
+            rustc
+            rustfmt
+            rust-analyzer
             cargo-deny
-            fenixPkgs.rust-analyzer
             perl # needed to build vendored OpenSSL
           ];
         };

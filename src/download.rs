@@ -13,7 +13,7 @@ use crate::imap::session::Session;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
 use crate::tools::time;
-use crate::{stock_str, EventType};
+use crate::{chatlist_events, stock_str, EventType};
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
 ///
@@ -115,6 +115,7 @@ impl MsgId {
             chat_id: msg.chat_id,
             msg_id: self,
         });
+        chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
         Ok(())
     }
 }
@@ -448,10 +449,9 @@ mod tests {
         )
         .await?;
         assert_eq!(get_chat_msgs(&bob, chat_id).await?.len(), 0);
-        assert!(Message::load_from_db(&bob, msg.id)
+        assert!(Message::load_from_db_optional(&bob, msg.id)
             .await?
-            .chat_id
-            .is_trash());
+            .is_none());
 
         Ok(())
     }
@@ -507,10 +507,9 @@ mod tests {
         // (usually mdn are too small for not being downloaded directly)
         receive_imf_from_inbox(&bob, "bar@example.org", raw, false, None, false).await?;
         assert_eq!(get_chat_msgs(&bob, chat_id).await?.len(), 0);
-        assert!(Message::load_from_db(&bob, msg.id)
+        assert!(Message::load_from_db_optional(&bob, msg.id)
             .await?
-            .chat_id
-            .is_trash());
+            .is_none());
 
         Ok(())
     }

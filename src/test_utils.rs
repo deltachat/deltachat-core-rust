@@ -13,12 +13,12 @@ use std::time::{Duration, Instant};
 use ansi_term::Color;
 use async_channel::{self as channel, Receiver, Sender};
 use chat::ChatItem;
+use deltachat_contact_tools::{ContactAddress, EmailAddress};
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
 use tokio::runtime::Handle;
-use tokio::sync::RwLock;
 use tokio::{fs, task};
 
 use crate::chat::{
@@ -27,12 +27,13 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::config::Config;
+use crate::constants::DC_CHAT_ID_TRASH;
 use crate::constants::DC_GCL_NO_SPECIALS;
 use crate::constants::{Blocked, Chattype};
-use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
+use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
-use crate::events::{Event, EventType, Events};
+use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{self, DcKey, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
@@ -41,12 +42,11 @@ use crate::pgp::KeyPair;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
-use crate::tools::EmailAddress;
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
 
-/// Map of [`Context::id`] to names for [`TestContext`]s.
+/// Map of context IDs to names for [`TestContext`]s.
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
@@ -56,20 +56,19 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
 /// occurred rather than grouped by context like would happen when you use separate
 /// [`TestContext`]s without managing your own [`LogSink`].
 pub struct TestContextManager {
-    log_tx: Sender<LogEvent>,
-    _log_sink: LogSink,
+    log_sink: LogSink,
 }
 
 impl TestContextManager {
     pub fn new() -> Self {
-        let (log_tx, _log_sink) = LogSink::create();
-        Self { log_tx, _log_sink }
+        let log_sink = LogSink::new();
+        Self { log_sink }
     }
 
     pub async fn alice(&mut self) -> TestContext {
         TestContext::builder()
             .configure_alice()
-            .with_log_sink(self.log_tx.clone())
+            .with_log_sink(self.log_sink.clone())
             .build()
             .await
     }
@@ -77,7 +76,7 @@ impl TestContextManager {
     pub async fn bob(&mut self) -> TestContext {
         TestContext::builder()
             .configure_bob()
-            .with_log_sink(self.log_tx.clone())
+            .with_log_sink(self.log_sink.clone())
             .build()
             .await
     }
@@ -85,7 +84,7 @@ impl TestContextManager {
     pub async fn fiona(&mut self) -> TestContext {
         TestContext::builder()
             .configure_fiona()
-            .with_log_sink(self.log_tx.clone())
+            .with_log_sink(self.log_sink.clone())
             .build()
             .await
     }
@@ -93,7 +92,7 @@ impl TestContextManager {
     /// Creates a new unconfigured test account.
     pub async fn unconfigured(&mut self) -> TestContext {
         TestContext::builder()
-            .with_log_sink(self.log_tx.clone())
+            .with_log_sink(self.log_sink.clone())
             .build()
             .await
     }
@@ -102,7 +101,8 @@ impl TestContextManager {
     ///
     /// ========== `msg` goes here ==========
     pub fn section(&self, msg: &str) {
-        self.log_tx
+        self.log_sink
+            .sender
             .try_send(LogEvent::Section(msg.to_string()))
             .expect(
             "The events channel should be unbounded and not closed, so try_send() shouldn't fail",
@@ -179,9 +179,9 @@ impl TestContextManager {
 
         loop {
             if let Some(sent) = scanner.pop_sent_msg_opt(Duration::ZERO).await {
-                scanned.recv_msg(&sent).await;
+                scanned.recv_msg_opt(&sent).await;
             } else if let Some(sent) = scanned.pop_sent_msg_opt(Duration::ZERO).await {
-                scanner.recv_msg(&sent).await;
+                scanner.recv_msg_opt(&sent).await;
             } else {
                 break;
             }
@@ -189,30 +189,31 @@ impl TestContextManager {
     }
 }
 
+/// Builder for the [TestContext].
 #[derive(Debug, Clone, Default)]
 pub struct TestContextBuilder {
     key_pair: Option<KeyPair>,
-    log_sink: Option<Sender<LogEvent>>,
+    log_sink: LogSink,
 }
 
 impl TestContextBuilder {
     /// Configures as alice@example.org with fixed secret key.
     ///
-    /// This is a shortcut for `.with_key_pair(alice_keypair()).
+    /// This is a shortcut for `.with_key_pair(alice_keypair())`.
     pub fn configure_alice(self) -> Self {
         self.with_key_pair(alice_keypair())
     }
 
     /// Configures as bob@example.net with fixed secret key.
     ///
-    /// This is a shortcut for `.with_key_pair(bob_keypair()).
+    /// This is a shortcut for `.with_key_pair(bob_keypair())`.
     pub fn configure_bob(self) -> Self {
         self.with_key_pair(bob_keypair())
     }
 
     /// Configures as fiona@example.net with fixed secret key.
     ///
-    /// This is a shortcut for `.with_key_pair(bob_keypair()).
+    /// This is a shortcut for `.with_key_pair(fiona_keypair())`.
     pub fn configure_fiona(self) -> Self {
         self.with_key_pair(fiona_keypair())
     }
@@ -232,8 +233,8 @@ impl TestContextBuilder {
     /// using a single [`LogSink`] for both contexts.  This shows the log messages in
     /// sequence as they occurred rather than all messages from each context in a single
     /// block.
-    pub fn with_log_sink(mut self, sink: Sender<LogEvent>) -> Self {
-        self.log_sink = Some(sink);
+    pub fn with_log_sink(mut self, sink: LogSink) -> Self {
+        self.log_sink = sink;
         self
     }
 
@@ -241,7 +242,7 @@ impl TestContextBuilder {
     pub async fn build(self) -> TestContext {
         let name = self.key_pair.as_ref().map(|key| key.addr.local.clone());
 
-        let test_context = TestContext::new_internal(name, self.log_sink).await;
+        let test_context = TestContext::new_internal(name, Some(self.log_sink.clone())).await;
 
         if let Some(key_pair) = self.key_pair {
             test_context
@@ -256,26 +257,24 @@ impl TestContextBuilder {
 }
 
 /// A Context and temporary directory.
-///
-/// The temporary directory can be used to store the SQLite database,
-/// see e.g. [test_context] which does this.
 #[derive(Debug)]
 pub struct TestContext {
     pub ctx: Context,
+
+    /// Temporary directory used to store SQLite database.
     pub dir: TempDir,
+
     pub evtracker: EventTracker,
-    /// Channels which should receive events from this context.
-    event_senders: Arc<RwLock<Vec<Sender<Event>>>>,
+
     /// Reference to implicit [`LogSink`] so it is dropped together with the context.
     ///
     /// Only used if no explicit `log_sender` is passed into [`TestContext::new_internal`]
     /// (which is assumed to be the sending end of a [`LogSink`]).
     ///
     /// This is a convenience in case only a single [`TestContext`] is used to avoid dealing
-    /// with [`LogSink`].  Never read, thus "dead code", since the only purpose is to
+    /// with [`LogSink`].  Never read, since the only purpose is to
     /// control when Drop is invoked.
-    #[allow(dead_code)]
-    log_sink: Option<LogSink>,
+    _log_sink: Option<LogSink>,
 }
 
 impl TestContext {
@@ -297,9 +296,7 @@ impl TestContext {
 
     /// Creates a new configured [`TestContext`].
     ///
-    /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
-    /// creating the context.
-    /// alice-email: alice@example.org
+    /// This is a shortcut which configures alice@example.org with a fixed key.
     pub async fn new_alice() -> Self {
         Self::builder().configure_alice().build().await
     }
@@ -337,7 +334,7 @@ impl TestContext {
     /// `log_sender` is assumed to be the sender for a [`LogSink`].  If not supplied a new
     /// [`LogSink`] will be created so that events are logged to this test when the
     /// [`TestContext`] is dropped.
-    async fn new_internal(name: Option<String>, log_sender: Option<Sender<LogEvent>>) -> Self {
+    async fn new_internal(name: Option<String>, log_sink: Option<LogSink>) -> Self {
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         let id = rand::thread_rng().gen();
@@ -345,34 +342,22 @@ impl TestContext {
             let mut context_names = CONTEXT_NAMES.write().unwrap();
             context_names.insert(id, name);
         }
-        let ctx = Context::new(&dbfile, id, Events::new(), StockStrings::new())
+        let events = Events::new();
+        let evtracker_receiver = events.get_emitter();
+        let ctx = Context::new(&dbfile, id, events, StockStrings::new())
             .await
             .expect("failed to create context");
 
-        let events = ctx.get_event_emitter();
-
-        let (log_sender, log_sink) = match log_sender {
-            Some(sender) => (sender, None),
-            None => {
-                let (sender, sink) = LogSink::create();
-                (sender, Some(sink))
-            }
+        let _log_sink = if let Some(log_sink) = log_sink {
+            // Subscribe existing LogSink and don't store reference to it.
+            log_sink.subscribe(ctx.get_event_emitter());
+            None
+        } else {
+            // Create new LogSink and store it inside the `TestContext`.
+            let log_sink = LogSink::new();
+            log_sink.subscribe(ctx.get_event_emitter());
+            Some(log_sink)
         };
-
-        let (evtracker_sender, evtracker_receiver) = channel::unbounded();
-        let event_senders = Arc::new(RwLock::new(vec![evtracker_sender]));
-        let senders = Arc::clone(&event_senders);
-
-        task::spawn(async move {
-            while let Some(event) = events.recv().await {
-                for sender in senders.read().await.iter() {
-                    // Don't block because someone wanted to use a oneshot receiver, use
-                    // an unbounded channel if you want all events.
-                    sender.try_send(event.clone()).ok();
-                }
-                log_sender.try_send(LogEvent::Event(event.clone())).ok();
-            }
-        });
 
         ctx.set_config(Config::SkipStartMessages, Some("1"))
             .await
@@ -383,8 +368,7 @@ impl TestContext {
             ctx,
             dir,
             evtracker: EventTracker(evtracker_receiver),
-            event_senders,
-            log_sink,
+            _log_sink,
         }
     }
 
@@ -405,14 +389,6 @@ impl TestContext {
         let context_names = CONTEXT_NAMES.read().unwrap();
         let id = &self.ctx.id;
         context_names.get(id).unwrap_or(&id.to_string()).to_string()
-    }
-
-    /// Adds a new [`Event`]s sender.
-    ///
-    /// Once added, all events emitted by this context will be sent to this channel.  This
-    /// is useful if you need to wait for events or make assertions on them.
-    pub async fn add_event_sender(&self, sink: Sender<Event>) {
-        self.event_senders.write().await.push(sink)
     }
 
     /// Configure as a given email address.
@@ -497,7 +473,7 @@ impl TestContext {
     ///
     /// Parsing a message does not run the entire receive pipeline, but is not without
     /// side-effects either.  E.g. if the message includes autocrypt headers the relevant
-    /// peerstates will be updated.  Later receiving the message using [recv_msg] is
+    /// peerstates will be updated.  Later receiving the message using [Self.recv_msg()] is
     /// unlikely to be affected as the peerstate would be processed again in exactly the
     /// same way.
     pub(crate) async fn parse_msg(&self, msg: &SentMessage<'_>) -> MimeMessage {
@@ -537,6 +513,16 @@ impl TestContext {
         receive_imf(self, msg.payload().as_bytes(), false)
             .await
             .unwrap()
+            .filter(|msg| msg.chat_id != DC_CHAT_ID_TRASH)
+    }
+
+    /// Recevies a message and asserts that it goes to trash chat.
+    pub async fn recv_msg_trash(&self, msg: &SentMessage<'_>) {
+        let received = receive_imf(self, msg.payload().as_bytes(), false)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(received.chat_id, DC_CHAT_ID_TRASH);
     }
 
     /// Gets the most recent message of a chat.
@@ -839,22 +825,62 @@ pub enum LogEvent {
 /// This sink achieves this by printing the events, in the order received, at the time it is
 /// dropped.  Thus to use you must only make sure this sink is dropped in the test itself.
 ///
-/// To use this create an instance using [`LogSink::create`] and then use the
-/// [`TestContextBuilder::with_log_sink`].
-#[derive(Debug)]
-pub struct LogSink {
-    events: Receiver<LogEvent>,
-}
+/// To use this create an instance using [`LogSink::new`] and then use the
+/// [`TestContextBuilder::with_log_sink`] or use [`TestContextManager`].
+#[derive(Debug, Clone, Default)]
+pub struct LogSink(Arc<InnerLogSink>);
 
 impl LogSink {
     /// Creates a new [`LogSink`] and returns the attached event sink.
-    pub fn create() -> (Sender<LogEvent>, Self) {
-        let (tx, rx) = channel::unbounded();
-        (tx, Self { events: rx })
+    pub fn new() -> Self {
+        Default::default()
     }
 }
 
-impl Drop for LogSink {
+impl Deref for LogSink {
+    type Target = InnerLogSink;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug)]
+pub struct InnerLogSink {
+    events: Receiver<LogEvent>,
+
+    /// Sender side of the log receiver.
+    ///
+    /// It is cloned when log sink is subscribed
+    /// to new event emitter
+    /// and can be used directly from the test to
+    /// add "sections" to the log.
+    sender: Sender<LogEvent>,
+}
+
+impl Default for InnerLogSink {
+    fn default() -> Self {
+        let (tx, rx) = channel::unbounded();
+        Self {
+            events: rx,
+            sender: tx,
+        }
+    }
+}
+
+impl InnerLogSink {
+    /// Subscribes this log sink to event emitter.
+    pub fn subscribe(&self, event_emitter: EventEmitter) {
+        let sender = self.sender.clone();
+        task::spawn(async move {
+            while let Some(event) = event_emitter.recv().await {
+                sender.try_send(LogEvent::Event(event.clone())).ok();
+            }
+        });
+    }
+}
+
+impl Drop for InnerLogSink {
     fn drop(&mut self) {
         while let Ok(event) = self.events.try_recv() {
             print_logevent(&event);
@@ -965,10 +991,10 @@ pub fn fiona_keypair() -> KeyPair {
 /// be attached to a single [`TestContext`] and therefore the context is already known as
 /// you will be accessing it as [`TestContext::evtracker`].
 #[derive(Debug)]
-pub struct EventTracker(Receiver<Event>);
+pub struct EventTracker(EventEmitter);
 
 impl Deref for EventTracker {
-    type Target = Receiver<Event>;
+    type Target = EventEmitter;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1012,6 +1038,11 @@ impl EventTracker {
     pub async fn wait_next_incoming_message(&self) {
         self.get_matching(|evt| matches!(evt, EventType::IncomingMsg { .. }))
             .await;
+    }
+
+    /// Clears event queue.
+    pub fn clear_events(&self) {
+        while let Ok(_ev) = self.try_recv() {}
     }
 }
 
@@ -1069,7 +1100,8 @@ pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 /// alice0's side that implies sending a sync message.
 pub(crate) async fn sync(alice0: &TestContext, alice1: &TestContext) {
     let sync_msg = alice0.pop_sent_msg().await;
-    alice1.recv_msg(&sync_msg).await;
+    let no_msg = alice1.recv_msg_opt(&sync_msg).await;
+    assert!(no_msg.is_none());
 }
 
 /// Pretty-print an event to stdout

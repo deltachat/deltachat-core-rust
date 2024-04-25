@@ -1,5 +1,114 @@
 # Changelog
 
+## [1.137.4] - 2024-04-24
+
+### API-Changes
+
+- [**breaking**] Remove `Stream` implementation for `EventEmitter`.
+- Experimental Webxdc Integration API, Maps Integration ([#5461](https://github.com/deltachat/deltachat-core-rust/pull/5461)).
+
+### Features / Changes
+
+- Add progressive backoff for failing IMAP connection attempts ([#5443](https://github.com/deltachat/deltachat-core-rust/pull/5443)).
+- Replace event channel with broadcast channel.
+- Mark contact request messages as seen on IMAP.
+
+### Fixes
+
+- Convert images to RGB8 (without alpha) before encoding into JPEG to fix sending of large RGBA images.
+- Don't set `is_bot` for webxdc status updates ([#5445](https://github.com/deltachat/deltachat-core-rust/pull/5445)).
+- Do not fail if Autocrypt Setup Message has no encryption preference to fix key transfer from K-9 Mail to Delta Chat.
+- Use only CRLF in Autocrypt Setup Message.
+- python: Use cached message object if `dc_get_msg()` returns `NULL`.
+- python: `Message::is_outgoing`: Don't reload message from db.
+- python: `_map_ffi_event`: Always check if `get_message_by_id()` returned None.
+- node: Undefine `NAPI_EXPERIMENTAL` to fix build with new clang.
+
+### Build system
+
+- nix: Add `imap-tools` as `deltachat-rpc-client` dependency.
+- nix: Add `./deltachat-contact-tools` to sources.
+- nix: Update nix flake.
+- deps: Update rustls to 0.21.11.
+
+### Documentation
+
+- Update references to SecureJoin protocols.
+- Fix broken references in documentation comments.
+
+### Refactor
+
+- imap: remove `RwLock` from `ratelimit`.
+- deltachat-ffi: Remove unused `ResultNullableExt`.
+- Remove duplicate clippy exceptions.
+- Group `use` at the top of the test modules.
+
+## [1.137.3] - 2024-04-16
+
+### API-Changes
+
+- [**breaking**] Remove reactions ffi; all implementations use jsonrpc.
+- Don't load trashed messages with `Message::load_from_db`.
+- Add `ChatListChanged` and `ChatListItemChanged` events ([#4476](https://github.com/deltachat/deltachat-core-rust/pull/4476)).
+- deltachat-rpc-client: Add `check_qr` and `set_config_from_qr` APIs.
+- deltachat-rpc-client: Add `Account.create_chat()`.
+- deltachat-rpc-client: Add `Message.wait_until_delivered()`.
+- deltachat-rpc-client: Add `Chat.send_file()`.
+- deltachat-rpc-client: Add `Account.wait_for_reactions_changed()`.
+- deltachat-rpc-client: Return Message from `Message.send_reaction()`.
+- deltachat-rpc-client: Add `Account.bring_online()`.
+- deltachat-rpc-client: Add `ACFactory.get_accepted_chat()`.
+
+### Features / Changes
+
+- Port `direct_imap.py` into deltachat-rpc-client.
+
+### Fixes
+
+- Do not emit `MSGS_CHANGED` event for outgoing hidden messages.
+- `Message::get_summary()` must not return reaction summary.
+- Fix emitting `ContactsChanged` events on "recently seen" status change ([#5377](https://github.com/deltachat/deltachat-core-rust/pull/5377)).
+- deltachat-jsonrpc: block in `inner_get_backup_qr`.
+- Add tolerance to `MemberListTimestamp` ([#5366](https://github.com/deltachat/deltachat-core-rust/pull/5366)).
+- Keep webxdc instance for `delete_device_after` period after a status update ([#5365](https://github.com/deltachat/deltachat-core-rust/pull/5365)).
+- Don't try to do `fetch_move_delete()` if Trash is needed but not yet configured.
+- Assign messages to chats based on not fully downloaded references.
+- Do not create ad-hoc groups from partial downloads.
+- deltachat-rpc-client: construct Thread with `target` keyword argument.
+- Format error context in `Message::load_from_db`.
+
+### Build system
+
+- cmake: adapt target install path if env var `CARGO_BUILD_TARGET` is set.
+- nix: Use stable Rust in flake.nix devshell.
+
+### CI
+
+- Use cargo-nextest instead of cargo-test.
+- Run doc tests with cargo test --workspace --doc ([#5459](https://github.com/deltachat/deltachat-core-rust/pull/5459)).
+- Typos in CI files ([#5453](https://github.com/deltachat/deltachat-core-rust/pull/5453)).
+
+### Documentation
+
+- Add <https://deps.rs> badge.
+- Add 'Ubuntu Touch' to the list of 'frontend projects'
+
+### Refactor
+
+- Do not ignore `Contact::get_by_id` errors in `get_encrinfo`.
+- deltachat-rpc-client: Use `list`, `set` and `tuple` instead of `typing`.
+- Use `clone_from()` ([#5451](https://github.com/deltachat/deltachat-core-rust/pull/5451)).
+- Do not check for `is_trash()` in `get_last_reaction_if_newer_than()`.
+- Split off functional contact tools into its own crate ([#5444](https://github.com/deltachat/deltachat-core-rust/pull/5444))
+- Fix nightly clippy warnings.
+
+### Tests
+
+- Test withdrawing group join QR codes.
+- `display_chat()`: Don't add day markers.
+- Move reaction tests to JSON-RPC.
+- node: Increase 'static tests' timeout to 5 minutes.
+
 ## [1.137.2] - 2024-04-05
 
 ### API-Changes
@@ -3872,3 +3981,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.137.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.6...v1.137.0
 [1.137.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.0...v1.137.1
 [1.137.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.1...v1.137.2
+[1.137.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.2...v1.137.3
+[1.137.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.3...v1.137.4

@@ -278,6 +278,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-broadcast"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "258b52a1aa741b9f09783b2d86cf0aeeb617bbf847f6933340a39644227acbdb"
+dependencies = [
+ "event-listener 5.3.0",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "async-channel"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,9 +668,9 @@ checksum = "78a6932c88f1d2c29533a3b8a5f5a2f84cc19c3339b431677c3160c5c2e6ca85"
 
 [[package]]
 name = "brotli"
-version = "4.0.0"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "125740193d7fee5cc63ab9e16c2fdc4e07c74ba755cc53b327d6ea029e9fc569"
+checksum = "19483b140a7ac7174d34b5a581b406c64f84da5409d3e09cf4fff604f9270e67"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -667,9 +679,9 @@ dependencies = [
 
 [[package]]
 name = "brotli-decompressor"
-version = "3.0.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65622a320492e09b5e0ac436b14c54ff68199bac392d0e89a6832c4518eea525"
+checksum = "e6221fe77a248b9117d431ad93761222e1cf8ff282d9d1d5d9f53d6299a1cf76"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -1340,10 +1352,11 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.137.2"
+version = "1.137.4"
 dependencies = [
  "ansi_term",
  "anyhow",
+ "async-broadcast",
  "async-channel 2.2.0",
  "async-imap",
  "async-native-tls",
@@ -1354,6 +1367,7 @@ dependencies = [
  "brotli",
  "chrono",
  "criterion",
+ "deltachat-contact-tools",
  "deltachat-time",
  "deltachat_derive",
  "email",
@@ -1387,7 +1401,6 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "pgp",
- "pin-project",
  "pretty_assertions",
  "pretty_env_logger",
  "proptest",
@@ -1425,8 +1438,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "deltachat-contact-tools"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "regex",
+ "rusqlite",
+]
+
+[[package]]
 name = "deltachat-jsonrpc"
-version = "1.137.2"
+version = "1.137.4"
 dependencies = [
  "anyhow",
  "async-channel 2.2.0",
@@ -1450,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-repl"
-version = "1.137.2"
+version = "1.137.4"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1465,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-rpc-server"
-version = "1.137.2"
+version = "1.137.4"
 dependencies = [
  "anyhow",
  "deltachat",
@@ -1494,7 +1517,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.137.2"
+version = "1.137.4"
 dependencies = [
  "anyhow",
  "deltachat",
@@ -5619,9 +5642,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.10"
+version = "0.21.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9d5a6813c0759e4609cd494e8e725babae6a2ca7b62a5536a13daaec6fcb7ba"
+checksum = "7fecbfb7b1444f477b345853b1fce097a2c6fb637b2bfb87e6bc5db0f043fae4"
 dependencies = [
  "log",
  "ring 0.17.8",

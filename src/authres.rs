@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use anyhow::Result;
+use deltachat_contact_tools::EmailAddress;
 use mailparse::MailHeaderMap;
 use mailparse::ParsedMail;
 use once_cell::sync::Lazy;
@@ -14,7 +15,6 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
 use crate::tools::time;
-use crate::tools::EmailAddress;
 
 /// `authres` is short for the Authentication-Results header, defined in
 /// <https://datatracker.ietf.org/doc/html/rfc8601>, which contains info

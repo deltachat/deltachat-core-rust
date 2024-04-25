@@ -30,6 +30,10 @@ class Account:
         """Wait until the next event and return it."""
         return AttrDict(self._rpc.wait_for_event(self.id))
 
+    def clear_all_events(self):
+        """Removes all queued-up events for a given account. Useful for tests."""
+        self._rpc.clear_all_events(self.id)
+
     def remove(self) -> None:
         """Remove the account."""
         self._rpc.remove_account(self.id)
@@ -240,7 +244,7 @@ class Account:
         The function returns immediately and the handshake runs in background, sending
         and receiving several messages.
         Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
-        See https://securejoin.readthedocs.io/en/latest/new.html for protocol details.
+        See https://securejoin.delta.chat/ for protocol details.
 
         :param qrdata: The text of the scanned QR code.
         """
