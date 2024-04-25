@@ -1331,6 +1331,42 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_big_gif_as_image() -> Result<()> {
+        let bytes = include_bytes!("../test-data/image/screenshot.gif");
+        let (width, height) = (1920u32, 1080u32);
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        alice
+            .set_config(
+                Config::MediaQuality,
+                Some(&(MediaQuality::Worse as i32).to_string()),
+            )
+            .await?;
+        let file = alice.get_blobdir().join("file").with_extension("gif");
+        fs::write(&file, &bytes)
+            .await
+            .context("failed to write file")?;
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_file(file.to_str().unwrap(), None);
+        let chat = alice.create_chat(&bob).await;
+        let sent = alice.send_msg(chat.id, &mut msg).await;
+        let bob_msg = bob.recv_msg(&sent).await;
+        // DC must detect the image as GIF and send it w/o reencoding.
+        assert_eq!(bob_msg.get_viewtype(), Viewtype::Gif);
+        assert_eq!(bob_msg.get_width() as u32, width);
+        assert_eq!(bob_msg.get_height() as u32, height);
+        let file_saved = bob
+            .get_blobdir()
+            .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
+        bob_msg.save_file(&bob, &file_saved).await?;
+        let blob = BlobObject::new_from_path(&bob, &file_saved).await?;
+        let (file_size, _) = blob.metadata()?;
+        assert_eq!(file_size, bytes.len() as u64);
+        check_image_size(file_saved, width, height);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_increation_in_blobdir() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
