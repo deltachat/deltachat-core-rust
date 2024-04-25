@@ -523,17 +523,6 @@
                 buildPhase = ''sphinx-build -b html -a python/doc/ dist/html'';
                 installPhase = ''mkdir -p $out; cp -av dist/html $out'';
               };
-              jsonrpc-docs = pkgs.stdenv.mkDerivation {
-                pname = "docs";
-                version = manifest.version;
-                src = pkgs.lib.cleanSource ./.;
-                nativeBuildInputs = [
-                  pkgs.nodejs_21
-                ];
-                buildPhase = "npm i && npm run docs";
-                installPhase =
-                  "mkdir -p $out; cp -av deltachat-jsonrpc/typescript/docs $out";
-              };
           };
 
         devShells.default = pkgs.mkShell {
