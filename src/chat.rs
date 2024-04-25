@@ -2505,6 +2505,30 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .await?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
+        if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
+            // Correct the type, take care not to correct already very special
+            // formats as GIF or VOICE.
+            //
+            // Typical conversions:
+            // - from FILE to AUDIO/VIDEO/IMAGE
+            // - from FILE/IMAGE to GIF */
+            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(&blob.to_abs_path())
+            {
+                if better_type != Viewtype::Webxdc
+                    || context
+                        .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                        .await
+                        .is_ok()
+                {
+                    msg.viewtype = better_type;
+                }
+            }
+        } else if msg.viewtype == Viewtype::Webxdc {
+            context
+                .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                .await?;
+        }
+
         let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
         if msg.viewtype == Viewtype::Image
             || maybe_sticker && !msg.param.exists(Param::ForceSticker)
@@ -2524,34 +2548,6 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             };
             msg.param
                 .set(Param::Filename, stem.to_string() + "." + blob_ext);
-        }
-
-        if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
-            // Correct the type, take care not to correct already very special
-            // formats as GIF or VOICE.
-            //
-            // Typical conversions:
-            // - from FILE to AUDIO/VIDEO/IMAGE
-            // - from FILE/IMAGE to GIF */
-            if let Some((better_type, better_mime)) =
-                message::guess_msgtype_from_suffix(&blob.to_abs_path())
-            {
-                if better_type != Viewtype::Webxdc
-                    || context
-                        .ensure_sendable_webxdc_file(&blob.to_abs_path())
-                        .await
-                        .is_ok()
-                {
-                    msg.viewtype = better_type;
-                    if !msg.param.exists(Param::MimeType) {
-                        msg.param.set(Param::MimeType, better_mime);
-                    }
-                }
-            }
-        } else if msg.viewtype == Viewtype::Webxdc {
-            context
-                .ensure_sendable_webxdc_file(&blob.to_abs_path())
-                .await?;
         }
 
         if !msg.param.exists(Param::MimeType) {
