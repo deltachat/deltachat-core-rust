@@ -78,10 +78,6 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '18'
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
       - name: npm build
         run: npm build
       - name: Install dependencies
