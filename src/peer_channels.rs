@@ -356,7 +356,11 @@ async fn subscribe_loop(
                 info!(context, "Received: {:?}", event);
                 context.emit_event(EventType::WebxdcRealtimeData {
                     msg_id,
-                    data: event.content.get(0..event.content.len() - 8).context("too few bytes in iroh message")?.into(),
+                    data: event
+                        .content
+                        .get(0..event.content.len() - 8)
+                        .context("too few bytes in iroh message")?
+                        .into(),
                 });
             }
             _ => (),
@@ -379,8 +383,6 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
-        alice.ctx.start_io().await;
-        bob.ctx.start_io().await;
 
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
@@ -411,7 +413,7 @@ mod tests {
             .await
             .unwrap();
 
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
         bob.inite_peer_channels().await.unwrap();
         // Bob adds alice to gossip peers.
         let members = bob
@@ -509,8 +511,6 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
-        alice.ctx.start_io().await;
-        bob.ctx.start_io().await;
 
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
@@ -541,7 +541,7 @@ mod tests {
             .await
             .unwrap();
 
-        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
 
         let fut = bob.join_and_subscribe_gossip(bob_webdxc.id).await.unwrap();
         alice
