@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use std::path::PathBuf;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
