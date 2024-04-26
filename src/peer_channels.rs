@@ -1,4 +1,28 @@
 //! Peer channels for realtime communication in webxdcs.
+//!
+//! We use [Iroh](iroh) as an ephemeral peer channels provider to create direct communication
+//! channels between webxdcs. See [here](https://webxdc.org/docs/spec/joinRealtimeChannel.html) for the webxdc specs.
+//!
+//! Ephemeral channels should be established lazily, to avoid bootstrapping p2p connectivity
+//! when it's not required. Only when a webxdc subscribes to realtime data or when a reatlime message is sent,
+//! the p2p machinery should be started.
+//!
+//! Adding peer channels to webxdc needs upfront negotation of a topic and sharing of public keys so that
+//! nodes can connect to each other. The explicit approach is as follows:
+//!
+//! 1. We introduce a new [GossipTopic](crate::headerdef::HeaderDef::GossipTopic) message header with a random 32-byte TopicId,
+//!    securely generated on the initial webxdc sender's device. This message header is encrypted
+//!    and sent in the same message as the webxdc application.
+//! 2. Whenever `joinRealtimeChannel().setListener()` or `joinRealtimeChannel().send()` is called by the webxdc application,
+//!    we start a routine to establish p2p connectivity and join the gossip swarm with Iroh.
+//! 3. The first step of this routine is to introduce yourself with a regular message containing the `IrohPublicKey`.
+//!    This message contains the users relay-server and public key.
+//!    Direct IP address are not included as this information can be persisted by email providers.
+//! 4. After the announcement, the sending peer joins the gossip swarm with an empty list of peer IDs (as they don't know anyone yet).
+//! 5. Upon receiving an announcement message, other peers store the sender's [NodeAddr] in the database
+//!    (scoped per WebXDC app instance/message-id). The other peers can then join the gossip with `joinRealtimeChannel().setListener()`
+//!    and `joinRealtimeChannel().send()` just like the other peers.
+
 use anyhow::{anyhow, Context as _, Result};
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
@@ -266,7 +290,7 @@ impl Context {
     }
 
     /// Leave the gossip of the webxdc with given [MsgId].
-    pub async fn leave_gossip(&self, msg_id: MsgId) -> Result<()> {
+    pub async fn leave_realtime(&self, msg_id: MsgId) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
         let gossip = self.gossip.lock().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
@@ -551,7 +575,7 @@ mod tests {
             }
         }
 
-        bob.leave_gossip(bob_webdxc.id).await.unwrap();
+        bob.leave_realtime(bob_webdxc.id).await.unwrap();
 
         bob.join_and_subscribe_gossip(bob_webdxc.id)
             .await
@@ -581,7 +605,7 @@ mod tests {
         // bob for example does not change the channels because he never sends an
         // advertisement
         assert_eq!(alice.channels.lock().await.len(), 1);
-        alice.leave_gossip(alice_webxdc.id).await.unwrap();
+        alice.leave_realtime(alice_webxdc.id).await.unwrap();
         assert_eq!(alice.channels.lock().await.len(), 0);
     }
 }
