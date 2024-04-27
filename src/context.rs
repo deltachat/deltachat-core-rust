@@ -299,7 +299,7 @@ pub struct InnerContext {
     pub(crate) iroh_gossip: RwLock<Option<Gossip>>,
 
     /// Topics for which an advertisement has already been sent.
-    pub(crate) iroh_channels: RwLock<HashMap<TopicId, usize>>,
+    pub(crate) iroh_channels: RwLock<HashMap<TopicId, i32>>,
 }
 
 /// The state of ongoing process.

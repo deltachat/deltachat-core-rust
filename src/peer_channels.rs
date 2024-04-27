@@ -138,7 +138,7 @@ impl Context {
     ) -> Result<()> {
         self.sql
             .execute(
-                "INSERT OR UPDATE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
                 (msg_id, peer.as_bytes(), topic.as_bytes(), relay_server),
             )
             .await?;
@@ -228,7 +228,10 @@ impl Context {
         // on some embedded deviced might be even more because of usize nature
         let seq_num = has_joined.unwrap_or_default();
         data.extend(seq_num.to_ne_bytes());
-        self.iroh_channels.write().await.insert(topic, seq_num.wrapping_add(1));
+        self.iroh_channels
+            .write()
+            .await
+            .insert(topic, seq_num.wrapping_add(1));
 
         self.iroh_gossip
             .read()
@@ -336,7 +339,7 @@ async fn subscribe_loop(
                     msg_id,
                     data: event
                         .content
-                        .get(0..event.content.len() - 8)
+                        .get(0..event.content.len() - 4)
                         .context("too few bytes in iroh message")?
                         .into(),
                 });
@@ -431,16 +434,15 @@ mod tests {
                 }
             }
         }
-
         // Bob sends ephemeral message
-        bob.send_webxdc_realtime_data(bob_webdxc.id, "alice -> bob".as_bytes().to_vec())
+        bob.send_webxdc_realtime_data(bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
             .await
             .unwrap();
 
         loop {
             let event = alice.evtracker.recv().await.unwrap();
             if let EventType::WebxdcRealtimeData { data, .. } = event.typ {
-                if data == "alice -> bob".as_bytes() {
+                if data == "bob -> alice".as_bytes() {
                     break;
                 } else {
                     panic!(
