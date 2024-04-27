@@ -328,7 +328,12 @@ impl MsgId {
 
         if let Some(path) = msg.get_file(context) {
             let bytes = get_filebytes(context, &path).await?;
-            ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
+            ret += &format!(
+                "\nFile: {}, name: {}, {} bytes\n",
+                path.display(),
+                msg.get_filename().unwrap_or_default(),
+                bytes
+            );
         }
 
         if msg.viewtype != Viewtype::Text {
