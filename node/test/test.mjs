@@ -444,7 +444,6 @@ describe('Offline Tests with unconfigured account', function () {
     context.setChatProfileImage(chatId, imagePath)
     const blobPath = context.getChat(chatId).getProfileImage()
     expect(blobPath.startsWith(blobs)).to.be.true
-    expect(blobPath.includes('image')).to.be.true
     expect(blobPath.endsWith('.jpeg')).to.be.true
 
     context.setChatProfileImage(chatId, null)

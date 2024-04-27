@@ -1214,7 +1214,6 @@ dependencies = [
  "reqwest",
  "rusqlite",
  "rust-hsluv",
- "sanitize-filename",
  "serde",
  "serde_json",
  "sha-1",

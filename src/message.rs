@@ -606,7 +606,8 @@ impl Message {
         None
     }
 
-    /// Returns the full path to the file associated with a message.
+    /// Returns the full path to the file associated with a message. The filename isn't meaningful,
+    /// only the extension is preserved.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }
@@ -759,8 +760,6 @@ impl Message {
     }
 
     /// Returns original filename (as shown in chat).
-    ///
-    /// To get the full path, use [`Self::get_file()`].
     pub fn get_filename(&self) -> Option<String> {
         if let Some(name) = self.param.get(Param::Filename) {
             return Some(name.to_string());
