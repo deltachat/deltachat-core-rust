@@ -534,6 +534,7 @@
             rust-analyzer
             cargo-deny
             perl # needed to build vendored OpenSSL
+            git-cliff
           ];
         };
       }

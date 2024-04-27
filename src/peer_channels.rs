@@ -30,7 +30,6 @@ use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::relay::{RelayMap, RelayUrl};
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
-use rand::{thread_rng, Rng};
 use url::Url;
 
 use crate::chat::send_msg;
@@ -45,7 +44,7 @@ impl Context {
     pub(crate) async fn init_peer_channels(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
 
-        let mut ctx_gossip = self.iroh_gossip.lock().await;
+        let mut ctx_gossip = self.iroh_gossip.write().await;
         if ctx_gossip.is_some() {
             warn!(
                 self,
@@ -54,33 +53,31 @@ impl Context {
             return Ok(());
         }
 
-        let endpoint = Box::pin(
-            MagicEndpoint::builder()
-                .secret_key(secret_key)
-                .alpns(vec![GOSSIP_ALPN.to_vec()])
-                .relay_mode(
-                    /* self.metadata
-                    .read()
-                    .await
-                    .as_ref()
-                    .map(|conf| {
-                        let url = conf
-                            .iroh_relay
-                            .as_deref()
-                            .unwrap_or("https://iroh.testrun.org:4443");
-                        let url = RelayUrl::from(Url::parse(url)?);
-                        Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
-                    })
-                    .transpose()?
-                    // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
-                    .unwrap_or(RelayMode::Default), */
-                    RelayMode::Custom(RelayMap::from_url(RelayUrl::from(
-                        Url::parse("https://iroh.testrun.org:4443").unwrap(),
-                    ))),
-                )
-                .bind(0),
-        )
-        .await?;
+        let endpoint = MagicEndpoint::builder()
+            .secret_key(secret_key)
+            .alpns(vec![GOSSIP_ALPN.to_vec()])
+            .relay_mode(
+                /* self.metadata
+                .read()
+                .await
+                .as_ref()
+                .map(|conf| {
+                    let url = conf
+                        .iroh_relay
+                        .as_deref()
+                        .unwrap_or("https://iroh.testrun.org:4443");
+                    let url = RelayUrl::from(Url::parse(url)?);
+                    Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
+                })
+                .transpose()?
+                // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
+                .unwrap_or(RelayMode::Default), */
+                RelayMode::Custom(RelayMap::from_url(RelayUrl::from(
+                    Url::parse("https://iroh.testrun.org:4443").unwrap(),
+                ))),
+            )
+            .bind(0)
+            .await?;
 
         // create gossip
         let my_addr = endpoint.my_addr().await?;
@@ -91,7 +88,7 @@ impl Context {
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
 
         *ctx_gossip = Some(gossip.clone());
-        *self.iroh_endpoint.lock().await = Some(endpoint);
+        *self.iroh_endpoint.write().await = Some(endpoint);
 
         Ok(())
     }
@@ -102,10 +99,10 @@ impl Context {
     ///
     /// The returned future resolves when the swarm becomes operational.
     async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
-        let mut gossip = (*self.iroh_gossip.lock().await).clone();
+        let mut gossip = (*self.iroh_gossip.write().await).clone();
         if gossip.is_none() {
             self.init_peer_channels().await?;
-            gossip.clone_from(&(*self.iroh_gossip.lock().await));
+            gossip.clone_from(&(*self.iroh_gossip.read().await));
         }
 
         let gossip = gossip.context("no gossip")?;
@@ -114,7 +111,7 @@ impl Context {
         // connect to all peers
         for peer in &peers {
             self.iroh_endpoint
-                .lock()
+                .read()
                 .await
                 .as_ref()
                 .context("iroh endpoint not initialized")?
@@ -141,7 +138,7 @@ impl Context {
     ) -> Result<()> {
         self.sql
             .execute(
-                "INSERT OR IGNORE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
+                "INSERT OR UPDATE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
                 (msg_id, peer.as_bytes(), topic.as_bytes(), relay_server),
             )
             .await?;
@@ -155,8 +152,8 @@ impl Context {
                 "SELECT public_key, relay_server FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
                 (msg_id, self.get_iroh_node_addr().await?.node_id.as_bytes()),
                 |row| {
-                    let key = row.get::<_, Vec<u8>>(0)?;
-                    let server = row.get::<_, Option<String>>(1)?;
+                    let key:  Vec<u8> = row.get(0)?;
+                    let server: Option<String> = row.get(1)?;
                     Ok((key, server))
                 },
                 |g| {
@@ -176,17 +173,6 @@ impl Context {
             .await
     }
 
-    /// Remove one cached peer from a topic.
-    async fn _delete_webxdc_gossip_peer_for_msg(&self, topic: TopicId, peer: NodeId) -> Result<()> {
-        self.sql
-            .execute(
-                "DELETE FROM iroh_gossip_peers WHERE public_key = ? topic = ?",
-                (peer.as_bytes(), topic.as_bytes()),
-            )
-            .await?;
-        Ok(())
-    }
-
     /// Get the iroh secret key from the database or generate a new one and persist it.
     pub(crate) async fn get_or_generate_iroh_keypair(&self) -> Result<SecretKey> {
         match self.get_config_parsed(Config::IrohSecretKey).await? {
@@ -202,7 +188,7 @@ impl Context {
 
     /// Get the iroh [NodeAddr] without direct IP addresses.
     pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
-        let endpoint = self.iroh_endpoint.lock().await;
+        let endpoint = self.iroh_endpoint.read().await;
         let relay = endpoint
             .as_ref()
             .context("iroh endpoint not initialized")?
@@ -219,40 +205,33 @@ impl Context {
 
     /// Get the topic for a given [MsgId].
     pub(crate) async fn get_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
-        let bytes = self
+        let bytes: Vec<u8> = self
             .sql
-            .query_row(
+            .query_get_value(
                 "SELECT topic FROM iroh_gossip_peers WHERE msg_id = ? LIMIT 1",
                 (msg_id,),
-                |row| {
-                    let data = row.get::<_, Vec<u8>>(0)?;
-                    Ok(data)
-                },
             )
-            .await?;
+            .await?
+            .context("couldn't restore topic from db")?;
         Ok(TopicId::from_bytes(bytes.try_into().unwrap()))
     }
 
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let has_joined = self.iroh_channels.lock().await.get(&topic).is_none();
-        if has_joined {
+        let has_joined = self.iroh_channels.read().await.get(&topic).cloned();
+        if has_joined.is_none() {
             self.send_webxdc_realtime_advertisement(msg_id).await?;
         }
 
-        // Wrapped because rng is not `send`
-        // Create some salt so that messages are not deduplicated by iroh.
-        let data = {
-            let mut rng = thread_rng();
-            let mut salt = [0u8; 8];
-            rng.fill(&mut salt[..]);
-            data.extend(salt);
-            data
-        };
+        // depending on architecture this is 4 or 8 bytes.
+        // on some embedded deviced might be even more because of usize nature
+        let seq_num = has_joined.unwrap_or_default();
+        data.extend(seq_num.to_ne_bytes());
+        self.iroh_channels.write().await.insert(topic, seq_num.wrapping_add(1));
 
         self.iroh_gossip
-            .lock()
+            .read()
             .await
             .as_ref()
             .context("No gossip")?
@@ -270,11 +249,11 @@ impl Context {
         msg_id: MsgId,
     ) -> Result<Option<JoinTopicFut>> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let mut channels = self.iroh_channels.lock().await;
+        let mut channels = self.iroh_channels.write().await;
         let fut = if channels.get(&topic).is_some() {
             return Ok(None);
         } else {
-            channels.insert(topic);
+            channels.insert(topic, 0);
             self.join_and_subscribe_gossip(msg_id).await?
         };
         drop(channels);
@@ -291,9 +270,9 @@ impl Context {
     /// Leave the gossip of the webxdc with given [MsgId].
     pub async fn leave_realtime(&self, msg_id: MsgId) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let gossip = self.iroh_gossip.lock().await;
+        let gossip = self.iroh_gossip.read().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
-        self.iroh_channels.lock().await.remove(&topic);
+        self.iroh_channels.write().await.remove(&topic);
         info!(self, "Left gossip for {msg_id}");
         Ok(())
     }
@@ -603,8 +582,8 @@ mod tests {
         // channel is only used to remeber if an advertisement has been sent
         // bob for example does not change the channels because he never sends an
         // advertisement
-        assert_eq!(alice.iroh_channels.lock().await.len(), 1);
+        assert_eq!(alice.iroh_channels.read().await.len(), 1);
         alice.leave_realtime(alice_webxdc.id).await.unwrap();
-        assert_eq!(alice.iroh_channels.lock().await.len(), 0);
+        assert_eq!(alice.iroh_channels.read().await.len(), 0);
     }
 }

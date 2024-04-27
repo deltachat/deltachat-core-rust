@@ -1151,7 +1151,7 @@ impl<'a> MimeFactory<'a> {
                 ));
             }
             SystemMessage::IrohNodeAddr => {
-                if context.iroh_endpoint.lock().await.as_ref().is_none() {
+                if context.iroh_endpoint.read().await.as_ref().is_none() {
                     Box::pin(context.init_peer_channels()).await?;
                 }
                 headers.protected.push(Header::new(

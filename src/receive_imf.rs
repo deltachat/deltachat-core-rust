@@ -1598,7 +1598,7 @@ RETURNING id
         // check if any part contains a webxdc topic id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
-                let topic = TopicId::from_str(topic).unwrap();
+                let topic = TopicId::from_str(topic).context("wrong gossip topic header")?;
                 let peer = context.get_or_generate_iroh_keypair().await?.public();
                 context
                     .add_peer_for_topic(*msg_id, topic, peer, None)

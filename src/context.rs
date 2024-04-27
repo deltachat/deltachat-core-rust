@@ -1,6 +1,6 @@
 //! Context module.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -293,13 +293,13 @@ pub struct InnerContext {
     pub(crate) push_subscribed: AtomicBool,
 
     /// [MagicEndpoint] needed for iroh peer channels.
-    pub(crate) iroh_endpoint: Mutex<Option<MagicEndpoint>>,
+    pub(crate) iroh_endpoint: RwLock<Option<MagicEndpoint>>,
 
     /// [Gossip] needed for iroh peer channels.
-    pub(crate) iroh_gossip: Mutex<Option<Gossip>>,
+    pub(crate) iroh_gossip: RwLock<Option<Gossip>>,
 
     /// Topics for which an advertisement has already been sent.
-    pub(crate) iroh_channels: Mutex<HashSet<TopicId>>,
+    pub(crate) iroh_channels: RwLock<HashMap<TopicId, usize>>,
 }
 
 /// The state of ongoing process.
@@ -457,9 +457,9 @@ impl Context {
             debug_logging: std::sync::RwLock::new(None),
             push_subscriber,
             push_subscribed: AtomicBool::new(false),
-            iroh_endpoint: Mutex::new(None),
-            iroh_gossip: Mutex::new(None),
-            iroh_channels: Mutex::new(HashSet::new()),
+            iroh_endpoint: RwLock::new(None),
+            iroh_gossip: RwLock::new(None),
+            iroh_channels: RwLock::new(HashMap::new()),
         };
 
         let ctx = Context {
@@ -505,7 +505,7 @@ impl Context {
 
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        if let Some(ref mut endpoint) = *self.iroh_endpoint.lock().await {
+        if let Some(ref endpoint) = *self.iroh_endpoint.read().await {
             endpoint.network_change().await;
         }
         self.scheduler.maybe_network().await;
