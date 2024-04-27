@@ -298,7 +298,7 @@ pub struct InnerContext {
     /// [Gossip] needed for iroh peer channels.
     pub(crate) gossip: Mutex<Option<Gossip>>,
 
-    /// Topics for which an advertisement has already been send.
+    /// Topics for which an advertisement has already been sent.
     pub(crate) channels: Mutex<HashSet<TopicId>>,
 }
 
