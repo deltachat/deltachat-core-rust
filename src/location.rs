@@ -350,6 +350,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         )
         .await?;
 
+    let mut stored_location = false;
     for chat_id in chats {
         context.sql.execute(
                 "INSERT INTO locations  \
@@ -362,6 +363,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                     chat_id,
                     ContactId::SELF,
                 )).await.context("Failed to store location")?;
+        stored_location = true;
 
         info!(context, "Stored location for chat {chat_id}.");
         continue_streaming = true;
@@ -369,6 +371,10 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
     if continue_streaming {
         context.emit_location_changed(Some(ContactId::SELF)).await?;
     };
+    if stored_location {
+        // Interrupt location loop so it may send a location-only message.
+        context.scheduler.interrupt_location().await;
+    }
 
     Ok(continue_streaming)
 }
