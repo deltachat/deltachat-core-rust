@@ -219,7 +219,7 @@ impl Context {
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let has_joined = self.iroh_channels.read().await.get(&topic).cloned();
+        let has_joined = self.iroh_channels.read().await.get(&topic).copied();
         if has_joined.is_none() {
             self.send_webxdc_realtime_advertisement(msg_id).await?;
         }
