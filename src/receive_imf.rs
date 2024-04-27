@@ -1423,7 +1423,7 @@ async fn add_parts(
                 chat_id = DC_CHAT_ID_TRASH;
             }
             Err(err) => {
-                warn!(context, "couldn't parse NodeAddr: {err}");
+                warn!(context, "Couldn't parse NodeAddr: {err:#}.");
             }
         }
     }
