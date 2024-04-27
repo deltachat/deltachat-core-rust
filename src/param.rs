@@ -547,8 +547,6 @@ mod tests {
         assert!(p.get_blob(Param::File, &t, false).await.is_err());
 
         fs::write(fname, b"boo").await.unwrap();
-        let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
-        assert!(blob.as_file_name().starts_with("foo"));
 
         // Blob in blobdir, expect blob.
         let bar_path = t.get_blobdir().join("bar");

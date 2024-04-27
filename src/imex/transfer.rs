@@ -651,8 +651,9 @@ mod tests {
         };
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
 
+        assert_eq!(&msg.get_filename().unwrap(), "hello.txt");
         let path = msg.get_file(&ctx1).unwrap();
-        assert_eq!(path.with_file_name("hello.txt"), path);
+        assert_eq!(path.with_extension("txt"), path);
         let text = fs::read_to_string(&path).await.unwrap();
         assert_eq!(text, "i am attachment");
 

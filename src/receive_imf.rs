@@ -1577,9 +1577,7 @@ RETURNING id
             context,
             part.typ,
             chat_id,
-            part.param
-                .get_path(Param::File, context)
-                .unwrap_or_default(),
+            part.param.get(Param::Filename),
             *msg_id,
         )
         .await?;
