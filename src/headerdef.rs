@@ -97,7 +97,7 @@ pub enum HeaderDef {
     IrohNodeAddr,
 
     /// Advertised gossip topic for one webxdc.
-    GossipTopic,
+    IrohGossipTopic,
 
     #[cfg(test)]
     TestHeader,

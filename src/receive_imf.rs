@@ -1597,7 +1597,7 @@ RETURNING id
     for (part, msg_id) in mime_parser.parts.iter().zip(&created_db_entries) {
         // check if any part contains a webxdc topic id
         if part.typ == Viewtype::Webxdc {
-            if let Some(topic) = mime_parser.get_header(HeaderDef::GossipTopic) {
+            if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
                 let topic = TopicId::from_str(topic).unwrap();
                 let peer = context.get_or_generate_iroh_keypair().await?.public();
                 context

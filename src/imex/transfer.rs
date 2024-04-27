@@ -32,6 +32,7 @@ use std::task::Poll;
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
 use futures_lite::StreamExt;
+use iroh_old as iroh;
 use iroh_old::blobs::Collection;
 use iroh_old::get::DataStream;
 use iroh_old::progress::ProgressEmitter;
@@ -177,7 +178,7 @@ impl BackupProvider {
         }
 
         // Start listening.
-        let (db, hash) = iroh_old::provider::create_collection(files).await?;
+        let (db, hash) = iroh::provider::create_collection(files).await?;
         context.emit_event(SendProgress::CollectionCreated.into());
         let provider = Provider::builder(db)
             .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
@@ -383,7 +384,7 @@ impl From<SendProgress> for EventType {
 /// This is a long running operation which will only when completed.
 ///
 /// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
-/// does avoid having [`iroh_old::provider::Ticket`] in the primary API however, without
+/// does avoid having [`iroh::provider::Ticket`] in the primary API however, without
 /// having to revert to untyped bytes.
 pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     ensure!(
@@ -457,7 +458,7 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
 
     // Perform the transfer.
     let keylog = false; // Do not enable rustls SSLKEYLOGFILE env var functionality
-    let stats = iroh_old::get::run_ticket(
+    let stats = iroh::get::run_ticket(
         ticket,
         keylog,
         MAX_CONCURRENT_DIALS,

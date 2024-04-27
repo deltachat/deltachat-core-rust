@@ -293,13 +293,13 @@ pub struct InnerContext {
     pub(crate) push_subscribed: AtomicBool,
 
     /// [MagicEndpoint] needed for iroh peer channels.
-    pub(crate) endpoint: Mutex<Option<MagicEndpoint>>,
+    pub(crate) iroh_endpoint: Mutex<Option<MagicEndpoint>>,
 
     /// [Gossip] needed for iroh peer channels.
-    pub(crate) gossip: Mutex<Option<Gossip>>,
+    pub(crate) iroh_gossip: Mutex<Option<Gossip>>,
 
     /// Topics for which an advertisement has already been sent.
-    pub(crate) channels: Mutex<HashSet<TopicId>>,
+    pub(crate) iroh_channels: Mutex<HashSet<TopicId>>,
 }
 
 /// The state of ongoing process.
@@ -457,9 +457,9 @@ impl Context {
             debug_logging: std::sync::RwLock::new(None),
             push_subscriber,
             push_subscribed: AtomicBool::new(false),
-            endpoint: Mutex::new(None),
-            gossip: Mutex::new(None),
-            channels: Mutex::new(HashSet::new()),
+            iroh_endpoint: Mutex::new(None),
+            iroh_gossip: Mutex::new(None),
+            iroh_channels: Mutex::new(HashSet::new()),
         };
 
         let ctx = Context {
@@ -505,7 +505,7 @@ impl Context {
 
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        if let Some(ref mut endpoint) = *self.endpoint.lock().await {
+        if let Some(ref mut endpoint) = *self.iroh_endpoint.lock().await {
             endpoint.network_change().await;
         }
         self.scheduler.maybe_network().await;

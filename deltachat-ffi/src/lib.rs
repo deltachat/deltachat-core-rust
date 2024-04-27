@@ -657,8 +657,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::MsgsNoticed(_)
         | EventType::ConnectivityChanged
         | EventType::WebxdcInstanceDeleted { .. }
-        | EventType::WebxdcRealtimeData { .. } => 0,
-        EventType::IncomingMsgBunch { .. }
+        | EventType::IncomingMsgBunch { .. }
+        | EventType::WebxdcRealtimeData { .. }
         | EventType::SelfavatarChanged
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatlistChanged

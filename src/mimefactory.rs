@@ -1151,8 +1151,8 @@ impl<'a> MimeFactory<'a> {
                 ));
             }
             SystemMessage::IrohNodeAddr => {
-                if context.endpoint.lock().await.as_ref().is_none() {
-                    Box::pin(context.inite_peer_channels()).await?;
+                if context.iroh_endpoint.lock().await.as_ref().is_none() {
+                    Box::pin(context.init_peer_channels()).await?;
                 }
                 headers.protected.push(Header::new(
                     HeaderDef::IrohNodeAddr.get_headername().to_string(),
@@ -1333,7 +1333,7 @@ impl<'a> MimeFactory<'a> {
                 .add_peer_for_topic(self.msg.id, topic, peer, None)
                 .await?;
             headers.protected.push(Header::new(
-                HeaderDef::GossipTopic.get_headername().to_string(),
+                HeaderDef::IrohGossipTopic.get_headername().to_string(),
                 topic.to_string(),
             ));
             if let Some(json) = context

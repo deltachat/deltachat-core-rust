@@ -42,11 +42,10 @@ use crate::EventType;
 
 impl Context {
     /// Create magic endpoint and gossip for the context.
-    pub(crate) async fn inite_peer_channels(&self) -> Result<()> {
+    pub(crate) async fn init_peer_channels(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
-        info!(self, "Iroh secret key: {}", secret_key.to_string());
 
-        let mut ctx_gossip = self.gossip.lock().await;
+        let mut ctx_gossip = self.iroh_gossip.lock().await;
         if ctx_gossip.is_some() {
             warn!(
                 self,
@@ -92,7 +91,7 @@ impl Context {
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
 
         *ctx_gossip = Some(gossip.clone());
-        *self.endpoint.lock().await = Some(endpoint);
+        *self.iroh_endpoint.lock().await = Some(endpoint);
 
         Ok(())
     }
@@ -103,10 +102,10 @@ impl Context {
     ///
     /// The returned future resolves when the swarm becomes operational.
     async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
-        let mut gossip = (*self.gossip.lock().await).clone();
+        let mut gossip = (*self.iroh_gossip.lock().await).clone();
         if gossip.is_none() {
-            self.inite_peer_channels().await?;
-            gossip.clone_from(&(*self.gossip.lock().await));
+            self.init_peer_channels().await?;
+            gossip.clone_from(&(*self.iroh_gossip.lock().await));
         }
 
         let gossip = gossip.context("no gossip")?;
@@ -114,7 +113,7 @@ impl Context {
 
         // connect to all peers
         for peer in &peers {
-            self.endpoint
+            self.iroh_endpoint
                 .lock()
                 .await
                 .as_ref()
@@ -203,7 +202,7 @@ impl Context {
 
     /// Get the iroh [NodeAddr] without direct IP addresses.
     pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
-        let endpoint = self.endpoint.lock().await;
+        let endpoint = self.iroh_endpoint.lock().await;
         let relay = endpoint
             .as_ref()
             .context("iroh endpoint not initialized")?
@@ -237,7 +236,7 @@ impl Context {
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let has_joined = self.channels.lock().await.get(&topic).is_none();
+        let has_joined = self.iroh_channels.lock().await.get(&topic).is_none();
         if has_joined {
             self.send_webxdc_realtime_advertisement(msg_id).await?;
         }
@@ -252,7 +251,7 @@ impl Context {
             data
         };
 
-        self.gossip
+        self.iroh_gossip
             .lock()
             .await
             .as_ref()
@@ -271,7 +270,7 @@ impl Context {
         msg_id: MsgId,
     ) -> Result<Option<JoinTopicFut>> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let mut channels = self.channels.lock().await;
+        let mut channels = self.iroh_channels.lock().await;
         let fut = if channels.get(&topic).is_some() {
             return Ok(None);
         } else {
@@ -292,9 +291,9 @@ impl Context {
     /// Leave the gossip of the webxdc with given [MsgId].
     pub async fn leave_realtime(&self, msg_id: MsgId) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
-        let gossip = self.gossip.lock().await;
+        let gossip = self.iroh_gossip.lock().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
-        self.channels.lock().await.remove(&topic);
+        self.iroh_channels.lock().await.remove(&topic);
         info!(self, "Left gossip for {msg_id}");
         Ok(())
     }
@@ -414,7 +413,7 @@ mod tests {
             .unwrap();
 
         bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
-        bob.inite_peer_channels().await.unwrap();
+        bob.init_peer_channels().await.unwrap();
         // Bob adds alice to gossip peers.
         let members = bob
             .get_gossip_peers(bob_webdxc.id)
@@ -604,8 +603,8 @@ mod tests {
         // channel is only used to remeber if an advertisement has been sent
         // bob for example does not change the channels because he never sends an
         // advertisement
-        assert_eq!(alice.channels.lock().await.len(), 1);
+        assert_eq!(alice.iroh_channels.lock().await.len(), 1);
         alice.leave_realtime(alice_webxdc.id).await.unwrap();
-        assert_eq!(alice.channels.lock().await.len(), 0);
+        assert_eq!(alice.iroh_channels.lock().await.len(), 0);
     }
 }
