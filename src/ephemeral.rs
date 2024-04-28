@@ -80,6 +80,7 @@ use crate::contact::ContactId;
 use crate::context::Context;
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
+use crate::location;
 use crate::log::LogExt;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
@@ -589,6 +590,11 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
         }
 
         delete_expired_messages(context, time())
+            .await
+            .log_err(context)
+            .ok();
+
+        location::delete_expired(context, time())
             .await
             .log_err(context)
             .ok();

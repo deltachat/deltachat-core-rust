@@ -467,6 +467,25 @@ pub async fn delete_all(context: &Context) -> Result<()> {
     Ok(())
 }
 
+/// Deletes expired locations.
+///
+/// Only path locations are deleted.
+/// POIs should be deleted when corresponding message is deleted.
+pub(crate) async fn delete_expired(context: &Context, now: i64) -> Result<()> {
+    let deleted = context
+        .sql
+        .execute(
+            "DELETE FROM locations WHERE independent=0 AND timestamp < ?",
+            (now,),
+        )
+        .await?
+        > 0;
+    if deleted {
+        context.emit_location_changed(None).await?;
+    }
+    Ok(())
+}
+
 /// Returns `location.kml` contents.
 pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<Option<(String, u32)>> {
     let mut last_added_location_id = 0;
