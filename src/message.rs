@@ -657,10 +657,6 @@ impl Message {
     /// Check if a message has a location bound to it.
     /// These messages are also returned by get_locations()
     /// and the UI may decide to display a special icon beside such messages,
-    ///
-    /// @memberof Message
-    /// @param msg The message object.
-    /// @return 1=Message has location bound to it, 0=No location bound to message.
     pub fn has_location(&self) -> bool {
         self.location_id != 0
     }
