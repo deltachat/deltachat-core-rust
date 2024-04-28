@@ -99,7 +99,7 @@ impl Context {
     ///
     /// The returned future resolves when the swarm becomes operational.
     async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
-        let mut gossip = (*self.iroh_gossip.write().await).clone();
+        let mut gossip = (*self.iroh_gossip.read().await).clone();
         if gossip.is_none() {
             self.init_peer_channels().await?;
             gossip.clone_from(&(*self.iroh_gossip.read().await));
@@ -108,11 +108,10 @@ impl Context {
         let gossip = gossip.context("no gossip")?;
         let peers = self.get_gossip_peers(msg_id).await?;
 
+        let endpoint = self.iroh_endpoint.read().await;
         // connect to all peers
         for peer in &peers {
-            self.iroh_endpoint
-                .read()
-                .await
+            endpoint
                 .as_ref()
                 .context("iroh endpoint not initialized")?
                 .add_node_addr(peer.clone())?;
@@ -271,11 +270,11 @@ impl Context {
     }
 
     /// Leave the gossip of the webxdc with given [MsgId].
-    pub async fn leave_realtime(&self, msg_id: MsgId) -> Result<()> {
+    pub async fn leave_webxdc_realtime(&self, msg_id: MsgId) -> Result<()> {
         let topic = self.get_topic_for_msg_id(msg_id).await?;
+        self.iroh_channels.write().await.remove(&topic);
         let gossip = self.iroh_gossip.read().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
-        self.iroh_channels.write().await.remove(&topic);
         info!(self, "Left gossip for {msg_id}");
         Ok(())
     }
@@ -555,7 +554,7 @@ mod tests {
             }
         }
 
-        bob.leave_realtime(bob_webdxc.id).await.unwrap();
+        bob.leave_webxdc_realtime(bob_webdxc.id).await.unwrap();
 
         bob.join_and_subscribe_gossip(bob_webdxc.id)
             .await
@@ -585,7 +584,7 @@ mod tests {
         // bob for example does not change the channels because he never sends an
         // advertisement
         assert_eq!(alice.iroh_channels.read().await.len(), 1);
-        alice.leave_realtime(alice_webxdc.id).await.unwrap();
+        alice.leave_webxdc_realtime(alice_webxdc.id).await.unwrap();
         assert_eq!(alice.iroh_channels.read().await.len(), 0);
     }
 }

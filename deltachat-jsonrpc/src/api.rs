@@ -1756,7 +1756,7 @@ impl CommandApi {
 
     async fn leave_webxdc_realtime(&self, account_id: u32, instance_message_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.leave_realtime(MsgId::new(instance_message_id)).await
+        ctx.leave_webxdc_realtime(MsgId::new(instance_message_id)).await
     }
 
     async fn get_webxdc_status_updates(

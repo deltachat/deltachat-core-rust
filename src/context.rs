@@ -293,12 +293,14 @@ pub struct InnerContext {
     pub(crate) push_subscribed: AtomicBool,
 
     /// [MagicEndpoint] needed for iroh peer channels.
+    /// If iroh_gossip lock is also needed, it should be aquired first.
     pub(crate) iroh_endpoint: RwLock<Option<MagicEndpoint>>,
 
     /// [Gossip] needed for iroh peer channels.
     pub(crate) iroh_gossip: RwLock<Option<Gossip>>,
 
     /// Topics for which an advertisement has already been sent.
+    /// If iroh_channels lock is also needed, it should be aquired first.
     pub(crate) iroh_channels: RwLock<HashMap<TopicId, i32>>,
 }
 
