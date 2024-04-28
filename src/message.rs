@@ -670,13 +670,17 @@ impl Message {
     /// at a position different from the self-location.
     /// You should not call this function
     /// if you want to bind the current self-location to a message;
-    /// this is done by set_location() and send_locations_to_chat().
+    /// this is done by [`location::set()`] and [`send_locations_to_chat()`].
     ///
-    /// Typically results in the event #DC_EVENT_LOCATION_CHANGED with
-    /// contact_id set to ContactId::SELF.
+    /// Typically results in the event [`LocationChanged`] with
+    /// `contact_id` set to [`ContactId::SELF`].
     ///
-    /// @param latitude North-south position of the location.
-    /// @param longitude East-west position of the location.
+    /// `latitude` is the North-south position of the location.
+    /// `longitutde` is the East-west position of the location.
+    ///
+    /// [`location::set()`]: crate::location::set
+    /// [`send_locations_to_chat()`]: crate::location::send_locations_to_chat
+    /// [`LocationChanged`]: crate::events::EventType::LocationChanged
     pub fn set_location(&mut self, latitude: f64, longitude: f64) {
         if latitude == 0.0 && longitude == 0.0 {
             return;
