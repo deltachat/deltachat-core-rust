@@ -22,6 +22,7 @@ use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
+use crate::location::delete_poi_location;
 use crate::mimeparser::{parse_message_id, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
@@ -1568,17 +1569,6 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.
     context.scheduler.interrupt_inbox().await;
-    Ok(())
-}
-
-async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> {
-    context
-        .sql
-        .execute(
-            "DELETE FROM locations WHERE independent = 1 AND id=?;",
-            (location_id as i32,),
-        )
-        .await?;
     Ok(())
 }
 

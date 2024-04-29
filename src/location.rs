@@ -486,6 +486,21 @@ pub(crate) async fn delete_expired(context: &Context, now: i64) -> Result<()> {
     Ok(())
 }
 
+/// Deletes location if it is an independent location.
+///
+/// This function is used when a message is deleted
+/// that has a corresponding `location_id`.
+pub(crate) async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "DELETE FROM locations WHERE independent = 1 AND id=?",
+            (location_id as i32,),
+        )
+        .await?;
+    Ok(())
+}
+
 /// Returns `location.kml` contents.
 pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<Option<(String, u32)>> {
     let mut last_added_location_id = 0;
