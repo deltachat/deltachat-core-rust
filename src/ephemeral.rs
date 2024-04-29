@@ -349,16 +349,16 @@ pub(crate) async fn start_ephemeral_timers_msgids(
 /// Selects messages which are expired according to
 /// `delete_device_after` setting or `ephemeral_timestamp` column.
 ///
-/// For each message a row ID, chat id and viewtype is returned.
+/// For each message a row ID, chat id, viewtype and location ID is returned.
 async fn select_expired_messages(
     context: &Context,
     now: i64,
-) -> Result<Vec<(MsgId, ChatId, Viewtype)>> {
+) -> Result<Vec<(MsgId, ChatId, Viewtype, u32)>> {
     let mut rows = context
         .sql
         .query_map(
             r#"
-SELECT id, chat_id, type
+SELECT id, chat_id, type, location_id
 FROM msgs
 WHERE
   ephemeral_timestamp != 0
@@ -370,7 +370,8 @@ WHERE
                 let id: MsgId = row.get("id")?;
                 let chat_id: ChatId = row.get("chat_id")?;
                 let viewtype: Viewtype = row.get("type")?;
-                Ok((id, chat_id, viewtype))
+                let location_id: u32 = row.get("location_id")?;
+                Ok((id, chat_id, viewtype, location_id))
             },
             |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
@@ -390,7 +391,7 @@ WHERE
             .sql
             .query_map(
                 r#"
-SELECT id, chat_id, type
+SELECT id, chat_id, type, location_id
 FROM msgs
 WHERE
   timestamp < ?1
@@ -409,7 +410,8 @@ WHERE
                     let id: MsgId = row.get("id")?;
                     let chat_id: ChatId = row.get("chat_id")?;
                     let viewtype: Viewtype = row.get("type")?;
-                    Ok((id, chat_id, viewtype))
+                    let location_id: u32 = row.get("location_id")?;
+                    Ok((id, chat_id, viewtype, location_id))
                 },
                 |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
             )
@@ -440,7 +442,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
 
                 // If you change which information is removed here, also change MsgId::trash() and
                 // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                for (msg_id, chat_id, viewtype) in rows {
+                for (msg_id, chat_id, viewtype, location_id) in rows {
                     transaction.execute(
                         "UPDATE msgs
                      SET chat_id=?, txt='', subject='', txt_raw='',
@@ -448,6 +450,13 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
                      WHERE id=?",
                         (DC_CHAT_ID_TRASH, msg_id),
                     )?;
+
+                    if location_id > 0 {
+                        transaction.execute(
+                            "DELETE FROM locations WHERE independent=1 AND id=?",
+                            (location_id,),
+                        )?;
+                    }
 
                     msgs_changed.push((chat_id, msg_id));
                     if viewtype == Viewtype::Webxdc {
