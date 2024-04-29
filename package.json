@@ -28,7 +28,7 @@
   ],
   "homepage": "https://github.com/deltachat/deltachat-core-rust/tree/master/node",
   "license": "GPL-3.0-or-later",
-  "exports": "node/dist/index.js",
+  "exports": "./node/dist/index.js",
   "name": "deltachat-node",
   "repository": {
     "type": "git",
