@@ -4,6 +4,7 @@
 it will echo back any text send to it, it also will print to console all Delta Chat core events.
 Pass --help to the CLI to see available options.
 """
+
 from deltachat_rpc_client import events, run_bot_cli
 
 hooks = events.HookCollection()
