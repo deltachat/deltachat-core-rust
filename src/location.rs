@@ -1,4 +1,14 @@
 //! Location handling.
+//!
+//! Delta Chat handles two kind of locations.
+//!
+//! There are two kinds of locations:
+//! - Independent locations, also known as Points of Interest (POI).
+//! - Path locations.
+//!
+//! Locations are sent as KML attachments.
+//! Independent locations are sent in `message.kml` attachments
+//! and path locations are sent in `location.kml` attachments.
 
 use std::time::Duration;
 
