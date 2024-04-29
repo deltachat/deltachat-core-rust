@@ -15,6 +15,7 @@ use crate::context::Context;
 use crate::debug_logging::set_debug_logging_xdc;
 use crate::ephemeral::start_ephemeral_timers;
 use crate::imex::BLOBS_BACKUP_NAME;
+use crate::location::delete_orphaned_poi_locations;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::param::{Param, Params};
@@ -776,6 +777,14 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         )
         .await
         .context("failed to remove old webxdc status updates")
+        .log_err(context)
+        .ok();
+
+    // Delete POI locations
+    // which don't have corresponding message.
+    delete_orphaned_poi_locations(context)
+        .await
+        .context("Failed to delete orphaned POI locations")
         .log_err(context)
         .ok();
 
