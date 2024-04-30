@@ -81,8 +81,6 @@ jobs:
         run: npm install
       - name: npm run build
         run: npm run build
-      - name: Install dependencies
-        run: npm install
       - name: Run docs script
         run: npm run docs
       - name: Upload to js.jsonrpc.delta.chat
