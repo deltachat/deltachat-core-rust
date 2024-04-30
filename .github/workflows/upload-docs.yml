@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - build_jsonrpc_docs_ci
 
 jobs:
   build-rs:
@@ -78,8 +79,8 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '18'
-      - name: npm build
-        run: npm build
+      - name: npm run build
+        run: npm run build
       - name: Install dependencies
         run: npm install
       - name: Run docs script
