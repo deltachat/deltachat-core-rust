@@ -67,15 +67,22 @@ pub fn parse_vcard(vcard: String) -> Result<Vec<VcardContact>> {
     }
     fn vcard_property<'a>(s: &'a str, property: &str) -> Option<&'a str> {
         let remainder = remove_prefix(s, property)?;
+        // If `s` is `EMAIL;TYPE=work:alice@example.com` and `property` is `EMAIL`,
+        // then `remainder` is now `;TYPE=work:alice@example.com`
 
         // TODO this doesn't handle the case where there are quotes around a colon
         let (params, value) = remainder.split_once(':')?;
+        // In the example from above, `params` is now `;TYPE=work`
+        // and `value` is now `alice@example.com`
+
         if params
             .chars()
             .next()
             .filter(|c| !c.is_ascii_punctuation() || *c == '_')
             .is_some()
         {
+            // `s` started with `property`, but the next character after it was not punctuation,
+            // so this line's property is actually something else
             return None;
         }
         Some(value)
