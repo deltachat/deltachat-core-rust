@@ -18,13 +18,11 @@ jobs:
         run: |
           cargo doc --package deltachat --no-deps --document-private-items
       - name: Upload to rs.delta.chat
-        uses: up9cloud/action-rsync@v1.3
-        env:
-          USER: ${{ secrets.USERNAME }}
-          KEY: ${{ secrets.KEY }}
-          HOST: "delta.chat"
-          SOURCE: "target/doc"
-          TARGET: "/var/www/html/rs/"
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/target/doc "${{ secrets.USERNAME }}@rs.delta.chat:/var/www/html/rs/"
 
   build-python:
     runs-on: ubuntu-latest
@@ -87,11 +85,9 @@ jobs:
         run: npm install
       - name: Run docs script
         run: npm run docs
-      - name: Upload to ts.delta.chat
-        uses: up9cloud/action-rsync@v1.3
-        env:
-          USER: ${{ secrets.USERNAME }}
-          KEY: ${{ secrets.KEY }}
-          HOST: "delta.chat"
-          SOURCE: "deltachat-jsonrpc/typescript/docs/"
-          TARGET: "/var/www/html/js-jsonrpc/"
+      - name: Upload to js.jsonrpc.delta.chat
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/deltachat-jsonrpc/typescript/docs/ "${{ secrets.USERNAME }}@js.jsonrpc.delta.chat:/var/www/html/js-jsonrpc/"
