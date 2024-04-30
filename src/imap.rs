@@ -1459,7 +1459,7 @@ impl Session {
             .get_metadata(
                 mailbox,
                 options,
-                "(/shared/comment /shared/admin /shared/irohrelay)",
+                "(/shared/comment /shared/admin)",
             )
             .await?;
         for m in metadata {
