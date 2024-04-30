@@ -93,5 +93,5 @@ jobs:
           USER: ${{ secrets.USERNAME }}
           KEY: ${{ secrets.KEY }}
           HOST: "delta.chat"
-          SOURCE: "/deltachat-jsonrpc/typescript/docs/"
+          SOURCE: "deltachat-jsonrpc/typescript/docs/"
           TARGET: "/var/www/html/js-jsonrpc/"
