@@ -1459,7 +1459,7 @@ impl Session {
             .get_metadata(
                 mailbox,
                 options,
-                "(/shared/comment /shared/admin /shared/iroh_relay)",
+                "(/shared/comment /shared/admin /shared/irohrelay)",
             )
             .await?;
         for m in metadata {
@@ -1470,7 +1470,7 @@ impl Session {
                 "/shared/admin" => {
                     admin = m.value;
                 }
-                "/shared/iroh_relay" => {
+                "/shared/irohrelay" => {
                     _iroh_relay = m.value;
                 }
                 _ => {}

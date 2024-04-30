@@ -1330,7 +1330,7 @@ impl<'a> MimeFactory<'a> {
                 .await?
                 .public();
             context
-                .add_peer_for_topic(self.msg.id, topic, peer, None)
+                .iroh_add_peer_for_topic(self.msg.id, topic, peer, None)
                 .await?;
             headers.protected.push(Header::new(
                 HeaderDef::IrohGossipTopic.get_headername().to_string(),

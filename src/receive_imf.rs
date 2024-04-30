@@ -1415,9 +1415,9 @@ async fn add_parts(
                 let node_id = node_addr.node_id;
                 let relay_server = node_addr.relay_url().map(|relay| relay.to_string());
                 let instance_id = parent.context("Failed to get parent message")?.id;
-                let topic = context.get_topic_for_msg_id(instance_id).await?;
+                let topic = context.get_iroh_topic_for_msg_id(instance_id).await?;
                 context
-                    .add_peer_for_topic(instance_id, topic, node_id, relay_server.as_deref())
+                    .iroh_add_peer_for_topic(instance_id, topic, node_id, relay_server.as_deref())
                     .await?;
 
                 chat_id = DC_CHAT_ID_TRASH;
@@ -1601,7 +1601,7 @@ RETURNING id
                 let topic = TopicId::from_str(topic).context("wrong gossip topic header")?;
                 let peer = context.get_or_generate_iroh_keypair().await?.public();
                 context
-                    .add_peer_for_topic(*msg_id, topic, peer, None)
+                    .iroh_add_peer_for_topic(*msg_id, topic, peer, None)
                     .await?;
             } else {
                 warn!(context, "webxdc doesn't have a gossip topic")

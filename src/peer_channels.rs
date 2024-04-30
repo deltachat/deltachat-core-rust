@@ -98,7 +98,7 @@ impl Context {
     /// If there is no gossip, create it.
     ///
     /// The returned future resolves when the swarm becomes operational.
-    async fn join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
+    async fn iroh_join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
         let mut gossip = (*self.iroh_gossip.read().await).clone();
         if gossip.is_none() {
             self.init_peer_channels().await?;
@@ -106,7 +106,7 @@ impl Context {
         }
 
         let gossip = gossip.context("no gossip")?;
-        let peers = self.get_gossip_peers(msg_id).await?;
+        let peers = self.get_iroh_gossip_peers(msg_id).await?;
 
         let endpoint = self.iroh_endpoint.read().await;
         // connect to all peers
@@ -117,7 +117,7 @@ impl Context {
                 .add_node_addr(peer.clone())?;
         }
 
-        let topic = self.get_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
         let connect_future = gossip
             .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
             .await?;
@@ -128,7 +128,7 @@ impl Context {
     }
 
     /// Cache a peers [NodeId] for one topic.
-    pub(crate) async fn add_peer_for_topic(
+    pub(crate) async fn iroh_add_peer_for_topic(
         &self,
         msg_id: MsgId,
         topic: TopicId,
@@ -145,7 +145,7 @@ impl Context {
     }
 
     /// Get a list of [NodeAddr]s for one webxdc.
-    async fn get_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
+    async fn get_iroh_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
         self.sql
             .query_map(
                 "SELECT public_key, relay_server FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
@@ -203,7 +203,7 @@ impl Context {
     }
 
     /// Get the topic for a given [MsgId].
-    pub(crate) async fn get_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
+    pub(crate) async fn get_iroh_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
         let bytes: Vec<u8> = self
             .sql
             .query_get_value(
@@ -217,7 +217,7 @@ impl Context {
 
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
-        let topic = self.get_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
         let has_joined = self.iroh_channels.read().await.get(&topic).copied();
         if has_joined.is_none() {
             self.send_webxdc_realtime_advertisement(msg_id).await?;
@@ -250,13 +250,13 @@ impl Context {
         &self,
         msg_id: MsgId,
     ) -> Result<Option<JoinTopicFut>> {
-        let topic = self.get_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
         let mut channels = self.iroh_channels.write().await;
         let fut = if channels.get(&topic).is_some() {
             return Ok(None);
         } else {
             channels.insert(topic, 0);
-            self.join_and_subscribe_gossip(msg_id).await?
+            self.iroh_join_and_subscribe_gossip(msg_id).await?
         };
         drop(channels);
 
@@ -271,7 +271,7 @@ impl Context {
 
     /// Leave the gossip of the webxdc with given [MsgId].
     pub async fn leave_webxdc_realtime(&self, msg_id: MsgId) -> Result<()> {
-        let topic = self.get_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
         self.iroh_channels.write().await.remove(&topic);
         let gossip = self.iroh_gossip.read().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
@@ -329,7 +329,7 @@ async fn subscribe_loop(
             IrohEvent::NeighborUp(node) => {
                 info!(context, "NeighborUp: {:?}", node);
                 context
-                    .add_peer_for_topic(msg_id, topic, node, None)
+                    .iroh_add_peer_for_topic(msg_id, topic, node, None)
                     .await?;
             }
             IrohEvent::Received(event) => {
@@ -397,7 +397,7 @@ mod tests {
         bob.init_peer_channels().await.unwrap();
         // Bob adds alice to gossip peers.
         let members = bob
-            .get_gossip_peers(bob_webdxc.id)
+            .get_iroh_gossip_peers(bob_webdxc.id)
             .await
             .unwrap()
             .into_iter()
@@ -408,7 +408,7 @@ mod tests {
             vec![alice.get_iroh_node_addr().await.unwrap().node_id]
         );
 
-        bob.join_and_subscribe_gossip(bob_webdxc.id)
+        bob.iroh_join_and_subscribe_gossip(bob_webdxc.id)
             .await
             .unwrap()
             .await
@@ -454,7 +454,7 @@ mod tests {
 
         // Alice adds bob to gossip peers.
         let members = alice
-            .get_gossip_peers(alice_webxdc.id)
+            .get_iroh_gossip_peers(alice_webxdc.id)
             .await
             .unwrap()
             .into_iter()
@@ -522,9 +522,12 @@ mod tests {
 
         bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
 
-        let fut = bob.join_and_subscribe_gossip(bob_webdxc.id).await.unwrap();
+        let fut = bob
+            .iroh_join_and_subscribe_gossip(bob_webdxc.id)
+            .await
+            .unwrap();
         alice
-            .join_and_subscribe_gossip(alice_webxdc.id)
+            .iroh_join_and_subscribe_gossip(alice_webxdc.id)
             .await
             .unwrap()
             .await
@@ -556,7 +559,7 @@ mod tests {
 
         bob.leave_webxdc_realtime(bob_webdxc.id).await.unwrap();
 
-        bob.join_and_subscribe_gossip(bob_webdxc.id)
+        bob.iroh_join_and_subscribe_gossip(bob_webdxc.id)
             .await
             .unwrap()
             .await
