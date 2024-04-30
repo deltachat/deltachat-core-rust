@@ -462,4 +462,38 @@ END:VCARD"
         assert!(EmailAddress::new("u@tt").is_ok());
         assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
     }
+
+    #[test]
+    fn test_android_contact_export() {
+        let contacts = parse_vcard(
+            "BEGIN:VCARD
+VERSION:2.1
+N:;Bob;;;
+FN:Bob
+TEL;CELL:+1-234-567-890
+EMAIL;HOME:bob@example.org
+END:VCARD
+BEGIN:VCARD
+VERSION:2.1
+N:;Alice;;;
+FN:Alice
+EMAIL;HOME:alice@example.org
+END:VCARD
+"
+            .to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(contacts[0].addr, "bob@example.org".to_string());
+        assert_eq!(contacts[0].display_name, "Bob".to_string());
+        assert_eq!(contacts[0].key, None);
+        assert_eq!(contacts[0].profile_photo, None);
+
+        assert_eq!(contacts[1].addr, "alice@example.org".to_string());
+        assert_eq!(contacts[1].display_name, "Alice".to_string());
+        assert_eq!(contacts[1].key, None);
+        assert_eq!(contacts[1].profile_photo, None);
+
+        assert_eq!(contacts.len(), 2);
+    }
 }
