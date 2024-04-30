@@ -81,8 +81,8 @@ jobs:
           node-version: '18'
       - name: npm install
         run: npm install
-      - name: npm build
-        run: npm build
+      - name: npm run build
+        run: npm run build
       - name: Install dependencies
         run: npm install
       - name: Run docs script
