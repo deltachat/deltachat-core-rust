@@ -54,6 +54,44 @@ pub struct VcardContact {
     pub timestamp: Result<u64>,
 }
 
+/// Returns a vCard containing given contacts.
+///
+/// Calling [`parse_vcard()`] on the returned result is a reverse operation.
+pub fn make_vcard(contacts: &[VcardContact]) -> String {
+    fn format_timestamp(c: &VcardContact) -> Option<String> {
+        let timestamp = *c.timestamp.as_ref().ok()?;
+        let timestamp: i64 = timestamp.try_into().ok()?;
+        let datetime = DateTime::from_timestamp(timestamp, 0)?;
+        Some(datetime.format("%Y%m%dT%H%M%SZ").to_string())
+    }
+
+    let mut res = "".to_string();
+    for c in contacts {
+        let addr = &c.addr;
+        let display_name = match c.display_name.is_empty() {
+            false => &c.display_name,
+            true => &c.addr,
+        };
+        res += &format!(
+            "BEGIN:VCARD\n\
+             VERSION:4.0\n\
+             EMAIL:{addr}\n\
+             FN:{display_name}\n"
+        );
+        if let Some(key) = &c.key {
+            res += &format!("KEY:data:application/pgp-keys;base64,{key}\n");
+        }
+        if let Some(profile_image) = &c.profile_image {
+            res += &format!("PHOTO:data:image/jpeg;base64,{profile_image}\n");
+        }
+        if let Some(timestamp) = format_timestamp(c) {
+            res += &format!("REV:{timestamp}\n");
+        }
+        res += "END:VCARD\n";
+    }
+    res
+}
+
 /// Parses `VcardContact`s from a given `&str`.
 pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
     fn remove_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
@@ -433,6 +471,42 @@ END:VCARD",
         assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762);
 
         assert_eq!(contacts.len(), 1);
+    }
+
+    #[test]
+    fn test_make_and_parse_vcard() {
+        let contacts = [
+            VcardContact {
+                addr: "alice@example.org".to_string(),
+                display_name: "Alice Wonderland".to_string(),
+                key: Some("[base64-data]".to_string()),
+                profile_image: Some("image in Base64".to_string()),
+                timestamp: Ok(1713465762),
+            },
+            VcardContact {
+                addr: "bob@example.com".to_string(),
+                display_name: "".to_string(),
+                key: None,
+                profile_image: None,
+                timestamp: Ok(0),
+            },
+        ];
+        for len in 0..=contacts.len() {
+            let contacts = &contacts[0..len];
+            let vcard = make_vcard(contacts);
+            let parsed = parse_vcard(&vcard).unwrap();
+            assert_eq!(parsed.len(), contacts.len());
+            for i in 0..parsed.len() {
+                assert_eq!(parsed[i].addr, contacts[i].addr);
+                assert_eq!(parsed[i].display_name, contacts[i].display_name);
+                assert_eq!(parsed[i].key, contacts[i].key);
+                assert_eq!(parsed[i].profile_image, contacts[i].profile_image);
+                assert_eq!(
+                    parsed[i].timestamp.as_ref().unwrap(),
+                    contacts[i].timestamp.as_ref().unwrap()
+                );
+            }
+        }
     }
 
     #[test]
