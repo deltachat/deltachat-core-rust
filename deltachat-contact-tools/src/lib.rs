@@ -417,7 +417,7 @@ END:VCARD",
         assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
         assert_eq!(contacts[0].key, Some("[base64-data]".to_string()));
         assert_eq!(contacts[0].profile_image, None);
-        assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762); // I did not check whether this timestamp is correct
+        assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762);
 
         assert_eq!(contacts.len(), 1);
     }
