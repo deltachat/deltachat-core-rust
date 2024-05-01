@@ -364,7 +364,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_thunderbird() {
+    fn test_vcard_thunderbird() {
         let contacts = parse_vcard(
             "BEGIN:VCARD
 VERSION:4.0
@@ -398,7 +398,7 @@ END:VCARD
     }
 
     #[test]
-    fn test_simple_example() {
+    fn test_vcard_simple_example() {
         let contacts = parse_vcard(
             "BEGIN:VCARD
 VERSION:4.0
@@ -469,7 +469,7 @@ END:VCARD",
     }
 
     #[test]
-    fn test_android_contact_export() {
+    fn test_vcard_android() {
         let contacts = parse_vcard(
             "BEGIN:VCARD
 VERSION:2.1
