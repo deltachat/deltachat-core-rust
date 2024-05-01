@@ -48,8 +48,8 @@ pub struct VcardContact {
     pub display_name: String,
     /// The contact's public PGP key in Base64, vcard property `key`
     pub key: Option<String>,
-    /// The contact's profile photo (=avatar) in Base64, vcard property `photo`
-    pub profile_photo: Option<String>,
+    /// The contact's profile image (=avatar) in Base64, vcard property `photo`
+    pub profile_image: Option<String>,
     /// The timestamp when the vcard was created / last updated, vcard property `rev`
     pub timestamp: Result<u64>,
 }
@@ -145,7 +145,7 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
             display_name,
             addr,
             key: key.map(|s| s.to_string()),
-            profile_photo: photo.map(|s| s.to_string()),
+            profile_image: photo.map(|s| s.to_string()),
             timestamp: datetime
                 .context("No timestamp in vcard")
                 .and_then(parse_datetime),
@@ -385,13 +385,13 @@ END:VCARD
         assert_eq!(contacts[0].addr, "alice.mueller@posteo.de".to_string());
         assert_eq!(contacts[0].display_name, "Alice Mueller".to_string());
         assert_eq!(contacts[0].key, None);
-        assert_eq!(contacts[0].profile_photo, None);
+        assert_eq!(contacts[0].profile_image, None);
         assert!(contacts[0].timestamp.is_err());
 
         assert_eq!(contacts[1].addr, "bobzzz@freenet.de".to_string());
         assert_eq!(contacts[1].display_name, "".to_string());
         assert_eq!(contacts[1].key, None);
-        assert_eq!(contacts[1].profile_photo, None);
+        assert_eq!(contacts[1].profile_image, None);
         assert!(contacts[1].timestamp.is_err());
 
         assert_eq!(contacts.len(), 2);
@@ -416,7 +416,7 @@ END:VCARD",
         assert_eq!(contacts[0].addr, "alice@example.com".to_string());
         assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
         assert_eq!(contacts[0].key, Some("[base64-data]".to_string()));
-        assert_eq!(contacts[0].profile_photo, None);
+        assert_eq!(contacts[0].profile_image, None);
         assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762); // I did not check whether this timestamp is correct
 
         assert_eq!(contacts.len(), 1);
@@ -491,12 +491,12 @@ END:VCARD
         assert_eq!(contacts[0].addr, "bob@example.org".to_string());
         assert_eq!(contacts[0].display_name, "Bob".to_string());
         assert_eq!(contacts[0].key, None);
-        assert_eq!(contacts[0].profile_photo, None);
+        assert_eq!(contacts[0].profile_image, None);
 
         assert_eq!(contacts[1].addr, "alice@example.org".to_string());
         assert_eq!(contacts[1].display_name, "Alice".to_string());
         assert_eq!(contacts[1].key, None);
-        assert_eq!(contacts[1].profile_photo, None);
+        assert_eq!(contacts[1].profile_image, None);
 
         assert_eq!(contacts.len(), 2);
     }
