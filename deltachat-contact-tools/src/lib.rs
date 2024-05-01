@@ -54,8 +54,8 @@ pub struct VcardContact {
     pub timestamp: Result<u64>,
 }
 
-/// Parses `VcardContact`s from a given `String`.
-pub fn parse_vcard(vcard: String) -> Result<Vec<VcardContact>> {
+/// Parses `VcardContact`s from a given `&str`.
+pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
     fn remove_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
         let start_of_s = s.get(..prefix.len())?;
 
@@ -378,8 +378,7 @@ FN:'bobzzz@freenet.de'
 EMAIL;PREF=1:bobzzz@freenet.de
 UID:cac4fef4-6351-4854-bbe4-9b6df857eaed
 END:VCARD
-"
-            .to_string(),
+",
         )
         .unwrap();
 
@@ -410,8 +409,7 @@ EMAIL;TYPE=work:alice@example.com
 KEY;TYPE=PGP;ENCODING=b:[base64-data]
 REV:20240418T184242Z
 
-END:VCARD"
-                .to_string(),
+END:VCARD",
         )
         .unwrap();
 
@@ -486,8 +484,7 @@ N:;Alice;;;
 FN:Alice
 EMAIL;HOME:alice@example.org
 END:VCARD
-"
-            .to_string(),
+",
         )
         .unwrap();
 
