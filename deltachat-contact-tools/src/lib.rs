@@ -31,7 +31,7 @@ use std::ops::Deref;
 use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Result;
-use chrono::DateTime;
+use chrono::{DateTime, NaiveDateTime};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -92,11 +92,21 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
         // is in ISO.8601.2004 format. DateTime::parse_from_rfc3339() apparently parses
         // ISO.8601, but fails to parse any of the examples given.
         // So, instead just parse using a format string.
-        let datetime =
-            DateTime::parse_from_str(datetime, "%Y%m%dT%H%M%S%#z") // Parses 19961022T140000Z, 19961022T140000-05, or 19961022T140000-0500
-                .or_else(|_| DateTime::parse_from_str(datetime, "%Y%m%dT%H%M%S"))?; // Parses 19961022T140000
-        let timestamp = datetime.timestamp().try_into()?;
-        Ok(timestamp)
+
+        // Parses 19961022T140000Z, 19961022T140000-05, or 19961022T140000-0500.
+        let timestamp = match DateTime::parse_from_str(datetime, "%Y%m%dT%H%M%S%#z") {
+            Ok(datetime) => datetime.timestamp(),
+            // Parses 19961022T140000.
+            Err(e) => match NaiveDateTime::parse_from_str(datetime, "%Y%m%dT%H%M%S") {
+                Ok(datetime) => datetime
+                    .and_local_timezone(chrono::offset::Local)
+                    .single()
+                    .context("Could not apply local timezone to parsed date and time")?
+                    .timestamp(),
+                Err(_) => return Err(e.into()),
+            },
+        };
+        Ok(timestamp.try_into()?)
     }
 
     let mut lines = vcard.lines().peekable();
@@ -361,6 +371,8 @@ impl rusqlite::types::ToSql for EmailAddress {
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeZone;
+
     use super::*;
 
     #[test]
@@ -499,5 +511,30 @@ END:VCARD
         assert_eq!(contacts[1].profile_image, None);
 
         assert_eq!(contacts.len(), 2);
+    }
+
+    #[test]
+    fn test_vcard_local_datetime() {
+        let contacts = parse_vcard(
+            "BEGIN:VCARD\n\
+             VERSION:4.0\n\
+             FN:Alice Wonderland\n\
+             EMAIL;TYPE=work:alice@example.org\n\
+             REV:20240418T184242\n\
+             END:VCARD",
+        )
+        .unwrap();
+        assert_eq!(contacts.len(), 1);
+        assert_eq!(contacts[0].addr, "alice@example.org".to_string());
+        assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
+        assert_eq!(
+            *contacts[0].timestamp.as_ref().unwrap(),
+            chrono::offset::Local
+                .with_ymd_and_hms(2024, 4, 18, 18, 42, 42)
+                .unwrap()
+                .timestamp()
+                .try_into()
+                .unwrap()
+        );
     }
 }
