@@ -252,9 +252,9 @@ dependencies = [
 
 [[package]]
 name = "async-channel"
-version = "2.2.0"
+version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f28243a43d821d11341ab73c80bed182dc015c514b951616cf79bd4af39af0c3"
+checksum = "136d4d23bcc79e27423727b36823d86233aad06dfea531837b038394d11e9928"
 dependencies = [
  "concurrent-queue",
  "event-listener 5.2.0",
@@ -282,7 +282,7 @@ version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98892ebee4c05fc66757e600a7466f0d9bfcde338f645d64add323789f26cb36"
 dependencies = [
- "async-channel 2.2.0",
+ "async-channel 2.2.1",
  "base64 0.21.7",
  "bytes",
  "chrono",
@@ -1162,7 +1162,7 @@ dependencies = [
  "ansi_term",
  "anyhow",
  "async-broadcast",
- "async-channel 2.2.0",
+ "async-channel 2.2.1",
  "async-imap",
  "async-native-tls",
  "async-smtp",
@@ -1252,7 +1252,7 @@ name = "deltachat-jsonrpc"
 version = "1.137.4"
 dependencies = [
  "anyhow",
- "async-channel 2.2.0",
+ "async-channel 2.2.1",
  "axum",
  "base64 0.22.1",
  "deltachat",
