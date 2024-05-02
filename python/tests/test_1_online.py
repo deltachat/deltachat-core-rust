@@ -2036,14 +2036,15 @@ def test_send_receive_locations(acfactory, lp):
     assert chat1.is_sending_locations()
     ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
+    # Wait for "enabled location streaming" message.
+    ac2._evtracker.wait_next_incoming_message()
+
+    # First location is sent immediately as a location-only message.
     ac1.set_location(latitude=2.0, longitude=3.0, accuracy=0.5)
     ac1._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
-    chat1.send_text("🍞")
     ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
     lp.sec("ac2: wait for incoming location message")
-
-    # currently core emits location changed before event_incoming message
     ac2._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
 
     locations = chat2.get_locations()
@@ -2052,7 +2053,7 @@ def test_send_receive_locations(acfactory, lp):
     assert locations[0].longitude == 3.0
     assert locations[0].accuracy == 0.5
     assert locations[0].timestamp > now
-    assert locations[0].marker == "🍞"
+    assert locations[0].marker is None
 
     contact = ac2.create_contact(ac1)
     locations2 = chat2.get_locations(contact=contact)

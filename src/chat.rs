@@ -2505,6 +2505,30 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .await?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
+        if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
+            // Correct the type, take care not to correct already very special
+            // formats as GIF or VOICE.
+            //
+            // Typical conversions:
+            // - from FILE to AUDIO/VIDEO/IMAGE
+            // - from FILE/IMAGE to GIF */
+            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(&blob.to_abs_path())
+            {
+                if better_type != Viewtype::Webxdc
+                    || context
+                        .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                        .await
+                        .is_ok()
+                {
+                    msg.viewtype = better_type;
+                }
+            }
+        } else if msg.viewtype == Viewtype::Webxdc {
+            context
+                .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                .await?;
+        }
+
         let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
         if msg.viewtype == Viewtype::Image
             || maybe_sticker && !msg.param.exists(Param::ForceSticker)
@@ -2524,34 +2548,6 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             };
             msg.param
                 .set(Param::Filename, stem.to_string() + "." + blob_ext);
-        }
-
-        if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
-            // Correct the type, take care not to correct already very special
-            // formats as GIF or VOICE.
-            //
-            // Typical conversions:
-            // - from FILE to AUDIO/VIDEO/IMAGE
-            // - from FILE/IMAGE to GIF */
-            if let Some((better_type, better_mime)) =
-                message::guess_msgtype_from_suffix(&blob.to_abs_path())
-            {
-                if better_type != Viewtype::Webxdc
-                    || context
-                        .ensure_sendable_webxdc_file(&blob.to_abs_path())
-                        .await
-                        .is_ok()
-                {
-                    msg.viewtype = better_type;
-                    if !msg.param.exists(Param::MimeType) {
-                        msg.param.set(Param::MimeType, better_mime);
-                    }
-                }
-            }
-        } else if msg.viewtype == Viewtype::Webxdc {
-            context
-                .ensure_sendable_webxdc_file(&blob.to_abs_path())
-                .await?;
         }
 
         if !msg.param.exists(Param::MimeType) {
@@ -5034,6 +5030,32 @@ mod tests {
         bob.recv_msg(&remove2).await;
         bob.recv_msg(&remove1).await;
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
+
+        Ok(())
+    }
+
+    /// Tests that if member added message is completely lost,
+    /// member is eventually added.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_lost_member_added() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+        let alice_chat_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "Group", &[bob])
+            .await;
+        let alice_sent = alice.send_text(alice_chat_id, "Hi!").await;
+        let bob_chat_id = bob.recv_msg(&alice_sent).await.chat_id;
+        assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 2);
+
+        // Attempt to add member, but message is lost.
+        let claire_id = Contact::create(alice, "", "claire@foo.de").await?;
+        add_contact_to_chat(alice, alice_chat_id, claire_id).await?;
+        alice.pop_sent_msg().await;
+
+        let alice_sent = alice.send_text(alice_chat_id, "Hi again!").await;
+        bob.recv_msg(&alice_sent).await;
+        assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 3);
 
         Ok(())
     }

@@ -22,6 +22,7 @@ use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
+use crate::location::delete_poi_location;
 use crate::mimeparser::{parse_message_id, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
@@ -657,10 +658,6 @@ impl Message {
     /// Check if a message has a location bound to it.
     /// These messages are also returned by get_locations()
     /// and the UI may decide to display a special icon beside such messages,
-    ///
-    /// @memberof Message
-    /// @param msg The message object.
-    /// @return 1=Message has location bound to it, 0=No location bound to message.
     pub fn has_location(&self) -> bool {
         self.location_id != 0
     }
@@ -670,13 +667,17 @@ impl Message {
     /// at a position different from the self-location.
     /// You should not call this function
     /// if you want to bind the current self-location to a message;
-    /// this is done by set_location() and send_locations_to_chat().
+    /// this is done by [`location::set()`] and [`send_locations_to_chat()`].
     ///
-    /// Typically results in the event #DC_EVENT_LOCATION_CHANGED with
-    /// contact_id set to ContactId::SELF.
+    /// Typically results in the event [`LocationChanged`] with
+    /// `contact_id` set to [`ContactId::SELF`].
     ///
-    /// @param latitude North-south position of the location.
-    /// @param longitude East-west position of the location.
+    /// `latitude` is the North-south position of the location.
+    /// `longitutde` is the East-west position of the location.
+    ///
+    /// [`location::set()`]: crate::location::set
+    /// [`send_locations_to_chat()`]: crate::location::send_locations_to_chat
+    /// [`LocationChanged`]: crate::events::EventType::LocationChanged
     pub fn set_location(&mut self, latitude: f64, longitude: f64) {
         if latitude == 0.0 && longitude == 0.0 {
             return;
@@ -1568,17 +1569,6 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.
     context.scheduler.interrupt_inbox().await;
-    Ok(())
-}
-
-async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> {
-    context
-        .sql
-        .execute(
-            "DELETE FROM locations WHERE independent = 1 AND id=?;",
-            (location_id as i32,),
-        )
-        .await?;
     Ok(())
 }
 

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - build_jsonrpc_docs_ci
 
 jobs:
   build-rs:
@@ -17,13 +18,11 @@ jobs:
         run: |
           cargo doc --package deltachat --no-deps --document-private-items
       - name: Upload to rs.delta.chat
-        uses: up9cloud/action-rsync@v1.3
-        env:
-          USER: ${{ secrets.USERNAME }}
-          KEY: ${{ secrets.KEY }}
-          HOST: "delta.chat"
-          SOURCE: "target/doc"
-          TARGET: "/var/www/html/rs/"
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/target/doc "${{ secrets.USERNAME }}@rs.delta.chat:/var/www/html/rs/"
 
   build-python:
     runs-on: ubuntu-latest
@@ -62,3 +61,31 @@ jobs:
           echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
           chmod 600 "$HOME/.ssh/key"
           rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/result/html/ "delta@c.delta.chat:/home/delta/build-c/master"
+
+  build-ts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./deltachat-jsonrpc/typescript
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+          fetch-depth: 0 # Fetch history to calculate VCS version number.
+      - name: Use Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - name: npm install
+        run: npm install
+      - name: npm run build
+        run: npm run build
+      - name: Run docs script
+        run: npm run docs
+      - name: Upload to js.jsonrpc.delta.chat
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/deltachat-jsonrpc/typescript/docs/ "${{ secrets.USERNAME }}@js.jsonrpc.delta.chat:/var/www/html/js-jsonrpc/"

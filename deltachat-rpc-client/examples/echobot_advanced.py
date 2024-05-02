@@ -3,6 +3,7 @@
 
 it will echo back any message that has non-empty text and also supports the /help command.
 """
+
 import logging
 import sys
 from threading import Thread

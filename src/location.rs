@@ -1,4 +1,14 @@
 //! Location handling.
+//!
+//! Delta Chat handles two kind of locations.
+//!
+//! There are two kinds of locations:
+//! - Independent locations, also known as Points of Interest (POI).
+//! - Path locations.
+//!
+//! Locations are sent as KML attachments.
+//! Independent locations are sent in `message.kml` attachments
+//! and path locations are sent in `location.kml` attachments.
 
 use std::time::Duration;
 
@@ -8,6 +18,7 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 use tokio::time::timeout;
 
 use crate::chat::{self, ChatId};
+use crate::constants::DC_CHAT_ID_TRASH;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
@@ -350,6 +361,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         )
         .await?;
 
+    let mut stored_location = false;
     for chat_id in chats {
         context.sql.execute(
                 "INSERT INTO locations  \
@@ -362,6 +374,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                     chat_id,
                     ContactId::SELF,
                 )).await.context("Failed to store location")?;
+        stored_location = true;
 
         info!(context, "Stored location for chat {chat_id}.");
         continue_streaming = true;
@@ -369,6 +382,10 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
     if continue_streaming {
         context.emit_location_changed(Some(ContactId::SELF)).await?;
     };
+    if stored_location {
+        // Interrupt location loop so it may send a location-only message.
+        context.scheduler.interrupt_location().await;
+    }
 
     Ok(continue_streaming)
 }
@@ -458,6 +475,52 @@ fn is_marker(txt: &str) -> bool {
 pub async fn delete_all(context: &Context) -> Result<()> {
     context.sql.execute("DELETE FROM locations;", ()).await?;
     context.emit_location_changed(None).await?;
+    Ok(())
+}
+
+/// Deletes expired locations.
+///
+/// Only path locations are deleted.
+/// POIs should be deleted when corresponding message is deleted.
+pub(crate) async fn delete_expired(context: &Context, now: i64) -> Result<()> {
+    let deleted = context
+        .sql
+        .execute(
+            "DELETE FROM locations WHERE independent=0 AND timestamp < ?",
+            (now,),
+        )
+        .await?
+        > 0;
+    if deleted {
+        context.emit_location_changed(None).await?;
+    }
+    Ok(())
+}
+
+/// Deletes location if it is an independent location.
+///
+/// This function is used when a message is deleted
+/// that has a corresponding `location_id`.
+pub(crate) async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "DELETE FROM locations WHERE independent = 1 AND id=?",
+            (location_id as i32,),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Deletes POI locations that don't have corresponding message anymore.
+pub(crate) async fn delete_orphaned_poi_locations(context: &Context) -> Result<()> {
+    context.sql.execute("
+    DELETE FROM locations
+    WHERE independent=1 AND id NOT IN
+    (SELECT location_id from MSGS LEFT JOIN locations
+     ON locations.id=location_id
+     WHERE location_id>0 -- This check makes the query faster by not looking for locations with ID 0 that don't exist.
+     AND msgs.chat_id != ?)", (DC_CHAT_ID_TRASH,)).await?;
     Ok(())
 }
 

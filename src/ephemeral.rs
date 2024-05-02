@@ -80,6 +80,7 @@ use crate::contact::ContactId;
 use crate::context::Context;
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
+use crate::location;
 use crate::log::LogExt;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
@@ -348,16 +349,16 @@ pub(crate) async fn start_ephemeral_timers_msgids(
 /// Selects messages which are expired according to
 /// `delete_device_after` setting or `ephemeral_timestamp` column.
 ///
-/// For each message a row ID, chat id and viewtype is returned.
+/// For each message a row ID, chat id, viewtype and location ID is returned.
 async fn select_expired_messages(
     context: &Context,
     now: i64,
-) -> Result<Vec<(MsgId, ChatId, Viewtype)>> {
+) -> Result<Vec<(MsgId, ChatId, Viewtype, u32)>> {
     let mut rows = context
         .sql
         .query_map(
             r#"
-SELECT id, chat_id, type
+SELECT id, chat_id, type, location_id
 FROM msgs
 WHERE
   ephemeral_timestamp != 0
@@ -369,7 +370,8 @@ WHERE
                 let id: MsgId = row.get("id")?;
                 let chat_id: ChatId = row.get("chat_id")?;
                 let viewtype: Viewtype = row.get("type")?;
-                Ok((id, chat_id, viewtype))
+                let location_id: u32 = row.get("location_id")?;
+                Ok((id, chat_id, viewtype, location_id))
             },
             |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
@@ -389,7 +391,7 @@ WHERE
             .sql
             .query_map(
                 r#"
-SELECT id, chat_id, type
+SELECT id, chat_id, type, location_id
 FROM msgs
 WHERE
   timestamp < ?1
@@ -408,7 +410,8 @@ WHERE
                     let id: MsgId = row.get("id")?;
                     let chat_id: ChatId = row.get("chat_id")?;
                     let viewtype: Viewtype = row.get("type")?;
-                    Ok((id, chat_id, viewtype))
+                    let location_id: u32 = row.get("location_id")?;
+                    Ok((id, chat_id, viewtype, location_id))
                 },
                 |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
             )
@@ -439,7 +442,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
 
                 // If you change which information is removed here, also change MsgId::trash() and
                 // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                for (msg_id, chat_id, viewtype) in rows {
+                for (msg_id, chat_id, viewtype, location_id) in rows {
                     transaction.execute(
                         "UPDATE msgs
                      SET chat_id=?, txt='', subject='', txt_raw='',
@@ -447,6 +450,13 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
                      WHERE id=?",
                         (DC_CHAT_ID_TRASH, msg_id),
                     )?;
+
+                    if location_id > 0 {
+                        transaction.execute(
+                            "DELETE FROM locations WHERE independent=1 AND id=?",
+                            (location_id,),
+                        )?;
+                    }
 
                     msgs_changed.push((chat_id, msg_id));
                     if viewtype == Viewtype::Webxdc {
@@ -592,6 +602,11 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
             .await
             .log_err(context)
             .ok();
+
+        location::delete_expired(context, time())
+            .await
+            .log_err(context)
+            .ok();
     }
 }
 
@@ -671,8 +686,10 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::download::DownloadState;
+    use crate::location;
+    use crate::message::markseen_msgs;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
     use crate::timesmearing::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::{
         chat::{self, create_group_chat, send_text_msg, Chat, ChatItem, ProtectionStatus},
@@ -1346,6 +1363,46 @@ mod tests {
         check_msg_will_be_deleted(&alice, msg.id, &chat, now, now + i64::from(duration) + 1)
             .await?;
         assert!(alice.sql.exists(stmt, (msg.id,)).await?);
+
+        Ok(())
+    }
+
+    /// Tests that POI location is deleted when ephemeral message expires.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_ephemeral_poi_location() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let chat = alice.create_chat(bob).await;
+
+        let duration = 60;
+        chat.id
+            .set_ephemeral_timer(alice, Timer::Enabled { duration })
+            .await?;
+        let sent = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent).await;
+
+        let mut poi_msg = Message::new(Viewtype::Text);
+        poi_msg.text = "Here".to_string();
+        poi_msg.set_location(10.0, 20.0);
+
+        let alice_sent_message = alice.send_msg(chat.id, &mut poi_msg).await;
+        let bob_received_message = bob.recv_msg(&alice_sent_message).await;
+        markseen_msgs(bob, vec![bob_received_message.id]).await?;
+
+        for account in [alice, bob] {
+            let locations = location::get_range(account, None, None, 0, 0).await?;
+            assert_eq!(locations.len(), 1);
+        }
+
+        SystemTime::shift(Duration::from_secs(100));
+
+        for account in [alice, bob] {
+            delete_expired_messages(account, time()).await?;
+            let locations = location::get_range(account, None, None, 0, 0).await?;
+            assert_eq!(locations.len(), 0);
+        }
 
         Ok(())
     }
