@@ -17,7 +17,7 @@
 //!    we start a routine to establish p2p connectivity and join the gossip swarm with Iroh.
 //! 3. The first step of this routine is to introduce yourself with a regular message containing the `IrohPublicKey`.
 //!    This message contains the users relay-server and public key.
-//!    Direct IP address are not included as this information can be persisted by email providers.
+//!    Direct IP address is not included as this information can be persisted by email providers.
 //! 4. After the announcement, the sending peer joins the gossip swarm with an empty list of peer IDs (as they don't know anyone yet).
 //! 5. Upon receiving an announcement message, other peers store the sender's [NodeAddr] in the database
 //!    (scoped per WebXDC app instance/message-id). The other peers can then join the gossip with `joinRealtimeChannel().setListener()`
