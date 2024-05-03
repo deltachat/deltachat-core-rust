@@ -17,7 +17,6 @@ use deltachat::constants::DC_MSG_ID_DAYMARKER;
 use deltachat::contact::{may_be_valid_addr, Contact, ContactId, Origin};
 use deltachat::context::get_info;
 use deltachat::ephemeral::Timer;
-use deltachat::imex;
 use deltachat::location;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::message::{
@@ -31,6 +30,7 @@ use deltachat::securejoin;
 use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::EventEmitter;
+use deltachat::{imex, info};
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
@@ -1749,14 +1749,22 @@ impl CommandApi {
         instance_msg_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.send_webxdc_realtime_advertisement(MsgId::new(instance_msg_id))
+        let fut = ctx
+            .send_webxdc_realtime_advertisement(MsgId::new(instance_msg_id))
             .await?;
+        if let Some(fut) = fut {
+            tokio::spawn(async move {
+                fut.await;
+                info!(ctx, "send_webxdc_realtime_advertisement done")
+            });
+        }
         Ok(())
     }
 
     async fn leave_webxdc_realtime(&self, account_id: u32, instance_message_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.leave_webxdc_realtime(MsgId::new(instance_message_id)).await
+        ctx.leave_webxdc_realtime(MsgId::new(instance_message_id))
+            .await
     }
 
     async fn get_webxdc_status_updates(

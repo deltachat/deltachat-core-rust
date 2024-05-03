@@ -1412,10 +1412,11 @@ async fn add_parts(
     if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohNodeAddr) {
         match serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address") {
             Ok(node_addr) => {
+                info!(context, "Adding iroh peer with address {node_addr:?}.");
                 let node_id = node_addr.node_id;
                 let relay_server = node_addr.relay_url().map(|relay| relay.to_string());
                 let instance_id = parent.context("Failed to get parent message")?.id;
-                let topic = context.get_iroh_topic_for_msg_id(instance_id).await?;
+                let topic = context.get_iroh_topic_for_msg(instance_id).await?;
                 context
                     .iroh_add_peer_for_topic(instance_id, topic, node_id, relay_server.as_deref())
                     .await?;

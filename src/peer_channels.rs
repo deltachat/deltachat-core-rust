@@ -43,6 +43,7 @@ impl Context {
     /// Create magic endpoint and gossip for the context.
     pub(crate) async fn init_peer_channels(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
+        info!(self, "Secret key: {}", secret_key.to_string());
 
         let mut ctx_gossip = self.iroh_gossip.write().await;
         if ctx_gossip.is_some() {
@@ -107,6 +108,11 @@ impl Context {
 
         let gossip = gossip.context("no gossip")?;
         let peers = self.get_iroh_gossip_peers(msg_id).await?;
+        info!(
+            self,
+            "Joining gossip with peers: {:?}",
+            peers.iter().map(|p| p.node_id).collect::<Vec<_>>()
+        );
 
         let endpoint = self.iroh_endpoint.read().await;
         // connect to all peers
@@ -117,7 +123,7 @@ impl Context {
                 .add_node_addr(peer.clone())?;
         }
 
-        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
         let connect_future = gossip
             .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
             .await?;
@@ -203,7 +209,7 @@ impl Context {
     }
 
     /// Get the topic for a given [MsgId].
-    pub(crate) async fn get_iroh_topic_for_msg_id(&self, msg_id: MsgId) -> Result<TopicId> {
+    pub(crate) async fn get_iroh_topic_for_msg(&self, msg_id: MsgId) -> Result<TopicId> {
         let bytes: Vec<u8> = self
             .sql
             .query_get_value(
@@ -217,7 +223,7 @@ impl Context {
 
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
-        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
         let has_joined = self.iroh_channels.read().await.get(&topic).copied();
         if has_joined.is_none() {
             self.send_webxdc_realtime_advertisement(msg_id).await?;
@@ -239,6 +245,9 @@ impl Context {
             .context("No gossip")?
             .broadcast(topic, data.into())
             .await?;
+
+        info!(self, "Sent realtime data");
+
         Ok(())
     }
 
@@ -250,7 +259,7 @@ impl Context {
         &self,
         msg_id: MsgId,
     ) -> Result<Option<JoinTopicFut>> {
-        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
         let mut channels = self.iroh_channels.write().await;
         let fut = if channels.get(&topic).is_some() {
             return Ok(None);
@@ -266,12 +275,13 @@ impl Context {
         msg.param.set_cmd(SystemMessage::IrohNodeAddr);
         msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
         send_msg(self, webxdc.chat_id, &mut msg).await?;
+        info!(self, "Sent realtime advertisement");
         Ok(Some(fut))
     }
 
     /// Leave the gossip of the webxdc with given [MsgId].
     pub async fn leave_webxdc_realtime(&self, msg_id: MsgId) -> Result<()> {
-        let topic = self.get_iroh_topic_for_msg_id(msg_id).await?;
+        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
         self.iroh_channels.write().await.remove(&topic);
         let gossip = self.iroh_gossip.read().await;
         gossip.as_ref().context("No gossip")?.quit(topic).await?;
@@ -286,7 +296,7 @@ pub(crate) fn create_random_topic() -> TopicId {
 
 async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip) {
     while let Some(conn) = endpoint.accept().await {
-        info!(context, "accepting connection with {:?}", conn);
+        info!(context, "accepting iroh connection");
         let gossip = gossip.clone();
         let context = context.clone();
         tokio::spawn(async move {
@@ -308,7 +318,7 @@ async fn handle_connection(
             .handle_connection(conn)
             .await
             .context(format!("Connection to {peer_id} with ALPN {alpn} failed"))?,
-        _ => info!(
+        _ => warn!(
             context,
             "Ignoring connection from {peer_id}: unsupported ALPN protocol"
         ),
@@ -333,7 +343,7 @@ async fn subscribe_loop(
                     .await?;
             }
             IrohEvent::Received(event) => {
-                info!(context, "Received: {:?}", event);
+                info!(context, "Received realtime data");
                 context.emit_event(EventType::WebxdcRealtimeData {
                     msg_id,
                     data: event
