@@ -43,7 +43,7 @@ impl Context {
     /// Create magic endpoint and gossip for the context.
     pub(crate) async fn init_peer_channels(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
-        info!(self, "Secret key: {}", secret_key.to_string());
+        info!(self, "Secret key: {}", secret_key.public().to_string());
 
         let mut ctx_gossip = self.iroh_gossip.write().await;
         if ctx_gossip.is_some() {
@@ -73,9 +73,7 @@ impl Context {
                 .transpose()?
                 // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
                 .unwrap_or(RelayMode::Default), */
-                RelayMode::Custom(RelayMap::from_url(RelayUrl::from(
-                    Url::parse("https://iroh.testrun.org:4443").unwrap(),
-                ))),
+                RelayMode::Default,
             )
             .bind(0)
             .await?;
