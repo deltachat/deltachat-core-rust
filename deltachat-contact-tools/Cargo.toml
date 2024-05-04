@@ -1,10 +1,9 @@
 [package]
 name = "deltachat-contact-tools"
-version = "0.1.0"
+version = "0.0.0" # No semver-stable versioning
 edition = "2021"
-description = "Contact-related tools, like parsing vcards and sanitizing name and address"
+description = "Contact-related tools, like parsing vcards and sanitizing name and address. Meant for internal use in the deltachat crate."
 license = "MPL-2.0"
-# TODO maybe it should be called "deltachat-text-utils" or similar?
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,6 +12,7 @@ anyhow = { workspace = true }
 once_cell = { workspace = true }
 regex = { workspace = true }
 rusqlite = { workspace = true } # Needed in order to `impl rusqlite::types::ToSql for EmailAddress`. Could easily be put behind a feature.
+chrono = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true, features = ["backtrace"] } # Enable `backtrace` feature in tests.
