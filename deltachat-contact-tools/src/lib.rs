@@ -139,6 +139,7 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
             } else if let Some(p) = remove_prefix(line, "PHOTO;JPEG;ENCODING=BASE64:")
                 .or_else(|| remove_prefix(line, "PHOTO;TYPE=JPEG;ENCODING=b:"))
                 .or_else(|| remove_prefix(line, "PHOTO;ENCODING=BASE64;TYPE=JPEG:"))
+                .or_else(|| remove_prefix(line, "PHOTO:data:image/jpeg;base64,"))
             {
                 photo.get_or_insert(p);
             } else if let Some(rev) = vcard_property(line, "rev") {
