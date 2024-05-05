@@ -64,7 +64,7 @@ iroh = { version = "0.4.2", default-features = false }
 kamadak-exif = "0.5.3"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
-mailparse = "0.14"
+mailparse = "0.15"
 mime = "0.3.17"
 num_cpus = "1.16"
 num-derive = "0.4"
