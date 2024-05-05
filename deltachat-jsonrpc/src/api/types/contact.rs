@@ -87,3 +87,30 @@ impl ContactObject {
         })
     }
 }
+
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VcardContact {
+    /// Email address.
+    addr: String,
+    display_name: String,
+    /// Public PGP key in Base64.
+    key: Option<String>,
+    /// Profile image in Base64.
+    profile_image: Option<String>,
+    /// Last update timestamp.
+    timestamp: Option<u64>,
+}
+
+impl From<contact_tools::VcardContact> for VcardContact {
+    fn from(vc: contact_tools::VcardContact) -> Self {
+        let display_name = vc.display_name().to_string();
+        Self {
+            addr: vc.addr,
+            display_name,
+            key: vc.key,
+            profile_image: vc.profile_image,
+            timestamp: vc.timestamp.ok(),
+        }
+    }
+}

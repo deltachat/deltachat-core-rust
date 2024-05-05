@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashMap, str::FromStr};
@@ -42,7 +43,7 @@ pub mod types;
 use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
-use types::contact::ContactObject;
+use types::contact::{ContactObject, VcardContact};
 use types::events::Event;
 use types::http::HttpResponse;
 use types::message::{MessageData, MessageObject, MessageReadReceipt};
@@ -1909,6 +1910,16 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let message = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
         message.save_file(&ctx, Path::new(&path)).await
+    }
+
+    /// Parses a vCard file located at the given path. Returns contacts in their original order.
+    async fn parse_vcard(&self, path: String) -> Result<Vec<VcardContact>> {
+        let vcard = tokio::fs::read(Path::new(&path)).await?;
+        let vcard = str::from_utf8(&vcard)?;
+        Ok(contact_tools::parse_vcard(vcard)?
+            .into_iter()
+            .map(|c| c.into())
+            .collect())
     }
 
     // ---------------------------------------------
