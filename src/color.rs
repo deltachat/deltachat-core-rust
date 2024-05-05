@@ -31,10 +31,11 @@ fn rgb_to_u32((r, g, b): (f64, f64, f64)) -> u32 {
 ///
 /// Saturation is set to maximum (100.0) to make colors distinguishable, and lightness is set to
 /// half (50.0) to make colors suitable both for light and dark theme.
-pub(crate) fn str_to_color(s: &str) -> u32 {
+pub fn str_to_color(s: &str) -> u32 {
     rgb_to_u32(hsluv_to_rgb((str_to_angle(s), 100.0, 50.0)))
 }
 
+/// Returns color as a "#RRGGBB" `String` where R, G, B are hex digits.
 pub fn color_int_to_hex_string(color: u32) -> String {
     format!("{color:#08x}").replace("0x", "#")
 }

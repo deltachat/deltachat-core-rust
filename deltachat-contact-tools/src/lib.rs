@@ -44,7 +44,8 @@ use regex::Regex;
 pub struct VcardContact {
     /// The email address, vcard property `email`
     pub addr: String,
-    /// The contact's display name, vcard property `fn`
+    /// The contact's display name, vcard property `fn`. Can be empty, one should use
+    /// `display_name()` to obtain the actual value.
     pub display_name: String,
     /// The contact's public PGP key in Base64, vcard property `key`
     pub key: Option<String>,
@@ -52,6 +53,16 @@ pub struct VcardContact {
     pub profile_image: Option<String>,
     /// The timestamp when the vcard was created / last updated, vcard property `rev`
     pub timestamp: Result<u64>,
+}
+
+impl VcardContact {
+    /// Returns the contact's display name.
+    pub fn display_name(&self) -> &str {
+        match self.display_name.is_empty() {
+            false => &self.display_name,
+            true => &self.addr,
+        }
+    }
 }
 
 /// Returns a vCard containing given contacts.
@@ -68,10 +79,7 @@ pub fn make_vcard(contacts: &[VcardContact]) -> String {
     let mut res = "".to_string();
     for c in contacts {
         let addr = &c.addr;
-        let display_name = match c.display_name.is_empty() {
-            false => &c.display_name,
-            true => &c.addr,
-        };
+        let display_name = c.display_name();
         res += &format!(
             "BEGIN:VCARD\n\
              VERSION:4.0\n\
