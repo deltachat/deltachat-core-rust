@@ -94,7 +94,7 @@ pub mod webxdc;
 #[macro_use]
 mod dehtml;
 mod authres;
-mod color;
+pub mod color;
 pub mod html;
 pub mod net;
 pub mod plaintext;
