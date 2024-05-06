@@ -8,14 +8,12 @@ use crate::chat::Chat;
 use crate::constants::Chattype;
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
-use crate::log::LogExt;
 use crate::message::{Message, MessageState, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
 use crate::stock_str::msg_reacted;
 use crate::tools::truncate;
-use anyhow::{bail, ensure, Context as _, Result};
-use deltachat_contact_tools::parse_vcard;
+use anyhow::{Result};
 
 /// Prefix displayed before message and separated by ":" in the chatlist.
 #[derive(Debug)]
@@ -233,14 +231,8 @@ impl Message {
             }
             Viewtype::Vcard => {
                 emoji = Some("👤");
-                type_name = Some(stock_str::vcard(context).await);
-                type_file = self
-                    .get_vcard_summary(context)
-                    .await
-                    .log_err(context)
-                    .ok()
-                    .flatten()
-                    .or_else(|| self.get_filename());
+                type_name = Some(stock_str::contact(context).await);
+                type_file = None;
                 append_text = true;
             }
             Viewtype::Text | Viewtype::Unknown => {
@@ -286,22 +278,6 @@ impl Message {
         };
 
         summary.split_whitespace().collect::<Vec<&str>>().join(" ")
-    }
-
-    async fn get_vcard_summary(&self, context: &Context) -> Result<Option<String>> {
-        ensure!(self.viewtype == Viewtype::Vcard, "Message is not a vCard");
-        let Some(path) = self.get_file(context) else {
-            bail!("No file");
-        };
-        let vcard = tokio::fs::read(path)
-            .await
-            .context("Cannot read vCard file")?;
-        let vcard = str::from_utf8(&vcard).context("vCard is not UTF-8")?;
-        let contacts = parse_vcard(vcard).context("Cannot parse vCard")?;
-        let [c] = &contacts[..] else {
-            return Ok(None);
-        };
-        Ok(Some(c.display_name().to_string()))
     }
 }
 
@@ -392,9 +368,9 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Vcard);
         msg.set_file("foo.vcf", None);
-        assert_summary_texts(&msg, ctx, "👤 foo.vcf").await; // file name is added for vCards as a fallback
+        assert_summary_texts(&msg, ctx, "👤 Contact").await;
         msg.set_text(some_text.clone());
-        assert_summary_texts(&msg, ctx, "👤 foo.vcf \u{2013} bla bla").await;
+        assert_summary_texts(&msg, ctx, "👤 Contact \u{2013} bla bla").await;
 
         let mut msg = Message::new(Viewtype::Vcard);
         msg.set_file_from_bytes(
@@ -409,7 +385,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_summary_texts(&msg, ctx, "👤 Alice Wonderland").await;
+        assert_summary_texts(&msg, ctx, "👤 Contact").await;
 
         // Forwarded
         let mut msg = Message::new(Viewtype::Text);
