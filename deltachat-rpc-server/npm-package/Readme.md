@@ -40,6 +40,15 @@ When you import this package it searches for the rpc server in the following loc
   - this will run `update_optional_dependencie_and_version.js` (in the `prepack` script),
     which puts all platform packages into `optionalDependencies` and updates the `version` in `package.json`
 
+## How to build a version you can use localy on your host machine for development
+
+You can not install the npm packet from the previous section locally, unless you have a local npm registry set up where you upload it too. This is why we have seperate scripts for making it work for local installation.
+
+- If you just need your host platform run `python scripts/make_local_dev_version.py`
+ - note: this clears the `platform_package` folder
+- (advanced) If you need more than one platform for local install you can just run `node scripts/update_optional_dependencies_and_version.js` after building multiple plaftorms with `build_platform_package.py`
+
+
 ## Thanks to nlnet
 
 The initial work on this package was funded by nlnet as part of the [Delta Tauri](https://nlnet.nl/project/DeltaTauri/) Project.

@@ -1,9 +1,12 @@
 import subprocess
 from sys import argv
-from os import path, makedirs
+from os import path, makedirs, chdir
 import json
 import tomllib
 from shutil import copy
+
+# ensure correct working directory
+chdir(path.join(path.dirname(path.abspath(__file__)), "../"))
 
 if len(argv) < 2:
     print("First argument should be target architecture as required by cargo")
