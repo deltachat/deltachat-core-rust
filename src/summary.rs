@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::str;
 
 use crate::chat::Chat;
 use crate::constants::Chattype;
@@ -228,6 +229,12 @@ impl Message {
                 );
                 append_text = true;
             }
+            Viewtype::Vcard => {
+                emoji = Some("👤");
+                type_name = Some(stock_str::contact(context).await);
+                type_file = None;
+                append_text = true;
+            }
             Viewtype::Text | Viewtype::Unknown => {
                 emoji = None;
                 if self.param.get_cmd() == SystemMessage::LocationOnly {
@@ -341,10 +348,6 @@ mod tests {
         assert_summary_texts(&msg, ctx, "🎵 foo.mp3").await; // file name is added for audio
 
         let mut msg = Message::new(Viewtype::Audio);
-        msg.set_file("foo.mp3", None);
-        assert_summary_texts(&msg, ctx, "🎵 foo.mp3").await; // file name is added for audio, empty text is not added
-
-        let mut msg = Message::new(Viewtype::Audio);
         msg.set_text(some_text.clone());
         msg.set_file("foo.mp3", None);
         assert_summary_texts(&msg, ctx, "🎵 foo.mp3 \u{2013} bla bla").await; // file name and text added for audio
@@ -362,6 +365,27 @@ mod tests {
         msg.set_text(some_text.clone());
         msg.set_file("foo.bar", None);
         assert_summary_texts(&msg, ctx, "Video chat invitation").await; // text is not added for videochat invitations
+
+        let mut msg = Message::new(Viewtype::Vcard);
+        msg.set_file("foo.vcf", None);
+        assert_summary_texts(&msg, ctx, "👤 Contact").await;
+        msg.set_text(some_text.clone());
+        assert_summary_texts(&msg, ctx, "👤 bla bla").await;
+
+        let mut msg = Message::new(Viewtype::Vcard);
+        msg.set_file_from_bytes(
+            ctx,
+            "alice.vcf",
+            b"BEGIN:VCARD\n\
+              VERSION:4.0\n\
+              FN:Alice Wonderland\n\
+              EMAIL;TYPE=work:alice@example.org\n\
+              END:VCARD",
+            None,
+        )
+        .await
+        .unwrap();
+        assert_summary_texts(&msg, ctx, "👤 Contact").await;
 
         // Forwarded
         let mut msg = Message::new(Viewtype::Text);
