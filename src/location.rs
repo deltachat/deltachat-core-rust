@@ -483,15 +483,21 @@ pub async fn delete_all(context: &Context) -> Result<()> {
 /// Only path locations are deleted.
 /// POIs should be deleted when corresponding message is deleted.
 pub(crate) async fn delete_expired(context: &Context, now: i64) -> Result<()> {
+    let Some(delete_device_after) = context.get_config_delete_device_after().await? else {
+        return Ok(());
+    };
+
+    let threshold_timestamp = now.saturating_sub(delete_device_after);
     let deleted = context
         .sql
         .execute(
             "DELETE FROM locations WHERE independent=0 AND timestamp < ?",
-            (now,),
+            (threshold_timestamp,),
         )
         .await?
         > 0;
     if deleted {
+        info!(context, "Deleted {deleted} expired locations.");
         context.emit_location_changed(None).await?;
     }
     Ok(())
@@ -878,8 +884,10 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
+    use crate::config::Config;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
+    use crate::tools::SystemTime;
 
     #[test]
     fn test_kml_parse() {
@@ -1037,6 +1045,56 @@ Content-Disposition: attachment; filename="location.kml"
         let bob_msg = Message::load_from_db(&bob, *msg.msg_ids.first().unwrap()).await?;
         assert_eq!(bob_msg.chat_id, bob_chat_id);
         assert_eq!(bob_msg.viewtype, Viewtype::Image);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_expired_locations() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        // Alice enables deletion of messages from device after 1 week.
+        alice
+            .set_config(Config::DeleteDeviceAfter, Some("604800"))
+            .await?;
+        // Bob enables deletion of messages from device after 1 day.
+        bob.set_config(Config::DeleteDeviceAfter, Some("86400"))
+            .await?;
+
+        let alice_chat = alice.create_chat(bob).await;
+
+        // Alice enables location streaming.
+        // Bob receives a message saying that Alice enabled location streaming.
+        send_locations_to_chat(alice, alice_chat.id, 60).await?;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        // Alice gets new location from GPS.
+        assert_eq!(set(alice, 10.0, 20.0, 1.0).await?, true);
+        assert_eq!(get_range(alice, None, None, 0, 0).await?.len(), 1);
+
+        // 10 seconds later location sending stream manages to send location.
+        SystemTime::shift(Duration::from_secs(10));
+        delete_expired(alice, time()).await?;
+        maybe_send_locations(alice).await?;
+        bob.recv_msg_opt(&alice.pop_sent_msg().await).await;
+        assert_eq!(get_range(alice, None, None, 0, 0).await?.len(), 1);
+        assert_eq!(get_range(bob, None, None, 0, 0).await?.len(), 1);
+
+        // Day later Bob removes location.
+        SystemTime::shift(Duration::from_secs(86400));
+        delete_expired(alice, time()).await?;
+        delete_expired(bob, time()).await?;
+        assert_eq!(get_range(alice, None, None, 0, 0).await?.len(), 1);
+        assert_eq!(get_range(bob, None, None, 0, 0).await?.len(), 0);
+
+        // Week late Alice removes location.
+        SystemTime::shift(Duration::from_secs(604800));
+        delete_expired(alice, time()).await?;
+        delete_expired(bob, time()).await?;
+        assert_eq!(get_range(alice, None, None, 0, 0).await?.len(), 0);
+        assert_eq!(get_range(bob, None, None, 0, 0).await?.len(), 0);
 
         Ok(())
     }
