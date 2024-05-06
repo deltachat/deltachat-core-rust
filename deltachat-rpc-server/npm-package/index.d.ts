@@ -1,2 +1,2 @@
 
-export default async function getRPCServerPath(): string 
+export default function getRPCServerPath(): Promise<string> 
