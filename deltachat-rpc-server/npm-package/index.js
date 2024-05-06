@@ -19,11 +19,14 @@ import {
 
 // Because this is not compiled by typescript, nodejs needs this stuff (` assert { type: "json" };`)
 import package_json from "./package.json" assert { type: "json" };
+import { createRequire } from "node:module";
+
+const { resolve } = createRequire(import.meta.url);
 
 // find the rpc server
-// - [ ] env var
-// - [ ] in npm packages
-// - [ ] in PATH -> but there we need extra version check
+// - [X] env var
+// - [X] in npm packages
+// - [X] in PATH -> but there we need extra version check
 
 // exports
 // - [ ] expose from where the rpc server was loaded (env_var, prebuild or npm package)
@@ -33,11 +36,9 @@ import package_json from "./package.json" assert { type: "json" };
 function findRPCServerInNodeModules() {
   const arch = os.arch();
   const operating_system = process.platform;
-
   const package_name = `@deltachat/stdio-rpc-server-${operating_system}-${arch}`;
-
   try {
-    return join(require.resolve(package_name), "deltachat-rpc-server");
+    return resolve(package_name);
   } catch (error) {
     console.debug("findRpcServerInNodeModules", error);
     if (Object.keys(package_json.optionalDependencies).includes(package_name)) {
@@ -48,9 +49,11 @@ function findRPCServerInNodeModules() {
   }
 }
 
-export default async function findRPCServer() {
+export default async function findRPCServer(
+  { skipSearchInPath, disableEnvPath } = { skipSearchInPath: false, disableEnvPath = false }
+) {
   // 1. check if it is set as env var
-  if (process.env[ENV_VAR_NAME]) {
+  if (process.env[ENV_VAR_NAME] && !disableEnvPath) {
     try {
       if (!(await stat(process.env[ENV_VAR_NAME])).isFile()) {
         throw new Error(
@@ -64,7 +67,7 @@ export default async function findRPCServer() {
   }
 
   // 2. check if it can be found in PATH
-  if (!process.env[SKIP_SEARCH_IN_PATH]) {
+  if (!process.env[SKIP_SEARCH_IN_PATH] && !skipSearchInPath) {
     const path_dirs = process.env["PATH"].split(/:|;/);
     // check cargo dir first
     const cargo_dirs = path_dirs.filter((p) => p.endsWith(".cargo/bin"));
