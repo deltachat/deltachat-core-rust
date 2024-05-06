@@ -50,8 +50,9 @@ function findRPCServerInNodeModules() {
 }
 
 export default async function findRPCServer(
-  { skipSearchInPath, disableEnvPath } = { skipSearchInPath: false, disableEnvPath = false }
+  options = { skipSearchInPath: false, disableEnvPath: false }
 ) {
+    const { skipSearchInPath, disableEnvPath } = options
   // 1. check if it is set as env var
   if (process.env[ENV_VAR_NAME] && !disableEnvPath) {
     try {
@@ -97,9 +98,10 @@ export default async function findRPCServer(
       try {
         // for some unknown reason it is in stderr and not in stdout
         const { stderr } = await promisify(execFile)(executable, ["--version"]);
-        if (package_json.version !== stderr) {
+        const version = stderr.slice(0,stderr.indexOf('\n'))
+        if (package_json.version !== version) {
           throw new Error(
-            `version mismatch: (npm package: ${package_json.version})  (installed ${PATH_EXECUTABLE_NAME} version: ${stderr})`
+            `version mismatch: (npm package: ${package_json.version})  (installed ${PATH_EXECUTABLE_NAME} version: ${version})`
           );
         } else {
           return executable;

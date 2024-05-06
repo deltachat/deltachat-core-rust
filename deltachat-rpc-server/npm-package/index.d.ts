@@ -7,4 +7,4 @@ export interface SearchOptions {
     disableEnvPath: boolean
 }
 
-export default function getRPCServerPath(options: Partial<SearchOptions>): Promise<string> 
+export default function getRPCServerPath(options?: Partial<SearchOptions>): Promise<string> 
