@@ -50,7 +50,7 @@ package_json.version = version;
 package_json.optionalDependencies = {};
 for (const { folder_name, package_name } of platform_package_names) {
   package_json.optionalDependencies[package_name] = is_local
-    ? `file:./platform-package/${folder_name}`
+    ? `file:${expected_cwd}/platform_package/${folder_name}` // npm seems to work better with an absolute path here
     : version;
 }
 
