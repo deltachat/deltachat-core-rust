@@ -927,6 +927,14 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 113 {
+        sql.execute_migration(
+            "DROP TABLE iroh_gossip_peers; CREATE TABLE iroh_gossip_peers (msg_id INTEGER not NULL, topic BLOB NOT NULL, public_key BLOB NOT NULL, relay_server TEXT, UNIQUE (topic, public_key), PRIMARY KEY(topic, public_key)) STRICT",
+            113,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
