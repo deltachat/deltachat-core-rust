@@ -274,6 +274,11 @@ pub enum MessageViewtype {
 
     /// Message is an webxdc instance.
     Webxdc,
+
+    /// Message containing shared contacts represented as a vCard (virtual contact file)
+    /// with email addresses and possibly other fields.
+    /// Use `parse_vcard()` to retrieve them.
+    Vcard,
 }
 
 impl From<Viewtype> for MessageViewtype {
@@ -290,6 +295,7 @@ impl From<Viewtype> for MessageViewtype {
             Viewtype::File => MessageViewtype::File,
             Viewtype::VideochatInvitation => MessageViewtype::VideochatInvitation,
             Viewtype::Webxdc => MessageViewtype::Webxdc,
+            Viewtype::Vcard => MessageViewtype::Vcard,
         }
     }
 }
@@ -308,6 +314,7 @@ impl From<MessageViewtype> for Viewtype {
             MessageViewtype::File => Viewtype::File,
             MessageViewtype::VideochatInvitation => Viewtype::VideochatInvitation,
             MessageViewtype::Webxdc => Viewtype::Webxdc,
+            MessageViewtype::Vcard => Viewtype::Vcard,
         }
     }
 }

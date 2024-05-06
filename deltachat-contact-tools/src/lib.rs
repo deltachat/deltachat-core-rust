@@ -101,7 +101,7 @@ pub fn make_vcard(contacts: &[VcardContact]) -> String {
 }
 
 /// Parses `VcardContact`s from a given `&str`.
-pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
+pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
     fn remove_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
         let start_of_s = s.get(..prefix.len())?;
 
@@ -209,7 +209,7 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
         });
     }
 
-    Ok(contacts)
+    contacts
 }
 
 /// Valid contact address.
@@ -438,8 +438,7 @@ EMAIL;PREF=1:bobzzz@freenet.de
 UID:cac4fef4-6351-4854-bbe4-9b6df857eaed
 END:VCARD
 ",
-        )
-        .unwrap();
+        );
 
         assert_eq!(contacts[0].addr, "alice.mueller@posteo.de".to_string());
         assert_eq!(contacts[0].display_name, "Alice Mueller".to_string());
@@ -469,8 +468,7 @@ KEY;TYPE=PGP;ENCODING=b:[base64-data]
 REV:20240418T184242Z
 
 END:VCARD",
-        )
-        .unwrap();
+        );
 
         assert_eq!(contacts[0].addr, "alice@example.com".to_string());
         assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
@@ -502,7 +500,7 @@ END:VCARD",
         for len in 0..=contacts.len() {
             let contacts = &contacts[0..len];
             let vcard = make_vcard(contacts);
-            let parsed = parse_vcard(&vcard).unwrap();
+            let parsed = parse_vcard(&vcard);
             assert_eq!(parsed.len(), contacts.len());
             for i in 0..parsed.len() {
                 assert_eq!(parsed[i].addr, contacts[i].addr);
@@ -580,8 +578,7 @@ FN:Alice
 EMAIL;HOME:alice@example.org
 END:VCARD
 ",
-        )
-        .unwrap();
+        );
 
         assert_eq!(contacts[0].addr, "bob@example.org".to_string());
         assert_eq!(contacts[0].display_name, "Bob".to_string());
@@ -605,8 +602,7 @@ END:VCARD
              EMAIL;TYPE=work:alice@example.org\n\
              REV:20240418T184242\n\
              END:VCARD",
-        )
-        .unwrap();
+        );
         assert_eq!(contacts.len(), 1);
         assert_eq!(contacts[0].addr, "alice@example.org".to_string());
         assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());

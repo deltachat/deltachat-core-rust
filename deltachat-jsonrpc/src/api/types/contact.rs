@@ -94,6 +94,7 @@ impl ContactObject {
 pub struct VcardContact {
     /// Email address.
     addr: String,
+    /// The contact's name, or the email address if no name was given.
     display_name: String,
     /// Public PGP key in Base64.
     key: Option<String>,

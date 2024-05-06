@@ -600,6 +600,7 @@ impl MimeMessage {
                     | Viewtype::Audio
                     | Viewtype::Voice
                     | Viewtype::Video
+                    | Viewtype::Vcard
                     | Viewtype::File
                     | Viewtype::Webxdc => true,
                     Viewtype::Unknown | Viewtype::Text | Viewtype::VideochatInvitation => false,
@@ -1933,16 +1934,11 @@ fn get_mime_type(
     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
 
     let viewtype = match mimetype.type_() {
-        mime::TEXT => {
-            if !is_attachment_disposition(mail) {
-                match mimetype.subtype() {
-                    mime::PLAIN | mime::HTML => Viewtype::Text,
-                    _ => Viewtype::File,
-                }
-            } else {
-                Viewtype::File
-            }
-        }
+        mime::TEXT => match mimetype.subtype() {
+            mime::VCARD if is_valid_deltachat_vcard(mail) => Viewtype::Vcard,
+            mime::PLAIN | mime::HTML if !is_attachment_disposition(mail) => Viewtype::Text,
+            _ => Viewtype::File,
+        },
         mime::IMAGE => match mimetype.subtype() {
             mime::GIF => Viewtype::Gif,
             mime::SVG => Viewtype::File,
@@ -1988,6 +1984,17 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
             .params
             .iter()
             .any(|(key, _value)| key.starts_with("filename"))
+}
+
+fn is_valid_deltachat_vcard(mail: &mailparse::ParsedMail) -> bool {
+    let Ok(body) = &mail.get_body() else {
+        return false;
+    };
+    let contacts = deltachat_contact_tools::parse_vcard(body);
+    if let [c] = &contacts[..] {
+        return deltachat_contact_tools::may_be_valid_addr(&c.addr);
+    }
+    false
 }
 
 /// Tries to get attachment filename.
