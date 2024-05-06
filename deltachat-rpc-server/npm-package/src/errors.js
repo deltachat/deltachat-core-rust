@@ -1,5 +1,5 @@
 //@ts-check
-import {ENV_VAR_NAME} from "./const"
+import {ENV_VAR_NAME} from "./const.js"
 
 
 const cargoInstallCommand = "cargo install --git https://github.com/deltachat/deltachat-core-rust deltachat-rpc-server"
@@ -23,4 +23,12 @@ Unfortunately no prebuild is available for your system, so you need to provide d
 - Download or Compile deltachat-rpc-server for your platform and
  - either put it into your PATH (for example with "${cargoInstallCommand}")
  - or set the "${ENV_VAR_NAME}" env var to the path to deltachat-rpc-server"`
+}
+
+export function ENV_VAR_LOCATION_NOT_FOUND (error) {
+    return `deltachat-rpc-server not found in ${ENV_VAR_NAME}:
+
+    Error: ${error}
+
+    Content of ${ENV_VAR_NAME}: "${process.env[ENV_VAR_NAME]}"`
 }
