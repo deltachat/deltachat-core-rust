@@ -593,6 +593,7 @@ impl MimeMessage {
                     | Viewtype::Audio
                     | Viewtype::Voice
                     | Viewtype::Video
+                    | Viewtype::Vcard
                     | Viewtype::File
                     | Viewtype::Webxdc => true,
                     Viewtype::Unknown | Viewtype::Text | Viewtype::VideochatInvitation => false,
@@ -1935,6 +1936,8 @@ fn get_mime_type(
         },
         mime::AUDIO => Viewtype::Audio,
         mime::VIDEO => Viewtype::Video,
+        mime::VCARD => Viewtype::Vcard,
+        // TODO(vcard): Handle TEXT_VCARD?
         mime::MULTIPART => Viewtype::Unknown,
         mime::MESSAGE => {
             if is_attachment_disposition(mail) {

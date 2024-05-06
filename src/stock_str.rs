@@ -443,6 +443,9 @@ pub enum StockMessage {
         fallback = "Could not yet establish guaranteed end-to-end encryption, but you may already send a message."
     ))]
     SecurejoinWaitTimeout = 191,
+
+    #[strum(props(fallback = "Virtual contact file"))]
+    Vcard = 178,
 }
 
 impl StockMessage {
@@ -1096,6 +1099,11 @@ pub(crate) async fn videochat_invite_msg_body(context: &Context, url: &str) -> S
     translated(context, StockMessage::VideochatInviteMsgBody)
         .await
         .replace1(url)
+}
+
+/// Stock string: `Virtual contact file`.
+pub(crate) async fn vcard(context: &Context) -> String {
+    translated(context, StockMessage::Vcard).await
 }
 
 /// Stock string: `Error:\n\n“%1$s”`.
