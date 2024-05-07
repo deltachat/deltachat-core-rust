@@ -152,6 +152,7 @@ export async function startDeltaChat(directory, options) {
     }
   };
 
+  //@ts-expect-error
   dc.pathToServerBinary = pathToServerBinary
 
   return dc;
