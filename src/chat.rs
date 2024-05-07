@@ -2235,8 +2235,9 @@ pub struct ChatInfo {
 }
 
 pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> {
-    // if there is no saved-messages chat, there is nothing to update. this is no error.
-    if let Some(chat_id) = ChatId::lookup_by_contact(context, ContactId::SELF).await? {
+    if let Some(ChatIdBlocked { id: chat_id, .. }) =
+        ChatIdBlocked::lookup_by_contact(context, ContactId::SELF).await?
+    {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
         let blob = BlobObject::create(context, "icon-saved-messages.png", icon).await?;
         let icon = blob.as_name().to_string();
@@ -2249,8 +2250,9 @@ pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> 
 }
 
 pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
-    // if there is no device-chat, there is nothing to update. this is no error.
-    if let Some(chat_id) = ChatId::lookup_by_contact(context, ContactId::DEVICE).await? {
+    if let Some(ChatIdBlocked { id: chat_id, .. }) =
+        ChatIdBlocked::lookup_by_contact(context, ContactId::DEVICE).await?
+    {
         let icon = include_bytes!("../assets/icon-device.png");
         let blob = BlobObject::create(context, "icon-device.png", icon).await?;
         let icon = blob.as_name().to_string();
