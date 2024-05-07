@@ -1,15 +1,16 @@
 {
     "type": "module",
     "name": "@deltachat/stdio-rpc-server",
-    "version": "1.136.3",
+    "version": "1.137.4",
     "license": "MPL-2.0",
     "main": "index.js",
     "types": "index.d.ts",
     "scripts": {
-        "prepack": "node update_optional_dependencies_and_version.js"
+        "prepack": "node scripts/update_optional_dependencies_and_version.js"
     },
     "optionalDependencies": {
-        "@deltachat/stdio-rpc-server-darwin-arm64": "1.136.3",
-        "@deltachat/stdio-rpc-server-darwin-x64": "1.136.3"
+    },
+    "peerDependencies": {
+        "@deltachat/jsonrpc-client": "*"
     }
 }

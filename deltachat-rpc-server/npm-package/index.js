@@ -1,5 +1,5 @@
 //@ts-check
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { stat, readdir } from "fs/promises";
 import os from "os";
 import { join } from "path";
@@ -13,6 +13,7 @@ import {
 } from "./src/const.js";
 import {
   ENV_VAR_LOCATION_NOT_FOUND,
+  FAILED_TO_START_SERVER_EXECUTABLE,
   NPM_NOT_FOUND_SUPPORTED_PLATFORM_ERROR,
   NPM_NOT_FOUND_UNSUPPORTED_PLATFORM_ERROR,
 } from "./src/errors.js";
@@ -23,15 +24,11 @@ import { createRequire } from "node:module";
 
 const { resolve } = createRequire(import.meta.url);
 
-// find the rpc server
-// - [X] env var
-// - [X] in npm packages
-// - [X] in PATH -> but there we need extra version check
 
 // exports
 // - [ ] expose from where the rpc server was loaded (env_var, prebuild or npm package)
 // - [ ] a raw starter that has a stdin/out handle thingie like desktop uses
-// - [ ] a function that already wraps the stdio handle from aboe into the deltachat jsonrpc bindings
+// - [X] a function that already wraps the stdio handle from above into the deltachat jsonrpc bindings
 
 function findRPCServerInNodeModules() {
   const arch = os.arch();
@@ -49,7 +46,8 @@ function findRPCServerInNodeModules() {
   }
 }
 
-export default async function findRPCServer(
+/** @type {import("./index").FnTypes.getRPCServerPath} */
+export async function getRPCServerPath(
   options = { skipSearchInPath: false, disableEnvPath: false }
 ) {
   // @TODO: improve confusing naming of these options
@@ -120,6 +118,42 @@ export default async function findRPCServer(
   return findRPCServerInNodeModules();
 }
 
-// TODO script for local development (build for current platform and change link in package.json to be local)
-// TODO script to build prebuild for current platform
-// TODO disable PATH search in desktop (hardening, so it can not be easily replaced in production)
+import { StdioDeltaChat } from "@deltachat/jsonrpc-client";
+
+/** @type {import("./index").FnTypes.startDeltaChat} */
+export async function startDeltaChat(directory, options) {
+  const pathToServerBinary = await getRPCServerPath(options);
+  const server = spawn(pathToServerBinary, {
+    env: {
+      RUST_LOG: process.env.RUST_LOG || "info",
+      DC_ACCOUNTS_PATH: directory
+    },
+  });
+
+  server.on("error", (err) => {
+    throw new Error(FAILED_TO_START_SERVER_EXECUTABLE(pathToServerBinary, err));
+  });
+  let shouldClose = false;
+
+  server.on("exit", () => {
+    if (shouldClose) {
+      return;
+    }
+    throw new Error("Server quit");
+  });
+
+  server.stderr.pipe(process.stderr);
+
+  /** @type {import('./index').DeltaChatOverJsonRpcServer} */
+  //@ts-expect-error
+  const dc = new StdioDeltaChat(server.stdin, server.stdout, true);
+
+  dc.shutdown = async () => {
+    shouldClose = true;
+    if (!server.kill()) {
+      console.log("server termination failed");
+    }
+  };
+
+  return dc;
+}
