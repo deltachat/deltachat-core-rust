@@ -80,18 +80,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Setup rust target
-        run: rustup target add ${{ matrix.arch }}-apple-darwin
-
-      - name: Build
-        run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.arch }}-apple-darwin --features vendored
+      - name: Build deltachat-rpc-server binaries
+        run: nix build .#deltachat-rpc-server-${{ matrix.arch }}
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: deltachat-rpc-server-${{ matrix.arch }}-macos
-          path: target/${{ matrix.arch }}-apple-darwin/release/deltachat-rpc-server
+          path: result/bin/deltachat-rpc-server
           if-no-files-found: error
 
   build_android:
