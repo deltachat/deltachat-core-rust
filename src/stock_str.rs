@@ -435,6 +435,14 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "%1$s reacted %2$s to \"%3$s\""))]
     MsgReactedBy = 177,
+
+    #[strum(props(fallback = "Establishing guaranteed end-to-end encryption, please wait…"))]
+    SecurejoinWait = 190,
+
+    #[strum(props(
+        fallback = "Could not yet establish guaranteed end-to-end encryption, but you may already send a message."
+    ))]
+    SecurejoinWaitTimeout = 191,
 }
 
 impl StockMessage {
@@ -840,6 +848,16 @@ pub(crate) async fn secure_join_replies(context: &Context, contact_id: ContactId
     translated(context, StockMessage::SecureJoinReplies)
         .await
         .replace1(&contact_id.get_stock_name(context).await)
+}
+
+/// Stock string: `Establishing guaranteed end-to-end encryption, please wait…`.
+pub(crate) async fn securejoin_wait(context: &Context) -> String {
+    translated(context, StockMessage::SecurejoinWait).await
+}
+
+/// Stock string: `Could not yet establish guaranteed end-to-end encryption, but you may already send a message.`.
+pub(crate) async fn securejoin_wait_timeout(context: &Context) -> String {
+    translated(context, StockMessage::SecurejoinWaitTimeout).await
 }
 
 /// Stock string: `Scan to chat with %1$s`.

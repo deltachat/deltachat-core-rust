@@ -29,7 +29,7 @@ mod bob;
 mod bobstate;
 mod qrinvite;
 
-use bobstate::BobState;
+pub(crate) use bobstate::BobState;
 use qrinvite::QrInvite;
 
 use crate::token::Namespace;
@@ -764,7 +764,7 @@ mod tests {
     use crate::constants::Chattype;
     use crate::imex::{imex, ImexMode};
     use crate::receive_imf::receive_imf;
-    use crate::stock_str::chat_protection_enabled;
+    use crate::stock_str::{self, chat_protection_enabled};
     use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::SystemTime;
@@ -961,7 +961,7 @@ mod tests {
             let expected_text = chat_protection_enabled(&alice).await;
             assert_eq!(msg.get_text(), expected_text);
             if case == SetupContactCase::CheckProtectionTimestamp {
-                assert_eq!(msg.timestamp_sort, vc_request_with_auth_ts_sent);
+                assert_eq!(msg.timestamp_sort, vc_request_with_auth_ts_sent + 1);
             }
         }
 
@@ -990,10 +990,12 @@ mod tests {
 
         // Check Bob got the verified message in his 1:1 chat.
         let chat = bob.create_chat(&alice).await;
-        let msg = get_chat_msg(&bob, chat.get_id(), 0, 1).await;
+        let msg = get_chat_msg(&bob, chat.get_id(), 0, 2).await;
         assert!(msg.is_info());
-        let expected_text = chat_protection_enabled(&bob).await;
-        assert_eq!(msg.get_text(), expected_text);
+        assert_eq!(msg.get_text(), stock_str::securejoin_wait(&bob).await);
+        let msg = get_chat_msg(&bob, chat.get_id(), 1, 2).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_text(), chat_protection_enabled(&bob).await);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

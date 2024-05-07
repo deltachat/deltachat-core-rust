@@ -376,7 +376,7 @@ async fn test_old_message_2() -> Result<()> {
         SystemMessage::ChatProtectionEnabled
     );
 
-    // This creates protection-changed info message #2.
+    // This creates protection-changed info message #2 with `timestamp_sort` greater by 1.
     let first_email = receive_imf(
         &alice,
         b"From: Bob <bob@example.net>\n\
@@ -390,8 +390,7 @@ async fn test_old_message_2() -> Result<()> {
     .await?
     .unwrap();
 
-    // Both messages will get the same timestamp as the protection-changed
-    // message, so this one will be sorted under the previous one
+    // Both messages will get the same timestamp, so this one will be sorted under the previous one
     // even though it has an older timestamp.
     let second_email = receive_imf(
         &alice,
@@ -407,7 +406,10 @@ async fn test_old_message_2() -> Result<()> {
     .unwrap();
 
     assert_eq!(first_email.sort_timestamp, second_email.sort_timestamp);
-    assert_eq!(first_email.sort_timestamp, protection_msg.timestamp_sort);
+    assert_eq!(
+        first_email.sort_timestamp,
+        protection_msg.timestamp_sort + 1
+    );
 
     alice.golden_test_chat(chat.id, "test_old_message_2").await;
 

@@ -9,11 +9,11 @@ use super::bobstate::{BobHandshakeStage, BobState};
 use super::qrinvite::QrInvite;
 use super::HandshakeMessage;
 use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
-use crate::constants::{Blocked, Chattype};
+use crate::constants::{self, Blocked, Chattype};
 use crate::contact::Contact;
 use crate::context::Context;
 use crate::events::EventType;
-use crate::mimeparser::MimeMessage;
+use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::sync::Sync::*;
 use crate::tools::{create_smeared_timestamp, time};
 use crate::{chat, stock_str};
@@ -69,7 +69,29 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
         QrInvite::Contact { .. } => {
             // For setup-contact the BobState already ensured the 1:1 chat exists because it
             // uses it to send the handshake messages.
-            Ok(state.alice_chat())
+            let chat_id = state.alice_chat();
+            // Calculate the sort timestamp before checking the chat protection status so that if we
+            // race with its change, we don't add our message below the protection message.
+            let sort_to_bottom = true;
+            let ts_sort = chat_id
+                .calc_sort_timestamp(context, 0, sort_to_bottom, false)
+                .await?;
+            if chat_id.is_protected(context).await? == ProtectionStatus::Unprotected {
+                let ts_start = time();
+                chat::add_info_msg_with_cmd(
+                    context,
+                    chat_id,
+                    &stock_str::securejoin_wait(context).await,
+                    SystemMessage::SecurejoinWait,
+                    ts_sort,
+                    Some(ts_start),
+                    None,
+                    None,
+                )
+                .await?;
+                chat_id.spawn_securejoin_wait(context, constants::SECUREJOIN_WAIT_TIMEOUT);
+            }
+            Ok(chat_id)
         }
     }
 }

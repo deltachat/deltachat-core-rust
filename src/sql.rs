@@ -8,7 +8,7 @@ use rusqlite::{config::DbConfig, types::ValueRef, Connection, OpenFlags, Row};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
 
 use crate::blob::BlobObject;
-use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
+use crate::chat::{self, add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
@@ -289,21 +289,23 @@ impl Sql {
         let passphrase_nonempty = !passphrase.is_empty();
         if let Err(err) = self.try_open(context, &self.dbfile, passphrase).await {
             self.close().await;
-            Err(err)
-        } else {
-            info!(context, "Opened database {:?}.", self.dbfile);
-            *self.is_encrypted.write().await = Some(passphrase_nonempty);
-
-            // setup debug logging if there is an entry containing its id
-            if let Some(xdc_id) = self
-                .get_raw_config_u32(Config::DebugLogging.as_ref())
-                .await?
-            {
-                set_debug_logging_xdc(context, Some(MsgId::new(xdc_id))).await?;
-            }
-
-            Ok(())
+            return Err(err);
         }
+        info!(context, "Opened database {:?}.", self.dbfile);
+        *self.is_encrypted.write().await = Some(passphrase_nonempty);
+
+        // setup debug logging if there is an entry containing its id
+        if let Some(xdc_id) = self
+            .get_raw_config_u32(Config::DebugLogging.as_ref())
+            .await?
+        {
+            set_debug_logging_xdc(context, Some(MsgId::new(xdc_id))).await?;
+        }
+        chat::resume_securejoin_wait(context)
+            .await
+            .log_err(context)
+            .ok();
+        Ok(())
     }
 
     /// Changes the passphrase of encrypted database.
