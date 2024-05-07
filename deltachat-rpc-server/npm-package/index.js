@@ -120,6 +120,7 @@ import { StdioDeltaChat } from "@deltachat/jsonrpc-client";
 /** @type {import("./index").FnTypes.startDeltaChat} */
 export async function startDeltaChat(directory, options) {
   const pathToServerBinary = await getRPCServerPath(options);
+  console.log('{pathToServerBinary}:', pathToServerBinary);
   const server = spawn(pathToServerBinary, {
     env: {
       RUST_LOG: process.env.RUST_LOG || "info",
