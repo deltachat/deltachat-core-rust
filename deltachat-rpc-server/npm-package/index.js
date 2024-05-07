@@ -1,10 +1,9 @@
 //@ts-check
-import { execFile, spawn } from "child_process";
-import { stat, readdir } from "fs/promises";
-import os from "os";
-import { join } from "path";
-import { basename } from "path/posix";
-import process from "process";
+import { execFile, spawn } from "node:child_process";
+import { stat, readdir } from "node:fs/promises";
+import os from "node:os";
+import { join , basename} from "node:path";
+import process from "node:process";
 import { promisify } from "node:util";
 import {
   ENV_VAR_NAME,
@@ -18,12 +17,12 @@ import {
   NPM_NOT_FOUND_UNSUPPORTED_PLATFORM_ERROR,
 } from "./src/errors.js";
 
-// Because this is not compiled by typescript, nodejs needs this stuff (` assert { type: "json" };`)
-import package_json from "./package.json" assert { type: "json" };
+// Because this is not compiled by typescript, esm needs this stuff (` with { type: "json" };`,
+// nodejs still complains about it being experimental, but deno also uses it, so treefit bets taht it will become standard)
+import package_json from "./package.json" with { type: "json" };
 import { createRequire } from "node:module";
 
 const { resolve } = createRequire(import.meta.url);
-
 
 // exports
 // - [ ] expose from where the rpc server was loaded (env_var, prebuild or npm package)
