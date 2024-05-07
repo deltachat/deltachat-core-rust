@@ -2303,7 +2303,9 @@ async fn update_special_chat_name(
     contact_id: ContactId,
     name: String,
 ) -> Result<()> {
-    if let Some(chat_id) = ChatId::lookup_by_contact(context, contact_id).await? {
+    if let Some(ChatIdBlocked { id: chat_id, .. }) =
+        ChatIdBlocked::lookup_by_contact(context, contact_id).await?
+    {
         // the `!= name` condition avoids unneeded writes
         context
             .sql
@@ -4478,9 +4480,10 @@ impl Context {
                     }
                     _ => (),
                 }
-                ChatId::lookup_by_contact(self, contact_id)
+                ChatIdBlocked::lookup_by_contact(self, contact_id)
                     .await?
                     .with_context(|| format!("No chat for addr '{addr}'"))?
+                    .id
             }
             SyncId::Grpid(grpid) => {
                 if let SyncAction::CreateBroadcast(name) = action {
