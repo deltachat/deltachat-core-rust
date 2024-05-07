@@ -2,7 +2,7 @@
 import { execFile, spawn } from "node:child_process";
 import { stat, readdir } from "node:fs/promises";
 import os from "node:os";
-import { join , basename} from "node:path";
+import { join, basename } from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
 import {
@@ -22,8 +22,6 @@ import {
 import package_json from "./package.json" with { type: "json" };
 import { createRequire } from "node:module";
 
-const { resolve } = createRequire(import.meta.url);
-
 // exports
 // - [ ] expose from where the rpc server was loaded (env_var, prebuild or npm package)
 // - [ ] a raw starter that has a stdin/out handle thingie like desktop uses
@@ -34,6 +32,7 @@ function findRPCServerInNodeModules() {
   const operating_system = process.platform;
   const package_name = `@deltachat/stdio-rpc-server-${operating_system}-${arch}`;
   try {
+    const { resolve } = createRequire(import.meta.url);
     return resolve(package_name);
   } catch (error) {
     console.debug("findRpcServerInNodeModules", error);
@@ -125,7 +124,7 @@ export async function startDeltaChat(directory, options) {
   const server = spawn(pathToServerBinary, {
     env: {
       RUST_LOG: process.env.RUST_LOG || "info",
-      DC_ACCOUNTS_PATH: directory
+      DC_ACCOUNTS_PATH: directory,
     },
   });
 
