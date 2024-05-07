@@ -21,6 +21,7 @@ export function getRPCServerPath(
 
 export type DeltaChatOverJsonRpcServer = StdioDeltaChat & {
     shutdown: () => Promise<void>;
+    readonly pathToServerBinary: string;
 };
 
 

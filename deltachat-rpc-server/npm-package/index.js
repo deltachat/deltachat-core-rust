@@ -23,7 +23,6 @@ import package_json from "./package.json" with { type: "json" };
 import { createRequire } from "node:module";
 
 // exports
-// - [ ] expose from where the rpc server was loaded (env_var, prebuild or npm package)
 // - [ ] a raw starter that has a stdin/out handle thingie like desktop uses
 // - [X] a function that already wraps the stdio handle from above into the deltachat jsonrpc bindings
 
@@ -152,6 +151,8 @@ export async function startDeltaChat(directory, options) {
       console.log("server termination failed");
     }
   };
+
+  dc.pathToServerBinary = pathToServerBinary
 
   return dc;
 }
