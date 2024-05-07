@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs, io};
 
 use crate::blob::BlobObject;
-use crate::chat::{Chat, ChatId};
+use crate::chat::{Chat, ChatId, ChatIdBlocked};
 use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
@@ -1811,8 +1811,9 @@ pub async fn estimate_deletion_cnt(
     from_server: bool,
     seconds: i64,
 ) -> Result<usize> {
-    let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
+    let self_chat_id = ChatIdBlocked::lookup_by_contact(context, ContactId::SELF)
         .await?
+        .map(|c| c.id)
         .unwrap_or_default();
     let threshold_timestamp = time() - seconds;
 
