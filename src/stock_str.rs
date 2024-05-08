@@ -445,7 +445,7 @@ pub enum StockMessage {
     SecurejoinWaitTimeout = 191,
 
     #[strum(props(fallback = "Contact"))]
-    Contact = 178,
+    Contact = 200,
 }
 
 impl StockMessage {
