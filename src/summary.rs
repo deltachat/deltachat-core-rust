@@ -13,7 +13,7 @@ use crate::mimeparser::SystemMessage;
 use crate::stock_str;
 use crate::stock_str::msg_reacted;
 use crate::tools::truncate;
-use anyhow::{Result};
+use anyhow::Result;
 
 /// Prefix displayed before message and separated by ":" in the chatlist.
 #[derive(Debug)]
@@ -370,7 +370,7 @@ mod tests {
         msg.set_file("foo.vcf", None);
         assert_summary_texts(&msg, ctx, "👤 Contact").await;
         msg.set_text(some_text.clone());
-        assert_summary_texts(&msg, ctx, "👤 Contact \u{2013} bla bla").await;
+        assert_summary_texts(&msg, ctx, "👤 bla bla").await;
 
         let mut msg = Message::new(Viewtype::Vcard);
         msg.set_file_from_bytes(

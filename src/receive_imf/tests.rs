@@ -4459,27 +4459,33 @@ async fn test_list_from() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_receive_vcard() -> Result<()> {
     let mut tcm = TestContextManager::new();
-    let alice = &tcm.alice().await;
-    let bob = &tcm.bob().await;
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
 
     let mut msg = Message::new(Viewtype::Vcard);
     msg.set_file_from_bytes(
-        alice,
-        "fiona.vcf",
+        &alice,
+        "claire.vcf",
         b"BEGIN:VCARD\n\
               VERSION:4.0\n\
-              FN:Fiona\n\
-              EMAIL;TYPE=work:fiona@example.org\n\
+              FN:Claire\n\
+              EMAIL;TYPE=work:claire@example.org\n\
               END:VCARD",
         None,
     )
     .await
     .unwrap();
 
-    let alice_bob_chat = alice.create_chat(bob).await;
+    let alice_bob_chat = alice.create_chat(&bob).await;
     let sent = alice.send_msg(alice_bob_chat.id, &mut msg).await;
     let rcvd = bob.recv_msg(&sent).await;
     assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+
+    let vcard = tokio::fs::read(rcvd.get_file(&bob).unwrap()).await?;
+    let vcard = std::str::from_utf8(&vcard)?;
+    let parsed = deltachat_contact_tools::parse_vcard(vcard)?;
+    assert_eq!(parsed.len(), 1);
+    assert_eq!(&parsed[0].addr, "claire@example.org");
 
     Ok(())
 }
