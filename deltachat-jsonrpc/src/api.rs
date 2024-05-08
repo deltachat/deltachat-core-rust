@@ -1771,6 +1771,29 @@ impl CommandApi {
         Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
     }
 
+    /// Sets Webxdc file as integration.
+    /// `file` is the .xdc to use as Webxdc integration.
+    async fn set_webxdc_integration(&self, account_id: u32, file_path: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.set_webxdc_integration(&file_path).await
+    }
+
+    /// Returns Webxdc instance used for optional integrations.
+    /// UI can open the Webxdc as usual.
+    /// Returns `None` if there is no integration; the caller can add one using `set_webxdc_integration` then.
+    /// `integrate_for` is the chat to get the integration for.
+    async fn init_webxdc_integration(
+        &self,
+        account_id: u32,
+        chat_id: Option<u32>,
+    ) -> Result<Option<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ctx
+            .init_webxdc_integration(chat_id.map(ChatId::new))
+            .await?
+            .map(|msg_id| msg_id.to_u32()))
+    }
+
     /// Makes an HTTP GET request and returns a response.
     ///
     /// `url` is the HTTP or HTTPS URL.
