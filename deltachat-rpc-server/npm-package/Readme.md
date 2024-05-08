@@ -7,6 +7,8 @@ This simplifies cross-compilation and even reduces binary size (no CFFI layer an
 
 ## Usage
 
+> The **minimum** nodejs version for this package is `20.11`
+
 ```
 npm i @deltachat/stdio-rpc-server @deltachat/jsonrpc-client
 ```
