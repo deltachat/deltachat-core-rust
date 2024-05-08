@@ -4734,6 +4734,54 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_quote_replies() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let grp_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        let grp_msg_id = send_text_msg(&alice, grp_chat_id, "bar".to_string()).await?;
+        let grp_msg = Message::load_from_db(&alice, grp_msg_id).await?;
+
+        let one2one_chat_id = alice.create_chat(&bob).await.id;
+        let one2one_msg_id = send_text_msg(&alice, one2one_chat_id, "foo".to_string()).await?;
+        let one2one_msg = Message::load_from_db(&alice, one2one_msg_id).await?;
+
+        // quoting messages in same chat is okay
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&grp_msg)).await?;
+        let result = send_msg(&alice, grp_chat_id, &mut msg).await;
+        assert!(result.is_ok());
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&one2one_msg)).await?;
+        let result = send_msg(&alice, one2one_chat_id, &mut msg).await;
+        assert!(result.is_ok());
+        let one2one_quote_reply_msg_id = result.unwrap();
+
+        // quoting messages from groups to one-to-ones is okay ("reply privately")
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&grp_msg)).await?;
+        let result = send_msg(&alice, one2one_chat_id, &mut msg).await;
+        assert!(result.is_ok());
+
+        // quoting messages from one-to-one chats in groups is an error; usually this is also not allowed by UI at all ...
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&one2one_msg)).await?;
+        let result = send_msg(&alice, grp_chat_id, &mut msg).await;
+        assert!(result.is_err());
+
+        // ... but can be forwarded
+        let result = forward_msgs(&alice, &[one2one_quote_reply_msg_id], grp_chat_id).await;
+        assert!(result.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = TestContext::new_alice().await;
