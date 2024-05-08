@@ -102,8 +102,8 @@ pub struct VcardContact {
     timestamp: Option<u64>,
 }
 
-impl From<contact_tools::VcardContact> for VcardContact {
-    fn from(vc: contact_tools::VcardContact) -> Self {
+impl From<deltachat_contact_tools::VcardContact> for VcardContact {
+    fn from(vc: deltachat_contact_tools::VcardContact) -> Self {
         let display_name = vc.display_name().to_string();
         Self {
             addr: vc.addr,

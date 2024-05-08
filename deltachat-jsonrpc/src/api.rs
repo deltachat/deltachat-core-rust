@@ -1431,7 +1431,7 @@ impl CommandApi {
     async fn parse_vcard(&self, path: String) -> Result<Vec<VcardContact>> {
         let vcard = tokio::fs::read(Path::new(&path)).await?;
         let vcard = str::from_utf8(&vcard)?;
-        Ok(contact_tools::parse_vcard(vcard)?
+        Ok(deltachat_contact_tools::parse_vcard(vcard)?
             .into_iter()
             .map(|c| c.into())
             .collect())
