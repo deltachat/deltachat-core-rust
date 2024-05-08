@@ -12,7 +12,7 @@ from shutil import copy, rmtree
 chdir(path.join(path.dirname(path.abspath(__file__)), "../"))
 
 # get host target with "rustc -vV"
-output = subprocess.run(["rustc","-vV"], capture_output=True)
+output = subprocess.run(["rustc", "-vV"], capture_output=True)
 host_target = re.search('host: ([-\\w]*)', output.stdout.decode("utf-8")).group(1)
 print("host target to build for is:", host_target)
 
