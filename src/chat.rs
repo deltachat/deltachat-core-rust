@@ -2598,7 +2598,10 @@ async fn prepare_msg_common(
     // (We allow Chattype::Single in general for "Reply Privately";
     // checking for exact contact_id will produce false positives when ppl just left the group.
     // "Forwarding" is allowed as well)
-    if chat.typ != Chattype::Single && !msg.is_forwarded() {
+    if chat.typ != Chattype::Single
+        && !msg.is_forwarded()
+        && !context.get_config_bool(Config::Bot).await?
+    {
         if let Some(quoted_message) = msg.quoted_message(context).await? {
             if quoted_message.chat_id != chat_id {
                 bail!("bad quote reply");
@@ -4774,8 +4777,13 @@ mod tests {
         let result = send_msg(&alice, grp_chat_id, &mut msg).await;
         assert!(result.is_err());
 
-        // ... but can be forwarded
+        // ... but forwarding messages with quotes is allowed
         let result = forward_msgs(&alice, &[one2one_quote_reply_msg_id], grp_chat_id).await;
+        assert!(result.is_ok());
+
+        // ... and bots are not restricted
+        alice.set_config(Config::Bot, Some("1")).await?;
+        let result = send_msg(&alice, grp_chat_id, &mut msg).await;
         assert!(result.is_ok());
 
         Ok(())
