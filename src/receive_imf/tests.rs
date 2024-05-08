@@ -4455,3 +4455,31 @@ async fn test_list_from() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_receive_vcard() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+
+    let mut msg = Message::new(Viewtype::Vcard);
+    msg.set_file_from_bytes(
+        alice,
+        "fiona.vcf",
+        b"BEGIN:VCARD\n\
+              VERSION:4.0\n\
+              FN:Fiona\n\
+              EMAIL;TYPE=work:fiona@example.org\n\
+              END:VCARD",
+        None,
+    )
+    .await
+    .unwrap();
+
+    let alice_bob_chat = alice.create_chat(bob).await;
+    let sent = alice.send_msg(alice_bob_chat.id, &mut msg).await;
+    let rcvd = bob.recv_msg(&sent).await;
+    assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+
+    Ok(())
+}

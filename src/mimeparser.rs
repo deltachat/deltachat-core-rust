@@ -1919,16 +1919,11 @@ fn get_mime_type(
     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
 
     let viewtype = match mimetype.type_() {
-        mime::TEXT => {
-            if !is_attachment_disposition(mail) {
-                match mimetype.subtype() {
-                    mime::PLAIN | mime::HTML => Viewtype::Text,
-                    _ => Viewtype::File,
-                }
-            } else {
-                Viewtype::File
-            }
-        }
+        mime::TEXT => match mimetype.subtype() {
+            mime::VCARD => Viewtype::Vcard,
+            mime::PLAIN | mime::HTML if !is_attachment_disposition(mail) => Viewtype::Text,
+            _ => Viewtype::File,
+        },
         mime::IMAGE => match mimetype.subtype() {
             mime::GIF => Viewtype::Gif,
             mime::SVG => Viewtype::File,
@@ -1936,8 +1931,6 @@ fn get_mime_type(
         },
         mime::AUDIO => Viewtype::Audio,
         mime::VIDEO => Viewtype::Video,
-        mime::VCARD => Viewtype::Vcard,
-        // TODO(vcard): Handle TEXT_VCARD?
         mime::MULTIPART => Viewtype::Unknown,
         mime::MESSAGE => {
             if is_attachment_disposition(mail) {
