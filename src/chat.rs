@@ -2593,6 +2593,19 @@ async fn prepare_msg_common(
         }
     }
 
+    // Check a quote reply is not leaking data from other chats.
+    // This is meant as a last line of defence, the UI should check that before as well.
+    // (We allow Chattype::Single in general for "Reply Privately";
+    // checking for exact contact_id will produce false positives when ppl just left the group.
+    // "Forwarding" is allowed as well)
+    if chat.typ != Chattype::Single && !msg.is_forwarded() {
+        if let Some(quoted_message) = msg.quoted_message(context).await? {
+            if quoted_message.chat_id != chat_id {
+                bail!("bad quote reply");
+            }
+        }
+    }
+
     // check current MessageState for drafts (to keep msg_id) ...
     let update_msg_id = if msg.state == MessageState::OutDraft {
         msg.hidden = false;
