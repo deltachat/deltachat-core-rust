@@ -5479,6 +5479,11 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_MSG_WEBXDC    80
 
+/**
+ * Message containing a shared contact represented as a vCard (virtual contact file)
+ * with an email address and possibly other fields.
+ */
+#define DC_MSG_VCARD     90
 
 /**
  * @}
