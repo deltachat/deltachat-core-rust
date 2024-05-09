@@ -16,10 +16,11 @@ concurrency:
 #   workflow_dispatch:
 #   release:
 #     types: [published]
-pull_request:
-  push:
-    branches:
-      - main
+on: 
+  pull_request:
+    push:
+      branches:
+        - main
 
 jobs:
   # Build a version statically linked against musl libc
