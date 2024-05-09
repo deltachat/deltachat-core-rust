@@ -12,10 +12,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-on:
-  workflow_dispatch:
-  release:
-    types: [published]
+# on:
+#   workflow_dispatch:
+#   release:
+#     types: [published]
+pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   # Build a version statically linked against musl libc
