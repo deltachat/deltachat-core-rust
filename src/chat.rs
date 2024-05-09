@@ -2835,16 +2835,9 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
             .await?;
     }
 
-    if let Some(last_added_location_id) = rendered_msg.last_added_location_id {
+    if rendered_msg.last_added_location_id.is_some() {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, now).await {
             error!(context, "Failed to set kml sent_timestamp: {err:#}.");
-        }
-        if !msg.hidden {
-            if let Err(err) =
-                location::set_msg_location_id(context, msg.id, last_added_location_id).await
-            {
-                error!(context, "Failed to set msg_location_id: {err:#}.");
-            }
         }
     }
 

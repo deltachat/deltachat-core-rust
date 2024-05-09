@@ -35,6 +35,10 @@ pub struct MessageObject {
     parent_id: Option<u32>,
 
     text: String,
+
+    /// Check if a message has a POI location bound to it.
+    /// These locations are also returned by `get_locations` method.
+    /// The UI may decide to display a special icon beside such messages.
     has_location: bool,
     has_html: bool,
     view_type: MessageViewtype,
