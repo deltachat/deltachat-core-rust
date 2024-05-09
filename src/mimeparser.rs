@@ -1920,7 +1920,7 @@ fn get_mime_type(
 
     let viewtype = match mimetype.type_() {
         mime::TEXT => match mimetype.subtype() {
-            mime::VCARD => Viewtype::Vcard,
+            mime::VCARD if is_valid_deltachat_vcard(mail) => Viewtype::Vcard,
             mime::PLAIN | mime::HTML if !is_attachment_disposition(mail) => Viewtype::Text,
             _ => Viewtype::File,
         },
@@ -1969,6 +1969,19 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
             .params
             .iter()
             .any(|(key, _value)| key.starts_with("filename"))
+}
+
+fn is_valid_deltachat_vcard(mail: &mailparse::ParsedMail) -> bool {
+    let Ok(body) = &mail.get_body() else {
+        return false;
+    };
+    let contacts = deltachat_contact_tools::parse_vcard(body);
+    if let Some(contact) = contacts.first() {
+        if deltachat_contact_tools::may_be_valid_addr(&contact.addr) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Tries to get attachment filename.

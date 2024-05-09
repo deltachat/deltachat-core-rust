@@ -4462,30 +4462,51 @@ async fn test_receive_vcard() -> Result<()> {
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
-    let mut msg = Message::new(Viewtype::Vcard);
-    msg.set_file_from_bytes(
-        &alice,
-        "claire.vcf",
-        b"BEGIN:VCARD\n\
-              VERSION:4.0\n\
-              FN:Claire\n\
-              EMAIL;TYPE=work:claire@example.org\n\
-              END:VCARD",
-        None,
-    )
-    .await
-    .unwrap();
+    for vcard_contains_address in [true, false] {
+        let mut msg = Message::new(Viewtype::Vcard);
+        msg.set_file_from_bytes(
+            &alice,
+            "claire.vcf",
+            format!(
+                "BEGIN:VCARD\n\
+                VERSION:4.0\n\
+                FN:Claire\n\
+                {}\
+                END:VCARD",
+                if vcard_contains_address {
+                    "EMAIL;TYPE=work:claire@example.org\n"
+                } else {
+                    ""
+                }
+            )
+            .as_bytes(),
+            None,
+        )
+        .await
+        .unwrap();
 
-    let alice_bob_chat = alice.create_chat(&bob).await;
-    let sent = alice.send_msg(alice_bob_chat.id, &mut msg).await;
-    let rcvd = bob.recv_msg(&sent).await;
-    assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+        let alice_bob_chat = alice.create_chat(&bob).await;
+        let sent = alice.send_msg(alice_bob_chat.id, &mut msg).await;
+        let rcvd = bob.recv_msg(&sent).await;
 
-    let vcard = tokio::fs::read(rcvd.get_file(&bob).unwrap()).await?;
-    let vcard = std::str::from_utf8(&vcard)?;
-    let parsed = deltachat_contact_tools::parse_vcard(vcard)?;
-    assert_eq!(parsed.len(), 1);
-    assert_eq!(&parsed[0].addr, "claire@example.org");
+        if vcard_contains_address {
+            assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+        } else {
+            // VCards without an email address are not "deltachat contacts",
+            // so they are shown as files
+            assert_eq!(rcvd.viewtype, Viewtype::File);
+        }
+
+        let vcard = tokio::fs::read(rcvd.get_file(&bob).unwrap()).await?;
+        let vcard = std::str::from_utf8(&vcard)?;
+        let parsed = deltachat_contact_tools::parse_vcard(vcard);
+        assert_eq!(parsed.len(), 1);
+        if vcard_contains_address {
+            assert_eq!(&parsed[0].addr, "claire@example.org");
+        } else {
+            assert_eq!(&parsed[0].addr, "");
+        }
+    }
 
     Ok(())
 }
