@@ -4390,9 +4390,9 @@ int             dc_msg_has_deviating_timestamp(const dc_msg_t* msg);
 
 
 /**
- * Check if a message has a location bound to it.
- * These messages are also returned by dc_get_locations()
- * and the UI may decide to display a special icon beside such messages,
+ * Check if a message has a POI location bound to it.
+ * These locations are also returned by dc_get_locations()
+ * The UI may decide to display a special icon beside such messages.
  *
  * @memberof dc_msg_t
  * @param msg The message object.

@@ -1037,6 +1037,8 @@ Content-Disposition: attachment; filename="location.kml"
         let mut msg = Message::new(Viewtype::Image);
         msg.set_file(file.to_str().unwrap(), None);
         let sent = alice.send_msg(alice_chat.id, &mut msg).await;
+        let alice_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert_eq!(alice_msg.has_location(), false);
 
         let msg = bob.recv_msg_opt(&sent).await.unwrap();
         assert!(msg.chat_id == bob_chat_id);
@@ -1045,6 +1047,10 @@ Content-Disposition: attachment; filename="location.kml"
         let bob_msg = Message::load_from_db(&bob, *msg.msg_ids.first().unwrap()).await?;
         assert_eq!(bob_msg.chat_id, bob_chat_id);
         assert_eq!(bob_msg.viewtype, Viewtype::Image);
+        assert_eq!(bob_msg.has_location(), false);
+
+        let bob_locations = get_range(&bob, None, None, 0, 0).await?;
+        assert_eq!(bob_locations.len(), 1);
 
         Ok(())
     }

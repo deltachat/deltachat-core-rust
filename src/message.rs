@@ -655,9 +655,11 @@ impl Message {
         Ok(())
     }
 
-    /// Check if a message has a location bound to it.
-    /// These messages are also returned by get_locations()
-    /// and the UI may decide to display a special icon beside such messages,
+    /// Check if a message has a POI location bound to it.
+    /// These locations are also returned by [`location::get_range()`].
+    /// The UI may decide to display a special icon beside such messages.
+    ///
+    /// [`location::get_range()`]: crate::location::get_range
     pub fn has_location(&self) -> bool {
         self.location_id != 0
     }
