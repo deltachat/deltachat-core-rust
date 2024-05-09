@@ -2596,12 +2596,8 @@ async fn prepare_msg_common(
     // Check a quote reply is not leaking data from other chats.
     // This is meant as a last line of defence, the UI should check that before as well.
     // (We allow Chattype::Single in general for "Reply Privately";
-    // checking for exact contact_id will produce false positives when ppl just left the group.
-    // "Forwarding" is allowed as well)
-    if chat.typ != Chattype::Single
-        && !msg.is_forwarded()
-        && !context.get_config_bool(Config::Bot).await?
-    {
+    // checking for exact contact_id will produce false positives when ppl just left the group)
+    if chat.typ != Chattype::Single && !context.get_config_bool(Config::Bot).await? {
         if let Some(quoted_message) = msg.quoted_message(context).await? {
             if quoted_message.chat_id != chat_id {
                 bail!("Bad quote reply");
