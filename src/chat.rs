@@ -2604,7 +2604,7 @@ async fn prepare_msg_common(
     {
         if let Some(quoted_message) = msg.quoted_message(context).await? {
             if quoted_message.chat_id != chat_id {
-                bail!("bad quote reply");
+                bail!("Bad quote reply");
             }
         }
     }
