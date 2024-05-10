@@ -37,7 +37,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid, validate_id};
+use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
 
@@ -2431,10 +2431,7 @@ async fn apply_mailinglist_changes(
 }
 
 fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
-    if let Some(optional_field) = mime_parser
-        .get_header(HeaderDef::ChatGroupId)
-        .filter(|s| validate_id(s))
-    {
+    if let Some(optional_field) = mime_parser.get_chat_group_id() {
         return Some(optional_field.clone());
     }
 

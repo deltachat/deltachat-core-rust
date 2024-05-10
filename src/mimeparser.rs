@@ -36,6 +36,7 @@ use crate::simplify::{simplify, SimplifiedText};
 use crate::sync::SyncItems;
 use crate::tools::{
     create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time, truncate_by_lines,
+    validate_id,
 };
 use crate::{chatlist_events, location, stock_str, tools};
 
@@ -808,6 +809,12 @@ impl MimeMessage {
 
     pub fn get_header(&self, headerdef: HeaderDef) -> Option<&String> {
         self.headers.get(headerdef.get_headername())
+    }
+
+    /// Returns `Chat-Group-ID` header value if it is a valid group ID.
+    pub fn get_chat_group_id(&self) -> Option<&String> {
+        self.get_header(HeaderDef::ChatGroupId)
+            .filter(|s| validate_id(s))
     }
 
     async fn parse_mime_recursive<'a>(
