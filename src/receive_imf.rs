@@ -769,6 +769,18 @@ async fn add_parts(
             info!(context, "Message is an MDN (TRASH).",);
         }
 
+        // Try to assign to a chat based on Chat-Group-ID.
+        if chat_id.is_none() {
+            if let Some(grpid) = mime_parser.get_chat_group_id() {
+                if let Some((id, _protected, blocked)) =
+                    chat::get_chat_id_by_grpid(context, grpid).await?
+                {
+                    chat_id = Some(id);
+                    chat_id_blocked = blocked;
+                }
+            }
+        }
+
         if chat_id.is_none() {
             // try to assign to a chat based on In-Reply-To/References:
 
@@ -1033,6 +1045,18 @@ async fn add_parts(
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
             info!(context, "Email is probably just a draft (TRASH).");
             chat_id = Some(DC_CHAT_ID_TRASH);
+        }
+
+        // Try to assign to a chat based on Chat-Group-ID.
+        if chat_id.is_none() {
+            if let Some(grpid) = mime_parser.get_chat_group_id() {
+                if let Some((id, _protected, blocked)) =
+                    chat::get_chat_id_by_grpid(context, grpid).await?
+                {
+                    chat_id = Some(id);
+                    chat_id_blocked = blocked;
+                }
+            }
         }
 
         if chat_id.is_none() {
