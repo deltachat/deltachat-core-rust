@@ -4,7 +4,10 @@ import json
 from .convert_platform import convert_cpu_arch_to_npm_cpu_arch, convert_os_to_npm_os
 
 def write_package_json(platform_path, rust_target, my_binary_name):
-    [cpu_arch, vendor, os] = rust_target.split("-")
+    if len(rust_target.split("-")) == 3:
+        [cpu_arch, vendor, os] = rust_target.split("-")
+    else:
+        [cpu_arch, _, vendor, os] = rust_target.split("-")
 
     # read version
     tomlfile = open("../../Cargo.toml", 'rb')
