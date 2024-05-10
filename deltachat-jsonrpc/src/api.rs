@@ -1754,7 +1754,7 @@ impl CommandApi {
             .await?;
         if let Some(fut) = fut {
             tokio::spawn(async move {
-                fut.await;
+                fut.await.ok();
                 info!(ctx, "send_webxdc_realtime_advertisement done")
             });
         }

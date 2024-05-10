@@ -57,24 +57,20 @@ impl Context {
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
-            .relay_mode(
-                /* self.metadata
-                .read()
-                .await
-                .as_ref()
-                .map(|conf| {
-                    let url = conf
-                        .iroh_relay
-                        .as_deref()
-                        .unwrap_or("https://iroh.testrun.org:4443");
-                    let url = RelayUrl::from(Url::parse(url)?);
-                    Ok::<_, url::ParseError>(RelayMode::Custom(RelayMap::from_url(url)))
-                })
-                .transpose()?
-                // This should later be RelayMode::Disable as soon as chatmail servers have relay servers
-                .unwrap_or(RelayMode::Default), */
-                RelayMode::Default,
-            )
+            .relay_mode(RelayMode::Custom(RelayMap::from_url(
+                self.metadata
+                    .read()
+                    .await
+                    .as_ref()
+                    .map(|conf| {
+                        let url = conf.iroh_relay.as_deref().context("can't get relay url")?;
+                        Ok::<_, anyhow::Error>(RelayUrl::from(Url::parse(url)?))
+                    })
+                    .transpose()?
+                    .unwrap_or(RelayUrl::from(
+                        Url::parse("https://iroh.testrun.org:4443").unwrap(),
+                    )),
+            )))
             .bind(0)
             .await?;
 

@@ -112,7 +112,7 @@ pub(crate) struct ServerMetadata {
     /// <https://www.rfc-editor.org/rfc/rfc5464#section-6.2.2>.
     pub admin: Option<String>,
 
-    pub _iroh_relay: Option<String>,
+    pub iroh_relay: Option<String>,
 }
 
 impl async_imap::Authenticator for OAuth2 {
@@ -1451,16 +1451,12 @@ impl Session {
 
         let mut comment = None;
         let mut admin = None;
-        let mut _iroh_relay = None;
+        let mut iroh_relay = None;
 
         let mailbox = "";
         let options = "";
         let metadata = self
-            .get_metadata(
-                mailbox,
-                options,
-                "(/shared/comment /shared/admin)",
-            )
+            .get_metadata(mailbox, options, "(/shared/comment /shared/admin)")
             .await?;
         for m in metadata {
             match m.entry.as_ref() {
@@ -1470,8 +1466,8 @@ impl Session {
                 "/shared/admin" => {
                     admin = m.value;
                 }
-                "/shared/irohrelay" => {
-                    _iroh_relay = m.value;
+                "/shared/vendor/deltachat/irohrelay" => {
+                    iroh_relay = m.value;
                 }
                 _ => {}
             }
@@ -1479,7 +1475,7 @@ impl Session {
         *lock = Some(ServerMetadata {
             comment,
             admin,
-            _iroh_relay,
+            iroh_relay,
         });
         Ok(())
     }
