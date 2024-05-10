@@ -703,7 +703,9 @@ async fn add_parts(
         better_msg = Some(stock_str::msg_location_enabled_by(context, from_id).await);
     }
 
-    let parent = get_parent_message(context, mime_parser).await?;
+    let parent = get_parent_message(context, mime_parser)
+        .await?
+        .filter(|p| Some(p.id) != replace_msg_id);
 
     let is_dc_message = if mime_parser.has_chat_version() {
         MessengerMessage::Yes
