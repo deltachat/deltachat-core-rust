@@ -525,14 +525,23 @@
               };
           };
 
-        devShells.default = pkgs.mkShell {
+        devShells.default = let 
+          pkgs = import nixpkgs {
+            system = system;
+            overlays = [ fenix.overlays.default ];
+          };
+          in pkgs.mkShell {
+
           buildInputs = with pkgs; [
-            cargo
-            clippy
-            rustc
-            rustfmt
-            rust-analyzer
+            (fenix.packages.${system}.complete.withComponents [
+              "cargo"
+              "clippy"
+              "rust-src"
+              "rustc"
+              "rustfmt"
+            ])
             cargo-deny
+            rust-analyzer-nightly
             perl # needed to build vendored OpenSSL
             git-cliff
           ];
