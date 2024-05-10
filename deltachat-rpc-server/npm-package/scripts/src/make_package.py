@@ -7,7 +7,7 @@ def write_package_json(platform_path, rust_target, my_binary_name):
     if len(rust_target.split("-")) == 3:
         [cpu_arch, vendor, os] = rust_target.split("-")
     else:
-        [cpu_arch, _, vendor, os] = rust_target.split("-")
+        [cpu_arch, vendor, os, _env] = rust_target.split("-")
 
     # read version
     tomlfile = open("../../Cargo.toml", 'rb')
