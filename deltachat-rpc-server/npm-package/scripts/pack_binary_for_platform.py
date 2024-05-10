@@ -1,6 +1,6 @@
 import subprocess
 from sys import argv
-from os import path, makedirs, chdir
+from os import path, makedirs, chdir, chmod, stat
 import json
 from shutil import copy
 from src.make_package import write_package_json
@@ -37,7 +37,9 @@ if not path.exists(platform_path):
 # copy binary it over
 
 my_binary_name = path.basename(binary_path)
-copy(binary_path, platform_path + "/" + my_binary_name)
+new_binary_path = platform_path + "/" + my_binary_name
+copy(binary_path, new_binary_path)
+chmod(new_binary_path, 0o555) # everyone can read & execute, nobody can write
 
 # make a package.json for it
 
