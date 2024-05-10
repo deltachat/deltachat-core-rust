@@ -1754,6 +1754,11 @@ async fn is_probably_private_reply(
         return Ok(false);
     }
 
+    // Message cannot be a private reply if it has an explicit Chat-Group-ID header.
+    if mime_parser.get_chat_group_id().is_some() {
+        return Ok(false);
+    }
+
     if !mime_parser.has_chat_version() {
         let chat_contacts = chat::get_chat_contacts(context, parent_chat_id).await?;
         if chat_contacts.len() == 2 && chat_contacts.contains(&ContactId::SELF) {
