@@ -14,7 +14,7 @@ if len(argv) < 2:
 
 target = argv[1].strip()
 
-output = subprocess.run(["rustup","target","list"], capture_output=True)
+output = subprocess.run(["rustup", "target", "list"], capture_output=True)
 available_targets = output.stdout.decode("utf-8")
 
 if available_targets.find(target) == -1:
@@ -22,33 +22,31 @@ if available_targets.find(target) == -1:
     exit(1)
 
 if available_targets.find(target + " (installed)") == -1:
-    print("target ", target, " is not installed, run 'rustup target add "+target+"'")
+    print(
+        "target ", target, " is not installed, run 'rustup target add " + target + "'"
+    )
     exit(1)
 
-subprocess.run([
-    "cargo",
-    "build",
-    "--release",
-    "-p",
-    "deltachat-rpc-server",
-    "--target",
-    target
-])
+subprocess.run(
+    ["cargo", "build", "--release", "-p", "deltachat-rpc-server", "--target", target]
+)
 
-newpath = r'platform_package' 
+newpath = "platform_package"
 if not path.exists(newpath):
     makedirs(newpath)
 
 # make new folder
 
-platform_path = 'platform_package/' + target
+platform_path = "platform_package/" + target
 if not path.exists(platform_path):
     makedirs(platform_path)
 
 # copy binary it over
 
+
 def binary_path(binary_name):
-    return "../../target/"+target+"/release/"+binary_name
+    return "../../target/" + target + "/release/" + binary_name
+
 
 my_binary_name = "deltachat-rpc-server"
 
