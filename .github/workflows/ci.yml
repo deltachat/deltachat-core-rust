@@ -84,7 +84,7 @@ jobs:
         include:
           - os: ubuntu-latest
             rust: 1.78.0
-          - os: windows-2022
+          - os: windows-2019
             rust: 1.78.0
           - os: macos-latest
             rust: 1.78.0
