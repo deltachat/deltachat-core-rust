@@ -27,7 +27,7 @@ For a more complete example refer to https://github.com/deltachat-bot/echo/pull/
 
 ## How to use on an unsupported platform
 
-<!-- todo instructions, will uses an env var for pointing to `deltachat-rpx-server` binary -->
+<!-- todo instructions, will uses an env var for pointing to `deltachat-rpc-server` binary -->
 
 <!-- todo copy parts from https://github.com/deltachat/deltachat-desktop/blob/7045c6f549e4b9d5caa0709d5bd314bbd9fd53db/docs/UPDATE_CORE.md -->
 
@@ -61,7 +61,7 @@ When you import this package it searches for the rpc server in the following loc
 - Then pass it as an artifact to the last CI action that publishes the main package.
 - upload all packages from `deltachat-rpc-server/npm-package/platform_package`.
 - then publish `deltachat-rpc-server/npm-package`,
-  - this will run `update_optional_dependencie_and_version.js` (in the `prepack` script),
+  - this will run `update_optional_dependencies_and_version.js` (in the `prepack` script),
     which puts all platform packages into `optionalDependencies` and updates the `version` in `package.json`
 
 ## How to build a version you can use localy on your host machine for development
