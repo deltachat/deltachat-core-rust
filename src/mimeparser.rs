@@ -1976,8 +1976,8 @@ fn is_valid_deltachat_vcard(mail: &mailparse::ParsedMail) -> bool {
         return false;
     };
     let contacts = deltachat_contact_tools::parse_vcard(body);
-    if let Some(contact) = contacts.first() {
-        if deltachat_contact_tools::may_be_valid_addr(&contact.addr) {
+    for c in &contacts {
+        if deltachat_contact_tools::may_be_valid_addr(&c.addr) {
             return true;
         }
     }

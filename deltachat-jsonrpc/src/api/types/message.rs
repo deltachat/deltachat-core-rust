@@ -275,8 +275,8 @@ pub enum MessageViewtype {
     /// Message is an webxdc instance.
     Webxdc,
 
-    /// Message containing a shared contact represented as a vCard (virtual contact file)
-    /// with an email address and possibly other fields.
+    /// Message containing shared contacts represented as a vCard (virtual contact file)
+    /// with email addresses and possibly other fields.
     /// Use `parse_vcard()` to retrieve them.
     Vcard,
 }
