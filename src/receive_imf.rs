@@ -1705,11 +1705,10 @@ async fn save_locations(
         if let Some(addr) = &location_kml.addr {
             let contact = Contact::get_by_id(context, from_id).await?;
             if contact.get_addr().to_lowercase() == addr.to_lowercase() {
-                if let Some(newest_location_id) =
-                    location::save(context, chat_id, from_id, &location_kml.locations, false)
-                        .await?
+                if location::save(context, chat_id, from_id, &location_kml.locations, false)
+                    .await?
+                    .is_some()
                 {
-                    location::set_msg_location_id(context, msg_id, newest_location_id).await?;
                     send_event = true;
                 }
             } else {

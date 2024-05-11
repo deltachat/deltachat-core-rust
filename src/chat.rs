@@ -2593,6 +2593,18 @@ async fn prepare_msg_common(
         }
     }
 
+    // Check a quote reply is not leaking data from other chats.
+    // This is meant as a last line of defence, the UI should check that before as well.
+    // (We allow Chattype::Single in general for "Reply Privately";
+    // checking for exact contact_id will produce false positives when ppl just left the group)
+    if chat.typ != Chattype::Single && !context.get_config_bool(Config::Bot).await? {
+        if let Some(quoted_message) = msg.quoted_message(context).await? {
+            if quoted_message.chat_id != chat_id {
+                bail!("Bad quote reply");
+            }
+        }
+    }
+
     // check current MessageState for drafts (to keep msg_id) ...
     let update_msg_id = if msg.state == MessageState::OutDraft {
         msg.hidden = false;
@@ -2835,16 +2847,9 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
             .await?;
     }
 
-    if let Some(last_added_location_id) = rendered_msg.last_added_location_id {
+    if rendered_msg.last_added_location_id.is_some() {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, now).await {
             error!(context, "Failed to set kml sent_timestamp: {err:#}.");
-        }
-        if !msg.hidden {
-            if let Err(err) =
-                location::set_msg_location_id(context, msg.id, last_added_location_id).await
-            {
-                error!(context, "Failed to set msg_location_id: {err:#}.");
-            }
         }
     }
 
@@ -4716,6 +4721,59 @@ mod tests {
         assert_eq!(test.text, "another draft text".to_string());
         assert!(test.quoted_text().is_none());
         assert!(test.quoted_message(&t).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_quote_replies() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let grp_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        let grp_msg_id = send_text_msg(&alice, grp_chat_id, "bar".to_string()).await?;
+        let grp_msg = Message::load_from_db(&alice, grp_msg_id).await?;
+
+        let one2one_chat_id = alice.create_chat(&bob).await.id;
+        let one2one_msg_id = send_text_msg(&alice, one2one_chat_id, "foo".to_string()).await?;
+        let one2one_msg = Message::load_from_db(&alice, one2one_msg_id).await?;
+
+        // quoting messages in same chat is okay
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&grp_msg)).await?;
+        let result = send_msg(&alice, grp_chat_id, &mut msg).await;
+        assert!(result.is_ok());
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&one2one_msg)).await?;
+        let result = send_msg(&alice, one2one_chat_id, &mut msg).await;
+        assert!(result.is_ok());
+        let one2one_quote_reply_msg_id = result.unwrap();
+
+        // quoting messages from groups to one-to-ones is okay ("reply privately")
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&grp_msg)).await?;
+        let result = send_msg(&alice, one2one_chat_id, &mut msg).await;
+        assert!(result.is_ok());
+
+        // quoting messages from one-to-one chats in groups is an error; usually this is also not allowed by UI at all ...
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("baz".to_string());
+        msg.set_quote(&alice, Some(&one2one_msg)).await?;
+        let result = send_msg(&alice, grp_chat_id, &mut msg).await;
+        assert!(result.is_err());
+
+        // ... but forwarding messages with quotes is allowed
+        let result = forward_msgs(&alice, &[one2one_quote_reply_msg_id], grp_chat_id).await;
+        assert!(result.is_ok());
+
+        // ... and bots are not restricted
+        alice.set_config(Config::Bot, Some("1")).await?;
+        let result = send_msg(&alice, grp_chat_id, &mut msg).await;
+        assert!(result.is_ok());
 
         Ok(())
     }

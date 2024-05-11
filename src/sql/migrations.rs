@@ -613,6 +613,7 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         ).await?;
     }
     if dbversion < 93 {
+        // `sending_domains` is now unused, but was not removed for backwards compatibility.
         sql.execute_migration(
             "CREATE TABLE sending_domains(domain TEXT PRIMARY KEY, dkim_works INTEGER DEFAULT 0);",
             93,

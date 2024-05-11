@@ -57,11 +57,7 @@ pub(crate) async fn prepare_decryption(
             autocrypt_header: None,
             peerstate: None,
             message_time,
-            dkim_results: DkimResults {
-                dkim_passed: false,
-                dkim_should_work: false,
-                allow_keychange: true,
-            },
+            dkim_results: DkimResults { dkim_passed: false },
         });
     }
 
@@ -86,15 +82,13 @@ pub(crate) async fn prepare_decryption(
         None
     };
 
-    let dkim_results = handle_authres(context, mail, from, message_time).await?;
+    let dkim_results = handle_authres(context, mail, from).await?;
     let allow_aeap = get_encrypted_mime(mail).is_some();
     let peerstate = get_autocrypt_peerstate(
         context,
         from,
         autocrypt_header.as_ref(),
         message_time,
-        // Disallowing keychanges is disabled for now:
-        true, // dkim_results.allow_keychange,
         allow_aeap,
     )
     .await?;
@@ -287,19 +281,15 @@ pub(crate) fn keyring_from_peerstate(peerstate: Option<&Peerstate>) -> Vec<Signe
 /// If we already know this fingerprint from another contact's peerstate, return that
 /// peerstate in order to make AEAP work, but don't save it into the db yet.
 ///
-/// The param `allow_change` is used to prevent the autocrypt key from being changed
-/// if we suspect that the message may be forged and have a spoofed sender identity.
-///
 /// Returns updated peerstate.
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
     from: &str,
     autocrypt_header: Option<&Aheader>,
     message_time: i64,
-    allow_change: bool,
     allow_aeap: bool,
 ) -> Result<Option<Peerstate>> {
-    let allow_change = allow_change && !context.is_self_addr(from).await?;
+    let allow_change = !context.is_self_addr(from).await?;
     let mut peerstate;
 
     // Apply Autocrypt header

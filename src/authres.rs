@@ -14,7 +14,6 @@ use once_cell::sync::Lazy;
 use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
-use crate::tools::time;
 
 /// `authres` is short for the Authentication-Results header, defined in
 /// <https://datatracker.ietf.org/doc/html/rfc8601>, which contains info
@@ -29,45 +28,28 @@ pub(crate) async fn handle_authres(
     context: &Context,
     mail: &ParsedMail<'_>,
     from: &str,
-    message_time: i64,
 ) -> Result<DkimResults> {
     let from_domain = match EmailAddress::new(from) {
         Ok(email) => email.domain,
         Err(e) => {
-            // This email is invalid, but don't return an error, we still want to
-            // add a stub to the database so that it's not downloaded again
             return Err(anyhow::format_err!("invalid email {}: {:#}", from, e));
         }
     };
 
     let authres = parse_authres_headers(&mail.get_headers(), &from_domain);
     update_authservid_candidates(context, &authres).await?;
-    compute_dkim_results(context, authres, &from_domain, message_time).await
+    compute_dkim_results(context, authres).await
 }
 
 #[derive(Debug)]
 pub(crate) struct DkimResults {
     /// Whether DKIM passed for this particular e-mail.
     pub dkim_passed: bool,
-    /// Whether DKIM is known to work for e-mails coming from the sender's domain,
-    /// i.e. whether we expect DKIM to work.
-    pub dkim_should_work: bool,
-    /// Whether changing the public Autocrypt key should be allowed.
-    /// This is false if we expected DKIM to work (dkim_works=true),
-    /// but it failed now (dkim_passed=false).
-    pub allow_keychange: bool,
 }
 
 impl fmt::Display for DkimResults {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            fmt,
-            "DKIM Results: Passed={}, Works={}, Allow_Keychange={}",
-            self.dkim_passed, self.dkim_should_work, self.allow_keychange
-        )?;
-        if !self.allow_keychange {
-            write!(fmt, " KEYCHANGES NOT ALLOWED!!!!")?;
-        }
+        write!(fmt, "DKIM Results: Passed={}", self.dkim_passed)?;
         Ok(())
     }
 }
@@ -218,10 +200,6 @@ async fn update_authservid_candidates(
         context
             .set_config_internal(Config::AuthservIdCandidates, Some(&new_config))
             .await?;
-        // Updating the authservid candidates may mean that we now consider
-        // emails as "failed" which "passed" previously, so we need to
-        // reset our expectation which DKIMs work.
-        clear_dkim_works(context).await?
     }
     Ok(())
 }
@@ -238,8 +216,6 @@ async fn update_authservid_candidates(
 async fn compute_dkim_results(
     context: &Context,
     mut authres: ParsedAuthresHeaders,
-    from_domain: &str,
-    message_time: i64,
 ) -> Result<DkimResults> {
     let mut dkim_passed = false;
 
@@ -272,71 +248,7 @@ async fn compute_dkim_results(
         }
     }
 
-    let last_working_timestamp = dkim_works_timestamp(context, from_domain).await?;
-    let mut dkim_should_work = dkim_should_work(last_working_timestamp)?;
-    if message_time > last_working_timestamp && dkim_passed {
-        set_dkim_works_timestamp(context, from_domain, message_time).await?;
-        dkim_should_work = true;
-    }
-
-    Ok(DkimResults {
-        dkim_passed,
-        dkim_should_work,
-        allow_keychange: dkim_passed || !dkim_should_work,
-    })
-}
-
-/// Whether DKIM in emails from this domain should be considered to work.
-fn dkim_should_work(last_working_timestamp: i64) -> Result<bool> {
-    // When we get an email with valid DKIM-Authentication-Results,
-    // then we assume that DKIM works for 30 days from this time on.
-    let should_work_until = last_working_timestamp + 3600 * 24 * 30;
-
-    let dkim_ever_worked = last_working_timestamp > 0;
-
-    // We're using time() here and not the time when the message
-    // claims to have been sent (passed around as `message_time`)
-    // because otherwise an attacker could just put a time way
-    // in the future into the `Date` header and then we would
-    // assume that DKIM doesn't have to be valid anymore.
-    let dkim_should_work_now = should_work_until > time();
-    Ok(dkim_ever_worked && dkim_should_work_now)
-}
-
-async fn dkim_works_timestamp(context: &Context, from_domain: &str) -> Result<i64, anyhow::Error> {
-    let last_working_timestamp: i64 = context
-        .sql
-        .query_get_value(
-            "SELECT dkim_works FROM sending_domains WHERE domain=?",
-            (from_domain,),
-        )
-        .await?
-        .unwrap_or(0);
-    Ok(last_working_timestamp)
-}
-
-async fn set_dkim_works_timestamp(
-    context: &Context,
-    from_domain: &str,
-    timestamp: i64,
-) -> Result<()> {
-    context
-        .sql
-        .execute(
-            "INSERT INTO sending_domains (domain, dkim_works) VALUES (?,?)
-                ON CONFLICT(domain) DO UPDATE SET dkim_works=excluded.dkim_works",
-            (from_domain, timestamp),
-        )
-        .await?;
-    Ok(())
-}
-
-async fn clear_dkim_works(context: &Context) -> Result<()> {
-    context
-        .sql
-        .execute("DELETE FROM sending_domains", ())
-        .await?;
-    Ok(())
+    Ok(DkimResults { dkim_passed })
 }
 
 fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str> {
@@ -349,19 +261,12 @@ fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str>
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]
-    use std::time::Duration;
-
     use tokio::fs;
     use tokio::io::AsyncReadExt;
 
     use super::*;
-    use crate::aheader::EncryptPreference;
-    use crate::e2ee;
     use crate::mimeparser;
     use crate::peerstate::Peerstate;
-    use crate::securejoin::get_securejoin_qr;
-    use crate::securejoin::join_securejoin;
-    use crate::test_utils;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use crate::tools;
@@ -574,33 +479,8 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 let mail = mailparse::parse_mail(&bytes)?;
                 let from = &mimeparser::get_from(&mail.headers).unwrap().addr;
 
-                let res = handle_authres(&t, &mail, from, time()).await?;
-                assert!(res.allow_keychange);
-            }
-
-            for entry in &dir {
-                let mut file = fs::File::open(entry.path()).await?;
-                bytes.clear();
-                file.read_to_end(&mut bytes).await.unwrap();
-
-                let mail = mailparse::parse_mail(&bytes)?;
-                let from = &mimeparser::get_from(&mail.headers).unwrap().addr;
-
-                let res = handle_authres(&t, &mail, from, time()).await?;
-                if !res.allow_keychange {
-                    println!(
-                        "!!!!!! FAILURE Receiving {:?}, keychange is not allowed !!!!!!",
-                        entry.path()
-                    );
-                    test_failed = true;
-                }
-
+                let res = handle_authres(&t, &mail, from).await?;
                 let from_domain = EmailAddress::new(from).unwrap().domain;
-                assert_eq!(
-                    res.dkim_should_work,
-                    dkim_should_work(dkim_works_timestamp(&t, &from_domain).await?)?
-                );
-                assert_eq!(res.dkim_passed, res.dkim_should_work);
 
                 // delta.blinzeln.de and gmx.de have invalid DKIM, so the DKIM check should fail
                 let expected_result = (from_domain != "delta.blinzeln.de") && (from_domain != "gmx.de")
@@ -613,9 +493,8 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 if res.dkim_passed != expected_result {
                     if authres_parsing_works {
                         println!(
-                            "!!!!!! FAILURE Receiving {:?}, order {:#?} wrong result: !!!!!!",
+                            "!!!!!! FAILURE Receiving {:?} wrong result: !!!!!!",
                             entry.path(),
-                            dir.iter().map(|e| e.file_name()).collect::<Vec<_>>()
                         );
                         test_failed = true;
                     }
@@ -638,116 +517,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         let bytes = b"From: invalid@from.com
 Authentication-Results: dkim=";
         let mail = mailparse::parse_mail(bytes).unwrap();
-        handle_authres(&t, &mail, "invalid@rom.com", time())
-            .await
-            .unwrap();
-    }
-
-    #[ignore = "Disallowing keychanges is disabled for now"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_handle_authres_fails() -> Result<()> {
-        let mut tcm = TestContextManager::new();
-        let alice = tcm.alice().await;
-        let bob = tcm.bob().await;
-
-        // Bob sends Alice a message, so she gets his key
-        tcm.send_recv_accept(&bob, &alice, "Hi").await;
-
-        // We don't need bob anymore, let's make sure it's not accidentally used
-        drop(bob);
-
-        // Assume Alice receives an email from bob@example.net with
-        // correct DKIM -> `set_dkim_works()` was called
-        set_dkim_works_timestamp(&alice, "example.net", time()).await?;
-        // And Alice knows her server's authserv-id
-        alice
-            .set_config(Config::AuthservIdCandidates, Some("example.org"))
-            .await?;
-
-        tcm.section("An attacker, bob2, sends a from-forged email to Alice!");
-
-        // Sleep to make sure key reset is ignored because of DKIM failure
-        // and not because reordering is suspected.
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
-        let bob2 = tcm.unconfigured().await;
-        bob2.configure_addr("bob@example.net").await;
-        e2ee::ensure_secret_key_exists(&bob2).await?;
-
-        let chat = bob2.create_chat(&alice).await;
-        let mut sent = bob2
-            .send_text(chat.id, "Please send me lots of money")
-            .await;
-
-        sent.payload
-            .insert_str(0, "Authentication-Results: example.org; dkim=fail\n");
-
-        let received = alice.recv_msg(&sent).await;
-
-        // Assert that the error tells the user about the problem
-        assert!(received.error.unwrap().contains("DKIM failed"));
-
-        let bob_state = Peerstate::from_addr(&alice, "bob@example.net")
-            .await?
-            .unwrap();
-
-        // Encryption preference is still mutual.
-        assert_eq!(bob_state.prefer_encrypt, EncryptPreference::Mutual);
-
-        // Also check that the keypair was not changed
-        assert_eq!(
-            bob_state.public_key.unwrap(),
-            test_utils::bob_keypair().public
-        );
-
-        // Since Alice didn't change the key, Bob can't read her message
-        let received = tcm
-            .try_send_recv(&alice, &bob2, "My credit card number is 1234")
-            .await;
-        assert!(!received.text.contains("1234"));
-        assert!(received.error.is_some());
-
-        tcm.section("Turns out bob2 wasn't an attacker at all, Bob just has a new phone and DKIM just stopped working.");
-        tcm.section("To fix the key problems, Bob scans Alice's QR code.");
-
-        let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
-        join_securejoin(&bob2.ctx, &qr).await.unwrap();
-
-        loop {
-            if let Some(mut sent) = bob2.pop_sent_msg_opt(Duration::ZERO).await {
-                sent.payload
-                    .insert_str(0, "Authentication-Results: example.org; dkim=fail\n");
-                alice.recv_msg(&sent).await;
-            } else if let Some(sent) = alice.pop_sent_msg_opt(Duration::ZERO).await {
-                bob2.recv_msg(&sent).await;
-            } else {
-                break;
-            }
-        }
-
-        // Unfortunately, securejoin currently doesn't work with authres-checking,
-        // so these checks would fail:
-
-        // let contact_bob = alice.add_or_lookup_contact(&bob2).await;
-        // assert_eq!(
-        //     contact_bob.is_verified(&alice.ctx).await.unwrap(),
-        //     VerifiedStatus::BidirectVerified
-        // );
-
-        // let contact_alice = bob2.add_or_lookup_contact(&alice).await;
-        // assert_eq!(
-        //     contact_alice.is_verified(&bob2.ctx).await.unwrap(),
-        //     VerifiedStatus::BidirectVerified
-        // );
-
-        // // Bob can read Alice's messages again
-        // let received = tcm
-        //     .try_send_recv(&alice, &bob2, "Can you read this again?")
-        //     .await;
-        // assert_eq!(received.text.as_ref().unwrap(), "Can you read this again?");
-        // assert!(received.error.is_none());
-
-        Ok(())
+        handle_authres(&t, &mail, "invalid@rom.com").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -796,10 +566,7 @@ Authentication-Results: dkim=";
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        // Assume Bob received an email from something@example.net with
-        // correct DKIM -> `set_dkim_works()` was called
-        set_dkim_works_timestamp(&bob, "example.org", time()).await?;
-        // And Bob knows his server's authserv-id
+        // Bob knows his server's authserv-id
         bob.set_config(Config::AuthservIdCandidates, Some("example.net"))
             .await?;
 
@@ -821,15 +588,13 @@ Authentication-Results: dkim=";
             .insert_str(0, "Authentication-Results: example.net; dkim=fail\n");
         let rcvd = bob.recv_msg(&sent).await;
 
-        // Disallowing keychanges is disabled for now:
-        // assert!(rcvd.error.unwrap().contains("DKIM failed"));
         // The message info should contain a warning:
         assert!(rcvd
             .id
             .get_info(&bob)
             .await
             .unwrap()
-            .contains("KEYCHANGES NOT ALLOWED"));
+            .contains("DKIM Results: Passed=false"));
 
         Ok(())
     }
