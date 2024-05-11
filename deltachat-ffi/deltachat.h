@@ -7327,6 +7327,16 @@ void dc_event_unref(dc_event_t* event);
 /// Used in summaries.
 #define DC_STR_REACTED_BY 177
 
+/// "Establishing guaranteed end-to-end encryption, please wait…"
+///
+/// Used as info message.
+#define DC_STR_SECUREJOIN_WAIT 190
+
+/// "Could not yet establish guaranteed end-to-end encryption, but you may already send a message."
+///
+/// Used as info message.
+#define DC_STR_SECUREJOIN_WAIT_TIMEOUT 191
+
 /**
  * @}
  */
