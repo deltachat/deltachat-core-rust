@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import subprocess
 from sys import argv
 from os import path, makedirs, chdir
