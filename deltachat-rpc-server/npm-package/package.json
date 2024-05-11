@@ -1,0 +1,16 @@
+{
+    "type": "module",
+    "name": "@deltachat/stdio-rpc-server",
+    "version": "1.137.4",
+    "license": "MPL-2.0",
+    "main": "index.js",
+    "types": "index.d.ts",
+    "scripts": {
+        "prepack": "node scripts/update_optional_dependencies_and_version.js"
+    },
+    "optionalDependencies": {
+    },
+    "peerDependencies": {
+        "@deltachat/jsonrpc-client": "*"
+    }
+}
