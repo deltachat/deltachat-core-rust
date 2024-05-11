@@ -14,21 +14,9 @@ if len(argv) < 2:
 
 target = argv[1].strip()
 
-output = subprocess.run(["rustup", "target", "list"], capture_output=True)
-available_targets = output.stdout.decode("utf-8")
-
-if available_targets.find(target) == -1:
-    print("target", target, "is not known")
-    exit(1)
-
-if available_targets.find(target + " (installed)") == -1:
-    print(
-        "target ", target, " is not installed, run 'rustup target add " + target + "'"
-    )
-    exit(1)
-
 subprocess.run(
-    ["cargo", "build", "--release", "-p", "deltachat-rpc-server", "--target", target]
+    ["cargo", "build", "--release", "-p", "deltachat-rpc-server", "--target", target],
+    check=True,
 )
 
 newpath = "platform_package"
