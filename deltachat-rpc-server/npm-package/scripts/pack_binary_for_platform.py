@@ -16,7 +16,7 @@ if len(argv) < 3:
 target = argv[1].strip()
 binary_path = argv[2].strip()
 
-output = subprocess.run(["rustup","target","list"], capture_output=True)
+output = subprocess.run(["rustc","--print","target-list"], capture_output=True, check=True)
 available_targets = output.stdout.decode("utf-8")
 
 if available_targets.find(target) == -1:
