@@ -66,8 +66,6 @@ export async function getRPCServerPath(
   // 2. check if it can be found in PATH
   if (!process.env[SKIP_SEARCH_IN_PATH] && !skipSearchInPath) {
     const path_dirs = process.env["PATH"].split(/:|;/);
-    // check cargo dir first
-    const cargo_dirs = path_dirs.filter((p) => p.endsWith(".cargo/bin"));
     const findExecutable = async (directory) => {
       const files = await readdir(directory);
       const file = files.find((p) =>
@@ -80,9 +78,6 @@ export async function getRPCServerPath(
       }
     };
     const executable_search = // TODO make code simpler to read
-      (await Promise.allSettled(cargo_dirs.map(findExecutable))).find(
-        ({ status }) => status === "fulfilled"
-      ) ||
       (await Promise.allSettled(path_dirs.map(findExecutable))).find(
         ({ status }) => status === "fulfilled"
       );
