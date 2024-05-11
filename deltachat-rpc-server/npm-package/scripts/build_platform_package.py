@@ -1,7 +1,6 @@
 import subprocess
 from sys import argv
 from os import path, makedirs, chdir
-import json
 from shutil import copy
 from src.make_package import write_package_json
 
