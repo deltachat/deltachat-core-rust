@@ -1,4 +1,5 @@
 use anyhow::Result;
+use deltachat::color;
 use deltachat::context::Context;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
@@ -113,5 +114,14 @@ impl From<deltachat_contact_tools::VcardContact> for VcardContact {
             profile_image: vc.profile_image,
             timestamp: vc.timestamp.ok(),
         }
+    }
+}
+
+impl VcardContact {
+    /// Get a color for the contact.
+    /// The color is calculated from the contact's email address and can be used as a fallback
+    /// avatar with white initials as well as for headlines in bubbles of group chats.
+    pub fn get_color(&self) -> u32 {
+        color::str_to_color(&self.addr.to_lowercase())
     }
 }
