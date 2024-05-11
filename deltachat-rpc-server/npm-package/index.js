@@ -65,25 +65,15 @@ export async function getRPCServerPath(
 
   // 2. check if it can be found in PATH
   if (!process.env[SKIP_SEARCH_IN_PATH] && !skipSearchInPath) {
-    const path_dirs = process.env["PATH"].split(/:|;/);
-    const findExecutable = async (directory) => {
-      const files = await readdir(directory);
-      const file = files.find((p) =>
-        basename(p).includes(PATH_EXECUTABLE_NAME)
-      );
-      if (file) {
-        return join(directory, file);
-      } else {
-        throw null;
-      }
-    };
-    const executable_search = (
-      await Promise.allSettled(path_dirs.map(findExecutable))
-    ).find(({ status }) => status === "fulfilled");
-    // TODO maybe we could the system do this stuff automatically
-    // by just trying to execute it and then use "which" (unix) or "where" (windows) to get the path to the executable
-    if (executable_search.status === "fulfilled") {
-      const executable = executable_search.value;
+    const exec = promisify(execFile);
+
+    const { stdout: executable } =
+      os.platform() !== "win32"
+        ? await exec("command", ["-v", PATH_EXECUTABLE_NAME])
+        : await exec("where", [PATH_EXECUTABLE_NAME]);
+
+    // by just trying to execute it and then use "command -v deltachat-rpc-server" (unix) or "where deltachat-rpc-server" (windows) to get the path to the executable
+    if (executable.length > 1) {
       // test if it is the right version
       try {
         // for some unknown reason it is in stderr and not in stdout
