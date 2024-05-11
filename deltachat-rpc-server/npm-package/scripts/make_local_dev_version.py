@@ -25,7 +25,7 @@ else:
     makedirs(newpath)
 
 # run build_platform_package.py with the host's target to build it
-subprocess.run(["python", "scripts/build_platform_package.py", host_target], capture_output=False)
+subprocess.run(["python", "scripts/build_platform_package.py", host_target], capture_output=False, check=True)
 
 # run update_optional_dependencies_and_version.js to adjust the package / make it installable locally
-subprocess.run(["node", "scripts/update_optional_dependencies_and_version.js", "--local"], capture_output=False)
+subprocess.run(["node", "scripts/update_optional_dependencies_and_version.js", "--local"], capture_output=False, check=True)
