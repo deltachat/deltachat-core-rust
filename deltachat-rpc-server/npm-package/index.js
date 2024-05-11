@@ -77,10 +77,9 @@ export async function getRPCServerPath(
         throw null;
       }
     };
-    const executable_search = // TODO make code simpler to read
-      (await Promise.allSettled(path_dirs.map(findExecutable))).find(
-        ({ status }) => status === "fulfilled"
-      );
+    const executable_search = (
+      await Promise.allSettled(path_dirs.map(findExecutable))
+    ).find(({ status }) => status === "fulfilled");
     // TODO maybe we could the system do this stuff automatically
     // by just trying to execute it and then use "which" (unix) or "where" (windows) to get the path to the executable
     if (executable_search.status === "fulfilled") {
@@ -148,7 +147,7 @@ export async function startDeltaChat(directory, options) {
   };
 
   //@ts-expect-error
-  dc.pathToServerBinary = pathToServerBinary
+  dc.pathToServerBinary = pathToServerBinary;
 
   return dc;
 }
