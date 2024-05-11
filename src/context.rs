@@ -10,10 +10,9 @@ use std::time::Duration;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
-use iroh_gossip::proto::TopicId;
 use pgp::SignedPublicKey;
 use ratelimit::Ratelimit;
-use tokio::sync::{Mutex, Notify, RwLock};
+use tokio::sync::{Mutex, Notify, OnceCell, RwLock};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
@@ -31,6 +30,7 @@ use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::param::{Param, Params};
+use crate::peer_channels::Iroh;
 use crate::peerstate::Peerstate;
 use crate::push::PushSubscriber;
 use crate::quota::QuotaInfo;
@@ -39,8 +39,6 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{self, create_id, duration_to_str, time, time_elapsed};
-use iroh_gossip::net::Gossip;
-use iroh_net::MagicEndpoint;
 
 /// Builder for the [`Context`].
 ///
@@ -292,16 +290,8 @@ pub struct InnerContext {
     /// True if account has subscribed to push notifications via IMAP.
     pub(crate) push_subscribed: AtomicBool,
 
-    /// [MagicEndpoint] needed for iroh peer channels.
     /// If iroh_gossip lock is also needed, it should be aquired first.
-    pub(crate) iroh_endpoint: RwLock<Option<MagicEndpoint>>,
-
-    /// [Gossip] needed for iroh peer channels.
-    pub(crate) iroh_gossip: RwLock<Option<Gossip>>,
-
-    /// Topics for which an advertisement has already been sent.
-    /// If iroh_channels lock is also needed, it should be aquired first.
-    pub(crate) iroh_channels: RwLock<HashMap<TopicId, i32>>,
+    pub(crate) iroh: OnceCell<Iroh>,
 }
 
 /// The state of ongoing process.
@@ -459,9 +449,7 @@ impl Context {
             debug_logging: std::sync::RwLock::new(None),
             push_subscriber,
             push_subscribed: AtomicBool::new(false),
-            iroh_endpoint: RwLock::new(None),
-            iroh_gossip: RwLock::new(None),
-            iroh_channels: RwLock::new(HashMap::new()),
+            iroh: OnceCell::new(),
         };
 
         let ctx = Context {
@@ -507,8 +495,8 @@ impl Context {
 
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        if let Some(ref endpoint) = *self.iroh_endpoint.read().await {
-            endpoint.network_change().await;
+        if let Some(ref iroh) = self.iroh.get() {
+            iroh.network_change().await;
         }
         self.scheduler.maybe_network().await;
     }
@@ -1400,6 +1388,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::mimeparser::SystemMessage;
+    use crate::peer_channels::get_or_generate_iroh_keypair;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
     use crate::tools::{create_outgoing_rfc724_mid, SystemTime};
@@ -1982,9 +1971,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_keypair_saving() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let key = alice.get_or_generate_iroh_keypair().await?;
-        let loaded_key = alice.get_or_generate_iroh_keypair().await?;
+        let alice = &TestContext::new_alice().await;
+        let key = get_or_generate_iroh_keypair(alice).await?;
+        let loaded_key = get_or_generate_iroh_keypair(alice).await?;
         assert_eq!(key.to_bytes(), loaded_key.to_bytes());
         Ok(())
     }

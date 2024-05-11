@@ -24,35 +24,168 @@
 //!    and `joinRealtimeChannel().send()` just like the other peers.
 
 use anyhow::{anyhow, Context as _, Result};
+use email::Header;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::relay::{RelayMap, RelayUrl};
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
+use std::collections::{BTreeSet, HashMap};
+use std::env;
+use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use url::Url;
 
 use crate::chat::send_msg;
 use crate::config::Config;
 use crate::context::Context;
+use crate::headerdef::HeaderDef;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::EventType;
 
-impl Context {
-    /// Create magic endpoint and gossip for the context.
-    pub(crate) async fn init_peer_channels(&self) -> Result<()> {
-        let secret_key: SecretKey = self.get_or_generate_iroh_keypair().await?;
-        info!(self, "Secret key: {}", secret_key.public().to_string());
+/// Store iroh peer channels for the context.
+#[derive(Debug)]
+pub struct Iroh {
+    /// [MagicEndpoint] needed for iroh peer channels.
+    pub(crate) endpoint: MagicEndpoint,
 
-        let mut ctx_gossip = self.iroh_gossip.write().await;
-        if ctx_gossip.is_some() {
-            warn!(
-                self,
-                "Tried to create endpoint even though there already is one"
-            );
-            return Ok(());
+    /// [Gossip] needed for iroh peer channels.
+    pub(crate) gossip: Gossip,
+
+    /// Topics for which an advertisement has already been sent.
+    pub(crate) iroh_channels: RwLock<HashMap<TopicId, ChannelState>>,
+}
+
+impl Iroh {
+    /// Notify the endpoint that the network has changed.
+    pub(crate) async fn network_change(&self) -> () {
+        self.endpoint.network_change().await
+    }
+
+    /// Join a topic and create the subscriber loop for it.
+    ///
+    /// If there is no gossip, create it.
+    ///
+    /// The returned future resolves when the swarm becomes operational.
+    async fn join_and_subscribe_gossip(
+        &self,
+        ctx: &Context,
+        msg_id: MsgId,
+    ) -> Result<Option<JoinTopicFut>> {
+        let topic = get_iroh_topic_for_msg(ctx, msg_id).await?;
+        if self.iroh_channels.read().await.contains_key(&topic) {
+            return Ok(None);
         }
+
+        let peers = get_iroh_gossip_peers(ctx, msg_id).await?;
+        info!(
+            ctx,
+            "IROH_REALTIME: Joining gossip with peers: {:?}",
+            peers.iter().map(|p| p.node_id).collect::<Vec<_>>()
+        );
+
+        // Connect to all peers
+        for peer in &peers {
+            self.endpoint.add_node_addr(peer.clone())?;
+        }
+
+        let connect_future = self
+            .gossip
+            .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
+            .await?;
+
+        let ctx = ctx.clone();
+        let gossip = self.gossip.clone();
+        let subscribe_loop = tokio::spawn(async move {
+            if let Err(e) = subscribe_loop(&ctx, gossip, topic, msg_id).await {
+                warn!(ctx, "subscribe_loop failed: {e}")
+            }
+        });
+
+        self.iroh_channels
+            .write()
+            .await
+            .insert(topic, ChannelState::new(0, subscribe_loop));
+
+        Ok(Some(connect_future))
+    }
+
+    /// Send realtime data to the gossip swarm.
+    pub async fn send_webxdc_realtime_data(
+        &self,
+        ctx: &Context,
+        msg_id: MsgId,
+        mut data: Vec<u8>,
+    ) -> Result<()> {
+        let topic = get_iroh_topic_for_msg(ctx, msg_id).await?;
+        self.join_and_subscribe_gossip(ctx, msg_id).await?;
+
+        let seq_num = self.get_and_incr(&topic).await;
+        data.extend(seq_num.to_le_bytes());
+
+        self.gossip.broadcast(topic, data.into()).await?;
+
+        if env::var("REALTIME_DEBUG").is_ok() {
+            info!(ctx, "Sent realtime data");
+        }
+
+        Ok(())
+    }
+
+    async fn get_and_incr(&self, topic: &TopicId) -> i32 {
+        let mut seq: i32 = 0;
+        self.iroh_channels
+            .write()
+            .await
+            .get_mut(topic)
+            .map(|state| {
+                seq = state.seq_number;
+                state.seq_number.wrapping_add(1)
+            });
+        seq
+    }
+
+    /// Get the iroh [NodeAddr] without direct IP addresses.
+    pub(crate) async fn get_node_addr(&self) -> Result<NodeAddr> {
+        let mut addr = self.endpoint.my_addr().await?;
+        addr.info.direct_addresses = BTreeSet::new();
+        Ok(addr)
+    }
+
+    pub(crate) async fn leave_realtime(&self, topic: TopicId) -> Result<()> {
+        let channel = self.iroh_channels.write().await.remove(&topic);
+        if let Some(channel) = channel {
+            channel.subscribe_loop.abort();
+        }
+        self.gossip.quit(topic).await?;
+        Ok(())
+    }
+}
+
+/// Single gossip channel state.
+#[derive(Debug)]
+pub(crate) struct ChannelState {
+    /// Sequence number for the gossip channel.
+    seq_number: i32,
+    /// The subscribe loop handle.
+    subscribe_loop: JoinHandle<()>,
+}
+
+impl ChannelState {
+    fn new(seq_number: i32, subscribe_loop: JoinHandle<()>) -> Self {
+        Self {
+            seq_number,
+            subscribe_loop,
+        }
+    }
+}
+
+impl Context {
+    /// Create magic endpoint and gossip.
+    async fn init_peer_channels(&self) -> Result<Iroh> {
+        let secret_key: SecretKey = get_or_generate_iroh_keypair(&self).await?;
 
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
@@ -63,7 +196,7 @@ impl Context {
                     .await
                     .as_ref()
                     .map(|conf| {
-                        let url = conf.iroh_relay.as_deref().context("can't get relay url")?;
+                        let url = conf.iroh_relay.as_deref().context("Can't get relay url")?;
                         Ok::<_, anyhow::Error>(RelayUrl::from(Url::parse(url)?))
                     })
                     .transpose()?
@@ -80,212 +213,152 @@ impl Context {
 
         // spawn endpoint loop that forwards incoming connections to the gossiper
         let context = self.clone();
+
+        // Shuts down on deltachat shutdown
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
 
-        *ctx_gossip = Some(gossip.clone());
-        *self.iroh_endpoint.write().await = Some(endpoint);
-
-        Ok(())
+        Ok(Iroh {
+            endpoint,
+            gossip,
+            iroh_channels: RwLock::new(HashMap::new()),
+        })
     }
 
-    /// Join a topic and create the subscriber loop for it.
-    ///
-    /// If there is no gossip, create it.
-    ///
-    /// The returned future resolves when the swarm becomes operational.
-    async fn iroh_join_and_subscribe_gossip(&self, msg_id: MsgId) -> Result<JoinTopicFut> {
-        let mut gossip = (*self.iroh_gossip.read().await).clone();
-        if gossip.is_none() {
-            self.init_peer_channels().await?;
-            gossip.clone_from(&(*self.iroh_gossip.read().await));
-        }
-
-        let gossip = gossip.context("no gossip")?;
-        let peers = self.get_iroh_gossip_peers(msg_id).await?;
-        info!(
-            self,
-            "Joining gossip with peers: {:?}",
-            peers.iter().map(|p| p.node_id).collect::<Vec<_>>()
-        );
-
-        let endpoint = self.iroh_endpoint.read().await;
-        // connect to all peers
-        for peer in &peers {
-            endpoint
-                .as_ref()
-                .context("iroh endpoint not initialized")?
-                .add_node_addr(peer.clone())?;
-        }
-
-        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
-        let connect_future = gossip
-            .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
-            .await?;
-
-        tokio::spawn(subscribe_loop(self.clone(), gossip.clone(), topic, msg_id));
-
-        Ok(connect_future)
-    }
-
-    /// Cache a peers [NodeId] for one topic.
-    pub(crate) async fn iroh_add_peer_for_topic(
-        &self,
-        msg_id: MsgId,
-        topic: TopicId,
-        peer: NodeId,
-        relay_server: Option<&str>,
-    ) -> Result<()> {
-        self.sql
-            .execute(
-                "INSERT OR REPLACE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
-                (msg_id, peer.as_bytes(), topic.as_bytes(), relay_server),
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Get a list of [NodeAddr]s for one webxdc.
-    async fn get_iroh_gossip_peers(&self, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
-        self.sql
-            .query_map(
-                "SELECT public_key, relay_server FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
-                (msg_id, self.get_iroh_node_addr().await?.node_id.as_bytes()),
-                |row| {
-                    let key:  Vec<u8> = row.get(0)?;
-                    let server: Option<String> = row.get(1)?;
-                    Ok((key, server))
-                },
-                |g| {
-                    g.map(|data| {
-                        let (key, server) = data?;
-                        let server = server.map(|data| Ok::<_, url::ParseError>(RelayUrl::from(Url::parse(&data)?))).transpose()?;
-                        let id = NodeId::from_bytes(&key.try_into()
-                        .map_err(|_| anyhow!("Can't convert sql data to [u8; 32]"))?)?;
-                        Ok::<_, anyhow::Error>(NodeAddr::from_parts(
-                            id, server, vec![]
-                        ))
-                    })
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-                },
-            )
+    /// Get or initialize the iroh peer channel.
+    pub async fn get_or_try_init_peer_channel(&self) -> Result<&Iroh> {
+        let ctx = self.clone();
+        self.iroh
+            .get_or_try_init(|| async { ctx.init_peer_channels().await })
             .await
     }
+}
 
-    /// Get the iroh secret key from the database or generate a new one and persist it.
-    pub(crate) async fn get_or_generate_iroh_keypair(&self) -> Result<SecretKey> {
-        match self.get_config_parsed(Config::IrohSecretKey).await? {
-            Some(key) => Ok(key),
-            None => {
-                let key = SecretKey::generate();
-                self.set_config_internal(Config::IrohSecretKey, Some(&key.to_string()))
-                    .await?;
-                Ok(key)
-            }
+/// Cache a peers [NodeId] for one topic.
+pub(crate) async fn iroh_add_peer_for_topic(
+    ctx: &Context,
+    msg_id: MsgId,
+    topic: TopicId,
+    peer: NodeId,
+    relay_server: Option<&str>,
+) -> Result<()> {
+    ctx.sql
+        .execute(
+            "INSERT OR REPLACE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
+            (msg_id, peer.as_bytes(), topic.as_bytes(), relay_server),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Get a list of [NodeAddr]s for one webxdc.
+async fn get_iroh_gossip_peers(ctx: &Context, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
+    ctx.sql
+        .query_map(
+            "SELECT public_key, relay_server FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
+            (msg_id, ctx.get_or_try_init_peer_channel().await?.get_node_addr().await?.node_id.as_bytes()),
+            |row| {
+                let key:  Vec<u8> = row.get(0)?;
+                let server: Option<String> = row.get(1)?;
+                Ok((key, server))
+            },
+            |g| {
+                g.map(|data| {
+                    let (key, server) = data?;
+                    let server = server.map(|data| Ok::<_, url::ParseError>(RelayUrl::from(Url::parse(&data)?))).transpose()?;
+                    let id = NodeId::from_bytes(&key.try_into()
+                    .map_err(|_| anyhow!("Can't convert sql data to [u8; 32]"))?)?;
+                    Ok::<_, anyhow::Error>(NodeAddr::from_parts(
+                        id, server, vec![]
+                    ))
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(Into::into)
+            },
+        )
+        .await
+}
+
+/// Get the iroh secret key from the database or generate a new one and persist it.
+pub(crate) async fn get_or_generate_iroh_keypair(ctx: &Context) -> Result<SecretKey> {
+    match ctx.get_config_parsed(Config::IrohSecretKey).await? {
+        Some(key) => Ok(key),
+        None => {
+            let key = SecretKey::generate();
+            ctx.set_config_internal(Config::IrohSecretKey, Some(&key.to_string()))
+                .await?;
+            Ok(key)
         }
     }
+}
 
-    /// Get the iroh [NodeAddr] without direct IP addresses.
-    pub(crate) async fn get_iroh_node_addr(&self) -> Result<NodeAddr> {
-        let endpoint = self.iroh_endpoint.read().await;
-        let relay = endpoint
-            .as_ref()
-            .context("iroh endpoint not initialized")?
-            .my_relay();
-        Ok(NodeAddr::from_parts(
-            endpoint
-                .as_ref()
-                .context("iroh endpoint not initialized")?
-                .node_id(),
-            relay,
-            vec![],
-        ))
-    }
+/// Get the topic for a given [MsgId].
+pub(crate) async fn get_iroh_topic_for_msg(ctx: &Context, msg_id: MsgId) -> Result<TopicId> {
+    let bytes: Vec<u8> = ctx
+        .sql
+        .query_get_value(
+            "SELECT topic FROM iroh_gossip_peers WHERE msg_id = ? LIMIT 1",
+            (msg_id,),
+        )
+        .await?
+        .context("couldn't restore topic from db")?;
+    Ok(TopicId::from_bytes(bytes.try_into().unwrap()))
+}
 
-    /// Get the topic for a given [MsgId].
-    pub(crate) async fn get_iroh_topic_for_msg(&self, msg_id: MsgId) -> Result<TopicId> {
-        let bytes: Vec<u8> = self
-            .sql
-            .query_get_value(
-                "SELECT topic FROM iroh_gossip_peers WHERE msg_id = ? LIMIT 1",
-                (msg_id,),
-            )
-            .await?
-            .context("couldn't restore topic from db")?;
-        Ok(TopicId::from_bytes(bytes.try_into().unwrap()))
-    }
+/// Send a gossip advertisement to the chat that [MsgId] belongs to.
+/// This method should be called from the frontend when `joinRealtime`<- TODO: verify is called.
+pub async fn send_webxdc_realtime_advertisement(
+    ctx: &Context,
+    msg_id: MsgId,
+) -> Result<Option<JoinTopicFut>> {
+    let iroh = ctx.get_or_try_init_peer_channel().await?;
+    let conn = iroh.join_and_subscribe_gossip(ctx, msg_id).await?;
 
-    /// Send realtime data to the gossip swarm.
-    pub async fn send_webxdc_realtime_data(&self, msg_id: MsgId, mut data: Vec<u8>) -> Result<()> {
-        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
-        let has_joined = self.iroh_channels.read().await.get(&topic).copied();
-        if has_joined.is_none() {
-            self.send_webxdc_realtime_advertisement(msg_id).await?;
-        }
+    let webxdc = Message::load_from_db(ctx, msg_id).await?;
+    let mut msg = Message::new(Viewtype::Text);
+    msg.hidden = true;
+    msg.param.set_cmd(SystemMessage::IrohNodeAddr);
+    msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
+    send_msg(ctx, webxdc.chat_id, &mut msg).await?;
+    info!(ctx, "IROH_REALTIME: Sent realtime advertisement");
+    Ok(conn)
+}
 
-        // depending on architecture this is 4 or 8 bytes.
-        // on some embedded deviced might be even more because of usize nature
-        let seq_num = has_joined.unwrap_or_default();
-        data.extend(seq_num.to_ne_bytes());
-        self.iroh_channels
-            .write()
-            .await
-            .insert(topic, seq_num.wrapping_add(1));
+/// Send realtime data to the gossip swarm.
+pub async fn send_webxdc_realtime_data(
+    ctx: &Context,
+    msg_id: MsgId,
+    data: Vec<u8>,
+) -> Result<()> {
+    let iroh = ctx.get_or_try_init_peer_channel().await?;
+    iroh.send_webxdc_realtime_data(ctx, msg_id, data).await?;
+    Ok(())
+}
 
-        self.iroh_gossip
-            .read()
-            .await
-            .as_ref()
-            .context("No gossip")?
-            .broadcast(topic, data.into())
-            .await?;
+/// Leave the gossip of the webxdc with given [MsgId].
+pub async fn leave_webxdc_realtime(ctx: &Context, msg_id: MsgId) -> Result<()> {
+    let iroh = ctx.get_or_try_init_peer_channel().await?;
+    iroh.leave_realtime(get_iroh_topic_for_msg(ctx, msg_id).await?)
+        .await?;
+    info!(ctx, "IROH_REALTIME: Left gossip for message {msg_id}");
 
-        info!(self, "Sent realtime data");
-
-        Ok(())
-    }
-
-    /// Send a gossip advertisement to the chat that [MsgId] belongs to.
-    /// Automatically join the gossip for the [MsgId] if not already joined.
-    /// Creates magic endpoint and gossip if not already created.
-    /// This method should be called from the frontend when `setRealtimeListener` is called.
-    pub async fn send_webxdc_realtime_advertisement(
-        &self,
-        msg_id: MsgId,
-    ) -> Result<Option<JoinTopicFut>> {
-        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
-        let mut channels = self.iroh_channels.write().await;
-        let fut = if channels.get(&topic).is_some() {
-            return Ok(None);
-        } else {
-            channels.insert(topic, 0);
-            self.iroh_join_and_subscribe_gossip(msg_id).await?
-        };
-        drop(channels);
-
-        let mut msg = Message::new(Viewtype::Text);
-        msg.hidden = true;
-        let webxdc = Message::load_from_db(self, msg_id).await?;
-        msg.param.set_cmd(SystemMessage::IrohNodeAddr);
-        msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
-        send_msg(self, webxdc.chat_id, &mut msg).await?;
-        info!(self, "Sent realtime advertisement");
-        Ok(Some(fut))
-    }
-
-    /// Leave the gossip of the webxdc with given [MsgId].
-    pub async fn leave_webxdc_realtime(&self, msg_id: MsgId) -> Result<()> {
-        let topic = self.get_iroh_topic_for_msg(msg_id).await?;
-        self.iroh_channels.write().await.remove(&topic);
-        let gossip = self.iroh_gossip.read().await;
-        gossip.as_ref().context("No gossip")?.quit(topic).await?;
-        info!(self, "Left gossip for {msg_id}");
-        Ok(())
-    }
+    Ok(())
 }
 
 pub(crate) fn create_random_topic() -> TopicId {
     TopicId::from_bytes(rand::random())
+}
+
+pub(crate) async fn create_iroh_header(
+    ctx: &Context,
+    topic: TopicId,
+    msg_id: MsgId,
+) -> Result<Header> {
+    let peer = get_or_generate_iroh_keypair(ctx).await?.public();
+    iroh_add_peer_for_topic(ctx, msg_id, topic, peer, None).await?;
+    Ok(Header::new(
+        HeaderDef::IrohGossipTopic.get_headername().to_string(),
+        topic.to_string(),
+    ))
 }
 
 async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip) {
@@ -321,7 +394,7 @@ async fn handle_connection(
 }
 
 async fn subscribe_loop(
-    context: Context,
+    context: &Context,
     gossip: Gossip,
     topic: TopicId,
     msg_id: MsgId,
@@ -331,10 +404,8 @@ async fn subscribe_loop(
         let event = stream.recv().await?;
         match event {
             IrohEvent::NeighborUp(node) => {
-                info!(context, "NeighborUp: {:?}", node);
-                context
-                    .iroh_add_peer_for_topic(msg_id, topic, node, None)
-                    .await?;
+                info!(context, "NeighborUp: {}", node.to_string());
+                iroh_add_peer_for_topic(&context, msg_id, topic, node, None).await?;
             }
             IrohEvent::Received(event) => {
                 info!(context, "Received realtime data");
@@ -357,10 +428,12 @@ mod tests {
     use crate::{
         chat::send_msg,
         message::{Message, Viewtype},
+        peer_channels::{
+            get_iroh_gossip_peers, leave_webxdc_realtime, send_webxdc_realtime_advertisement,
+        },
         test_utils::TestContextManager,
         EventType,
     };
-    use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_can_communicate() {
@@ -392,35 +465,38 @@ mod tests {
         bob_webdxc.chat_id.accept(bob).await.unwrap();
 
         // Alice advertises herself.
-        alice
-            .send_webxdc_realtime_advertisement(alice_webxdc.id)
+        send_webxdc_realtime_advertisement(alice, alice_webxdc.id)
             .await
             .unwrap();
 
         bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
-        bob.init_peer_channels().await.unwrap();
+        let bob_iroh = bob.get_or_try_init_peer_channel().await.unwrap();
+
         // Bob adds alice to gossip peers.
-        let members = bob
-            .get_iroh_gossip_peers(bob_webdxc.id)
+        let members = get_iroh_gossip_peers(bob, bob_webdxc.id)
             .await
             .unwrap()
             .into_iter()
             .map(|addr| addr.node_id)
             .collect::<Vec<_>>();
+
+        let alice_iroh = alice.get_or_try_init_peer_channel().await.unwrap();
         assert_eq!(
             members,
-            vec![alice.get_iroh_node_addr().await.unwrap().node_id]
+            vec![alice_iroh.get_node_addr().await.unwrap().node_id]
         );
 
-        bob.iroh_join_and_subscribe_gossip(bob_webdxc.id)
+        bob_iroh
+            .join_and_subscribe_gossip(bob, bob_webdxc.id)
             .await
+            .unwrap()
             .unwrap()
             .await
             .unwrap();
 
         // Alice sends ephemeral message
-        alice
-            .send_webxdc_realtime_data(alice_webxdc.id, "alice -> bob".as_bytes().to_vec())
+        alice_iroh
+            .send_webxdc_realtime_data(alice, alice_webxdc.id, "alice -> bob".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -438,7 +514,8 @@ mod tests {
             }
         }
         // Bob sends ephemeral message
-        bob.send_webxdc_realtime_data(bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
+        bob_iroh
+            .send_webxdc_realtime_data(bob, bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -457,8 +534,7 @@ mod tests {
         }
 
         // Alice adds bob to gossip peers.
-        let members = alice
-            .get_iroh_gossip_peers(alice_webxdc.id)
+        let members = get_iroh_gossip_peers(alice, alice_webxdc.id)
             .await
             .unwrap()
             .into_iter()
@@ -467,10 +543,11 @@ mod tests {
 
         assert_eq!(
             members,
-            vec![bob.get_iroh_node_addr().await.unwrap().node_id]
+            vec![bob_iroh.get_node_addr().await.unwrap().node_id]
         );
 
-        bob.send_webxdc_realtime_data(bob_webdxc.id, "bob -> alice 2".as_bytes().to_vec())
+        bob_iroh
+            .send_webxdc_realtime_data(bob, bob_webdxc.id, "bob -> alice 2".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -519,31 +596,38 @@ mod tests {
         bob_webdxc.chat_id.accept(bob).await.unwrap();
 
         // Alice advertises herself.
-        alice
-            .send_webxdc_realtime_advertisement(alice_webxdc.id)
+        send_webxdc_realtime_advertisement(alice, alice_webxdc.id)
             .await
             .unwrap();
 
         bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
+        let bob_iroh = bob.get_or_try_init_peer_channel().await.unwrap();
 
-        let fut = bob
-            .iroh_join_and_subscribe_gossip(bob_webdxc.id)
-            .await
-            .unwrap();
-        alice
-            .iroh_join_and_subscribe_gossip(alice_webxdc.id)
+        // Bob adds alice to gossip peers.
+        let members = get_iroh_gossip_peers(bob, bob_webdxc.id)
             .await
             .unwrap()
-            .await
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(2), fut)
+            .into_iter()
+            .map(|addr| addr.node_id)
+            .collect::<Vec<_>>();
+
+        let alice_iroh = alice.get_or_try_init_peer_channel().await.unwrap();
+        assert_eq!(
+            members,
+            vec![alice_iroh.get_node_addr().await.unwrap().node_id]
+        );
+
+        bob_iroh
+            .join_and_subscribe_gossip(bob, bob_webdxc.id)
             .await
             .unwrap()
+            .unwrap()
+            .await
             .unwrap();
 
         // Alice sends ephemeral message
-        alice
-            .send_webxdc_realtime_data(alice_webxdc.id, "alice -> bob".as_bytes().to_vec())
+        alice_iroh
+            .send_webxdc_realtime_data(alice, alice_webxdc.id, "alice -> bob".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -561,15 +645,18 @@ mod tests {
             }
         }
 
-        bob.leave_webxdc_realtime(bob_webdxc.id).await.unwrap();
+        leave_webxdc_realtime(bob, bob_webdxc.id).await.unwrap();
 
-        bob.iroh_join_and_subscribe_gossip(bob_webdxc.id)
+        bob_iroh
+            .join_and_subscribe_gossip(bob, bob_webdxc.id)
             .await
+            .unwrap()
             .unwrap()
             .await
             .unwrap();
 
-        bob.send_webxdc_realtime_data(bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
+        bob_iroh
+            .send_webxdc_realtime_data(bob, bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -590,8 +677,14 @@ mod tests {
         // channel is only used to remeber if an advertisement has been sent
         // bob for example does not change the channels because he never sends an
         // advertisement
-        assert_eq!(alice.iroh_channels.read().await.len(), 1);
-        alice.leave_webxdc_realtime(alice_webxdc.id).await.unwrap();
-        assert_eq!(alice.iroh_channels.read().await.len(), 0);
+        assert_eq!(
+            alice.iroh.get().unwrap().iroh_channels.read().await.len(),
+            1
+        );
+        leave_webxdc_realtime(alice, alice_webxdc.id).await.unwrap();
+        assert_eq!(
+            alice.iroh.get().unwrap().iroh_channels.read().await.len(),
+            0
+        );
     }
 }

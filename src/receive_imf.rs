@@ -32,6 +32,9 @@ use crate::message::{
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
+use crate::peer_channels::{
+    get_iroh_topic_for_msg, get_or_generate_iroh_keypair, iroh_add_peer_for_topic,
+};
 use crate::peerstate::Peerstate;
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
@@ -1416,10 +1419,15 @@ async fn add_parts(
                 let node_id = node_addr.node_id;
                 let relay_server = node_addr.relay_url().map(|relay| relay.to_string());
                 let instance_id = parent.context("Failed to get parent message")?.id;
-                let topic = context.get_iroh_topic_for_msg(instance_id).await?;
-                context
-                    .iroh_add_peer_for_topic(instance_id, topic, node_id, relay_server.as_deref())
-                    .await?;
+                let topic = get_iroh_topic_for_msg(context, instance_id).await?;
+                iroh_add_peer_for_topic(
+                    context,
+                    instance_id,
+                    topic,
+                    node_id,
+                    relay_server.as_deref(),
+                )
+                .await?;
 
                 chat_id = DC_CHAT_ID_TRASH;
             }
@@ -1600,10 +1608,8 @@ RETURNING id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
                 let topic = TopicId::from_str(topic).context("wrong gossip topic header")?;
-                let peer = context.get_or_generate_iroh_keypair().await?.public();
-                context
-                    .iroh_add_peer_for_topic(*msg_id, topic, peer, None)
-                    .await?;
+                let peer = get_or_generate_iroh_keypair(context).await?.public();
+                iroh_add_peer_for_topic(context, *msg_id, topic, peer, None).await?;
             } else {
                 warn!(context, "webxdc doesn't have a gossip topic")
             }
