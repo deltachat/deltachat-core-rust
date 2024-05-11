@@ -1416,18 +1416,11 @@ async fn add_parts(
         match serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address") {
             Ok(node_addr) => {
                 info!(context, "Adding iroh peer with address {node_addr:?}.");
-                let node_id = node_addr.node_id;
-                let relay_server = node_addr.relay_url().map(|relay| relay.to_string());
                 let instance_id = parent.context("Failed to get parent message")?.id;
+                let node_id = node_addr.node_id;
+                let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
                 let topic = get_iroh_topic_for_msg(context, instance_id).await?;
-                iroh_add_peer_for_topic(
-                    context,
-                    instance_id,
-                    topic,
-                    node_id,
-                    relay_server.as_deref(),
-                )
-                .await?;
+                iroh_add_peer_for_topic(context, instance_id, topic, node_id, relay_server).await?;
 
                 chat_id = DC_CHAT_ID_TRASH;
             }

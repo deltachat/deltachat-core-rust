@@ -60,7 +60,7 @@ pub struct Iroh {
 
 impl Iroh {
     /// Notify the endpoint that the network has changed.
-    pub(crate) async fn network_change(&self) -> () {
+    pub(crate) async fn network_change(&self) {
         self.endpoint.network_change().await
     }
 
@@ -185,7 +185,7 @@ impl ChannelState {
 impl Context {
     /// Create magic endpoint and gossip.
     async fn init_peer_channels(&self) -> Result<Iroh> {
-        let secret_key: SecretKey = get_or_generate_iroh_keypair(&self).await?;
+        let secret_key: SecretKey = get_or_generate_iroh_keypair(self).await?;
 
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
@@ -324,11 +324,7 @@ pub async fn send_webxdc_realtime_advertisement(
 }
 
 /// Send realtime data to the gossip swarm.
-pub async fn send_webxdc_realtime_data(
-    ctx: &Context,
-    msg_id: MsgId,
-    data: Vec<u8>,
-) -> Result<()> {
+pub async fn send_webxdc_realtime_data(ctx: &Context, msg_id: MsgId, data: Vec<u8>) -> Result<()> {
     let iroh = ctx.get_or_try_init_peer_channel().await?;
     iroh.send_webxdc_realtime_data(ctx, msg_id, data).await?;
     Ok(())
@@ -363,12 +359,12 @@ pub(crate) async fn create_iroh_header(
 
 async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip) {
     while let Some(conn) = endpoint.accept().await {
-        info!(context, "accepting iroh connection");
+        info!(context, "IROH_REALTIME: accepting iroh connection");
         let gossip = gossip.clone();
         let context = context.clone();
         tokio::spawn(async move {
             if let Err(err) = handle_connection(&context, conn, gossip).await {
-                warn!(context, "iroh connection error: {err}");
+                warn!(context, "IROH_REALTIME: iroh connection error: {err}");
             }
         });
     }
@@ -404,11 +400,11 @@ async fn subscribe_loop(
         let event = stream.recv().await?;
         match event {
             IrohEvent::NeighborUp(node) => {
-                info!(context, "NeighborUp: {}", node.to_string());
-                iroh_add_peer_for_topic(&context, msg_id, topic, node, None).await?;
+                info!(context, "IROH_REALTIME: NeighborUp: {}", node.to_string());
+                iroh_add_peer_for_topic(context, msg_id, topic, node, None).await?;
             }
             IrohEvent::Received(event) => {
-                info!(context, "Received realtime data");
+                info!(context, "IROH_REALTIME: Received realtime data");
                 context.emit_event(EventType::WebxdcRealtimeData {
                     msg_id,
                     data: event

@@ -290,7 +290,7 @@ pub struct InnerContext {
     /// True if account has subscribed to push notifications via IMAP.
     pub(crate) push_subscribed: AtomicBool,
 
-    /// If iroh_gossip lock is also needed, it should be aquired first.
+    /// Iroh for realtime peer channels.
     pub(crate) iroh: OnceCell<Iroh>,
 }
 
@@ -495,7 +495,7 @@ impl Context {
 
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        if let Some(ref iroh) = self.iroh.get() {
+        if let Some(iroh) = self.iroh.get() {
             iroh.network_change().await;
         }
         self.scheduler.maybe_network().await;
