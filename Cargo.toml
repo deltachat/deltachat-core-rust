@@ -179,3 +179,7 @@ vendored = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
   "reqwest/native-tls-vendored"
 ]
+
+[patch.crates-io]
+iroh = { git = "https://github.com/n0-computer/iroh", branch = "maint-0.4-iroh-quinn"}
+iroh-quinn = { git = "https://github.com/n0-computer/quinn", branch = "fix-openbsd"}
