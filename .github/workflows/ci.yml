@@ -85,7 +85,7 @@ jobs:
           - os: ubuntu-latest
             rust: 1.78.0
           - os: windows-latest
-            rust: 1.78.0
+            rust: 1.77.0
           - os: macos-latest
             rust: 1.78.0
 
