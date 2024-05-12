@@ -105,10 +105,11 @@ jobs:
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
 
+      # Version is pinned due to bug <https://github.com/nextest-rs/nextest/issues/1493> in nextest 0.9.70
       - name: Install nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: nextest
+          tool: nextest@0.9.67
 
       - name: Tests
         env:
