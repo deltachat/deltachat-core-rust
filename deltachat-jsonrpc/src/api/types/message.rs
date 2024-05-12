@@ -635,7 +635,7 @@ impl MessageInfo {
 #[derive(
     Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema,
 )]
-#[serde(rename_all = "camelCase", tag = "variant")]
+#[serde(rename_all = "camelCase", tag = "kind")]
 pub enum EphemeralTimer {
     /// Timer is disabled.
     Disabled,
