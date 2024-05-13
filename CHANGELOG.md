@@ -1,5 +1,93 @@
 # Changelog
 
+## [1.138.0] - 2024-05-13
+
+### API-Changes
+
+- Add dc_msg_save_file() which saves file copy at the provided path ([#4309](https://github.com/deltachat/deltachat-core-rust/pull/4309)).
+- Api!(jsonrpc): replace EphemeralTimer tag "variant" with "kind"
+
+### CI
+
+- Use rsync instead of 3rd party github action.
+- Replace `black` with `ruff format`.
+- Update Rust to 1.78.0.
+
+### Documentation
+
+- Fix references in Message.set_location() documentation.
+- Remove Doxygen markup from Message.has_location().
+- Add `location` module documentation.
+
+### Features / Changes
+
+- Delete expired path locations in ephemeral loop.
+- Delete orphaned POI locations during housekeeping.
+- Parsing vCards for contacts sharing ([#5482](https://github.com/deltachat/deltachat-core-rust/pull/5482)).
+- contact-tools: Support parsing profile images from "PHOTO:data:image/jpeg;base64,...".
+- contact-tools: Add make_vcard().
+- Do not add location markers to messages with non-POI location.
+- Make one-to-one chats read-only the first seconds of a SecureJoin ([#5512](https://github.com/deltachat/deltachat-core-rust/pull/5512)).
+
+### Fixes
+
+- Message::set_file_from_bytes(): Set Param::Filename.
+- Do not fail to send encrypted quotes to unencrypted chats.
+- Never prepend subject to message text when bot receives it.
+- Interrupt location loop when new location is stored.
+- Correct message viewtype before recoding image blob ([#5496](https://github.com/deltachat/deltachat-core-rust/pull/5496)).
+- Delete POI location when disappearing message expires.
+- Delete non-POI locations after `delete_device_after`, not immediately.
+- Update special chats icons even if they are blocked ([#5509](https://github.com/deltachat/deltachat-core-rust/pull/5509)).
+- Use ChatIdBlocked::lookup_by_contact() instead of ChatId's method when applicable.
+
+### Miscellaneous Tasks
+
+- cargo: Bump quote from 1.0.35 to 1.0.36.
+- cargo: Bump base64 from 0.22.0 to 0.22.1.
+- cargo: Bump serde from 1.0.197 to 1.0.200.
+- cargo: Bump async-channel from 2.2.0 to 2.2.1.
+- cargo: Bump thiserror from 1.0.58 to 1.0.59.
+- cargo: Bump anyhow from 1.0.81 to 1.0.82.
+- cargo: Bump chrono from 0.4.37 to 0.4.38.
+- cargo: Bump imap-proto from 0.16.4 to 0.16.5.
+- cargo: Bump syn from 2.0.57 to 2.0.60.
+- cargo: Bump mailparse from 0.14.1 to 0.15.0.
+- cargo: Bump schemars from 0.8.16 to 0.8.19.
+
+### Other
+
+- Build ts docs with ci + nix.
+- Push docs to delta.chat instead of codespeak
+- Implement jsonrpc-docs build in github action
+- Rm unneeded rust install from ts docs ci
+- Correct folder for js.jsonrpc docs
+- Add npm install to upload-docs.yml
+- Add : to upload-docs.yml
+- Upload-docs npm run => npm run build
+- Rm leading slash
+- Rm npm install
+- Merge pull request #5515 from deltachat/dependabot/cargo/quote-1.0.36
+- Merge pull request #5522 from deltachat/dependabot/cargo/chrono-0.4.38
+- Merge pull request #5523 from deltachat/dependabot/cargo/mailparse-0.15.0
+- Add webxdc internal integration commands in jsonrpc ([#5541](https://github.com/deltachat/deltachat-core-rust/pull/5541))
+- Limit quote replies ([#5543](https://github.com/deltachat/deltachat-core-rust/pull/5543))
+- Stdio jsonrpc server npm package ([#5332](https://github.com/deltachat/deltachat-core-rust/pull/5332))
+
+### Refactor
+
+- python: Fix ruff 0.4.2 warnings.
+- Move `delete_poi_location` to location module and document it.
+- Remove allow_keychange.
+
+### Tests
+
+- Explain test_was_seen_recently false-positive and give workaround instructions ([#5474](https://github.com/deltachat/deltachat-core-rust/pull/5474)).
+- Test that member is added even if "Member added" is lost.
+- Test that POIs are deleted when ephemeral message expires.
+- Test ts build on branch
+
+
 ## [1.137.4] - 2024-04-24
 
 ### API-Changes
@@ -3983,3 +4071,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.137.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.1...v1.137.2
 [1.137.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.2...v1.137.3
 [1.137.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.3...v1.137.4
+[1.138.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.4...v1.138.0
