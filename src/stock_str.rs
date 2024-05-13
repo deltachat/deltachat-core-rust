@@ -1386,6 +1386,7 @@ pub(crate) async fn backup_transfer_qr(context: &Context) -> Result<String> {
         .replace1(&full_name))
 }
 
+#[cfg(not(target_os = "openbsd"))]
 pub(crate) async fn backup_transfer_msg_body(context: &Context) -> String {
     translated(context, StockMessage::BackupTransferMsgBody).await
 }

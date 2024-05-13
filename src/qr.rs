@@ -109,6 +109,7 @@ pub enum Qr {
     ///
     /// This contains all the data needed to connect to a device and download a backup from
     /// it to configure the receiving device with the same account.
+    #[cfg(not(target_os = "openbsd"))]
     Backup {
         /// Printable version of the provider information.
         ///
@@ -291,11 +292,18 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
 ///
 /// TODO: Refactor this so all variants have a correct [`Display`] and transform `check_qr`
 /// into `FromStr`.
+#[cfg(not(target_os = "openbsd"))]
 pub fn format_backup(qr: &Qr) -> Result<String> {
     match qr {
         Qr::Backup { ref ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
         _ => Err(anyhow!("Not a backup QR code")),
     }
+}
+
+/// Placeholder for OpenBSD which does not support iroh backup transfer.
+#[cfg(target_os = "openbsd")]
+pub fn format_backup(_qr: &Qr) -> Result<String> {
+    Err(anyhow!("Backup is not supported on OpenBSD"))
 }
 
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
@@ -520,12 +528,18 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 ///
 /// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
 /// [`iroh::provider::Ticket`]'s `Display` impl.
+#[cfg(not(target_os = "openbsd"))]
 fn decode_backup(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP_SCHEME)
         .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
     let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
     Ok(Qr::Backup { ticket })
+}
+
+#[cfg(target_os = "openbsd")]
+fn decode_backup(_qr: &str) -> Result<Qr> {
+    bail!("Backup transfer is not supported on OpenBSD");
 }
 
 #[derive(Debug, Deserialize)]

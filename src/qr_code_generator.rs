@@ -296,11 +296,9 @@ fn inner_generate_secure_join_qr_code(
 
 #[cfg(test)]
 mod tests {
-    use testdir::testdir;
 
+    #[cfg(not(target_os = "openbsd"))]
     use crate::imex::BackupProvider;
-    use crate::qr::format_backup;
-    use crate::test_utils::TestContextManager;
 
     use super::*;
 
@@ -318,7 +316,12 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[cfg(not(target_os = "openbsd"))]
     async fn test_generate_backup_qr() {
+        use crate::qr::format_backup;
+        use crate::test_utils::TestContextManager;
+        use testdir::testdir;
+
         let dir = testdir!();
         let mut tcm = TestContextManager::new();
         let ctx = tcm.alice().await;

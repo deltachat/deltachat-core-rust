@@ -34,8 +34,10 @@ use crate::tools::{
     create_folder, delete_file, get_filesuffix_lc, open_file_std, read_file, time, write_file,
 };
 
+#[cfg(not(target_os = "openbsd"))]
 mod transfer;
 
+#[cfg(not(target_os = "openbsd"))]
 pub use transfer::{get_backup, BackupProvider};
 
 // Name of the database file in the backup.
