@@ -155,7 +155,11 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
         Ok(timestamp.try_into()?)
     }
 
-    let mut lines = vcard.lines().peekable();
+    // Remove line folding, see https://datatracker.ietf.org/doc/html/rfc6350#section-3.2
+    static NEWLINE_AND_SPACE_OR_TAB: Lazy<Regex> = Lazy::new(|| Regex::new("\n[\t ]").unwrap());
+    let unfolded_lines = NEWLINE_AND_SPACE_OR_TAB.replace_all(vcard, "");
+
+    let mut lines = unfolded_lines.lines().peekable();
     let mut contacts = Vec::new();
 
     while lines.peek().is_some() {
@@ -183,8 +187,11 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
             {
                 key.get_or_insert(k);
             } else if let Some(p) = remove_prefix(line, "PHOTO;JPEG;ENCODING=BASE64:")
+                .or_else(|| remove_prefix(line, "PHOTO;ENCODING=BASE64;JPEG:"))
                 .or_else(|| remove_prefix(line, "PHOTO;TYPE=JPEG;ENCODING=b:"))
+                .or_else(|| remove_prefix(line, "PHOTO;ENCODING=b;TYPE=JPEG:"))
                 .or_else(|| remove_prefix(line, "PHOTO;ENCODING=BASE64;TYPE=JPEG:"))
+                .or_else(|| remove_prefix(line, "PHOTO;TYPE=JPEG;ENCODING=BASE64:"))
                 .or_else(|| remove_prefix(line, "PHOTO:data:image/jpeg;base64,"))
             {
                 photo.get_or_insert(p);
@@ -615,5 +622,29 @@ END:VCARD
                 .try_into()
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_android_vcard_with_base64_avatar() {
+        // This is not an actual base64-encoded avatar, it's just to test the parsing
+        let contacts = parse_vcard(
+            "BEGIN:VCARD
+VERSION:2.1
+N:;Bob;;;
+FN:Bob
+EMAIL;HOME:bob@example.org
+PHOTO;ENCODING=BASE64;JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEU
+ AAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAA
+ L8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==
+
+END:VCARD
+",
+        );
+
+        assert_eq!(contacts.len(), 1);
+        assert_eq!(contacts[0].addr, "bob@example.org".to_string());
+        assert_eq!(contacts[0].display_name, "Bob".to_string());
+        assert_eq!(contacts[0].key, None);
+        assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
     }
 }
