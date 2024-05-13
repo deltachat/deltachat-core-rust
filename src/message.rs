@@ -1984,7 +1984,7 @@ pub enum Viewtype {
     /// Message is an webxdc instance.
     Webxdc = 80,
 
-    /// vCard (virtual contact file) message.
+    /// vCard (virtual contact file, i.e. a shared contact) message.
     Vcard = 90,
 }
 

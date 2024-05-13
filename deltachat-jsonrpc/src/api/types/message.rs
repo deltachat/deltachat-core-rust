@@ -275,7 +275,7 @@ pub enum MessageViewtype {
     /// Message is an webxdc instance.
     Webxdc,
 
-    /// vCard (virtual contact file) message.
+    /// vCard (virtual contact file, i.e. a shared contact) message.
     Vcard,
 }
 
