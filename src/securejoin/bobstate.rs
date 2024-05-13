@@ -261,7 +261,7 @@ impl BobState {
                 return Ok(None);
             }
         };
-        if !self.is_msg_expected(context, step.as_str()) {
+        if !self.is_msg_expected(context, step) {
             info!(context, "{} message out of sync for BobState", step);
             return Ok(None);
         }

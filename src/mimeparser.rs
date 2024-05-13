@@ -556,19 +556,25 @@ impl MimeMessage {
 
     /// Parses avatar action headers.
     async fn parse_avatar_headers(&mut self, context: &Context) {
-        if let Some(header_value) = self.get_header(HeaderDef::ChatGroupAvatar).cloned() {
-            self.group_avatar = self.avatar_action_from_header(context, header_value).await;
+        if let Some(header_value) = self.get_header(HeaderDef::ChatGroupAvatar) {
+            self.group_avatar = self
+                .avatar_action_from_header(context, header_value.to_string())
+                .await;
         }
 
-        if let Some(header_value) = self.get_header(HeaderDef::ChatUserAvatar).cloned() {
-            self.user_avatar = self.avatar_action_from_header(context, header_value).await;
+        if let Some(header_value) = self.get_header(HeaderDef::ChatUserAvatar) {
+            self.user_avatar = self
+                .avatar_action_from_header(context, header_value.to_string())
+                .await;
         }
     }
 
     fn parse_videochat_headers(&mut self) {
-        if let Some(value) = self.get_header(HeaderDef::ChatContent).cloned() {
+        if let Some(value) = self.get_header(HeaderDef::ChatContent) {
             if value == "videochat-invitation" {
-                let instance = self.get_header(HeaderDef::ChatWebrtcRoom).cloned();
+                let instance = self
+                    .get_header(HeaderDef::ChatWebrtcRoom)
+                    .map(|s| s.to_string());
                 if let Some(part) = self.parts.first_mut() {
                     part.typ = Viewtype::VideochatInvitation;
                     part.param
@@ -815,12 +821,14 @@ impl MimeMessage {
             .map(|s| s.to_string())
     }
 
-    pub fn get_header(&self, headerdef: HeaderDef) -> Option<&String> {
-        self.headers.get(headerdef.get_headername())
+    pub fn get_header(&self, headerdef: HeaderDef) -> Option<&str> {
+        self.headers
+            .get(headerdef.get_headername())
+            .map(|s| s.as_str())
     }
 
     /// Returns `Chat-Group-ID` header value if it is a valid group ID.
-    pub fn get_chat_group_id(&self) -> Option<&String> {
+    pub fn get_chat_group_id(&self) -> Option<&str> {
         self.get_header(HeaderDef::ChatGroupId)
             .filter(|s| validate_id(s))
     }

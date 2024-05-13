@@ -294,7 +294,7 @@ pub(crate) async fn handle_securejoin_handshake(
 
     let join_vg = step.starts_with("vg-");
 
-    if !matches!(step.as_str(), "vg-request" | "vc-request") {
+    if !matches!(step, "vg-request" | "vc-request") {
         let mut self_found = false;
         let self_fingerprint = load_self_public_key(context).await?.fingerprint();
         for (addr, key) in &mime_message.gossiped_keys {
@@ -311,7 +311,7 @@ pub(crate) async fn handle_securejoin_handshake(
         }
     }
 
-    match step.as_str() {
+    match step {
         "vg-request" | "vc-request" => {
             /*=======================================================
             ====             Alice - the inviter side            ====
@@ -487,7 +487,7 @@ pub(crate) async fn handle_securejoin_handshake(
         =======================================================*/
         "vc-contact-confirm" => {
             if let Some(mut bobstate) = BobState::from_db(&context.sql).await? {
-                if !bobstate.is_msg_expected(context, step.as_str()) {
+                if !bobstate.is_msg_expected(context, step) {
                     warn!(context, "Unexpected vc-contact-confirm.");
                     return Ok(HandshakeMessage::Ignore);
                 }
@@ -498,9 +498,7 @@ pub(crate) async fn handle_securejoin_handshake(
             Ok(HandshakeMessage::Ignore)
         }
         "vg-member-added" => {
-            let Some(member_added) = mime_message
-                .get_header(HeaderDef::ChatGroupMemberAdded)
-                .map(|s| s.as_str())
+            let Some(member_added) = mime_message.get_header(HeaderDef::ChatGroupMemberAdded)
             else {
                 warn!(
                     context,
@@ -516,7 +514,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 return Ok(HandshakeMessage::Propagate);
             }
             if let Some(mut bobstate) = BobState::from_db(&context.sql).await? {
-                if !bobstate.is_msg_expected(context, step.as_str()) {
+                if !bobstate.is_msg_expected(context, step) {
                     warn!(context, "Unexpected vg-member-added.");
                     return Ok(HandshakeMessage::Propagate);
                 }
@@ -571,7 +569,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
     info!(context, "Observing secure-join message {step:?}.");
 
     if !matches!(
-        step.as_str(),
+        step,
         "vg-request-with-auth" | "vc-request-with-auth" | "vg-member-added" | "vc-contact-confirm"
     ) {
         return Ok(HandshakeMessage::Ignore);
@@ -642,21 +640,21 @@ pub(crate) async fn observe_securejoin_on_other_device(
 
     ChatId::set_protection_for_contact(context, contact_id, mime_message.timestamp_sent).await?;
 
-    if step.as_str() == "vg-member-added" {
+    if step == "vg-member-added" {
         inviter_progress(context, contact_id, 800);
     }
-    if step.as_str() == "vg-member-added" || step.as_str() == "vc-contact-confirm" {
+    if step == "vg-member-added" || step == "vc-contact-confirm" {
         inviter_progress(context, contact_id, 1000);
     }
 
-    if step.as_str() == "vg-request-with-auth" || step.as_str() == "vc-request-with-auth" {
+    if step == "vg-request-with-auth" || step == "vc-request-with-auth" {
         // This actually reflects what happens on the first device (which does the secure
         // join) and causes a subsequent "vg-member-added" message to create an unblocked
         // verified group.
         ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Not).await?;
     }
 
-    if step.as_str() == "vg-member-added" {
+    if step == "vg-member-added" {
         Ok(HandshakeMessage::Propagate)
     } else {
         Ok(HandshakeMessage::Ignore)
