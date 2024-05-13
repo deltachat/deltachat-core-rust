@@ -100,6 +100,8 @@ pub struct VcardContact {
     key: Option<String>,
     /// Profile image in Base64.
     profile_image: Option<String>,
+    /// Contact color as hex string.
+    color: String,
     /// Last update timestamp.
     timestamp: Option<u64>,
 }
@@ -107,21 +109,14 @@ pub struct VcardContact {
 impl From<deltachat_contact_tools::VcardContact> for VcardContact {
     fn from(vc: deltachat_contact_tools::VcardContact) -> Self {
         let display_name = vc.display_name().to_string();
+        let color = color::str_to_color(&vc.addr.to_lowercase());
         Self {
             addr: vc.addr,
             display_name,
             key: vc.key,
             profile_image: vc.profile_image,
+            color: color_int_to_hex_string(color),
             timestamp: vc.timestamp.ok(),
         }
-    }
-}
-
-impl VcardContact {
-    /// Get a color for the contact.
-    /// The color is calculated from the contact's email address and can be used as a fallback
-    /// avatar with white initials as well as for headlines in bubbles of group chats.
-    pub fn get_color(&self) -> u32 {
-        color::str_to_color(&self.addr.to_lowercase())
     }
 }
