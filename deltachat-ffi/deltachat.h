@@ -7342,6 +7342,9 @@ void dc_event_unref(dc_event_t* event);
 /// Used as info message.
 #define DC_STR_SECUREJOIN_WAIT_TIMEOUT 191
 
+/// "Contact"
+#define DC_STR_CONTACT 200
+
 /**
  * @}
  */
