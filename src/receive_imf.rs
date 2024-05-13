@@ -1373,11 +1373,9 @@ async fn add_parts(
 
     let mime_in_reply_to = mime_parser
         .get_header(HeaderDef::InReplyTo)
-        .cloned()
         .unwrap_or_default();
     let mime_references = mime_parser
         .get_header(HeaderDef::References)
-        .cloned()
         .unwrap_or_default();
 
     // fine, so far.  now, split the message into simple parts usable as "short messages"
@@ -1437,7 +1435,7 @@ async fn add_parts(
             let reaction_str = simplify::remove_footers(part.msg.as_str());
             set_msg_reaction(
                 context,
-                &mime_in_reply_to,
+                mime_in_reply_to,
                 orig_chat_id.unwrap_or_default(),
                 from_id,
                 sort_timestamp,
@@ -2463,7 +2461,7 @@ async fn apply_mailinglist_changes(
 
 fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
     if let Some(optional_field) = mime_parser.get_chat_group_id() {
-        return Some(optional_field.clone());
+        return Some(optional_field.to_string());
     }
 
     // Useful for undecipherable messages sent to known group.
