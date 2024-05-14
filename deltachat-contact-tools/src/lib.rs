@@ -503,9 +503,30 @@ END:VCARD",
                 timestamp: Ok(0),
             },
         ];
+        let items = [
+            "BEGIN:VCARD\n\
+             VERSION:4.0\n\
+             EMAIL:alice@example.org\n\
+             FN:Alice Wonderland\n\
+             KEY:data:application/pgp-keys;base64,[base64-data]\n\
+             PHOTO:data:image/jpeg;base64,image in Base64\n\
+             REV:20240418T184242Z\n\
+             END:VCARD\n",
+            "BEGIN:VCARD\n\
+             VERSION:4.0\n\
+             EMAIL:bob@example.com\n\
+             FN:bob@example.com\n\
+             REV:19700101T000000Z\n\
+             END:VCARD\n",
+        ];
+        let mut expected = "".to_string();
         for len in 0..=contacts.len() {
             let contacts = &contacts[0..len];
             let vcard = make_vcard(contacts);
+            if len > 0 {
+                expected += items[len - 1];
+            }
+            assert_eq!(vcard, expected);
             let parsed = parse_vcard(&vcard);
             assert_eq!(parsed.len(), contacts.len());
             for i in 0..parsed.len() {
