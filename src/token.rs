@@ -93,14 +93,14 @@ pub async fn lookup_or_new(
     context: &Context,
     namespace: Namespace,
     foreign_id: Option<ChatId>,
-) -> String {
-    if let Ok(Some(token)) = lookup(context, namespace, foreign_id).await {
-        return token;
+) -> Result<String> {
+    if let Some(token) = lookup(context, namespace, foreign_id).await? {
+        return Ok(token);
     }
 
     let token = create_id();
-    save(context, namespace, foreign_id, &token).await.ok();
-    token
+    save(context, namespace, foreign_id, &token).await?;
+    Ok(token)
 }
 
 pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> Result<bool> {

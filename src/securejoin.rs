@@ -65,8 +65,8 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
     let sync_token = token::lookup(context, Namespace::InviteNumber, group)
         .await?
         .is_none();
-    let invitenumber = token::lookup_or_new(context, Namespace::InviteNumber, group).await;
-    let auth = token::lookup_or_new(context, Namespace::Auth, group).await;
+    let invitenumber = token::lookup_or_new(context, Namespace::InviteNumber, group).await?;
+    let auth = token::lookup_or_new(context, Namespace::Auth, group).await?;
     let self_addr = context.get_primary_self_addr().await?;
     let self_name = context
         .get_config(Config::Displayname)
