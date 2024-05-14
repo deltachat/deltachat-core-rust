@@ -94,6 +94,11 @@ impl Session {
         self.capabilities.can_push
     }
 
+    // Returns true if IMAP server has `XCHATMAIL` capability.
+    pub fn is_chatmail(&self) -> bool {
+        self.capabilities.is_chatmail
+    }
+
     /// Returns the names of all folders on the IMAP server.
     pub async fn list_folders(&mut self) -> Result<Vec<async_imap::types::Name>> {
         let list = self.list(Some(""), Some("*")).await?.try_collect().await?;
