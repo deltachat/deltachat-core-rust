@@ -103,7 +103,7 @@ pub struct VcardContact {
     /// Contact color as hex string.
     color: String,
     /// Last update timestamp.
-    timestamp: Option<u64>,
+    timestamp: Option<i64>,
 }
 
 impl From<deltachat_contact_tools::VcardContact> for VcardContact {
