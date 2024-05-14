@@ -383,11 +383,12 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
-            *.tgz
+            deltachat-rpc-server/npm-package/*.tgz
 
       - name: Publish npm packets for prebuilds and `@deltachat/stdio-rpc-server`
         if: github.event_name == 'release'
         run: |
+          cd deltachat-rpc-server/npm-package
           ls -lah platform_package
 
           for platform in *.tgz; do npm publish "$platform"; done
