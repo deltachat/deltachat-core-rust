@@ -44,9 +44,9 @@ use regex::Regex;
 pub struct VcardContact {
     /// The email address, vcard property `email`
     pub addr: String,
-    /// The contact's display name, vcard property `fn`. Can be empty, one should use
-    /// `display_name()` to obtain the actual value.
-    pub display_name: String,
+    /// This must be the name authorized by the contact itself, not a locally given name. Vcard
+    /// property `fn`. Can be empty, one should use `display_name()` to obtain the display name.
+    pub authname: String,
     /// The contact's public PGP key in Base64, vcard property `key`
     pub key: Option<String>,
     /// The contact's profile image (=avatar) in Base64, vcard property `photo`
@@ -58,8 +58,8 @@ pub struct VcardContact {
 impl VcardContact {
     /// Returns the contact's display name.
     pub fn display_name(&self) -> &str {
-        match self.display_name.is_empty() {
-            false => &self.display_name,
+        match self.authname.is_empty() {
+            false => &self.authname,
             true => &self.addr,
         }
     }
@@ -202,11 +202,11 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
             }
         }
 
-        let (display_name, addr) =
+        let (authname, addr) =
             sanitize_name_and_addr(display_name.unwrap_or(""), addr.unwrap_or(""));
 
         contacts.push(VcardContact {
-            display_name,
+            authname,
             addr,
             key: key.map(|s| s.to_string()),
             profile_image: photo.map(|s| s.to_string()),
@@ -448,13 +448,13 @@ END:VCARD
         );
 
         assert_eq!(contacts[0].addr, "alice.mueller@posteo.de".to_string());
-        assert_eq!(contacts[0].display_name, "Alice Mueller".to_string());
+        assert_eq!(contacts[0].authname, "Alice Mueller".to_string());
         assert_eq!(contacts[0].key, None);
         assert_eq!(contacts[0].profile_image, None);
         assert!(contacts[0].timestamp.is_err());
 
         assert_eq!(contacts[1].addr, "bobzzz@freenet.de".to_string());
-        assert_eq!(contacts[1].display_name, "".to_string());
+        assert_eq!(contacts[1].authname, "".to_string());
         assert_eq!(contacts[1].key, None);
         assert_eq!(contacts[1].profile_image, None);
         assert!(contacts[1].timestamp.is_err());
@@ -478,7 +478,7 @@ END:VCARD",
         );
 
         assert_eq!(contacts[0].addr, "alice@example.com".to_string());
-        assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
+        assert_eq!(contacts[0].authname, "Alice Wonderland".to_string());
         assert_eq!(contacts[0].key, Some("[base64-data]".to_string()));
         assert_eq!(contacts[0].profile_image, None);
         assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762);
@@ -491,14 +491,14 @@ END:VCARD",
         let contacts = [
             VcardContact {
                 addr: "alice@example.org".to_string(),
-                display_name: "Alice Wonderland".to_string(),
+                authname: "Alice Wonderland".to_string(),
                 key: Some("[base64-data]".to_string()),
                 profile_image: Some("image in Base64".to_string()),
                 timestamp: Ok(1713465762),
             },
             VcardContact {
                 addr: "bob@example.com".to_string(),
-                display_name: "".to_string(),
+                authname: "".to_string(),
                 key: None,
                 profile_image: None,
                 timestamp: Ok(0),
@@ -511,7 +511,7 @@ END:VCARD",
             assert_eq!(parsed.len(), contacts.len());
             for i in 0..parsed.len() {
                 assert_eq!(parsed[i].addr, contacts[i].addr);
-                assert_eq!(parsed[i].display_name, contacts[i].display_name);
+                assert_eq!(parsed[i].authname, contacts[i].authname);
                 assert_eq!(parsed[i].key, contacts[i].key);
                 assert_eq!(parsed[i].profile_image, contacts[i].profile_image);
                 assert_eq!(
@@ -588,12 +588,12 @@ END:VCARD
         );
 
         assert_eq!(contacts[0].addr, "bob@example.org".to_string());
-        assert_eq!(contacts[0].display_name, "Bob".to_string());
+        assert_eq!(contacts[0].authname, "Bob".to_string());
         assert_eq!(contacts[0].key, None);
         assert_eq!(contacts[0].profile_image, None);
 
         assert_eq!(contacts[1].addr, "alice@example.org".to_string());
-        assert_eq!(contacts[1].display_name, "Alice".to_string());
+        assert_eq!(contacts[1].authname, "Alice".to_string());
         assert_eq!(contacts[1].key, None);
         assert_eq!(contacts[1].profile_image, None);
 
@@ -612,7 +612,7 @@ END:VCARD
         );
         assert_eq!(contacts.len(), 1);
         assert_eq!(contacts[0].addr, "alice@example.org".to_string());
-        assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
+        assert_eq!(contacts[0].authname, "Alice Wonderland".to_string());
         assert_eq!(
             *contacts[0].timestamp.as_ref().unwrap(),
             chrono::offset::Local
@@ -643,7 +643,7 @@ END:VCARD
 
         assert_eq!(contacts.len(), 1);
         assert_eq!(contacts[0].addr, "bob@example.org".to_string());
-        assert_eq!(contacts[0].display_name, "Bob".to_string());
+        assert_eq!(contacts[0].authname, "Bob".to_string());
         assert_eq!(contacts[0].key, None);
         assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
     }
