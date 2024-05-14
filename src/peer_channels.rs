@@ -27,7 +27,6 @@ use anyhow::{anyhow, Context as _, Result};
 use email::Header;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
-use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::relay::{RelayMap, RelayUrl};
 use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
 use iroh_net::{NodeAddr, NodeId};
@@ -372,10 +371,13 @@ async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip
 
 async fn handle_connection(
     context: &Context,
-    conn: quinn::Connecting,
+    mut conn: iroh_net::magic_endpoint::Connecting,
     gossip: Gossip,
 ) -> anyhow::Result<()> {
-    let (peer_id, alpn, conn) = accept_conn(conn).await?;
+    let alpn = conn.alpn().await?;
+    let conn = conn.await?;
+    let peer_id = iroh_net::magic_endpoint::get_remote_node_id(&conn)?;
+
     match alpn.as_bytes() {
         GOSSIP_ALPN => gossip
             .handle_connection(conn)

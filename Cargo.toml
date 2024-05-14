@@ -61,8 +61,8 @@ hickory-resolver = "0.24"
 humansize = "2"
 image = { version = "0.25.1", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh_old = { version = "0.4.2", default-features = false, package = "iroh"}
-iroh-net = "0.15.0"
-iroh-gossip = { version = "0.15.0", features = ["net"] }
+iroh-net = "0.16.2"
+iroh-gossip = { version = "0.16.2", features = ["net"] }
 quinn = "0.10.0"
 kamadak-exif = "0.5.3"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
@@ -82,7 +82,7 @@ quick-xml = "0.31"
 quoted_printable = "0.5"
 rand = "0.8"
 regex = { workspace = true }
-reqwest = { version = "0.12.2", features = ["json"] }
+reqwest = { version = "0.11.27", features = ["json"] }
 rusqlite = { workspace = true, features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 sanitize-filename = "0.5"
