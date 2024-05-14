@@ -459,7 +459,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 900);
 
     if imap_session.is_chatmail() {
+        ctx.set_config(Config::SentboxWatch, None).await?;
         ctx.set_config(Config::MvboxMove, Some("0")).await?;
+        ctx.set_config(Config::OnlyFetchMvbox, None).await?;
+        ctx.set_config(Config::ShowEmails, None).await?;
+        ctx.set_config(Config::E2eeEnabled, Some("1")).await?;
     }
 
     let create_mvbox = ctx.should_watch_mvbox().await?;
