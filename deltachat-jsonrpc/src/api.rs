@@ -1740,8 +1740,7 @@ impl CommandApi {
         data: Vec<u8>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        let res = send_webxdc_realtime_data(&ctx, MsgId::new(instance_msg_id), data).await;
-        res
+        send_webxdc_realtime_data(&ctx, MsgId::new(instance_msg_id), data).await
     }
 
     async fn send_webxdc_realtime_advertisement(

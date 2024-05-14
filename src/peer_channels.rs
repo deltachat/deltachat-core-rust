@@ -1,6 +1,6 @@
 //! Peer channels for realtime communication in webxdcs.
 //!
-//! We use [Iroh](iroh) as an ephemeral peer channels provider to create direct communication
+//! We use Iroh as an ephemeral peer channels provider to create direct communication
 //! channels between webxdcs. See [here](https://webxdc.org/docs/spec/joinRealtimeChannel.html) for the webxdc specs.
 //!
 //! Ephemeral channels should be established lazily, to avoid bootstrapping p2p connectivity
@@ -10,7 +10,7 @@
 //! Adding peer channels to webxdc needs upfront negotation of a topic and sharing of public keys so that
 //! nodes can connect to each other. The explicit approach is as follows:
 //!
-//! 1. We introduce a new [GossipTopic](crate::headerdef::HeaderDef::GossipTopic) message header with a random 32-byte TopicId,
+//! 1. We introduce a new [GossipTopic](crate::headerdef::HeaderDef::IrohGossipTopic) message header with a random 32-byte TopicId,
 //!    securely generated on the initial webxdc sender's device. This message header is encrypted
 //!    and sent in the same message as the webxdc application.
 //! 2. Whenever `joinRealtimeChannel().setListener()` or `joinRealtimeChannel().send()` is called by the webxdc application,
