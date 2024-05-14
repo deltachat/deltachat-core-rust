@@ -517,6 +517,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    0=Nothing else happens when the key changes.
  *                    1=After the key changed, `dc_chat_can_send()` returns false and `dc_chat_is_protection_broken()` returns true
  *                    until `dc_accept_chat()` is called.
+ * - `is_chatmail` = 1 if the the server is a chatmail server, 0 otherwise.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.

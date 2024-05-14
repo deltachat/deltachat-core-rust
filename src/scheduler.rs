@@ -466,6 +466,12 @@ pub async fn convert_folder_meaning(
 }
 
 async fn inbox_fetch_idle(ctx: &Context, imap: &mut Imap, mut session: Session) -> Result<Session> {
+    ctx.set_config_internal(
+        Config::IsChatmail,
+        crate::config::from_bool(session.is_chatmail()),
+    )
+    .await?;
+
     // Update quota no more than once a minute.
     let quota_needs_update = {
         let quota = ctx.quota.read().await;

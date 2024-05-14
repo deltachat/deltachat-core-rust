@@ -61,6 +61,7 @@ async fn determine_capabilities(
         can_condstore: caps.has_str("CONDSTORE"),
         can_metadata: caps.has_str("METADATA"),
         can_push: caps.has_str("XDELTAPUSH"),
+        is_chatmail: caps.has_str("XCHATMAIL"),
         server_id,
     };
     Ok(capabilities)
