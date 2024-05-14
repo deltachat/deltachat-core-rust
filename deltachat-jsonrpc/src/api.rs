@@ -1437,6 +1437,13 @@ impl CommandApi {
             .collect())
     }
 
+    /// Returns a vCard containing contacts with the given ids.
+    async fn make_vcard(&self, account_id: u32, contacts: Vec<u32>) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let contacts: Vec<_> = contacts.iter().map(|&c| ContactId::new(c)).collect();
+        deltachat::contact::make_vcard(&ctx, &contacts).await
+    }
+
     // ---------------------------------------------
     //                   chat
     // ---------------------------------------------
