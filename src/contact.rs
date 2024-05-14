@@ -20,7 +20,7 @@ use tokio::task;
 use tokio::time::{timeout, Duration};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{ChatId, ProtectionStatus};
+use crate::chat::{ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
@@ -1315,7 +1315,9 @@ impl Contact {
     pub async fn is_profile_verified(&self, context: &Context) -> Result<bool> {
         let contact_id = self.id;
 
-        if let Some(chat_id) = ChatId::lookup_by_contact(context, contact_id).await? {
+        if let Some(ChatIdBlocked { id: chat_id, .. }) =
+            ChatIdBlocked::lookup_by_contact(context, contact_id).await?
+        {
             Ok(chat_id.is_protected(context).await? == ProtectionStatus::Protected)
         } else {
             // 1:1 chat does not exist.

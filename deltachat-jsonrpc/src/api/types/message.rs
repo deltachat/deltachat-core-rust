@@ -346,6 +346,14 @@ pub enum SystemMessageType {
     LocationOnly,
     InvalidUnencryptedMail,
 
+    /// 1:1 chats info message telling that SecureJoin has started and the user should wait for it
+    /// to complete.
+    SecurejoinWait,
+
+    /// 1:1 chats info message telling that SecureJoin is still running, but the user may already
+    /// send messages.
+    SecurejoinWaitTimeout,
+
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged,
 
@@ -390,6 +398,8 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
             SystemMessage::WebxdcInfoMessage => SystemMessageType::WebxdcInfoMessage,
             SystemMessage::InvalidUnencryptedMail => SystemMessageType::InvalidUnencryptedMail,
             SystemMessage::IrohNodeAddr => SystemMessageType::IrohNodeAddr,
+            SystemMessage::SecurejoinWait => SystemMessageType::SecurejoinWait,
+            SystemMessage::SecurejoinWaitTimeout => SystemMessageType::SecurejoinWaitTimeout,
         }
     }
 }
@@ -639,7 +649,7 @@ impl MessageInfo {
 #[derive(
     Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema,
 )]
-#[serde(rename_all = "camelCase", tag = "variant")]
+#[serde(rename_all = "camelCase", tag = "kind")]
 pub enum EphemeralTimer {
     /// Timer is disabled.
     Disabled,

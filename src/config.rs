@@ -1010,6 +1010,15 @@ mod tests {
             .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
             .await?;
         sync(&alice0, &alice1).await;
+        // There was a bug that a sync message creates the self-chat with the user avatar instead of
+        // the special icon and that remains so when the self-chat becomes user-visible. Let's check
+        // this.
+        let self_chat = alice0.get_self_chat().await;
+        let self_chat_avatar_path = self_chat.get_profile_image(&alice0).await?.unwrap();
+        assert_eq!(
+            self_chat_avatar_path,
+            alice0.get_blobdir().join("icon-saved-messages.png")
+        );
         assert!(alice1
             .get_config(Config::Selfavatar)
             .await?

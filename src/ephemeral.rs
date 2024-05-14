@@ -74,7 +74,7 @@ use async_channel::Receiver;
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
 
-use crate::chat::{send_msg, ChatId};
+use crate::chat::{send_msg, ChatId, ChatIdBlocked};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
 use crate::contact::ContactId;
 use crate::context::Context;
@@ -378,11 +378,13 @@ WHERE
         .await?;
 
     if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
-        let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
+        let self_chat_id = ChatIdBlocked::lookup_by_contact(context, ContactId::SELF)
             .await?
+            .map(|c| c.id)
             .unwrap_or_default();
-        let device_chat_id = ChatId::lookup_by_contact(context, ContactId::DEVICE)
+        let device_chat_id = ChatIdBlocked::lookup_by_contact(context, ContactId::DEVICE)
             .await?
+            .map(|c| c.id)
             .unwrap_or_default();
 
         let threshold_timestamp = now.saturating_sub(delete_device_after);
@@ -490,11 +492,13 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
 /// `delete_device_after` setting being set.
 async fn next_delete_device_after_timestamp(context: &Context) -> Result<Option<i64>> {
     if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
-        let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
+        let self_chat_id = ChatIdBlocked::lookup_by_contact(context, ContactId::SELF)
             .await?
+            .map(|c| c.id)
             .unwrap_or_default();
-        let device_chat_id = ChatId::lookup_by_contact(context, ContactId::DEVICE)
+        let device_chat_id = ChatIdBlocked::lookup_by_contact(context, ContactId::DEVICE)
             .await?
+            .map(|c| c.id)
             .unwrap_or_default();
 
         let oldest_message_timestamp: Option<i64> = context

@@ -266,3 +266,128 @@ jobs:
       - name: Publish deltachat-rpc-client to PyPI
         if: github.event_name == 'release'
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish_npm_package:
+    name: Build & Publish npm prebuilds and deltachat-rpc-server
+    needs: ["build_linux", "build_windows", "build_macos"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' 
+
+      - name: Download Linux aarch64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-aarch64-linux
+          path: deltachat-rpc-server-aarch64-linux.d
+
+      - name: Download Linux armv7l binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-armv7l-linux
+          path: deltachat-rpc-server-armv7l-linux.d
+
+      - name: Download Linux armv6l binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-armv6l-linux
+          path: deltachat-rpc-server-armv6l-linux.d
+
+      - name: Download Linux i686 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-i686-linux
+          path: deltachat-rpc-server-i686-linux.d
+
+      - name: Download Linux x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-x86_64-linux
+          path: deltachat-rpc-server-x86_64-linux.d
+
+      - name: Download Win32 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-win32
+          path: deltachat-rpc-server-win32.d
+
+      - name: Download Win64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-win64
+          path: deltachat-rpc-server-win64.d
+
+      - name: Download macOS binary for x86_64
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-x86_64-macos
+          path: deltachat-rpc-server-x86_64-macos.d
+
+      - name: Download macOS binary for aarch64
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-aarch64-macos
+          path: deltachat-rpc-server-aarch64-macos.d
+
+      - name: Download Android binary for arm64-v8a
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-arm64-v8a-android
+          path: deltachat-rpc-server-arm64-v8a-android.d
+
+      - name: Download Android binary for armeabi-v7a
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-armeabi-v7a-android
+          path: deltachat-rpc-server-armeabi-v7a-android.d
+
+      - name: make npm packets for prebuilds and `@deltachat/stdio-rpc-server`
+        run: |
+          cd deltachat-rpc-server/npm-package
+
+          python --version
+
+          python scripts/pack_binary_for_platform.py aarch64-unknown-linux-musl     ../../deltachat-rpc-server-aarch64-linux.d/deltachat-rpc-server
+          python scripts/pack_binary_for_platform.py armv7-unknown-linux-musleabihf ../../deltachat-rpc-server-armv7l-linux.d/deltachat-rpc-server 
+          python scripts/pack_binary_for_platform.py arm-unknown-linux-musleabihf   ../../deltachat-rpc-server-armv6l-linux.d/deltachat-rpc-server 
+          python scripts/pack_binary_for_platform.py i686-unknown-linux-musl        ../../deltachat-rpc-server-i686-linux.d/deltachat-rpc-server 
+          python scripts/pack_binary_for_platform.py x86_64-unknown-linux-musl      ../../deltachat-rpc-server-x86_64-linux.d/deltachat-rpc-server
+          python scripts/pack_binary_for_platform.py i686-pc-windows-gnu            ../../deltachat-rpc-server-win32.d/deltachat-rpc-server.exe 
+          python scripts/pack_binary_for_platform.py x86_64-pc-windows-gnu          ../../deltachat-rpc-server-win64.d/deltachat-rpc-server.exe 
+          python scripts/pack_binary_for_platform.py x86_64-apple-darwin            ../../deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server 
+          python scripts/pack_binary_for_platform.py aarch64-apple-darwin           ../../deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server 
+          python scripts/pack_binary_for_platform.py aarch64-linux-android          ../../deltachat-rpc-server-arm64-v8a-android.d/deltachat-rpc-server
+          python scripts/pack_binary_for_platform.py armv7-linux-androideabi        ../../deltachat-rpc-server-armeabi-v7a-android.d/deltachat-rpc-server
+
+          ls -lah platform_package
+
+          for platform in ./platform_package/*; do npm pack "$platform"; done
+          npm pack    
+          ls -lah
+      
+      - name: Upload to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deltachat-rpc-server-npm-package
+          path: deltachat-rpc-server/npm-package/*.tgz
+          if-no-files-found: error
+
+      - name: Upload npm packets to the GitHub release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            *.tgz
+
+      - name: Publish npm packets for prebuilds and `@deltachat/stdio-rpc-server`
+        if: github.event_name == 'release'
+        run: |
+          ls -lah platform_package
+
+          for platform in *.tgz; do npm publish "$platform"; done

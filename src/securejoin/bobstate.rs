@@ -261,7 +261,7 @@ impl BobState {
                 return Ok(None);
             }
         };
-        if !self.is_msg_expected(context, step.as_str()) {
+        if !self.is_msg_expected(context, step) {
             info!(context, "{} message out of sync for BobState", step);
             return Ok(None);
         }
@@ -340,6 +340,15 @@ impl BobState {
     /// This takes care of adding the required headers for the step.
     async fn send_handshake_message(&self, context: &Context, step: BobHandshakeMsg) -> Result<()> {
         send_handshake_message(context, &self.invite, self.chat_id, step).await
+    }
+
+    /// Returns whether we are waiting for a SecureJoin message from Alice, i.e. the protocol hasn't
+    /// yet completed.
+    pub(crate) fn in_progress(&self) -> bool {
+        !matches!(
+            self.next,
+            SecureJoinStep::Terminated | SecureJoinStep::Completed
+        )
     }
 }
 

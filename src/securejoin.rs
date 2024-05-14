@@ -29,7 +29,7 @@ mod bob;
 mod bobstate;
 mod qrinvite;
 
-use bobstate::BobState;
+pub(crate) use bobstate::BobState;
 use qrinvite::QrInvite;
 
 use crate::token::Namespace;
@@ -294,7 +294,7 @@ pub(crate) async fn handle_securejoin_handshake(
 
     let join_vg = step.starts_with("vg-");
 
-    if !matches!(step.as_str(), "vg-request" | "vc-request") {
+    if !matches!(step, "vg-request" | "vc-request") {
         let mut self_found = false;
         let self_fingerprint = load_self_public_key(context).await?.fingerprint();
         for (addr, key) in &mime_message.gossiped_keys {
@@ -311,7 +311,7 @@ pub(crate) async fn handle_securejoin_handshake(
         }
     }
 
-    match step.as_str() {
+    match step {
         "vg-request" | "vc-request" => {
             /*=======================================================
             ====             Alice - the inviter side            ====
@@ -487,7 +487,7 @@ pub(crate) async fn handle_securejoin_handshake(
         =======================================================*/
         "vc-contact-confirm" => {
             if let Some(mut bobstate) = BobState::from_db(&context.sql).await? {
-                if !bobstate.is_msg_expected(context, step.as_str()) {
+                if !bobstate.is_msg_expected(context, step) {
                     warn!(context, "Unexpected vc-contact-confirm.");
                     return Ok(HandshakeMessage::Ignore);
                 }
@@ -498,9 +498,7 @@ pub(crate) async fn handle_securejoin_handshake(
             Ok(HandshakeMessage::Ignore)
         }
         "vg-member-added" => {
-            let Some(member_added) = mime_message
-                .get_header(HeaderDef::ChatGroupMemberAdded)
-                .map(|s| s.as_str())
+            let Some(member_added) = mime_message.get_header(HeaderDef::ChatGroupMemberAdded)
             else {
                 warn!(
                     context,
@@ -516,7 +514,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 return Ok(HandshakeMessage::Propagate);
             }
             if let Some(mut bobstate) = BobState::from_db(&context.sql).await? {
-                if !bobstate.is_msg_expected(context, step.as_str()) {
+                if !bobstate.is_msg_expected(context, step) {
                     warn!(context, "Unexpected vg-member-added.");
                     return Ok(HandshakeMessage::Propagate);
                 }
@@ -571,7 +569,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
     info!(context, "Observing secure-join message {step:?}.");
 
     if !matches!(
-        step.as_str(),
+        step,
         "vg-request-with-auth" | "vc-request-with-auth" | "vg-member-added" | "vc-contact-confirm"
     ) {
         return Ok(HandshakeMessage::Ignore);
@@ -642,21 +640,21 @@ pub(crate) async fn observe_securejoin_on_other_device(
 
     ChatId::set_protection_for_contact(context, contact_id, mime_message.timestamp_sent).await?;
 
-    if step.as_str() == "vg-member-added" {
+    if step == "vg-member-added" {
         inviter_progress(context, contact_id, 800);
     }
-    if step.as_str() == "vg-member-added" || step.as_str() == "vc-contact-confirm" {
+    if step == "vg-member-added" || step == "vc-contact-confirm" {
         inviter_progress(context, contact_id, 1000);
     }
 
-    if step.as_str() == "vg-request-with-auth" || step.as_str() == "vc-request-with-auth" {
+    if step == "vg-request-with-auth" || step == "vc-request-with-auth" {
         // This actually reflects what happens on the first device (which does the secure
         // join) and causes a subsequent "vg-member-added" message to create an unblocked
         // verified group.
         ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Not).await?;
     }
 
-    if step.as_str() == "vg-member-added" {
+    if step == "vg-member-added" {
         Ok(HandshakeMessage::Propagate)
     } else {
         Ok(HandshakeMessage::Ignore)
@@ -764,7 +762,7 @@ mod tests {
     use crate::constants::Chattype;
     use crate::imex::{imex, ImexMode};
     use crate::receive_imf::receive_imf;
-    use crate::stock_str::chat_protection_enabled;
+    use crate::stock_str::{self, chat_protection_enabled};
     use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::SystemTime;
@@ -961,7 +959,7 @@ mod tests {
             let expected_text = chat_protection_enabled(&alice).await;
             assert_eq!(msg.get_text(), expected_text);
             if case == SetupContactCase::CheckProtectionTimestamp {
-                assert_eq!(msg.timestamp_sort, vc_request_with_auth_ts_sent);
+                assert_eq!(msg.timestamp_sort, vc_request_with_auth_ts_sent + 1);
             }
         }
 
@@ -990,10 +988,12 @@ mod tests {
 
         // Check Bob got the verified message in his 1:1 chat.
         let chat = bob.create_chat(&alice).await;
-        let msg = get_chat_msg(&bob, chat.get_id(), 0, 1).await;
+        let msg = get_chat_msg(&bob, chat.get_id(), 0, 2).await;
         assert!(msg.is_info());
-        let expected_text = chat_protection_enabled(&bob).await;
-        assert_eq!(msg.get_text(), expected_text);
+        assert_eq!(msg.get_text(), stock_str::securejoin_wait(&bob).await);
+        let msg = get_chat_msg(&bob, chat.get_id(), 1, 2).await;
+        assert!(msg.is_info());
+        assert_eq!(msg.get_text(), chat_protection_enabled(&bob).await);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -113,6 +113,9 @@ jobs:
       - name: Tests
         env:
           RUST_BACKTRACE: 1
+
+          # Workaround for <https://github.com/nextest-rs/nextest/issues/1493>.
+          RUSTUP_WINDOWS_PATH_ADD_BIN: 1
         run: cargo nextest run --workspace
 
       - name: Doc-Tests
