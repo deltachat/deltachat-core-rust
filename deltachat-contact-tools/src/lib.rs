@@ -52,7 +52,7 @@ pub struct VcardContact {
     /// The contact's profile image (=avatar) in Base64, vcard property `photo`
     pub profile_image: Option<String>,
     /// The timestamp when the vcard was created / last updated, vcard property `rev`
-    pub timestamp: Result<u64>,
+    pub timestamp: Result<i64>,
 }
 
 impl VcardContact {
@@ -71,7 +71,6 @@ impl VcardContact {
 pub fn make_vcard(contacts: &[VcardContact]) -> String {
     fn format_timestamp(c: &VcardContact) -> Option<String> {
         let timestamp = *c.timestamp.as_ref().ok()?;
-        let timestamp: i64 = timestamp.try_into().ok()?;
         let datetime = DateTime::from_timestamp(timestamp, 0)?;
         Some(datetime.format("%Y%m%dT%H%M%SZ").to_string())
     }
@@ -133,7 +132,7 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
         }
         Some(value)
     }
-    fn parse_datetime(datetime: &str) -> Result<u64> {
+    fn parse_datetime(datetime: &str) -> Result<i64> {
         // According to https://www.rfc-editor.org/rfc/rfc6350#section-4.3.5, the timestamp
         // is in ISO.8601.2004 format. DateTime::parse_from_rfc3339() apparently parses
         // ISO.8601, but fails to parse any of the examples given.
@@ -152,7 +151,7 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
                 Err(_) => return Err(e.into()),
             },
         };
-        Ok(timestamp.try_into()?)
+        Ok(timestamp)
     }
 
     // Remove line folding, see https://datatracker.ietf.org/doc/html/rfc6350#section-3.2
@@ -619,8 +618,6 @@ END:VCARD
                 .with_ymd_and_hms(2024, 4, 18, 18, 42, 42)
                 .unwrap()
                 .timestamp()
-                .try_into()
-                .unwrap()
         );
     }
 
