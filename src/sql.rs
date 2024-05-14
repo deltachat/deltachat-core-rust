@@ -671,10 +671,9 @@ impl Sql {
 /// `passphrase` is the SQLCipher database passphrase.
 /// Empty string if database is not encrypted.
 fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
-    let mut flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
-    flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
-
+    let flags = OpenFlags::SQLITE_OPEN_NO_MUTEX
+        | OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE;
     let conn = Connection::open_with_flags(path, flags)?;
     conn.execute_batch(
         "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
