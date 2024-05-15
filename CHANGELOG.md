@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.138.3] - 2024-05-15
+
+### CI
+
+- Give CI job permission to publish binaries to the release.
+
 ## [1.138.2] - 2024-05-15
 
 ### API-Changes
@@ -4125,3 +4131,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.138.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.4...v1.138.0
 [1.138.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.0...v1.138.1
 [1.138.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.1...v1.138.2
+[1.138.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.2...v1.138.3
