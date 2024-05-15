@@ -275,6 +275,7 @@ class ACSetup:
     def __init__(self, testprocess, init_time) -> None:
         self._configured_events = Queue()
         self._account2state: Dict[Account, str] = {}
+        self._account2config: Dict[Account, Dict[str, str]] = {}
         self._imap_cleaned: Set[str] = set()
         self.testprocess = testprocess
         self.init_time = init_time
@@ -336,6 +337,8 @@ class ACSetup:
         if not success:
             pytest.fail(f"configuring online account {acc} failed: {comment}")
         self._account2state[acc] = self.CONFIGURED
+        if acc in self._account2config:
+            acc.update_config(self._account2config[acc])
         return acc
 
     def _onconfigure_start_io(self, acc):
@@ -523,6 +526,7 @@ class ACFactory:
         configdict.setdefault("sentbox_watch", False)
         configdict.setdefault("sync_msgs", False)
         ac.update_config(configdict)
+        self._acsetup._account2config[ac] = configdict
         self._preconfigure_key(ac, configdict["addr"])
         return ac
 
