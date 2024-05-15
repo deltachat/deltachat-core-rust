@@ -273,7 +273,9 @@ jobs:
     runs-on: "ubuntu-latest"
     permissions:
       id-token: write
-      contents: read
+
+      # Needed to publish the binaries to the release.
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
