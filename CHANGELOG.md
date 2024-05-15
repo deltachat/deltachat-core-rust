@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.138.2] - 2024-05-15
+
+### API-Changes
+
+- deltachat-rpc-client: Add CONFIG_SYNCED constant.
+
+### CI
+
+- Add npm token to publish deltachat-rpc-server packages.
+
+### Features / Changes
+
+- Reset more settings when configuring a chatmail account.
+
+### Tests
+
+- Set configuration after configure() finishes.
+
 ## [1.138.1] - 2024-05-14
 
 ### Features / Changes
@@ -4106,3 +4124,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.137.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.3...v1.137.4
 [1.138.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.4...v1.138.0
 [1.138.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.0...v1.138.1
+[1.138.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.1...v1.138.2
