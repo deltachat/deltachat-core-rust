@@ -271,6 +271,9 @@ jobs:
     name: Build & Publish npm prebuilds and deltachat-rpc-server
     needs: ["build_linux", "build_windows", "build_macos"]
     runs-on: "ubuntu-latest"
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -387,8 +390,9 @@ jobs:
 
       - name: Publish npm packets for prebuilds and `@deltachat/stdio-rpc-server`
         if: github.event_name == 'release'
+        working-directory: deltachat-rpc-server/npm-package
         run: |
-          cd deltachat-rpc-server/npm-package
           ls -lah platform_package
-
-          for platform in *.tgz; do npm publish "$platform"; done
+          for platform in *.tgz; do npm publish --provenance "$platform"; done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
