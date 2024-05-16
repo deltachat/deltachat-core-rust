@@ -198,7 +198,7 @@ impl Context {
                         let url = conf.iroh_relay.as_deref().context("Can't get relay url")?;
                         Ok::<_, anyhow::Error>(RelayUrl::from(Url::parse(url)?))
                     })
-                    .transpose()?
+                    .transpose().ok().flatten()
                     .unwrap_or(RelayUrl::from(
                         Url::parse("https://iroh.testrun.org:4443").unwrap(),
                     )),
@@ -304,7 +304,7 @@ pub(crate) async fn get_iroh_topic_for_msg(ctx: &Context, msg_id: MsgId) -> Resu
 }
 
 /// Send a gossip advertisement to the chat that [MsgId] belongs to.
-/// This method should be called from the frontend when `joinRealtime`<- TODO: verify is called.
+/// This method should be called from the frontend when `joinRealtimeChannel` is called.
 pub async fn send_webxdc_realtime_advertisement(
     ctx: &Context,
     msg_id: MsgId,
