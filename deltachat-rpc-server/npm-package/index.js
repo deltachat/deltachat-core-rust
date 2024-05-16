@@ -60,8 +60,8 @@ async function getLocationInPath() {
     );
     return executable;
   } catch (error) {
-    if (error.code == 127) return "";
-    else throw error
+    if (error.code > 0) return "";
+    else throw error;
   }
 }
 
