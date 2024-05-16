@@ -1014,7 +1014,6 @@ async fn add_parts(
             || fetching_existing_messages
             || is_mdn
             || is_reaction
-            || is_location_kml
             || chat_id_blocked == Blocked::Yes
         {
             MessageState::InSeen
