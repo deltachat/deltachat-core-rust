@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.138.5] - 2024-05-16
+
+### API-Changes
+
+- jsonrpc: Add parse_vcard() ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
+- Add Viewtype::Vcard ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
+- Add make_vcard() ([#5203](https://github.com/deltachat/deltachat-core-rust/pull/5203)).
+
+### Build system
+
+- Add repository URL to deltachat-rpc-server packages.
+
+### Fixes
+
+- Parsing vCards with avatars exported by Android's "Contacts" app.
+
+### Miscellaneous Tasks
+
+- Rebuild node constants.
+
+### Refactor
+
+- contact-tools: VcardContact: rename display_name to authname.
+- VcardContact: Change timestamp type to i64.
+
 ## [1.138.4] - 2024-05-15
 
 ### CI
@@ -4139,3 +4164,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.138.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.1...v1.138.2
 [1.138.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.2...v1.138.3
 [1.138.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.3...v1.138.4
+[1.138.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.4...v1.138.5

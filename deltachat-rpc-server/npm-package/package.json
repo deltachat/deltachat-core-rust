@@ -1,19 +1,19 @@
 {
   "license": "MPL-2.0",
   "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/deltachat/deltachat-core-rust.git"
-  },
   "name": "@deltachat/stdio-rpc-server",
   "optionalDependencies": {},
   "peerDependencies": {
     "@deltachat/jsonrpc-client": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deltachat/deltachat-core-rust.git"
   },
   "scripts": {
     "prepack": "node scripts/update_optional_dependencies_and_version.js"
   },
   "type": "module",
   "types": "index.d.ts",
-  "version": "1.138.4"
+  "version": "1.138.5"
 }
