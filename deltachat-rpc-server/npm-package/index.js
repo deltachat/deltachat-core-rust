@@ -77,7 +77,11 @@ export async function getRPCServerPath(
       // test if it is the right version
       try {
         // for some unknown reason it is in stderr and not in stdout
-        const { stderr } = await promisify(execFile)(executable, ["--version"]);
+        const { stderr } = await promisify(execFile)(
+          executable,
+          ["--version"],
+          { shell: true }
+        );
         const version = stderr.slice(0, stderr.indexOf("\n"));
         if (package_json.version !== version) {
           throw new Error(
