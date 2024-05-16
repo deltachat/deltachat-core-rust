@@ -69,8 +69,8 @@ export async function getRPCServerPath(
 
     const { stdout: executable } =
       os.platform() !== "win32"
-        ? await exec("command", ["-v", PATH_EXECUTABLE_NAME])
-        : await exec("where", [PATH_EXECUTABLE_NAME]);
+        ? await exec("command", ["-v", PATH_EXECUTABLE_NAME], { shell: true })
+        : await exec("where", [PATH_EXECUTABLE_NAME], { shell: true });
 
     // by just trying to execute it and then use "command -v deltachat-rpc-server" (unix) or "where deltachat-rpc-server" (windows) to get the path to the executable
     if (executable.length > 1) {
