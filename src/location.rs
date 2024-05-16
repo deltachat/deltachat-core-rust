@@ -885,6 +885,7 @@ mod tests {
 
     use super::*;
     use crate::config::Config;
+    use crate::message::MessageState;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::SystemTime;
@@ -1009,6 +1010,54 @@ Content-Disposition: attachment; filename="location.kml"
         // Received location message is not visible, last message stays the same.
         let received_msg2 = alice.get_last_msg().await;
         assert_eq!(received_msg2.id, received_msg.id);
+
+        let locations = get_range(&alice, None, None, 0, 0).await?;
+        assert_eq!(locations.len(), 1);
+        Ok(())
+    }
+
+    /// Tests that `location.kml` is not hidden and not seen if it contains a message.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn receive_visible_location_kml() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        receive_imf(
+            &alice,
+            br#"Subject: locations
+MIME-Version: 1.0
+To: <alice@example.org>
+From: <bob@example.net>
+Date: Tue, 21 Dec 2021 00:00:00 +0000
+Chat-Version: 1.0
+Message-ID: <foobar@localhost>
+Content-Type: multipart/mixed; boundary="U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF"
+
+
+--U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
+
+Text message.
+
+
+--U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF
+Content-Type: application/vnd.google-earth.kml+xml
+Content-Disposition: attachment; filename="location.kml"
+
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document addr="bob@example.net">
+<Placemark><Timestamp><when>2021-11-21T00:00:00Z</when></Timestamp><Point><coordinates accuracy="1.0000000000000000">10.00000000000000,20.00000000000000</coordinates></Point></Placemark>
+</Document>
+</kml>
+
+--U8BOG8qNXfB0GgLiQ3PKUjlvdIuLRF--"#,
+            false,
+        )
+        .await?;
+
+        let received_msg = alice.get_last_msg().await;
+        assert_eq!(received_msg.text, "Text message.");
+        assert_eq!(received_msg.state, MessageState::InFresh);
 
         let locations = get_range(&alice, None, None, 0, 0).await?;
         assert_eq!(locations.len(), 1);
