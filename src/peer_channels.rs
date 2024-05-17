@@ -205,10 +205,9 @@ impl Context {
         {
             RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)))
         } else {
-            // FIXME: this should be RelayMode::Disabled instead of hardcoded URL.
-            RelayMode::Custom(RelayMap::from_url(RelayUrl::from(
-                Url::parse("https://iroh.testrun.org:4443").unwrap(),
-            )))
+            // FIXME: this should be RelayMode::Disabled instead.
+            // Currently using default relays because otherwise Rust tests fail.
+            RelayMode::Default
         };
 
         let endpoint = MagicEndpoint::builder()
