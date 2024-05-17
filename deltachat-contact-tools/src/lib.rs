@@ -155,7 +155,7 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
     }
 
     // Remove line folding, see https://datatracker.ietf.org/doc/html/rfc6350#section-3.2
-    static NEWLINE_AND_SPACE_OR_TAB: Lazy<Regex> = Lazy::new(|| Regex::new("\n[\t ]").unwrap());
+    static NEWLINE_AND_SPACE_OR_TAB: Lazy<Regex> = Lazy::new(|| Regex::new("\r?\n[\t ]").unwrap());
     let unfolded_lines = NEWLINE_AND_SPACE_OR_TAB.replace_all(vcard, "");
 
     let mut lines = unfolded_lines.lines().peekable();
@@ -643,10 +643,10 @@ END:VCARD
     }
 
     #[test]
-    fn test_android_vcard_with_base64_avatar() {
-        // This is not an actual base64-encoded avatar, it's just to test the parsing
-        let contacts = parse_vcard(
-            "BEGIN:VCARD
+    fn test_vcard_with_base64_avatar() {
+        // This is not an actual base64-encoded avatar, it's just to test the parsing.
+        // This one is Android-like.
+        let vcard0 = "BEGIN:VCARD
 VERSION:2.1
 N:;Bob;;;
 FN:Bob
@@ -656,13 +656,16 @@ PHOTO;ENCODING=BASE64;JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEU
  L8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==
 
 END:VCARD
-",
-        );
-
-        assert_eq!(contacts.len(), 1);
-        assert_eq!(contacts[0].addr, "bob@example.org".to_string());
-        assert_eq!(contacts[0].authname, "Bob".to_string());
-        assert_eq!(contacts[0].key, None);
-        assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
+";
+        // This one is DOS-like.
+        let vcard1 = vcard0.replace('\n', "\r\n");
+        for vcard in [vcard0, vcard1.as_str()] {
+            let contacts = parse_vcard(vcard);
+            assert_eq!(contacts.len(), 1);
+            assert_eq!(contacts[0].addr, "bob@example.org".to_string());
+            assert_eq!(contacts[0].authname, "Bob".to_string());
+            assert_eq!(contacts[0].key, None);
+            assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
+        }
     }
 }
