@@ -114,6 +114,7 @@ class ViewType(str, Enum):
     FILE = "File"
     VIDEOCHAT_INVITATION = "VideochatInvitation"
     WEBXDC = "Webxdc"
+    VCARD = "Vcard"
 
 
 class SystemMessageType(str, Enum):
