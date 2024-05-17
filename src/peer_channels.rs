@@ -196,25 +196,25 @@ impl Context {
     async fn init_peer_channels(&self) -> Result<Iroh> {
         let secret_key: SecretKey = SecretKey::generate();
 
+        let relay_mode = if let Some(relay_url) = self
+            .metadata
+            .read()
+            .await
+            .as_ref()
+            .and_then(|conf| conf.iroh_relay.clone())
+        {
+            RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)))
+        } else {
+            // FIXME: this should be RelayMode::Disabled instead of hardcoded URL.
+            RelayMode::Custom(RelayMap::from_url(RelayUrl::from(
+                Url::parse("https://iroh.testrun.org:4443").unwrap(),
+            )))
+        };
+
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key.clone())
             .alpns(vec![GOSSIP_ALPN.to_vec()])
-            .relay_mode(RelayMode::Custom(RelayMap::from_url(
-                self.metadata
-                    .read()
-                    .await
-                    .as_ref()
-                    .map(|conf| {
-                        let url = conf.iroh_relay.as_deref().context("Can't get relay url")?;
-                        Ok::<_, anyhow::Error>(RelayUrl::from(Url::parse(url)?))
-                    })
-                    .transpose()
-                    .ok()
-                    .flatten()
-                    .unwrap_or(RelayUrl::from(
-                        Url::parse("https://iroh.testrun.org:4443").unwrap(),
-                    )),
-            )))
+            .relay_mode(relay_mode)
             .bind(0)
             .await?;
 

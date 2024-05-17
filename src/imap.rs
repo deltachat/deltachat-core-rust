@@ -22,6 +22,7 @@ use futures_lite::FutureExt;
 use num_traits::FromPrimitive;
 use rand::Rng;
 use ratelimit::Ratelimit;
+use url::Url;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::chatlist_events;
@@ -112,7 +113,7 @@ pub(crate) struct ServerMetadata {
     /// <https://www.rfc-editor.org/rfc/rfc5464#section-6.2.2>.
     pub admin: Option<String>,
 
-    pub iroh_relay: Option<String>,
+    pub iroh_relay: Option<Url>,
 }
 
 impl async_imap::Authenticator for OAuth2 {
@@ -1471,7 +1472,14 @@ impl Session {
                     admin = m.value;
                 }
                 "/shared/vendor/deltachat/irohrelay" => {
-                    iroh_relay = m.value;
+                    if let Some(url) = m.value.as_deref().and_then(|s| Url::parse(s).ok()) {
+                        iroh_relay = Some(url);
+                    } else {
+                        warn!(
+                            context,
+                            "Got invalid URL from iroh relay metadata: {:?}.", m.value
+                        );
+                    }
                 }
                 _ => {}
             }
