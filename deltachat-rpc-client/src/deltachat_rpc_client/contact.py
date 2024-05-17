@@ -60,3 +60,6 @@ class Contact:
             self.account,
             self._rpc.create_chat_by_contact_id(self.account.id, self.id),
         )
+
+    def make_vcard(self) -> str:
+        return self._rpc.make_vcard(self.account.id, [self.id])
