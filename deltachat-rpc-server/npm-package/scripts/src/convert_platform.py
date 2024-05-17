@@ -2,7 +2,7 @@ def convert_cpu_arch_to_npm_cpu_arch(arch):
     if arch == "x86_64":
         return "x64"
     if arch == "i686":
-        return "i32"
+        return "ia32"
     if arch == "aarch64":
         return "arm64"
     if arch == "armv7" or arch == "arm":
