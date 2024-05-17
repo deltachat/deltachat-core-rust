@@ -74,9 +74,15 @@ impl Iroh {
         msg_id: MsgId,
     ) -> Result<Option<JoinTopicFut>> {
         let topic = get_iroh_topic_for_msg(ctx, msg_id).await?;
-        if self.iroh_channels.read().await.contains_key(&topic) {
-            return Ok(None);
-        }
+        let seq = if let Some(channel_state) = self.iroh_channels.read().await.get(&topic) {
+            if channel_state.subscribe_loop.is_some() {
+                info!(ctx, "not rejoining gossip for topic {topic}");
+                return Ok(None);
+            }
+            channel_state.seq_number
+        } else {
+            0
+        };
 
         let peers = get_iroh_gossip_peers(ctx, msg_id).await?;
         info!(
@@ -106,7 +112,7 @@ impl Iroh {
         self.iroh_channels
             .write()
             .await
-            .insert(topic, ChannelState::new(0, subscribe_loop));
+            .insert(topic, ChannelState::new(seq, subscribe_loop));
 
         Ok(Some(connect_future))
     }
@@ -122,6 +128,7 @@ impl Iroh {
         self.join_and_subscribe_gossip(ctx, msg_id).await?;
 
         let seq_num = self.get_and_incr(&topic).await;
+        info!(ctx, "IROH_REALTIME: seq: {seq_num}");
         data.extend(seq_num.to_le_bytes());
 
         self.gossip.broadcast(topic, data.into()).await?;
@@ -134,15 +141,11 @@ impl Iroh {
     }
 
     async fn get_and_incr(&self, topic: &TopicId) -> i32 {
-        let mut seq: i32 = 0;
-        self.iroh_channels
-            .write()
-            .await
-            .get_mut(topic)
-            .map(|state| {
-                seq = state.seq_number;
-                state.seq_number.wrapping_add(1)
-            });
+        let mut seq = 0;
+        if let Some(state) = self.iroh_channels.write().await.get_mut(topic) {
+            seq = state.seq_number;
+            state.seq_number = state.seq_number.wrapping_add(1)
+        }
         seq
     }
 
@@ -153,10 +156,12 @@ impl Iroh {
         Ok(addr)
     }
 
+    /// Leave the realtime channel for a given topic.
     pub(crate) async fn leave_realtime(&self, topic: TopicId) -> Result<()> {
-        let channel = self.iroh_channels.write().await.remove(&topic);
-        if let Some(channel) = channel {
-            channel.subscribe_loop.abort();
+        if let Some(channel) = &mut self.iroh_channels.write().await.get_mut(&topic) {
+            if let Some(subscribe_loop) = channel.subscribe_loop.take() {
+                subscribe_loop.abort();
+            }
         }
         self.gossip.quit(topic).await?;
         Ok(())
@@ -169,14 +174,14 @@ pub(crate) struct ChannelState {
     /// Sequence number for the gossip channel.
     seq_number: i32,
     /// The subscribe loop handle.
-    subscribe_loop: JoinHandle<()>,
+    subscribe_loop: Option<JoinHandle<()>>,
 }
 
 impl ChannelState {
     fn new(seq_number: i32, subscribe_loop: JoinHandle<()>) -> Self {
         Self {
             seq_number,
-            subscribe_loop,
+            subscribe_loop: Some(subscribe_loop),
         }
     }
 }
@@ -198,7 +203,9 @@ impl Context {
                         let url = conf.iroh_relay.as_deref().context("Can't get relay url")?;
                         Ok::<_, anyhow::Error>(RelayUrl::from(Url::parse(url)?))
                     })
-                    .transpose().ok().flatten()
+                    .transpose()
+                    .ok()
+                    .flatten()
                     .unwrap_or(RelayUrl::from(
                         Url::parse("https://iroh.testrun.org:4443").unwrap(),
                     )),
@@ -427,7 +434,8 @@ mod tests {
         chat::send_msg,
         message::{Message, Viewtype},
         peer_channels::{
-            get_iroh_gossip_peers, leave_webxdc_realtime, send_webxdc_realtime_advertisement,
+            get_iroh_gossip_peers, get_iroh_topic_for_msg, leave_webxdc_realtime,
+            send_webxdc_realtime_advertisement,
         },
         test_utils::TestContextManager,
         EventType,
@@ -643,6 +651,7 @@ mod tests {
             }
         }
 
+        // TODO: check that seq number is persisted
         leave_webxdc_realtime(bob, bob_webdxc.id).await.unwrap();
 
         bob_iroh
@@ -680,9 +689,21 @@ mod tests {
             1
         );
         leave_webxdc_realtime(alice, alice_webxdc.id).await.unwrap();
-        assert_eq!(
-            alice.iroh.get().unwrap().iroh_channels.read().await.len(),
-            0
-        );
+        let topic = get_iroh_topic_for_msg(alice, alice_webxdc.id)
+            .await
+            .unwrap();
+        assert!(if let Some(state) = alice
+            .iroh
+            .get()
+            .unwrap()
+            .iroh_channels
+            .read()
+            .await
+            .get(&topic)
+        {
+            state.subscribe_loop.is_none()
+        } else {
+            false
+        });
     }
 }
