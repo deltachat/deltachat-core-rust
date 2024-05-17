@@ -311,4 +311,8 @@ pub enum EventType {
         /// ID of the changed chat
         chat_id: Option<ChatId>,
     },
+
+    /// Event for using in tests, e.g. as a fence between normally generated events.
+    #[cfg(test)]
+    Test,
 }
