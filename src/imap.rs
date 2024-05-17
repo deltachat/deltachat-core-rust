@@ -1456,7 +1456,11 @@ impl Session {
         let mailbox = "";
         let options = "";
         let metadata = self
-            .get_metadata(mailbox, options, "(/shared/comment /shared/admin /shared/vendor/deltachat/irohrelay)")
+            .get_metadata(
+                mailbox,
+                options,
+                "(/shared/comment /shared/admin /shared/vendor/deltachat/irohrelay)",
+            )
             .await?;
         for m in metadata {
             match m.entry.as_ref() {
