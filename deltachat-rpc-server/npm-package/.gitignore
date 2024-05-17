@@ -1,2 +1,3 @@
 platform_package
 *.tgz
+package-lock.json
