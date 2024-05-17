@@ -20,17 +20,20 @@ export function getRPCServerPath(
 
 
 export type DeltaChatOverJsonRpcServer = StdioDeltaChat & {
-    shutdown: () => Promise<void>;
     readonly pathToServerBinary: string;
 };
 
+export interface StartOptions {
+  /** whether to disable outputting stderr to the parent process's stderr */
+  muteStdErr: boolean;
+}
 
 /**
  * 
  * @param directory directory for accounts folder
  * @param options 
  */
-export function startDeltaChat(directory: string, options?: Partial<SearchOptions> ): Promise<DeltaChatOverJsonRpcServer>
+export function startDeltaChat(directory: string, options?: Partial<SearchOptions & StartOptions> ): Promise<DeltaChatOverJsonRpcServer>
 
 
 export namespace FnTypes {
