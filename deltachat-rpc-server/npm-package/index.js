@@ -130,6 +130,7 @@ export async function startDeltaChat(directory, options) {
       RUST_LOG: process.env.RUST_LOG || "info",
       DC_ACCOUNTS_PATH: directory,
     },
+    stdio: ["pipe", "pipe", options.muteStdErr ? "ignore" : "inherit"],
   });
 
   server.on("error", (err) => {
@@ -144,13 +145,11 @@ export async function startDeltaChat(directory, options) {
     throw new Error("Server quit");
   });
 
-  server.stderr.pipe(process.stderr);
-
   /** @type {import('./index').DeltaChatOverJsonRpcServer} */
   //@ts-expect-error
   const dc = new StdioDeltaChat(server.stdin, server.stdout, true);
 
-  dc.shutdown = async () => {
+  dc.close = () => {
     shouldClose = true;
     if (!server.kill()) {
       console.log("server termination failed");
