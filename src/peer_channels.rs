@@ -37,7 +37,6 @@ use tokio::task::JoinHandle;
 use url::Url;
 
 use crate::chat::send_msg;
-use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
 use crate::message::{Message, MsgId, Viewtype};
@@ -76,7 +75,6 @@ impl Iroh {
         let topic = get_iroh_topic_for_msg(ctx, msg_id).await?;
         let seq = if let Some(channel_state) = self.iroh_channels.read().await.get(&topic) {
             if channel_state.subscribe_loop.is_some() {
-                info!(ctx, "not rejoining gossip for topic {topic}");
                 return Ok(None);
             }
             channel_state.seq_number
@@ -189,7 +187,7 @@ impl ChannelState {
 impl Context {
     /// Create magic endpoint and gossip.
     async fn init_peer_channels(&self) -> Result<Iroh> {
-        let secret_key: SecretKey = get_or_generate_iroh_keypair(self).await?;
+        let secret_key: SecretKey = SecretKey::generate();
 
         let endpoint = MagicEndpoint::builder()
             .secret_key(secret_key)
@@ -256,12 +254,23 @@ pub(crate) async fn iroh_add_peer_for_topic(
     Ok(())
 }
 
+/// Insert topicId into the database so that we can use it to retrieve the topic.
+pub(crate) async fn insert_topic_stub(ctx: &Context, msg_id: MsgId, topic: TopicId) -> Result<()> {
+    ctx.sql
+        .execute(
+            "INSERT OR REPLACE INTO iroh_gossip_peers (msg_id, public_key, topic, relay_server) VALUES (?, ?, ?, ?)",
+            (msg_id, PUBLIC_KEY_STUB, topic.as_bytes(), Option::<&str>::None),
+        )
+        .await?;
+    Ok(())
+}
+
 /// Get a list of [NodeAddr]s for one webxdc.
 async fn get_iroh_gossip_peers(ctx: &Context, msg_id: MsgId) -> Result<Vec<NodeAddr>> {
     ctx.sql
         .query_map(
             "SELECT public_key, relay_server FROM iroh_gossip_peers WHERE msg_id = ? AND public_key != ?",
-            (msg_id, ctx.get_or_try_init_peer_channel().await?.get_node_addr().await?.node_id.as_bytes()),
+            (msg_id, PUBLIC_KEY_STUB),
             |row| {
                 let key:  Vec<u8> = row.get(0)?;
                 let server: Option<String> = row.get(1)?;
@@ -282,19 +291,6 @@ async fn get_iroh_gossip_peers(ctx: &Context, msg_id: MsgId) -> Result<Vec<NodeA
             },
         )
         .await
-}
-
-/// Get the iroh secret key from the database or generate a new one and persist it.
-pub(crate) async fn get_or_generate_iroh_keypair(ctx: &Context) -> Result<SecretKey> {
-    match ctx.get_config_parsed(Config::IrohSecretKey).await? {
-        Some(key) => Ok(key),
-        None => {
-            let key = SecretKey::generate();
-            ctx.set_config_internal(Config::IrohSecretKey, Some(&key.to_string()))
-                .await?;
-            Ok(key)
-        }
-    }
 }
 
 /// Get the topic for a given [MsgId].
@@ -350,13 +346,14 @@ pub(crate) fn create_random_topic() -> TopicId {
     TopicId::from_bytes(rand::random())
 }
 
+const PUBLIC_KEY_STUB: &[u8] = "static_string".as_bytes();
+
 pub(crate) async fn create_iroh_header(
     ctx: &Context,
     topic: TopicId,
     msg_id: MsgId,
 ) -> Result<Header> {
-    let peer = get_or_generate_iroh_keypair(ctx).await?.public();
-    iroh_add_peer_for_topic(ctx, msg_id, topic, peer, None).await?;
+    insert_topic_stub(ctx, msg_id, topic).await?;
     Ok(Header::new(
         HeaderDef::IrohGossipTopic.get_headername().to_string(),
         topic.to_string(),

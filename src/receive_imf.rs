@@ -32,9 +32,7 @@ use crate::message::{
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
-use crate::peer_channels::{
-    get_iroh_topic_for_msg, get_or_generate_iroh_keypair, iroh_add_peer_for_topic,
-};
+use crate::peer_channels::{get_iroh_topic_for_msg, insert_topic_stub, iroh_add_peer_for_topic};
 use crate::peerstate::Peerstate;
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
@@ -1625,8 +1623,7 @@ RETURNING id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
                 let topic = TopicId::from_str(topic).context("wrong gossip topic header")?;
-                let peer = get_or_generate_iroh_keypair(context).await?.public();
-                iroh_add_peer_for_topic(context, *msg_id, topic, peer, None).await?;
+                insert_topic_stub(context, *msg_id, topic).await?;
             } else {
                 warn!(context, "webxdc doesn't have a gossip topic")
             }

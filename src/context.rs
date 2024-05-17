@@ -1388,7 +1388,6 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::mimeparser::SystemMessage;
-    use crate::peer_channels::get_or_generate_iroh_keypair;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
     use crate::tools::{create_outgoing_rfc724_mid, SystemTime};
@@ -1966,15 +1965,6 @@ mod tests {
         // Test that sending into the protected chat works:
         let _sent = alice.send_msg(chat_id, &mut draft).await;
 
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_keypair_saving() -> Result<()> {
-        let alice = &TestContext::new_alice().await;
-        let key = get_or_generate_iroh_keypair(alice).await?;
-        let loaded_key = get_or_generate_iroh_keypair(alice).await?;
-        assert_eq!(key.to_bytes(), loaded_key.to_bytes());
         Ok(())
     }
 }
