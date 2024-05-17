@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, format_err, Context as _, Result};
+use deltachat_contact_tools::{parse_vcard, VcardContact};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, io};
@@ -605,6 +606,20 @@ impl Message {
     /// Returns the full path to the file associated with a message.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
+    }
+
+    /// Returns vector of vcards if the file has a vCard attachment.
+    pub async fn vcard_contacts(&self, context: &Context) -> Result<Vec<VcardContact>> {
+        if self.viewtype != Viewtype::Vcard {
+            return Ok(Vec::new());
+        }
+
+        let path = self
+            .get_file(context)
+            .context("vCard message does not have an attachment")?;
+        let bytes = tokio::fs::read(path).await?;
+        let vcard_contents = std::str::from_utf8(&bytes).context("vCard is not a valid UTF-8")?;
+        Ok(parse_vcard(vcard_contents))
     }
 
     /// Save file copy at the user-provided path.

@@ -89,7 +89,7 @@ impl ContactObject {
     }
 }
 
-#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[derive(Clone, Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VcardContact {
     /// Email address.
