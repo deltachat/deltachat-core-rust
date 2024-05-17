@@ -2292,6 +2292,7 @@ mod tests {
     async fn test_set_override_sender_name() {
         // send message with overridden sender name
         let alice = TestContext::new_alice().await;
+        let alice2 = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let chat = alice.create_chat(&bob).await;
         let contact_id = *chat::get_chat_contacts(&alice, chat.id)
@@ -2311,6 +2312,7 @@ mod tests {
         assert_eq!(msg.get_sender_name(&contact), "over ride".to_string());
         assert_ne!(contact.get_display_name(), "over ride".to_string());
         chat::send_msg(&alice, chat.id, &mut msg).await.unwrap();
+        let sent_msg = alice.pop_sent_msg().await;
 
         // bob receives that message
         let chat = bob.create_chat(&alice).await;
@@ -2320,7 +2322,7 @@ mod tests {
             .first()
             .unwrap();
         let contact = Contact::get_by_id(&bob, contact_id).await.unwrap();
-        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, chat.id);
         assert_eq!(msg.text, "bla blubb");
         assert_eq!(
@@ -2334,6 +2336,13 @@ mod tests {
         // (mailing lists may also use `Sender:`-header)
         let chat = Chat::load_from_db(&bob, msg.chat_id).await.unwrap();
         assert_ne!(chat.typ, Chattype::Mailinglist);
+
+        // Alice receives message on another device.
+        let msg = alice2.recv_msg(&sent_msg).await;
+        assert_eq!(
+            msg.get_override_sender_name(),
+            Some("over ride".to_string())
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
