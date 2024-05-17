@@ -755,6 +755,17 @@ async fn add_parts(
     let state: MessageState;
     let mut hidden = false;
     let mut needs_delete_job = false;
+
+    // if contact renaming is prevented (for mailinglists and bots),
+    // we use name from From:-header as override name
+    if prevent_rename {
+        if let Some(name) = &mime_parser.from.display_name {
+            for part in &mut mime_parser.parts {
+                part.param.set(Param::OverrideSenderDisplayname, name);
+            }
+        }
+    }
+
     if mime_parser.incoming {
         to_id = ContactId::SELF;
 
@@ -916,16 +927,6 @@ async fn add_parts(
 
         if let Some(chat_id) = chat_id {
             apply_mailinglist_changes(context, mime_parser, chat_id).await?;
-        }
-
-        // if contact renaming is prevented (for mailinglists and bots),
-        // we use name from From:-header as override name
-        if prevent_rename {
-            if let Some(name) = &mime_parser.from.display_name {
-                for part in &mut mime_parser.parts {
-                    part.param.set(Param::OverrideSenderDisplayname, name);
-                }
-            }
         }
 
         if chat_id.is_none() {
