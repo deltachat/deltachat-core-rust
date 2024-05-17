@@ -17,11 +17,12 @@ use crate::contact::Contact;
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
+use crate::headerdef::HeaderDef;
 use crate::html::new_html_mimepart;
-use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
+use crate::peer_channels::create_iroh_header;
 use crate::peerstate::Peerstate;
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
@@ -29,6 +30,7 @@ use crate::tools::IsNoneOrEmpty;
 use crate::tools::{
     create_outgoing_rfc724_mid, create_smeared_timestamp, remove_subject_prefix, time,
 };
+use crate::{location, peer_channels};
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -1148,6 +1150,18 @@ impl<'a> MimeFactory<'a> {
                     "protection-disabled".to_string(),
                 ));
             }
+            SystemMessage::IrohNodeAddr => {
+                headers.protected.push(Header::new(
+                    HeaderDef::IrohNodeAddr.get_headername().to_string(),
+                    serde_json::to_string(
+                        &context
+                            .get_or_try_init_peer_channel()
+                            .await?
+                            .get_node_addr()
+                            .await?,
+                    )?,
+                ));
+            }
             _ => {}
         }
 
@@ -1314,6 +1328,10 @@ impl<'a> MimeFactory<'a> {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json));
         } else if self.msg.viewtype == Viewtype::Webxdc {
+            let topic = peer_channels::create_random_topic();
+            headers
+                .protected
+                .push(create_iroh_header(context, topic, self.msg.id).await?);
             if let Some(json) = context
                 .render_webxdc_status_update_object(self.msg.id, None)
                 .await?

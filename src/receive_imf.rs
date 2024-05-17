@@ -1,11 +1,13 @@
 //! Internet Message Format reception pipeline.
 
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
 use deltachat_contact_tools::{
     addr_cmp, may_be_valid_addr, normalize_name, strip_rtlo_characters, ContactAddress,
 };
+use iroh_gossip::proto::TopicId;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -30,6 +32,7 @@ use crate::message::{
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
+use crate::peer_channels::{get_iroh_topic_for_msg, insert_topic_stub, iroh_add_peer_for_topic};
 use crate::peerstate::Peerstate;
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
@@ -40,6 +43,7 @@ use crate::sync::Sync::*;
 use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
+use iroh_net::NodeAddr;
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
@@ -1220,7 +1224,7 @@ async fn add_parts(
     }
 
     let orig_chat_id = chat_id;
-    let chat_id = if is_mdn || is_reaction {
+    let mut chat_id = if is_mdn || is_reaction {
         DC_CHAT_ID_TRASH
     } else {
         chat_id.unwrap_or_else(|| {
@@ -1430,6 +1434,24 @@ async fn add_parts(
         .await?;
     }
 
+    if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohNodeAddr) {
+        match serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address") {
+            Ok(node_addr) => {
+                info!(context, "Adding iroh peer with address {node_addr:?}.");
+                let instance_id = parent.context("Failed to get parent message")?.id;
+                let node_id = node_addr.node_id;
+                let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
+                let topic = get_iroh_topic_for_msg(context, instance_id).await?;
+                iroh_add_peer_for_topic(context, instance_id, topic, node_id, relay_server).await?;
+
+                chat_id = DC_CHAT_ID_TRASH;
+            }
+            Err(err) => {
+                warn!(context, "Couldn't parse NodeAddr: {err:#}.");
+            }
+        }
+    }
+
     for part in &mime_parser.parts {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
@@ -1597,6 +1619,16 @@ RETURNING id
 
     // check all parts whether they contain a new logging webxdc
     for (part, msg_id) in mime_parser.parts.iter().zip(&created_db_entries) {
+        // check if any part contains a webxdc topic id
+        if part.typ == Viewtype::Webxdc {
+            if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
+                let topic = TopicId::from_str(topic).context("wrong gossip topic header")?;
+                insert_topic_stub(context, *msg_id, topic).await?;
+            } else {
+                warn!(context, "webxdc doesn't have a gossip topic")
+            }
+        }
+
         maybe_set_logging_xdc_inner(
             context,
             part.typ,

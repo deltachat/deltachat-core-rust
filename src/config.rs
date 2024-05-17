@@ -9,7 +9,7 @@ use base64::Engine as _;
 use deltachat_contact_tools::addr_cmp;
 use serde::{Deserialize, Serialize};
 use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
+use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use tokio::fs;
 
 use crate::blob::BlobObject;
@@ -362,6 +362,9 @@ pub enum Config {
 
     /// MsgId of webxdc map integration.
     WebxdcIntegration,
+
+    /// Iroh secret key.
+    IrohSecretKey,
 }
 
 impl Config {

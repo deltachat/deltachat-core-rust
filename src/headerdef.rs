@@ -93,6 +93,12 @@ pub enum HeaderDef {
     /// See <https://datatracker.ietf.org/doc/html/rfc8601>
     AuthenticationResults,
 
+    /// Node address from iroh where direct addresses have been removed.
+    IrohNodeAddr,
+
+    /// Advertised gossip topic for one webxdc.
+    IrohGossipTopic,
+
     #[cfg(test)]
     TestHeader,
 }

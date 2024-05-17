@@ -106,6 +106,7 @@ pub mod receive_imf;
 pub mod tools;
 
 pub mod accounts;
+pub mod peer_channels;
 pub mod reaction;
 
 /// If set IMAP/incoming and SMTP/outgoing MIME messages will be printed.

@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Delta Chat core RPC server.
 //!
 //! It speaks JSON Lines over stdio.

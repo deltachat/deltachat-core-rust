@@ -23,6 +23,7 @@ use crate::peerstate::Peerstate;
 use crate::socks::Socks5Config;
 use crate::token;
 use crate::tools::validate_id;
+use iroh_old as iroh;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const IDELTACHAT_SCHEME: &str = "https://i.delta.chat/#";

@@ -18,11 +18,13 @@ use deltachat::constants::DC_MSG_ID_DAYMARKER;
 use deltachat::contact::{may_be_valid_addr, Contact, ContactId, Origin};
 use deltachat::context::get_info;
 use deltachat::ephemeral::Timer;
-use deltachat::imex;
 use deltachat::location;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::message::{
     self, delete_msgs, markseen_msgs, Message, MessageState, MsgId, Viewtype,
+};
+use deltachat::peer_channels::{
+    leave_webxdc_realtime, send_webxdc_realtime_advertisement, send_webxdc_realtime_data,
 };
 use deltachat::provider::get_provider_info;
 use deltachat::qr::{self, Qr};
@@ -32,6 +34,7 @@ use deltachat::securejoin;
 use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::EventEmitter;
+use deltachat::{imex, info};
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
@@ -1761,6 +1764,37 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         ctx.send_webxdc_status_update(MsgId::new(instance_msg_id), &update_str, &description)
             .await
+    }
+
+    async fn send_webxdc_realtime_data(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+        data: Vec<u8>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        send_webxdc_realtime_data(&ctx, MsgId::new(instance_msg_id), data).await
+    }
+
+    async fn send_webxdc_realtime_advertisement(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let fut = send_webxdc_realtime_advertisement(&ctx, MsgId::new(instance_msg_id)).await?;
+        if let Some(fut) = fut {
+            tokio::spawn(async move {
+                fut.await.ok();
+                info!(ctx, "send_webxdc_realtime_advertisement done")
+            });
+        }
+        Ok(())
+    }
+
+    async fn leave_webxdc_realtime(&self, account_id: u32, instance_message_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        leave_webxdc_realtime(&ctx, MsgId::new(instance_message_id)).await
     }
 
     async fn get_webxdc_status_updates(

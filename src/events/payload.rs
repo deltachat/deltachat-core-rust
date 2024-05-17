@@ -279,6 +279,15 @@ pub enum EventType {
         status_update_serial: StatusUpdateSerial,
     },
 
+    /// Data received over an ephemeral peer channel.
+    WebxdcRealtimeData {
+        /// Message ID.
+        msg_id: MsgId,
+
+        /// Realtime data.
+        data: Vec<u8>,
+    },
+
     /// Inform that a message containing a webxdc instance has been deleted.
     WebxdcInstanceDeleted {
         /// ID of the deleted message.

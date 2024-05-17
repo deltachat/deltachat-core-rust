@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::contact::Contact;
 use deltachat::context::Context;

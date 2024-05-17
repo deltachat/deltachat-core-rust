@@ -379,6 +379,9 @@ pub enum SystemMessageType {
 
     /// Webxdc info added with `info` set in `send_webxdc_status_update()`.
     WebxdcInfoMessage,
+
+    /// This message contains a users iroh node address.
+    IrohNodeAddr,
 }
 
 impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
@@ -401,6 +404,7 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
             SystemMessage::WebxdcStatusUpdate => SystemMessageType::WebxdcStatusUpdate,
             SystemMessage::WebxdcInfoMessage => SystemMessageType::WebxdcInfoMessage,
             SystemMessage::InvalidUnencryptedMail => SystemMessageType::InvalidUnencryptedMail,
+            SystemMessage::IrohNodeAddr => SystemMessageType::IrohNodeAddr,
             SystemMessage::SecurejoinWait => SystemMessageType::SecurejoinWait,
             SystemMessage::SecurejoinWaitTimeout => SystemMessageType::SecurejoinWaitTimeout,
         }

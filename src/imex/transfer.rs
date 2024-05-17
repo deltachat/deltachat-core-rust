@@ -38,6 +38,7 @@ use iroh::progress::ProgressEmitter;
 use iroh::protocol::AuthToken;
 use iroh::provider::{DataSource, Event, Provider, Ticket};
 use iroh::Hash;
+use iroh_old as iroh;
 use tokio::fs::{self, File};
 use tokio::io::{self, AsyncWriteExt, BufWriter};
 use tokio::sync::broadcast::error::RecvError;

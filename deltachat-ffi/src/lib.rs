@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #![warn(unused, clippy::all)]
 #![allow(
     non_camel_case_types,
@@ -561,6 +562,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::ConfigSynced { .. } => 2111,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
+        EventType::WebxdcRealtimeData { .. } => 2150,
         EventType::AccountsBackgroundFetchDone => 2200,
         EventType::ChatlistChanged => 2300,
         EventType::ChatlistItemChanged { .. } => 2301,
@@ -616,8 +618,9 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::SecurejoinJoinerProgress { contact_id, .. } => {
             contact_id.to_u32() as libc::c_int
         }
-        EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
-        EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        EventType::WebxdcRealtimeData { msg_id, .. }
+        | EventType::WebxdcStatusUpdate { msg_id, .. }
+        | EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
         EventType::ChatlistItemChanged { chat_id } => {
             chat_id.unwrap_or_default().to_u32() as libc::c_int
         }
@@ -655,6 +658,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ConnectivityChanged
         | EventType::WebxdcInstanceDeleted { .. }
         | EventType::IncomingMsgBunch { .. }
+        | EventType::WebxdcRealtimeData { .. }
         | EventType::SelfavatarChanged
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatlistChanged
@@ -721,6 +725,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SelfavatarChanged
         | EventType::WebxdcStatusUpdate { .. }
         | EventType::WebxdcInstanceDeleted { .. }
+        | EventType::WebxdcRealtimeData { .. }
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. }
         | EventType::IncomingMsgBunch { .. }
