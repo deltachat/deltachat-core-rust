@@ -29,3 +29,6 @@ subprocess.run(["python", "scripts/build_platform_package.py", host_target], cap
 
 # run update_optional_dependencies_and_version.js to adjust the package / make it installable locally
 subprocess.run(["node", "scripts/update_optional_dependencies_and_version.js", "--local"], capture_output=False, check=True)
+
+# typescript / npm local package installing/linking needs that this package has it's own node_modules folder
+subprocess.run(["npm", "i"], capture_output=False, check=True)
