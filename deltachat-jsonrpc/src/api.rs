@@ -185,6 +185,16 @@ impl CommandApi {
         self.accounts.write().await.add_account().await
     }
 
+    /// Imports/migrated an existing account from a database path into this account manager.
+    /// Returns the ID of new account.
+    async fn migrate_account(&self, path_to_db: String) -> Result<u32> {
+        self.accounts
+            .write()
+            .await
+            .migrate_account(std::path::PathBuf::from(path_to_db))
+            .await
+    }
+
     async fn remove_account(&self, account_id: u32) -> Result<()> {
         self.accounts
             .write()
@@ -327,6 +337,11 @@ impl CommandApi {
     async fn get_info(&self, account_id: u32) -> Result<BTreeMap<&'static str, String>> {
         let ctx = self.get_context(account_id).await?;
         ctx.get_info().await
+    }
+
+    async fn get_blob_dir(&self, account_id: u32) -> Result<Option<String>> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ctx.get_blobdir().to_str().map(|s| s.to_owned()))
     }
 
     async fn draft_self_report(&self, account_id: u32) -> Result<u32> {
