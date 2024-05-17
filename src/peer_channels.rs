@@ -43,6 +43,10 @@ use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::EventType;
 
+/// The length of an ed25519 `PublicKey`, in bytes.
+const PUBLIC_KEY_LENGTH: usize = 32;
+const PUBLIC_KEY_STUB: &[u8] = "static_string".as_bytes();
+
 /// Store iroh peer channels for the context.
 #[derive(Debug)]
 pub struct Iroh {
@@ -54,6 +58,9 @@ pub struct Iroh {
 
     /// Topics for which an advertisement has already been sent.
     pub(crate) iroh_channels: RwLock<HashMap<TopicId, ChannelState>>,
+
+    /// Currently used Iroh secret key
+    pub(crate) secret_key: SecretKey,
 }
 
 impl Iroh {
@@ -126,8 +133,8 @@ impl Iroh {
         self.join_and_subscribe_gossip(ctx, msg_id).await?;
 
         let seq_num = self.get_and_incr(&topic).await;
-        info!(ctx, "IROH_REALTIME: seq: {seq_num}");
         data.extend(seq_num.to_le_bytes());
+        data.extend(self.secret_key.public().as_bytes());
 
         self.gossip.broadcast(topic, data.into()).await?;
 
@@ -190,7 +197,7 @@ impl Context {
         let secret_key: SecretKey = SecretKey::generate();
 
         let endpoint = MagicEndpoint::builder()
-            .secret_key(secret_key)
+            .secret_key(secret_key.clone())
             .alpns(vec![GOSSIP_ALPN.to_vec()])
             .relay_mode(RelayMode::Custom(RelayMap::from_url(
                 self.metadata
@@ -225,6 +232,7 @@ impl Context {
             endpoint,
             gossip,
             iroh_channels: RwLock::new(HashMap::new()),
+            secret_key,
         })
     }
 
@@ -346,8 +354,6 @@ pub(crate) fn create_random_topic() -> TopicId {
     TopicId::from_bytes(rand::random())
 }
 
-const PUBLIC_KEY_STUB: &[u8] = "static_string".as_bytes();
-
 pub(crate) async fn create_iroh_header(
     ctx: &Context,
     topic: TopicId,
@@ -415,7 +421,7 @@ async fn subscribe_loop(
                     msg_id,
                     data: event
                         .content
-                        .get(0..event.content.len() - 4)
+                        .get(0..event.content.len() - 4 - PUBLIC_KEY_LENGTH)
                         .context("too few bytes in iroh message")?
                         .into(),
                 });
