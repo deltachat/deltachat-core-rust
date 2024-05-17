@@ -8,10 +8,11 @@ use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
+use base64::Engine as _;
 pub use deltachat_contact_tools::may_be_valid_addr;
 use deltachat_contact_tools::{
-    addr_cmp, addr_normalize, normalize_name, sanitize_name_and_addr, strip_rtlo_characters,
-    ContactAddress,
+    self as contact_tools, addr_cmp, addr_normalize, normalize_name, sanitize_name_and_addr,
+    strip_rtlo_characters, ContactAddress, VcardContact,
 };
 use deltachat_derive::{FromSql, ToSql};
 use rusqlite::OptionalExtension;
@@ -157,6 +158,35 @@ impl rusqlite::types::FromSql for ContactId {
                 .map_err(|_| rusqlite::types::FromSqlError::OutOfRange(val))
         })
     }
+}
+
+/// Returns a vCard containing contacts with the given ids.
+pub async fn make_vcard(context: &Context, contacts: &[ContactId]) -> Result<String> {
+    let now = time();
+    let mut vcard_contacts = Vec::with_capacity(contacts.len());
+    for id in contacts {
+        let c = Contact::get_by_id(context, *id).await?;
+        let key = Peerstate::from_addr(context, &c.addr)
+            .await?
+            .and_then(|peerstate| peerstate.peek_key(false).map(|k| k.to_base64()));
+        let profile_image = match c.get_profile_image(context).await? {
+            None => None,
+            Some(path) => tokio::fs::read(path)
+                .await
+                .log_err(context)
+                .ok()
+                .map(|data| base64::engine::general_purpose::STANDARD.encode(data)),
+        };
+        vcard_contacts.push(VcardContact {
+            addr: c.addr,
+            authname: c.authname,
+            key,
+            profile_image,
+            // Use the current time to not reveal our or contact's online time.
+            timestamp: Ok(now),
+        });
+    }
+    Ok(contact_tools::make_vcard(&vcard_contacts))
 }
 
 /// An object representing a single contact in memory.
@@ -2814,6 +2844,55 @@ Until the false-positive is fixed:
         assert_eq!(id, a1b_contact_id);
         let a1b_contact = Contact::get_by_id(alice1, a1b_contact_id).await?;
         assert_eq!(a1b_contact.name, "Bob Renamed");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_make_vcard() -> Result<()> {
+        let alice = &TestContext::new_alice().await;
+        let bob = &TestContext::new_bob().await;
+        bob.set_config(Config::Displayname, Some("Bob")).await?;
+        let avatar_path = bob.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        let avatar_base64 = base64::engine::general_purpose::STANDARD.encode(avatar_bytes);
+        tokio::fs::write(&avatar_path, avatar_bytes).await?;
+        bob.set_config(Config::Selfavatar, Some(avatar_path.to_str().unwrap()))
+            .await?;
+        let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+        let chat = bob.create_chat(alice).await;
+        let sent_msg = bob.send_text(chat.id, "moin").await;
+        alice.recv_msg(&sent_msg).await;
+        let bob_id = Contact::create(alice, "Some Bob", &bob_addr).await?;
+        let key_base64 = Peerstate::from_addr(alice, &bob_addr)
+            .await?
+            .unwrap()
+            .peek_key(false)
+            .unwrap()
+            .to_base64();
+        let fiona_id = Contact::create(alice, "Fiona", "fiona@example.net").await?;
+
+        assert_eq!(make_vcard(alice, &[]).await?, "".to_string());
+
+        let t0 = time();
+        let vcard = make_vcard(alice, &[bob_id, fiona_id]).await?;
+        let t1 = time();
+        // Just test that it's parsed as expected, `deltachat_contact_tools` crate has tests on the
+        // exact format.
+        let contacts = contact_tools::parse_vcard(&vcard);
+        assert_eq!(contacts.len(), 2);
+        assert_eq!(contacts[0].addr, bob_addr);
+        assert_eq!(contacts[0].authname, "Bob".to_string());
+        assert_eq!(contacts[0].key, Some(key_base64));
+        assert_eq!(contacts[0].profile_image, Some(avatar_base64));
+        let timestamp = *contacts[0].timestamp.as_ref().unwrap();
+        assert!(t0 <= timestamp && timestamp <= t1);
+        assert_eq!(contacts[1].addr, "fiona@example.net".to_string());
+        assert_eq!(contacts[1].authname, "".to_string());
+        assert_eq!(contacts[1].key, None);
+        assert_eq!(contacts[1].profile_image, None);
+        let timestamp = *contacts[1].timestamp.as_ref().unwrap();
+        assert!(t0 <= timestamp && timestamp <= t1);
 
         Ok(())
     }

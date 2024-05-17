@@ -271,13 +271,18 @@ jobs:
     name: Build & Publish npm prebuilds and deltachat-rpc-server
     needs: ["build_linux", "build_windows", "build_macos"]
     runs-on: "ubuntu-latest"
+    permissions:
+      id-token: write
+
+      # Needed to publish the binaries to the release.
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           show-progress: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11' 
+          python-version: "3.11"
 
       - name: Download Linux aarch64 binary
         uses: actions/download-artifact@v4
@@ -368,7 +373,7 @@ jobs:
           for platform in ./platform_package/*; do npm pack "$platform"; done
           npm pack    
           ls -lah
-      
+
       - name: Upload to artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -383,11 +388,19 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
-            *.tgz
+            deltachat-rpc-server/npm-package/*.tgz
+
+      # Configure Node.js for publishing.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
 
       - name: Publish npm packets for prebuilds and `@deltachat/stdio-rpc-server`
         if: github.event_name == 'release'
+        working-directory: deltachat-rpc-server/npm-package
         run: |
           ls -lah platform_package
-
-          for platform in *.tgz; do npm publish "$platform"; done
+          for platform in *.tgz; do npm publish --provenance "$platform"; done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

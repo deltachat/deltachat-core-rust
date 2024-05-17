@@ -1,6 +1,6 @@
 [package]
 name = "deltachat-jsonrpc"
-version = "1.138.0"
+version = "1.138.5"
 description = "DeltaChat JSON-RPC API"
 edition = "2021"
 default-run = "deltachat-jsonrpc-server"
@@ -15,6 +15,7 @@ required-features = ["webserver"]
 [dependencies]
 anyhow = "1"
 deltachat = { path = ".." }
+deltachat-contact-tools = { path = "../deltachat-contact-tools" }
 num-traits = "0.2"
 schemars = "0.8.19"
 serde = { version = "1.0", features = ["derive"] }

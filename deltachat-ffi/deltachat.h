@@ -517,6 +517,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    0=Nothing else happens when the key changes.
  *                    1=After the key changed, `dc_chat_can_send()` returns false and `dc_chat_is_protection_broken()` returns true
  *                    until `dc_accept_chat()` is called.
+ * - `is_chatmail` = 1 if the the server is a chatmail server, 0 otherwise.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.
@@ -5479,6 +5480,11 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_MSG_WEBXDC    80
 
+/**
+ * Message containing shared contacts represented as a vCard (virtual contact file)
+ * with email addresses and possibly other fields.
+ */
+#define DC_MSG_VCARD     90
 
 /**
  * @}
@@ -7336,6 +7342,9 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as info message.
 #define DC_STR_SECUREJOIN_WAIT_TIMEOUT 191
+
+/// "Contact"
+#define DC_STR_CONTACT 200
 
 /**
  * @}

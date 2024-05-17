@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashMap, str::FromStr};
@@ -45,7 +46,7 @@ pub mod types;
 use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
-use types::contact::ContactObject;
+use types::contact::{ContactObject, VcardContact};
 use types::events::Event;
 use types::http::HttpResponse;
 use types::message::{MessageData, MessageObject, MessageReadReceipt};
@@ -1427,6 +1428,23 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let contact_id = Contact::lookup_id_by_addr(&ctx, &addr, Origin::IncomingReplyTo).await?;
         Ok(contact_id.map(|id| id.to_u32()))
+    }
+
+    /// Parses a vCard file located at the given path. Returns contacts in their original order.
+    async fn parse_vcard(&self, path: String) -> Result<Vec<VcardContact>> {
+        let vcard = tokio::fs::read(Path::new(&path)).await?;
+        let vcard = str::from_utf8(&vcard)?;
+        Ok(deltachat_contact_tools::parse_vcard(vcard)
+            .into_iter()
+            .map(|c| c.into())
+            .collect())
+    }
+
+    /// Returns a vCard containing contacts with the given ids.
+    async fn make_vcard(&self, account_id: u32, contacts: Vec<u32>) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let contacts: Vec<_> = contacts.iter().map(|&c| ContactId::new(c)).collect();
+        deltachat::contact::make_vcard(&ctx, &contacts).await
     }
 
     // ---------------------------------------------

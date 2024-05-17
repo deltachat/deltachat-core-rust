@@ -1,5 +1,93 @@
 # Changelog
 
+## [1.138.5] - 2024-05-16
+
+### API-Changes
+
+- jsonrpc: Add parse_vcard() ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
+- Add Viewtype::Vcard ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
+- Add make_vcard() ([#5203](https://github.com/deltachat/deltachat-core-rust/pull/5203)).
+
+### Build system
+
+- Add repository URL to deltachat-rpc-server packages.
+
+### Fixes
+
+- Parsing vCards with avatars exported by Android's "Contacts" app.
+
+### Miscellaneous Tasks
+
+- Rebuild node constants.
+
+### Refactor
+
+- contact-tools: VcardContact: rename display_name to authname.
+- VcardContact: Change timestamp type to i64.
+
+## [1.138.4] - 2024-05-15
+
+### CI
+
+- Run actions/setup-node before npm publish.
+
+## [1.138.3] - 2024-05-15
+
+### CI
+
+- Give CI job permission to publish binaries to the release.
+
+## [1.138.2] - 2024-05-15
+
+### API-Changes
+
+- deltachat-rpc-client: Add CONFIG_SYNCED constant.
+
+### CI
+
+- Add npm token to publish deltachat-rpc-server packages.
+
+### Features / Changes
+
+- Reset more settings when configuring a chatmail account.
+
+### Tests
+
+- Set configuration after configure() finishes.
+
+## [1.138.1] - 2024-05-14
+
+### Features / Changes
+
+- Detect XCHATMAIL capability and expose it as `is_chatmail` config.
+
+### Fixes
+
+- Never treat message with Chat-Group-ID as a private reply.
+- Always prefer Chat-Group-ID over In-Reply-To and References.
+- Ignore parent message if message references itself.
+
+### CI
+
+- Set RUSTUP_WINDOWS_PATH_ADD_BIN to work around `nextest` issue <https://github.com/nextest-rs/nextest/issues/1493>.
+- deltachat-rpc-server: Fix upload of npm packages to github releases ([#5564](https://github.com/deltachat/deltachat-core-rust/pull/5564)).
+
+### Refactor
+
+- Add MimeMessage.get_chat_group_id().
+- Make MimeMessage.get_header() return Option<&str>.
+- sql: Make open flags immutable.
+- Resultify token::lookup_or_new().
+
+### Miscellaneous Tasks
+
+- cargo: Bump parking_lot from 0.12.1 to 0.12.2.
+- cargo: Bump libc from 0.2.153 to 0.2.154.
+- cargo: Bump hickory-resolver from 0.24.0 to 0.24.1.
+- cargo: Bump serde_json from 1.0.115 to 1.0.116.
+- cargo: Bump human-panic from 1.2.3 to 2.0.0.
+- cargo: Bump brotli from 5.0.0 to 6.0.0.
+
 ## [1.138.0] - 2024-05-13
 
 ### API-Changes
@@ -4072,3 +4160,8 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.137.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.2...v1.137.3
 [1.137.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.3...v1.137.4
 [1.138.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.4...v1.138.0
+[1.138.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.0...v1.138.1
+[1.138.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.1...v1.138.2
+[1.138.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.2...v1.138.3
+[1.138.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.3...v1.138.4
+[1.138.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.4...v1.138.5

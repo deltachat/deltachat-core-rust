@@ -44,14 +44,25 @@ use regex::Regex;
 pub struct VcardContact {
     /// The email address, vcard property `email`
     pub addr: String,
-    /// The contact's display name, vcard property `fn`
-    pub display_name: String,
+    /// This must be the name authorized by the contact itself, not a locally given name. Vcard
+    /// property `fn`. Can be empty, one should use `display_name()` to obtain the display name.
+    pub authname: String,
     /// The contact's public PGP key in Base64, vcard property `key`
     pub key: Option<String>,
     /// The contact's profile image (=avatar) in Base64, vcard property `photo`
     pub profile_image: Option<String>,
     /// The timestamp when the vcard was created / last updated, vcard property `rev`
-    pub timestamp: Result<u64>,
+    pub timestamp: Result<i64>,
+}
+
+impl VcardContact {
+    /// Returns the contact's display name.
+    pub fn display_name(&self) -> &str {
+        match self.authname.is_empty() {
+            false => &self.authname,
+            true => &self.addr,
+        }
+    }
 }
 
 /// Returns a vCard containing given contacts.
@@ -60,7 +71,6 @@ pub struct VcardContact {
 pub fn make_vcard(contacts: &[VcardContact]) -> String {
     fn format_timestamp(c: &VcardContact) -> Option<String> {
         let timestamp = *c.timestamp.as_ref().ok()?;
-        let timestamp: i64 = timestamp.try_into().ok()?;
         let datetime = DateTime::from_timestamp(timestamp, 0)?;
         Some(datetime.format("%Y%m%dT%H%M%SZ").to_string())
     }
@@ -68,10 +78,7 @@ pub fn make_vcard(contacts: &[VcardContact]) -> String {
     let mut res = "".to_string();
     for c in contacts {
         let addr = &c.addr;
-        let display_name = match c.display_name.is_empty() {
-            false => &c.display_name,
-            true => &c.addr,
-        };
+        let display_name = c.display_name();
         res += &format!(
             "BEGIN:VCARD\n\
              VERSION:4.0\n\
@@ -93,7 +100,7 @@ pub fn make_vcard(contacts: &[VcardContact]) -> String {
 }
 
 /// Parses `VcardContact`s from a given `&str`.
-pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
+pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
     fn remove_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
         let start_of_s = s.get(..prefix.len())?;
 
@@ -125,7 +132,7 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
         }
         Some(value)
     }
-    fn parse_datetime(datetime: &str) -> Result<u64> {
+    fn parse_datetime(datetime: &str) -> Result<i64> {
         // According to https://www.rfc-editor.org/rfc/rfc6350#section-4.3.5, the timestamp
         // is in ISO.8601.2004 format. DateTime::parse_from_rfc3339() apparently parses
         // ISO.8601, but fails to parse any of the examples given.
@@ -144,10 +151,14 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
                 Err(_) => return Err(e.into()),
             },
         };
-        Ok(timestamp.try_into()?)
+        Ok(timestamp)
     }
 
-    let mut lines = vcard.lines().peekable();
+    // Remove line folding, see https://datatracker.ietf.org/doc/html/rfc6350#section-3.2
+    static NEWLINE_AND_SPACE_OR_TAB: Lazy<Regex> = Lazy::new(|| Regex::new("\n[\t ]").unwrap());
+    let unfolded_lines = NEWLINE_AND_SPACE_OR_TAB.replace_all(vcard, "");
+
+    let mut lines = unfolded_lines.lines().peekable();
     let mut contacts = Vec::new();
 
     while lines.peek().is_some() {
@@ -175,8 +186,11 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
             {
                 key.get_or_insert(k);
             } else if let Some(p) = remove_prefix(line, "PHOTO;JPEG;ENCODING=BASE64:")
+                .or_else(|| remove_prefix(line, "PHOTO;ENCODING=BASE64;JPEG:"))
                 .or_else(|| remove_prefix(line, "PHOTO;TYPE=JPEG;ENCODING=b:"))
+                .or_else(|| remove_prefix(line, "PHOTO;ENCODING=b;TYPE=JPEG:"))
                 .or_else(|| remove_prefix(line, "PHOTO;ENCODING=BASE64;TYPE=JPEG:"))
+                .or_else(|| remove_prefix(line, "PHOTO;TYPE=JPEG;ENCODING=BASE64:"))
                 .or_else(|| remove_prefix(line, "PHOTO:data:image/jpeg;base64,"))
             {
                 photo.get_or_insert(p);
@@ -187,11 +201,11 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
             }
         }
 
-        let (display_name, addr) =
+        let (authname, addr) =
             sanitize_name_and_addr(display_name.unwrap_or(""), addr.unwrap_or(""));
 
         contacts.push(VcardContact {
-            display_name,
+            authname,
             addr,
             key: key.map(|s| s.to_string()),
             profile_image: photo.map(|s| s.to_string()),
@@ -201,7 +215,7 @@ pub fn parse_vcard(vcard: &str) -> Result<Vec<VcardContact>> {
         });
     }
 
-    Ok(contacts)
+    contacts
 }
 
 /// Valid contact address.
@@ -430,17 +444,16 @@ EMAIL;PREF=1:bobzzz@freenet.de
 UID:cac4fef4-6351-4854-bbe4-9b6df857eaed
 END:VCARD
 ",
-        )
-        .unwrap();
+        );
 
         assert_eq!(contacts[0].addr, "alice.mueller@posteo.de".to_string());
-        assert_eq!(contacts[0].display_name, "Alice Mueller".to_string());
+        assert_eq!(contacts[0].authname, "Alice Mueller".to_string());
         assert_eq!(contacts[0].key, None);
         assert_eq!(contacts[0].profile_image, None);
         assert!(contacts[0].timestamp.is_err());
 
         assert_eq!(contacts[1].addr, "bobzzz@freenet.de".to_string());
-        assert_eq!(contacts[1].display_name, "".to_string());
+        assert_eq!(contacts[1].authname, "".to_string());
         assert_eq!(contacts[1].key, None);
         assert_eq!(contacts[1].profile_image, None);
         assert!(contacts[1].timestamp.is_err());
@@ -461,11 +474,10 @@ KEY;TYPE=PGP;ENCODING=b:[base64-data]
 REV:20240418T184242Z
 
 END:VCARD",
-        )
-        .unwrap();
+        );
 
         assert_eq!(contacts[0].addr, "alice@example.com".to_string());
-        assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
+        assert_eq!(contacts[0].authname, "Alice Wonderland".to_string());
         assert_eq!(contacts[0].key, Some("[base64-data]".to_string()));
         assert_eq!(contacts[0].profile_image, None);
         assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762);
@@ -478,27 +490,48 @@ END:VCARD",
         let contacts = [
             VcardContact {
                 addr: "alice@example.org".to_string(),
-                display_name: "Alice Wonderland".to_string(),
+                authname: "Alice Wonderland".to_string(),
                 key: Some("[base64-data]".to_string()),
                 profile_image: Some("image in Base64".to_string()),
                 timestamp: Ok(1713465762),
             },
             VcardContact {
                 addr: "bob@example.com".to_string(),
-                display_name: "".to_string(),
+                authname: "".to_string(),
                 key: None,
                 profile_image: None,
                 timestamp: Ok(0),
             },
         ];
+        let items = [
+            "BEGIN:VCARD\n\
+             VERSION:4.0\n\
+             EMAIL:alice@example.org\n\
+             FN:Alice Wonderland\n\
+             KEY:data:application/pgp-keys;base64,[base64-data]\n\
+             PHOTO:data:image/jpeg;base64,image in Base64\n\
+             REV:20240418T184242Z\n\
+             END:VCARD\n",
+            "BEGIN:VCARD\n\
+             VERSION:4.0\n\
+             EMAIL:bob@example.com\n\
+             FN:bob@example.com\n\
+             REV:19700101T000000Z\n\
+             END:VCARD\n",
+        ];
+        let mut expected = "".to_string();
         for len in 0..=contacts.len() {
             let contacts = &contacts[0..len];
             let vcard = make_vcard(contacts);
-            let parsed = parse_vcard(&vcard).unwrap();
+            if len > 0 {
+                expected += items[len - 1];
+            }
+            assert_eq!(vcard, expected);
+            let parsed = parse_vcard(&vcard);
             assert_eq!(parsed.len(), contacts.len());
             for i in 0..parsed.len() {
                 assert_eq!(parsed[i].addr, contacts[i].addr);
-                assert_eq!(parsed[i].display_name, contacts[i].display_name);
+                assert_eq!(parsed[i].authname, contacts[i].authname);
                 assert_eq!(parsed[i].key, contacts[i].key);
                 assert_eq!(parsed[i].profile_image, contacts[i].profile_image);
                 assert_eq!(
@@ -572,16 +605,15 @@ FN:Alice
 EMAIL;HOME:alice@example.org
 END:VCARD
 ",
-        )
-        .unwrap();
+        );
 
         assert_eq!(contacts[0].addr, "bob@example.org".to_string());
-        assert_eq!(contacts[0].display_name, "Bob".to_string());
+        assert_eq!(contacts[0].authname, "Bob".to_string());
         assert_eq!(contacts[0].key, None);
         assert_eq!(contacts[0].profile_image, None);
 
         assert_eq!(contacts[1].addr, "alice@example.org".to_string());
-        assert_eq!(contacts[1].display_name, "Alice".to_string());
+        assert_eq!(contacts[1].authname, "Alice".to_string());
         assert_eq!(contacts[1].key, None);
         assert_eq!(contacts[1].profile_image, None);
 
@@ -597,19 +629,40 @@ END:VCARD
              EMAIL;TYPE=work:alice@example.org\n\
              REV:20240418T184242\n\
              END:VCARD",
-        )
-        .unwrap();
+        );
         assert_eq!(contacts.len(), 1);
         assert_eq!(contacts[0].addr, "alice@example.org".to_string());
-        assert_eq!(contacts[0].display_name, "Alice Wonderland".to_string());
+        assert_eq!(contacts[0].authname, "Alice Wonderland".to_string());
         assert_eq!(
             *contacts[0].timestamp.as_ref().unwrap(),
             chrono::offset::Local
                 .with_ymd_and_hms(2024, 4, 18, 18, 42, 42)
                 .unwrap()
                 .timestamp()
-                .try_into()
-                .unwrap()
         );
+    }
+
+    #[test]
+    fn test_android_vcard_with_base64_avatar() {
+        // This is not an actual base64-encoded avatar, it's just to test the parsing
+        let contacts = parse_vcard(
+            "BEGIN:VCARD
+VERSION:2.1
+N:;Bob;;;
+FN:Bob
+EMAIL;HOME:bob@example.org
+PHOTO;ENCODING=BASE64;JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEU
+ AAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAA
+ L8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==
+
+END:VCARD
+",
+        );
+
+        assert_eq!(contacts.len(), 1);
+        assert_eq!(contacts[0].addr, "bob@example.org".to_string());
+        assert_eq!(contacts[0].authname, "Bob".to_string());
+        assert_eq!(contacts[0].key, None);
+        assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
     }
 }

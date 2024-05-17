@@ -466,18 +466,10 @@ impl Context {
             return;
         }
 
-        {
-            if self
-                .get_config(Config::ConfiguredAddr)
-                .await
-                .unwrap_or_default()
-                .filter(|s| s.ends_with(".testrun.org"))
-                .is_some()
-            {
-                let mut lock = self.ratelimit.write().await;
-                // Allow at least 1 message every second + a burst of 3.
-                *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
-            }
+        if self.is_chatmail().await.unwrap_or_default() {
+            let mut lock = self.ratelimit.write().await;
+            // Allow at least 1 message every second + a burst of 3.
+            *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
         }
         self.scheduler.start(self.clone()).await;
     }
@@ -499,6 +491,11 @@ impl Context {
             iroh.network_change().await;
         }
         self.scheduler.maybe_network().await;
+    }
+
+    /// Returns true if an account is on a chatmail server.
+    pub async fn is_chatmail(&self) -> Result<bool> {
+        self.get_config_bool(Config::IsChatmail).await
     }
 
     /// Does a background fetch
@@ -806,6 +803,8 @@ impl Context {
         if let Some(server_id) = &*self.server_id.read().await {
             res.insert("imap_server_id", format!("{server_id:?}"));
         }
+
+        res.insert("is_chatmail", self.is_chatmail().await?.to_string());
 
         if let Some(metadata) = &*self.metadata.read().await {
             if let Some(comment) = &metadata.comment {

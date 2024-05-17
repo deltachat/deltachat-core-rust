@@ -680,9 +680,9 @@ checksum = "78a6932c88f1d2c29533a3b8a5f5a2f84cc19c3339b431677c3160c5c2e6ca85"
 
 [[package]]
 name = "brotli"
-version = "5.0.0"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19483b140a7ac7174d34b5a581b406c64f84da5409d3e09cf4fff604f9270e67"
+checksum = "74f7971dbd9326d58187408ab83117d8ac1bb9c17b085fdacd1cf2f598719b6b"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.138.0"
+version = "1.138.5"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1449,13 +1449,14 @@ dependencies = [
 
 [[package]]
 name = "deltachat-jsonrpc"
-version = "1.138.0"
+version = "1.138.5"
 dependencies = [
  "anyhow",
  "async-channel 2.2.1",
  "axum",
  "base64 0.22.1",
  "deltachat",
+ "deltachat-contact-tools",
  "env_logger 0.11.3",
  "futures",
  "log",
@@ -1473,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-repl"
-version = "1.138.0"
+version = "1.138.5"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1488,7 +1489,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-rpc-server"
-version = "1.138.0"
+version = "1.138.5"
 dependencies = [
  "anyhow",
  "deltachat",
@@ -1517,7 +1518,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.138.0"
+version = "1.138.5"
 dependencies = [
  "anyhow",
  "deltachat",
@@ -2805,9 +2806,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-resolver"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35b8f021164e6a984c9030023544c57789c51760065cd510572fedcfb04164e8"
+checksum = "28757f23aa75c98f254cf0405e6d8c25b831b32921b050a66692427679b1f243"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2954,9 +2955,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "human-panic"
-version = "1.2.3"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4f016c89920bbb30951a8405ecacbb4540db5524313b9445736e7e1855cf370"
+checksum = "a4c5d0e9120f6bca6120d142c7ede1ba376dd6bf276d69dd3dbe6cbeb7824179"
 dependencies = [
  "backtrace",
  "os_info",
@@ -4298,9 +4299,9 @@ checksum = "bb813b8af86854136c6922af0598d719255ecb2179515e6e7730d468f05c9cae"
 
 [[package]]
 name = "parking_lot"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3742b2c103b9f06bc9fff0a37ff4912935851bee6d36f3c02bcc755bcfec228f"
+checksum = "7e4af0ca4f6caed20e900d564c242b8e5d4903fdacf31d3daf527b66fe6f42fb"
 dependencies = [
  "lock_api",
  "parking_lot_core",
@@ -5807,9 +5808,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.115"
+version = "1.0.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12dc5c46daa8e9fdf4f5e71b6cf9a53f2487da0e86e55808e2d35539666497dd"
+checksum = "3e17db7126d17feb94eb3fad46bf1a96b034e8aacbc2e775fe81505f8b0b2813"
 dependencies = [
  "itoa",
  "ryu",

@@ -1416,8 +1416,8 @@ pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
         "tif" => (Viewtype::File, "image/tiff"),
         "ttf" => (Viewtype::File, "font/ttf"),
         "txt" => (Viewtype::File, "text/plain"),
-        "vcard" => (Viewtype::File, "text/vcard"),
-        "vcf" => (Viewtype::File, "text/vcard"),
+        "vcard" => (Viewtype::Vcard, "text/vcard"),
+        "vcf" => (Viewtype::Vcard, "text/vcard"),
         "wav" => (Viewtype::File, "audio/wav"),
         "weba" => (Viewtype::File, "audio/webm"),
         "webm" => (Viewtype::Video, "video/webm"),
@@ -1938,7 +1938,8 @@ pub enum Viewtype {
     Text = 10,
 
     /// Image message.
-    /// If the image is an animated GIF, the type DC_MSG_GIF should be used.
+    /// If the image is a GIF and has the appropriate extension, the viewtype is auto-changed to
+    /// `Gif` when sending the message.
     /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
     /// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
     Image = 20,
@@ -1982,6 +1983,11 @@ pub enum Viewtype {
 
     /// Message is an webxdc instance.
     Webxdc = 80,
+
+    /// Message containing shared contacts represented as a vCard (virtual contact file)
+    /// with email addresses and possibly other fields.
+    /// Use `parse_vcard()` to retrieve them.
+    Vcard = 90,
 }
 
 impl Viewtype {
@@ -1999,6 +2005,7 @@ impl Viewtype {
             Viewtype::File => true,
             Viewtype::VideochatInvitation => false,
             Viewtype::Webxdc => true,
+            Viewtype::Vcard => true,
         }
     }
 }
@@ -2512,6 +2519,7 @@ mod tests {
             Viewtype::from_i32(70).unwrap()
         );
         assert_eq!(Viewtype::Webxdc, Viewtype::from_i32(80).unwrap());
+        assert_eq!(Viewtype::Vcard, Viewtype::from_i32(90).unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
