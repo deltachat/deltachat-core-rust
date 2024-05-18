@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.139.0] - 2024-05-18
+
+### Features / Changes
+
+- Ephemeral peer channels ([#5346](https://github.com/deltachat/deltachat-core-rust/pull/5346)).
+
+### Fixes
+
+- Save override sender displayname for outgoing messages.
+- Do not mark the message as seen if it has `location.kml`.
+- @deltachat/stdio-rpc-server: fix version check when deltachat-rpc-server is found in path ([#5579](https://github.com/deltachat/deltachat-core-rust/pull/5579)).
+- @deltachat/stdio-rpc-server: fix local desktop development ([#5583](https://github.com/deltachat/deltachat-core-rust/pull/5583)).
+- @deltachat/stdio-rpc-server: rename `shutdown` method to `close` and add `muteStdErr` option to mute the stderr output ([#5588](https://github.com/deltachat/deltachat-core-rust/pull/5588))
+- @deltachat/stdio-rpc-server: fix `convert_platform.py`: 32bit `i32` -> `ia32` ([#5589](https://github.com/deltachat/deltachat-core-rust/pull/5589))
+- @deltachat/stdio-rpc-server: fix example ([#5580](https://github.com/deltachat/deltachat-core-rust/pull/5580))
+
+### API-Changes
+
+- deltachat-jsonrpc: Return vcard contact directly in MessageObject.
+- deltachat-jsonrpc: Add api `migrate_account` and `get_blob_dir` ([#5584](https://github.com/deltachat/deltachat-core-rust/pull/5584)).
+- deltachat-rpc-client: Add ViewType.VCARD constant.
+- deltachat-rpc-client: Add Contact.make_vcard().
+- deltachat-rpc-client: Add Chat.send_contact().
+
+### CI
+
+- Publish @deltachat/jsonrpc-client directly to npm.
+- Check that constants are always up-to-date.
+
+### Build system
+
+- nix: Add git-cliff to flake.
+- nix: Use rust-analyzer nightly
+
+### Miscellaneous Tasks
+
+- cargo: Downgrade libc from 0.2.154 to 0.2.153.
+
+### Tests
+
+- deltachat-rpc-client: Test sending vCard.
+
 ## [1.138.5] - 2024-05-16
 
 ### API-Changes
@@ -4165,3 +4207,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.138.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.2...v1.138.3
 [1.138.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.3...v1.138.4
 [1.138.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.4...v1.138.5
+[1.139.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.5...v1.139.0
