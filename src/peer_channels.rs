@@ -25,6 +25,7 @@
 
 use anyhow::{anyhow, Context as _, Result};
 use email::Header;
+use futures_lite::StreamExt;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::relay::{RelayMap, RelayUrl};
@@ -120,6 +121,21 @@ impl Iroh {
             .insert(topic, ChannelState::new(seq, subscribe_loop));
 
         Ok(Some(connect_future))
+    }
+
+    /// Add gossip peers to realtime channel if it is already active.
+    pub async fn maybe_add_gossip_peers(&self, topic: TopicId, peers: Vec<NodeAddr>) -> Result<()> {
+        if let Some(state) = self.iroh_channels.read().await.get(&topic) {
+            if state.subscribe_loop.is_some() {
+                for peer in &peers {
+                    self.endpoint.add_node_addr(peer.clone())?;
+                }
+                self.gossip
+                    .join(topic, peers.into_iter().map(|peer| peer.node_id).collect())
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     /// Send realtime data to the gossip swarm.
