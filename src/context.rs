@@ -338,45 +338,8 @@ impl Context {
         events: Events,
         stock_strings: StockStrings,
     ) -> Result<Context> {
-        // set the RUST_LOG env var to one of {debug,info,warn} to see logging info
-        struct DeltaLayer(Context);
-
-        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for DeltaLayer {
-            fn on_event(
-                &self,
-                event: &tracing::Event<'_>,
-                _ctx: tracing_subscriber::layer::Context<'_, S>,
-            ) {
-                let mut visitor = CollectVisitor::default();
-                event.record(&mut visitor);
-
-                use tracing::Level;
-
-                let out_event = if event.metadata().level() == &Level::WARN {
-                    EventType::Warning(format!("{:?}", visitor))
-                } else if event.metadata().level() == &Level::ERROR {
-                    EventType::Error(format!("{:?}", visitor))
-                } else {
-                    EventType::Info(format!("{:?}", visitor))
-                };
-
-                self.0.emit_event(out_event);
-            }
-        }
-
         let context =
             Self::new_closed(dbfile, id, events, stock_strings, Default::default()).await?;
-
-        tracing_subscriber::registry()
-            // .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
-            .with(DeltaLayer(context.clone()))
-            .with(
-                EnvFilter::builder()
-                    .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
-                    .from_env_lossy(),
-            )
-            .try_init()
-            .ok();
         // Open the database if is not encrypted.
         if context.check_passphrase("".to_string()).await? {
             context.sql.open(&context, "".to_string()).await?;
@@ -492,6 +455,17 @@ impl Context {
         let ctx = Context {
             inner: Arc::new(inner),
         };
+
+        tracing_subscriber::registry()
+            // .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+            .with(DeltaLayer(ctx.clone()))
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
+                    .from_env_lossy(),
+            )
+            .try_init()
+            .ok();
 
         Ok(ctx)
     }
@@ -1447,6 +1421,32 @@ impl tracing::field::Visit for CollectVisitor {
 
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         self.0.insert(field.to_string(), format!("{:?}", value));
+    }
+}
+
+// set the RUST_LOG env var to one of {debug,info,warn} to see logging info
+struct DeltaLayer(Context);
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for DeltaLayer {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let mut visitor = CollectVisitor::default();
+        event.record(&mut visitor);
+
+        use tracing::Level;
+
+        let out_event = if event.metadata().level() == &Level::WARN {
+            EventType::Warning(format!("{:?}", visitor))
+        } else if event.metadata().level() == &Level::ERROR {
+            EventType::Error(format!("{:?}", visitor))
+        } else {
+            EventType::Info(format!("{:?}", visitor))
+        };
+
+        self.0.emit_event(out_event);
     }
 }
 
