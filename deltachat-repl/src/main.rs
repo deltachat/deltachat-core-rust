@@ -32,6 +32,7 @@ use rustyline::{
 };
 use tokio::fs;
 use tokio::runtime::Handle;
+use tracing_subscriber::EnvFilter;
 
 mod cmdline;
 use self::cmdline::*;
@@ -483,9 +484,10 @@ async fn handle_cmd(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    pretty_env_logger::formatted_timed_builder()
-        .parse_default_env()
-        .filter_module("deltachat_repl", log::LevelFilter::Info)
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env().add_directive("deltachat_repl=info".parse()?),
+        )
         .init();
 
     let args = std::env::args().collect();
