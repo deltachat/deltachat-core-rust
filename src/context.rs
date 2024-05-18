@@ -340,7 +340,7 @@ impl Context {
     ) -> Result<Context> {
         // set the RUST_LOG env var to one of {debug,info,warn} to see logging info
         tracing_subscriber::registry()
-            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
             .with(
                 EnvFilter::builder()
                     .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
