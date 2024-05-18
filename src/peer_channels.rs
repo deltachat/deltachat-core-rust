@@ -786,6 +786,7 @@ mod tests {
         alice.recv_msg_trash(&bob_advertisement).await;
 
         // Alice sends ephemeral message
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         eprintln!("Sending ephemeral message");
         send_webxdc_realtime_data(alice, alice_webxdc.id, b"alice -> bob".into())
             .await
