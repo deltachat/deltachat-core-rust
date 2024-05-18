@@ -11,6 +11,7 @@ use deltachat::constants::DC_VERSION_STR;
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use tracing_subscriber::EnvFilter;
 use yerpc::RpcServer as _;
 
 #[cfg(target_family = "unix")]
@@ -60,7 +61,13 @@ async fn main_impl() -> Result<()> {
     #[cfg(target_family = "unix")]
     let mut sigterm = signal_unix::signal(signal_unix::SignalKind::terminate())?;
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Logs from `log` crate and traces from `tracing` crate
+    // are configurable with `RUST_LOG` environment variable
+    // and go to stderr to avoid interferring with JSON-RPC using stdout.
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_writer(std::io::stderr)
+        .init();
 
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());
     log::info!("Starting with accounts directory `{}`.", path);

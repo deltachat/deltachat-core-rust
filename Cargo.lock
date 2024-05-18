@@ -1395,7 +1395,6 @@ dependencies = [
  "percent-encoding",
  "pgp",
  "pretty_assertions",
- "pretty_env_logger",
  "proptest",
  "qrcodegen",
  "quick-xml",
@@ -1451,7 +1450,7 @@ dependencies = [
  "base64 0.22.1",
  "deltachat",
  "deltachat-contact-tools",
- "env_logger 0.11.3",
+ "env_logger",
  "futures",
  "log",
  "num-traits",
@@ -1475,10 +1474,10 @@ dependencies = [
  "deltachat",
  "dirs",
  "log",
- "pretty_env_logger",
  "rusqlite",
  "rustyline",
  "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1488,13 +1487,13 @@ dependencies = [
  "anyhow",
  "deltachat",
  "deltachat-jsonrpc",
- "env_logger 0.11.3",
  "futures-lite 2.3.0",
  "log",
  "serde",
  "serde_json",
  "tokio",
  "tokio-util",
+ "tracing-subscriber",
  "yerpc",
 ]
 
@@ -2148,19 +2147,6 @@ checksum = "a009aa4810eb158359dda09d0c87378e4bbb89b5a801f016885a4707ba24f7ea"
 dependencies = [
  "log",
  "regex",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
 ]
 
 [[package]]
@@ -4760,16 +4746,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pretty_env_logger"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "865724d4dbe39d9f3dd3b52b88d859d66bcb2d6a0acfd5ea68a65fb66d4bdc1c"
-dependencies = [
- "env_logger 0.10.2",
- "log",
-]
-
-[[package]]
 name = "primeorder"
 version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6379,15 +6355,6 @@ dependencies = [
  "fastrand 2.0.1",
  "rustix",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "termcolor"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
-dependencies = [
- "winapi-util",
 ]
 
 [[package]]
