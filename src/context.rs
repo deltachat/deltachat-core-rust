@@ -457,7 +457,7 @@ impl Context {
         };
 
         tracing_subscriber::registry()
-            // .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
             .with(DeltaLayer(ctx.clone()))
             .with(
                 EnvFilter::builder()
