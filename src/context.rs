@@ -339,8 +339,37 @@ impl Context {
         stock_strings: StockStrings,
     ) -> Result<Context> {
         // set the RUST_LOG env var to one of {debug,info,warn} to see logging info
+        struct DeltaLayer(Context);
+
+        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for DeltaLayer {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _ctx: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                let mut visitor = CollectVisitor::default();
+                event.record(&mut visitor);
+
+                use tracing::Level;
+
+                let out_event = if event.metadata().level() == &Level::WARN {
+                    EventType::Warning(format!("{:?}", visitor))
+                } else if event.metadata().level() == &Level::ERROR {
+                    EventType::Error(format!("{:?}", visitor))
+                } else {
+                    EventType::Info(format!("{:?}", visitor))
+                };
+
+                self.0.emit_event(out_event);
+            }
+        }
+
+        let context =
+            Self::new_closed(dbfile, id, events, stock_strings, Default::default()).await?;
+
         tracing_subscriber::registry()
-            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+            // .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+            .with(DeltaLayer(context.clone()))
             .with(
                 EnvFilter::builder()
                     .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
@@ -348,10 +377,6 @@ impl Context {
             )
             .try_init()
             .ok();
-
-        let context =
-            Self::new_closed(dbfile, id, events, stock_strings, Default::default()).await?;
-
         // Open the database if is not encrypted.
         if context.check_passphrase("".to_string()).await? {
             context.sql.open(&context, "".to_string()).await?;
@@ -1386,6 +1411,43 @@ impl Context {
 /// Returns core version as a string.
 pub fn get_version_str() -> &'static str {
     &DC_VERSION_STR
+}
+
+#[derive(Default, Debug)]
+struct CollectVisitor(HashMap<String, String>);
+
+impl tracing::field::Visit for CollectVisitor {
+    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
+        self.0.insert(field.to_string(), value.to_string());
+    }
+
+    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+        self.0.insert(field.to_string(), value.to_string());
+    }
+
+    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+        self.0.insert(field.to_string(), value.to_string());
+    }
+
+    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
+        self.0.insert(field.to_string(), value.to_string());
+    }
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        self.0.insert(field.to_string(), value.to_string());
+    }
+
+    fn record_error(
+        &mut self,
+        field: &tracing::field::Field,
+        value: &(dyn std::error::Error + 'static),
+    ) {
+        self.0.insert(field.to_string(), value.to_string());
+    }
+
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        self.0.insert(field.to_string(), format!("{:?}", value));
+    }
 }
 
 #[cfg(test)]

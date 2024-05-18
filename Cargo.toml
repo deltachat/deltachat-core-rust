@@ -113,6 +113,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # According to <https://www.openssl.org/policies/releasestrat.html>
 # 3.1 branch will be supported until 2025-03-14.
 openssl-src = "~300.1"
+tracing = "0.1.40"
 
 
 [dev-dependencies]
