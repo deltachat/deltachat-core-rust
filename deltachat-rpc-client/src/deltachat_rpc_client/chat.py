@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
+from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Optional, Union
 
 from ._utils import AttrDict
@@ -265,3 +266,11 @@ class Chat:
             location["message"] = Message(self.account, location.msg_id)
             locations.append(location)
         return locations
+
+    def send_contact(self, contact: Contact):
+        """Send contact to the chat."""
+        vcard = contact.make_vcard()
+        with NamedTemporaryFile(suffix=".vcard") as f:
+            f.write(vcard.encode())
+            f.flush()
+            self._rpc.send_msg(self.account.id, self.id, {"viewtype": ViewType.VCARD, "file": f.name})
