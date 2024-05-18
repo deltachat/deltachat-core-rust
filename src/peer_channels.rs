@@ -90,6 +90,7 @@ impl Iroh {
             0
         };
 
+        let mut channels = self.iroh_channels.write().await;
         let peers = get_iroh_gossip_peers(ctx, msg_id).await?;
         info!(
             ctx,
@@ -115,10 +116,7 @@ impl Iroh {
             .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
             .await?;
 
-        self.iroh_channels
-            .write()
-            .await
-            .insert(topic, ChannelState::new(seq, subscribe_loop));
+        channels.insert(topic, ChannelState::new(seq, subscribe_loop));
 
         Ok(Some(connect_future))
     }
