@@ -3088,4 +3088,56 @@ Until the false-positive is fixed:
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_import_vcard_updates_only_key() -> Result<()> {
+        let alice = &TestContext::new_alice().await;
+        let bob = &TestContext::new_bob().await;
+        let bob_addr = &bob.get_config(Config::Addr).await?.unwrap();
+        bob.set_config(Config::Displayname, Some("Bob")).await?;
+        let vcard = make_vcard(bob, &[ContactId::SELF]).await?;
+        alice.evtracker.clear_events();
+        let alice_bob_id = import_vcard(alice, &vcard).await?[0];
+        let ev = alice
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ContactsChanged { .. }))
+            .await;
+        assert_eq!(ev, EventType::ContactsChanged(Some(alice_bob_id)));
+        let chat_id = ChatId::create_for_contact(alice, alice_bob_id).await?;
+        let sent_msg = alice.send_text(chat_id, "moin").await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert!(msg.get_showpadlock());
+
+        let bob = &TestContext::new().await;
+        bob.configure_addr(bob_addr).await;
+        bob.set_config(Config::Displayname, Some("Not Bob")).await?;
+        let avatar_path = bob.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        tokio::fs::write(&avatar_path, avatar_bytes).await?;
+        bob.set_config(Config::Selfavatar, Some(avatar_path.to_str().unwrap()))
+            .await?;
+        SystemTime::shift(Duration::from_secs(1));
+        let vcard1 = make_vcard(bob, &[ContactId::SELF]).await?;
+        assert_eq!(import_vcard(alice, &vcard1).await?, vec![alice_bob_id]);
+        let alice_bob_contact = Contact::get_by_id(alice, alice_bob_id).await?;
+        assert_eq!(alice_bob_contact.get_authname(), "Bob");
+        assert_eq!(alice_bob_contact.get_profile_image(alice).await?, None);
+        let msg = alice.get_last_msg_in(chat_id).await;
+        assert!(msg.is_info());
+        assert_eq!(
+            msg.get_text(),
+            stock_str::contact_setup_changed(alice, bob_addr).await
+        );
+        let sent_msg = alice.send_text(chat_id, "moin").await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert!(msg.get_showpadlock());
+
+        // The old vCard is imported, but doesn't change Bob's key for Alice.
+        import_vcard(alice, &vcard).await?.first().unwrap();
+        let sent_msg = alice.send_text(chat_id, "moin").await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert!(msg.get_showpadlock());
+
+        Ok(())
+    }
 }
