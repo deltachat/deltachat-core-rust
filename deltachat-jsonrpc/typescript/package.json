@@ -1,9 +1,5 @@
 {
   "author": "Delta Chat Developers (ML) <delta@codespeak.net>",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/deltachat/deltachat-core-rust.git"
-  },
   "dependencies": {
     "@deltachat/tiny-emitter": "3.0.0",
     "isomorphic-ws": "^4.0.1",
@@ -36,6 +32,10 @@
   "license": "MPL-2.0",
   "main": "dist/deltachat.js",
   "name": "@deltachat/jsonrpc-client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deltachat/deltachat-core-rust.git"
+  },
   "scripts": {
     "build": "run-s generate-bindings extract-constants build:tsc build:bundle build:cjs",
     "build:bundle": "esbuild --format=esm --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
@@ -58,5 +58,5 @@
   },
   "type": "module",
   "types": "dist/deltachat.d.ts",
-  "version": "1.139.1"
+  "version": "1.139.2"
 }
