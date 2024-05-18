@@ -20,7 +20,9 @@ import { C } from "@deltachat/jsonrpc-client";
 async function main() {
     const dc = await startDeltaChat("deltachat-data");
     console.log(await dc.rpc.getSystemInfo());
+    dc.close()
 }
+main()
 ```
 
 For a more complete example refer to https://github.com/deltachat-bot/echo/pull/69/files (TODO change link when pr is merged).
