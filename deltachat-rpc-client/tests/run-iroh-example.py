@@ -48,19 +48,18 @@ def test_basic_iroh_jsonrpc(acfactory, path_to_webxdc):
     # send iroh announcements
     log("sending ac1 -> ac2 realtime advertisement")
     ac1._rpc.send_webxdc_realtime_advertisement(ac1.id, ac1_webxdc_msg.id)
+    log("sending additinal messdage ac1 -> ac2")
     acfactory.send_message(from_account=ac1, to_account=ac2, text="ping1")
     log("sending ac2 -> ac1 realtime advertisement")
     ac2._rpc.send_webxdc_realtime_advertisement(ac2.id, ac2_webxdc_msg.id)
+    log("sending additinal messdage ac2 -> ac1")
     acfactory.send_message(from_account=ac2, to_account=ac1, text="ping2")
+    log("waiting for incoming message on ac2")
     snapshot = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "ping1"
+    log("waiting for incoming message on ac1")
     snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "ping2"
-
-    # send realtime data
-    for i in range(2):
-        print("sleeping waiting")
-        time.sleep(1)
 
     log("sending realtime data ac1 -> ac2")
     ac1._rpc.send_webxdc_realtime_data(ac1.id, ac1_webxdc_msg.id, [13, 15, 17])
@@ -68,8 +67,7 @@ def test_basic_iroh_jsonrpc(acfactory, path_to_webxdc):
     while 1:
         event = ac2.wait_for_event()
         if event.kind == EventType.WEBXDC_REALTIME_DATA:
-            assert 0
-        else:
-            log(f"ignoring {event.kind}")
-
-    assert 0, "fail"
+            assert event.data == [13, 15, 17]
+            break
+        #else:
+        #    log(f"ignoring {event.kind}")

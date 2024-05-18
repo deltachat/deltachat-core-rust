@@ -248,8 +248,7 @@ impl Context {
                 gsp.update_endpoints(&endpoints)?;
             }
             anyhow::Ok(())
-        })
-        .await??;
+        });
         Ok(Iroh {
             endpoint,
             gossip,
