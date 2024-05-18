@@ -33,6 +33,6 @@ jobs:
 
       - name: Publish
         working-directory: deltachat-jsonrpc/typescript
-        run: npm publish --provenance deltachat-jsonrpc-client-*
+        run: npm publish --provenance deltachat-jsonrpc-client-* --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

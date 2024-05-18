@@ -401,6 +401,6 @@ jobs:
         working-directory: deltachat-rpc-server/npm-package
         run: |
           ls -lah platform_package
-          for platform in *.tgz; do npm publish --provenance "$platform"; done
+          for platform in *.tgz; do npm publish --provenance "$platform" --access public; done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
