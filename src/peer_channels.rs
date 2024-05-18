@@ -456,13 +456,10 @@ async fn subscribe_loop(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
         chat::send_msg,
         message::{Message, Viewtype},
-        peer_channels::{
-            get_iroh_gossip_peers, get_iroh_topic_for_msg, leave_webxdc_realtime,
-            send_webxdc_realtime_advertisement,
-        },
         test_utils::TestContextManager,
         EventType,
     };
