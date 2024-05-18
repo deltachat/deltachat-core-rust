@@ -46,19 +46,18 @@ def test_basic_iroh_jsonrpc(acfactory, path_to_webxdc):
     assert snapshot.text == "play"
 
     # send iroh announcements
-    log("sending ac1 -> ac2 realtime advertisement")
+    log("sending ac1 -> ac2 realtime advertisement and additional message")
     ac1._rpc.send_webxdc_realtime_advertisement(ac1.id, ac1_webxdc_msg.id)
-    log("sending additinal messdage ac1 -> ac2")
     acfactory.send_message(from_account=ac1, to_account=ac2, text="ping1")
 
     log("waiting for incoming message on ac2")
     snapshot = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "ping1"
 
-    log("sending ac2 -> ac1 realtime advertisement")
+    log("sending ac2 -> ac1 realtime advertisement and additional message")
     ac2._rpc.send_webxdc_realtime_advertisement(ac2.id, ac2_webxdc_msg.id)
-    log("sending additinal messdage ac2 -> ac1")
     acfactory.send_message(from_account=ac2, to_account=ac1, text="ping2")
+
     log("waiting for incoming message on ac1")
     snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "ping2"
