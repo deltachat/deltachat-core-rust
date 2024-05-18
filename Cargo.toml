@@ -104,7 +104,6 @@ tokio-util = "0.7.9"
 toml = "0.8"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Pin OpenSSL to 3.1 releases.
 # OpenSSL 3.2 has a regression tracked at <https://github.com/openssl/openssl/issues/23376>

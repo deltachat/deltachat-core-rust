@@ -11,6 +11,7 @@ use deltachat::constants::DC_VERSION_STR;
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use tracing_subscriber::{prelude::*, EnvFilter};
 use yerpc::RpcServer as _;
 
 #[cfg(target_family = "unix")]
@@ -61,6 +62,16 @@ async fn main_impl() -> Result<()> {
     let mut sigterm = signal_unix::signal(signal_unix::SignalKind::terminate())?;
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .try_init()
+        .ok();
 
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());
     log::info!("Starting with accounts directory `{}`.", path);
