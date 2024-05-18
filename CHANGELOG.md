@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.139.1] - 2024-05-18
+
+### CI
+
+- Set `--access public` when publishing to npm.
+
 ## [1.139.0] - 2024-05-18
 
 ### Features / Changes
@@ -4208,3 +4214,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.138.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.3...v1.138.4
 [1.138.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.4...v1.138.5
 [1.139.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.5...v1.139.0
+[1.139.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.0...v1.139.1
