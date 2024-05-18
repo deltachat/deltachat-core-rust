@@ -297,6 +297,12 @@ class Account:
             if event.kind == EventType.INCOMING_MSG:
                 return event
 
+    def wait_for_incoming_msg(self):
+        """Wait for incoming message and return it.
+
+        Consumes all events before the next incoming message event."""
+        return self.get_message_by_id(self.wait_for_incoming_msg_event().msg_id)
+
     def wait_for_securejoin_inviter_success(self):
         while True:
             event = self.wait_for_event()

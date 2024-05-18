@@ -126,8 +126,7 @@ def test_download_on_demand(acfactory: ACFactory) -> None:
 
     alice.set_config("download_limit", "1")
 
-    event = bob.wait_for_incoming_msg_event()
-    msg = bob.get_message_by_id(event.msg_id)
+    msg = bob.wait_for_incoming_msg()
     chat_id = msg.get_snapshot().chat_id
     msg.get_snapshot().chat.accept()
     bob.get_chat_by_id(chat_id).send_message(
@@ -135,13 +134,15 @@ def test_download_on_demand(acfactory: ACFactory) -> None:
         html=base64.b64encode(os.urandom(300000)).decode("utf-8"),
     )
 
-    msg_id = alice.wait_for_incoming_msg_event().msg_id
-
-    assert alice.get_message_by_id(msg_id).get_snapshot().download_state == const.DownloadState.AVAILABLE
+    message = alice.wait_for_incoming_msg()
+    snapshot = message.get_snapshot()
+    assert snapshot.download_state == const.DownloadState.AVAILABLE
 
     alice.clear_all_events()
-    chat_id = alice.get_message_by_id(msg_id).get_snapshot().chat_id
-    alice._rpc.download_full_message(alice.id, msg_id)
+
+    snapshot = message.get_snapshot()
+    chat_id = snapshot.chat_id
+    alice._rpc.download_full_message(alice.id, message.id)
 
     wait_for_chatlist_specific_item(alice, chat_id)
 
@@ -177,8 +178,7 @@ def test_imap_sync_seen_msgs(acfactory: ACFactory) -> None:
 
     alice_chat_bob.send_text("hello")
 
-    event = bob.wait_for_incoming_msg_event()
-    msg = bob.get_message_by_id(event.msg_id)
+    msg = bob.wait_for_incoming_msg()
     bob_chat_id = msg.get_snapshot().chat_id
     msg.get_snapshot().chat.accept()
 
@@ -189,8 +189,7 @@ def test_imap_sync_seen_msgs(acfactory: ACFactory) -> None:
     # make sure alice_second_device already received the message
     alice_second_device.wait_for_incoming_msg_event()
 
-    event = alice.wait_for_incoming_msg_event()
-    msg = alice.get_message_by_id(event.msg_id)
+    msg = alice.wait_for_incoming_msg()
     alice_second_device.clear_all_events()
     msg.mark_seen()
 
