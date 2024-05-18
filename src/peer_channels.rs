@@ -101,11 +101,6 @@ impl Iroh {
             self.endpoint.add_node_addr(peer.clone())?;
         }
 
-        let connect_future = self
-            .gossip
-            .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
-            .await?;
-
         let ctx = ctx.clone();
         let gossip = self.gossip.clone();
         let subscribe_loop = tokio::spawn(async move {
@@ -113,6 +108,11 @@ impl Iroh {
                 warn!(ctx, "subscribe_loop failed: {e}")
             }
         });
+
+        let connect_future = self
+            .gossip
+            .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
+            .await?;
 
         self.iroh_channels
             .write()
