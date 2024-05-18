@@ -192,9 +192,13 @@ pub async fn make_vcard(context: &Context, contacts: &[ContactId]) -> Result<Str
     let mut vcard_contacts = Vec::with_capacity(contacts.len());
     for id in contacts {
         let c = Contact::get_by_id(context, *id).await?;
-        let key = Peerstate::from_addr(context, &c.addr)
-            .await?
-            .and_then(|peerstate| peerstate.peek_key(false).map(|k| k.to_base64()));
+        let key = match *id {
+            ContactId::SELF => Some(load_self_public_key(context).await?),
+            _ => Peerstate::from_addr(context, &c.addr)
+                .await?
+                .and_then(|peerstate| peerstate.take_key(false)),
+        };
+        let key = key.map(|k| k.to_base64());
         let profile_image = match c.get_profile_image(context).await? {
             None => None,
             Some(path) => tokio::fs::read(path)
@@ -543,6 +547,10 @@ impl Contact {
         {
             if contact_id == ContactId::SELF {
                 contact.name = stock_str::self_msg(context).await;
+                contact.authname = context
+                    .get_config(Config::Displayname)
+                    .await?
+                    .unwrap_or_default();
                 contact.addr = context
                     .get_config(Config::ConfiguredAddr)
                     .await?
