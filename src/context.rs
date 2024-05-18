@@ -457,8 +457,8 @@ impl Context {
         };
 
         tracing_subscriber::registry()
-            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
-            .with(DeltaLayer(ctx.clone()))
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+            // .with(DeltaLayer(ctx.clone()))
             .with(
                 EnvFilter::builder()
                     .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
