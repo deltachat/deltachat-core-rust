@@ -1587,9 +1587,8 @@ impl MimeMessage {
                 .get_header_value(HeaderDef::MessageId)
                 .and_then(|v| parse_message_id(&v).ok())
             {
-                let mut to_list = get_all_addresses_from_header(&report.headers, |header_key| {
-                    header_key == "x-failed-recipients"
-                });
+                let mut to_list =
+                    get_all_addresses_from_header(&report.headers, "x-failed-recipients");
                 let to = if to_list.len() == 1 {
                     Some(to_list.pop().unwrap())
                 } else {
@@ -2056,36 +2055,48 @@ fn get_attachment_filename(
 
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
-    get_all_addresses_from_header(headers, |header_key| {
-        header_key == "to" || header_key == "cc"
-    })
+    let to_addresses = get_all_addresses_from_header(headers, "to");
+    let cc_addresses = get_all_addresses_from_header(headers, "cc");
+
+    let mut res = to_addresses;
+    res.extend(cc_addresses);
+    res
 }
 
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_from(headers: &[MailHeader]) -> Option<SingleInfo> {
-    let all = get_all_addresses_from_header(headers, |header_key| header_key == "from");
+    let all = get_all_addresses_from_header(headers, "from");
     tools::single_value(all)
 }
 
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_list_post(headers: &[MailHeader]) -> Option<String> {
-    get_all_addresses_from_header(headers, |header_key| header_key == "list-post")
+    get_all_addresses_from_header(headers, "list-post")
         .into_iter()
         .next()
         .map(|s| s.addr)
 }
 
-fn get_all_addresses_from_header(
-    headers: &[MailHeader],
-    pred: fn(String) -> bool,
-) -> Vec<SingleInfo> {
+/// Extracts all addresses from the header named `header`.
+///
+/// If multiple headers with the same name are present,
+/// the last one is taken.
+/// This is because DKIM-Signatures apply to the last
+/// headers, and more headers may be added
+/// to the beginning of the messages
+/// without invalidating the signature
+/// unless the header is "oversigned",
+/// i.e. included in the signature more times
+/// than it appears in the mail.
+fn get_all_addresses_from_header(headers: &[MailHeader], header: &str) -> Vec<SingleInfo> {
     let mut result: Vec<SingleInfo> = Default::default();
 
-    headers
+    if let Some(header) = headers
         .iter()
-        .filter(|header| pred(header.get_key().to_lowercase()))
-        .filter_map(|header| mailparse::addrparse_header(header).ok())
-        .for_each(|addrs| {
+        .rev()
+        .find(|h| h.get_key().to_lowercase() == header)
+    {
+        if let Ok(addrs) = mailparse::addrparse_header(header) {
             for addr in addrs.iter() {
                 match addr {
                     mailparse::MailAddr::Single(ref info) => {
@@ -2104,7 +2115,8 @@ fn get_all_addresses_from_header(
                     }
                 }
             }
-        });
+        }
+    }
 
     result
 }
@@ -2404,6 +2416,22 @@ mod tests {
         assert!(recipients.iter().any(|info| info.addr == "abc@bcd.com"));
         assert!(recipients.iter().any(|info| info.addr == "def@def.de"));
         assert_eq!(recipients.len(), 2);
+
+        // If some header is present multiple times,
+        // only the last one must be used.
+        let raw = b"From: alice@example.org\n\
+                    TO: mallory@example.com\n\
+                    To: mallory@example.net\n\
+                    To: bob@example.net\n\
+                    Content-Type: text/plain\n\
+                    Chat-Version: 1.0\n\
+                    \n\
+                    Hello\n\
+                    ";
+        let mail = mailparse::parse_mail(&raw[..]).unwrap();
+        let recipients = get_recipients(&mail.headers);
+        assert!(recipients.iter().any(|info| info.addr == "bob@example.net"));
+        assert_eq!(recipients.len(), 1);
     }
 
     #[test]
@@ -3985,5 +4013,44 @@ Content-Type: text/plain; charset=utf-8
         assert_eq!(message.parts[0].typ, Viewtype::Text);
         // Not "Some subject – /help"
         assert_eq!(message.parts[0].msg, "/help");
+    }
+
+    /// Tests that Delta Chat takes the last header value
+    /// rather than the first one if multiple headers
+    /// are present.
+    ///
+    /// DKIM signature applies to the last N headers
+    /// if header name is included N times in
+    /// DKIM-Signature.
+    ///
+    /// If the client takes the first header
+    /// rather than the last, it can be fooled
+    /// into using unsigned header
+    /// when signed one is present
+    /// but not protected by oversigning.
+    ///
+    /// See
+    /// <https://www.zone.eu/blog/2024/05/17/bimi-and-dmarc-cant-save-you/>
+    /// for reference.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_take_last_header() {
+        let context = TestContext::new().await;
+
+        // Mallory added second From: header.
+        let raw = b"From: mallory@example.org\n\
+                    From: alice@example.org\n\
+                    Content-Type: text/plain\n\
+                    Chat-Version: 1.0\n\
+                    \n\
+                    Hello\n\
+                    ";
+
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+            .await
+            .unwrap();
+        assert_eq!(
+            mimeparser.get_header(HeaderDef::From_).unwrap(),
+            "alice@example.org"
+        );
     }
 }
