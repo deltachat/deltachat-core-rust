@@ -732,6 +732,18 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parallel_connect() {
+        use tracing_subscriber::{prelude::*, EnvFilter};
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+            // .with(DeltaLayer(ctx.clone()))
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
+                    .from_env_lossy(),
+            )
+            .try_init()
+            .ok();
+
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
