@@ -771,8 +771,9 @@ mod tests {
 
         eprintln!("Sending advertisements");
         // Alice advertises herself.
-        send_webxdc_realtime_advertisement(alice, alice_webxdc.id)
+        let alice_advertisement_future = send_webxdc_realtime_advertisement(alice, alice_webxdc.id)
             .await
+            .unwrap()
             .unwrap();
         let alice_advertisement = alice.pop_sent_msg().await;
 
@@ -785,8 +786,10 @@ mod tests {
         bob.recv_msg_trash(&alice_advertisement).await;
         alice.recv_msg_trash(&bob_advertisement).await;
 
+        eprintln!("Alice waits for connection");
+        alice_advertisement_future.await;
+
         // Alice sends ephemeral message
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         eprintln!("Sending ephemeral message");
         send_webxdc_realtime_data(alice, alice_webxdc.id, b"alice -> bob".into())
             .await
