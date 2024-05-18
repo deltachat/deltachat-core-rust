@@ -13,6 +13,7 @@ use async_channel::{self as channel, Receiver, Sender};
 use pgp::SignedPublicKey;
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, Notify, OnceCell, RwLock};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
@@ -337,6 +338,13 @@ impl Context {
         events: Events,
         stock_strings: StockStrings,
     ) -> Result<Context> {
+        // set the RUST_LOG env var to one of {debug,info,warn} to see logging info
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+            .with(EnvFilter::from_default_env())
+            .try_init()
+            .ok();
+
         let context =
             Self::new_closed(dbfile, id, events, stock_strings, Default::default()).await?;
 
