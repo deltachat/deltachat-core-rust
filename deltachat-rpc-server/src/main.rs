@@ -65,10 +65,7 @@ async fn main_impl() -> Result<()> {
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
-        .with(
-            EnvFilter::builder()
-                .from_env_lossy(),
-        )
+        .with(EnvFilter::builder().from_env_lossy())
         .try_init()
         .ok();
 
