@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Example echo bot without using hooks
+Testing webxdc iroh connectivity
+
+If you want to debug iroh at rust-trace/log level set
+
+    RUST_LOG=iroh_net=trace,iroh_gossip=trace
 """
 
 import pytest
@@ -15,9 +19,6 @@ import sys
 
 from deltachat_rpc_client import DeltaChat, EventType, SpecialContactId
 
-@pytest.fixture(scope="session", autouse=True)
-def _chatmailenv():
-    os.environ["CHATMAIL_DOMAIN"] = "nine.testrun.org"
 
 @pytest.fixture()
 def path_to_webxdc():
@@ -38,9 +39,7 @@ def test_basic_iroh_jsonrpc(acfactory, path_to_webxdc):
         print()
 
     # share a webxdc app between ac1 and ac2
-    ac1_webxdc_msg = acfactory.send_message(
-            from_account=ac1, to_account=ac2, text="play",
-            file=path_to_webxdc)
+    ac1_webxdc_msg = acfactory.send_message(from_account=ac1, to_account=ac2, text="play", file=path_to_webxdc)
     ac2_webxdc_msg = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id)
     snapshot = ac2_webxdc_msg.get_snapshot()
     assert snapshot.text == "play"
@@ -71,5 +70,5 @@ def test_basic_iroh_jsonrpc(acfactory, path_to_webxdc):
         if event.kind == EventType.WEBXDC_REALTIME_DATA:
             assert event.data == [13, 15, 17]
             break
-        #else:
+        # else:
         #    log(f"ignoring {event.kind}")
