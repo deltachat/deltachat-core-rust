@@ -67,7 +67,6 @@ async fn main_impl() -> Result<()> {
         .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .with(
             EnvFilter::builder()
-                .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
                 .from_env_lossy(),
         )
         .try_init()
