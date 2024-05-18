@@ -1,5 +1,9 @@
 {
   "author": "Delta Chat Developers (ML) <delta@codespeak.net>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deltachat/deltachat-core-rust.git"
+  },
   "dependencies": {
     "@deltachat/tiny-emitter": "3.0.0",
     "isomorphic-ws": "^4.0.1",
