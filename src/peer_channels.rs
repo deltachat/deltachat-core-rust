@@ -226,7 +226,16 @@ impl Context {
 
         // Shuts down on deltachat shutdown
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
-
+        let endp = endpoint.clone();
+        let gsp = gossip.clone();
+        tokio::spawn(async move {
+            let mut stream = endp.local_endpoints();
+            while let Some(endpoints) = stream.next().await {
+                gsp.update_endpoints(&endpoints)?;
+            }
+            anyhow::Ok(())
+        })
+        .await??;
         Ok(Iroh {
             endpoint,
             gossip,
