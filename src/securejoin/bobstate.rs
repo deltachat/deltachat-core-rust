@@ -14,7 +14,7 @@ use super::qrinvite::QrInvite;
 use super::{encrypted_and_signed, verify_sender_by_fingerprint};
 use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::contact::{Contact, Origin};
+use crate::contact::{ContactId, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
@@ -326,8 +326,12 @@ impl BobState {
             Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
         peerstate.save_to_db(&context.sql).await?;
 
-        Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
-            .await?;
+        ContactId::scaleup_origin(
+            context,
+            &[self.invite.contact_id()],
+            Origin::SecurejoinJoined,
+        )
+        .await?;
         context.emit_event(EventType::ContactsChanged(None));
 
         self.update_next(&context.sql, SecureJoinStep::Completed)

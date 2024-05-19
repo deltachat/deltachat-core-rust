@@ -13,7 +13,7 @@ use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::{Chattype, DC_FROM_HANDSHAKE};
-use crate::contact::Contact;
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
@@ -155,6 +155,7 @@ impl<'a> MimeFactory<'a> {
             };
 
         let mut recipients = Vec::with_capacity(5);
+        let mut recipient_ids = HashSet::new();
         let mut req_mdn = false;
 
         if chat.is_self_talk() {
@@ -169,7 +170,7 @@ impl<'a> MimeFactory<'a> {
             context
                 .sql
                 .query_map(
-                    "SELECT c.authname, c.addr  \
+                    "SELECT c.authname, c.addr, c.id \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
@@ -177,19 +178,23 @@ impl<'a> MimeFactory<'a> {
                     |row| {
                         let authname: String = row.get(0)?;
                         let addr: String = row.get(1)?;
-                        Ok((authname, addr))
+                        let id: ContactId = row.get(2)?;
+                        Ok((authname, addr, id))
                     },
                     |rows| {
                         for row in rows {
-                            let (authname, addr) = row?;
+                            let (authname, addr, id) = row?;
                             if !recipients_contain_addr(&recipients, &addr) {
                                 recipients.push((authname, addr));
                             }
+                            recipient_ids.insert(id);
                         }
                         Ok(())
                     },
                 )
                 .await?;
+            let recipient_ids: Vec<_> = recipient_ids.into_iter().collect();
+            ContactId::scaleup_origin(context, &recipient_ids, Origin::OutgoingTo).await?;
 
             if !msg.is_system_message()
                 && msg.param.get_int(Param::Reaction).unwrap_or_default() == 0

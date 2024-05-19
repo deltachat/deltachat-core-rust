@@ -120,6 +120,29 @@ impl ContactId {
             .await?;
         Ok(())
     }
+
+    /// Updates the origin of the contacts, but only if `origin` is higher than the current one.
+    pub(crate) async fn scaleup_origin(
+        context: &Context,
+        ids: &[Self],
+        origin: Origin,
+    ) -> Result<()> {
+        context
+            .sql
+            .execute(
+                &format!(
+                    "UPDATE contacts SET origin=? WHERE id IN ({}) AND origin<?",
+                    sql::repeat_vars(ids.len())
+                ),
+                rusqlite::params_from_iter(
+                    params_iter(&[origin])
+                        .chain(params_iter(ids))
+                        .chain(params_iter(&[origin])),
+                ),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 impl fmt::Display for ContactId {
@@ -1382,22 +1405,6 @@ impl Contact {
             .exists("SELECT COUNT(*) FROM contacts WHERE id=?;", (contact_id,))
             .await?;
         Ok(exists)
-    }
-
-    /// Updates the origin of the contact, but only if new origin is higher than the current one.
-    pub async fn scaleup_origin_by_id(
-        context: &Context,
-        contact_id: ContactId,
-        origin: Origin,
-    ) -> Result<()> {
-        context
-            .sql
-            .execute(
-                "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-                (origin, contact_id, origin),
-            )
-            .await?;
-        Ok(())
     }
 }
 

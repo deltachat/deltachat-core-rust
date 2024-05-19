@@ -292,7 +292,7 @@ impl ChatId {
                         ChatIdBlocked::get_for_contact(context, contact_id, create_blocked)
                             .await
                             .map(|chat| chat.id)?;
-                    Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat).await?;
+                    ContactId::scaleup_origin(context, &[contact_id], Origin::CreateChat).await?;
                     chat_id
                 } else {
                     warn!(
@@ -489,7 +489,7 @@ impl ChatId {
                 // went to "contact requests" list rather than normal chatlist.
                 for contact_id in get_chat_contacts(context, self).await? {
                     if contact_id != ContactId::SELF {
-                        Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat)
+                        ContactId::scaleup_origin(context, &[contact_id], Origin::CreateChat)
                             .await?;
                     }
                 }
