@@ -122,6 +122,21 @@ impl Iroh {
         Ok(Some(connect_future))
     }
 
+    /// Add gossip peers to realtime channel if it is already active.
+    pub async fn maybe_add_gossip_peers(&self, topic: TopicId, peers: Vec<NodeAddr>) -> Result<()> {
+        if let Some(state) = self.iroh_channels.read().await.get(&topic) {
+            if state.subscribe_loop.is_some() {
+                for peer in &peers {
+                    self.endpoint.add_node_addr(peer.clone())?;
+                }
+                self.gossip
+                    .join(topic, peers.into_iter().map(|peer| peer.node_id).collect())
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
     /// Send realtime data to the gossip swarm.
     pub async fn send_webxdc_realtime_data(
         &self,
