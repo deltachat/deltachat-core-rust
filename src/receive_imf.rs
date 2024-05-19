@@ -1829,18 +1829,18 @@ async fn create_or_lookup_group(
     to_ids: &[ContactId],
     verified_encryption: &VerifiedEncryption,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
-        grpid
-    } else if is_partial_download {
-        // Partial download may be an encrypted message with protected Subject header.
-        //
-        // We do not want to create a group with "..." or "Encrypted message" as a subject.
-        info!(
-            context,
-            "Ad-hoc group cannot be created from partial download."
-        );
-        return Ok(None);
-    } else {
+    let Some(grpid) = try_getting_grpid(mime_parser) else {
+        if is_partial_download {
+            // Partial download may be an encrypted message with protected Subject header.
+            //
+            // We do not want to create a group with "..." or "Encrypted message" as a subject.
+            info!(
+                context,
+                "Ad-hoc group cannot be created from partial download."
+            );
+            return Ok(None);
+        }
+
         let mut member_ids: Vec<ContactId> = to_ids.to_vec();
         if !member_ids.contains(&(from_id)) {
             member_ids.push(from_id);
