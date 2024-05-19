@@ -769,11 +769,7 @@ async fn add_parts(
     if mime_parser.incoming {
         to_id = ContactId::SELF;
 
-        let test_normal_chat = if from_id == ContactId::UNDEFINED {
-            None
-        } else {
-            ChatIdBlocked::lookup_by_contact(context, from_id).await?
-        };
+        let test_normal_chat = ChatIdBlocked::lookup_by_contact(context, from_id).await?;
 
         if chat_id.is_none() && mime_parser.delivery_report.is_some() {
             chat_id = Some(DC_CHAT_ID_TRASH);
