@@ -17,25 +17,6 @@ use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 use crate::tools::SystemTime;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_grpid_simple() {
-    let context = TestContext::new_alice().await;
-    let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                    From: hello@example.org\n\
-                    Subject: outer-subject\n\
-                    In-Reply-To: <lqkjwelq123@123123>\n\
-                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
-                    \n\
-                    hello\x00";
-    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
-        .await
-        .unwrap();
-    assert_eq!(mimeparser.incoming, true);
-    assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
-    let grpid = Some("HcxyMARjyJy");
-    assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_outgoing() -> Result<()> {
     let context = TestContext::new_alice().await;
     let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
@@ -59,24 +40,6 @@ async fn test_bad_from() {
                     hello\x00";
     let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None).await;
     assert!(mimeparser.is_err());
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_grpid_from_multiple() {
-    let context = TestContext::new_alice().await;
-    let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                    From: hello@example.org\n\
-                    Subject: outer-subject\n\
-                    In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
-                    References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
-                    \n\
-                    hello\x00";
-    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
-        .await
-        .unwrap();
-    let grpid = Some("HcxyMARjyJy");
-    assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
-    assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
 }
 
 static MSGRMSG: &[u8] =

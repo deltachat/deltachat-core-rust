@@ -294,31 +294,6 @@ pub(crate) fn create_outgoing_rfc724_mid() -> String {
     format!("Mr.{}.{}@localhost", create_id(), create_id())
 }
 
-/// Extract the group id (grpid) from a message id (mid)
-///
-/// # Arguments
-///
-/// * `mid` - A string that holds the message id.  Leading/Trailing <>
-/// characters are automatically stripped.
-pub(crate) fn extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
-    let mid = mid.trim_start_matches('<').trim_end_matches('>');
-
-    if mid.len() < 9 || !mid.starts_with("Gr.") {
-        return None;
-    }
-
-    if let Some(mid_without_offset) = mid.get(3..) {
-        if let Some(grpid_len) = mid_without_offset.find('.') {
-            /* strict length comparison, the 'Gr.' magic is weak enough */
-            if grpid_len == 11 || grpid_len == 16 {
-                return Some(mid_without_offset.get(0..grpid_len).unwrap());
-            }
-        }
-    }
-
-    None
-}
-
 // the returned suffix is lower-case
 pub fn get_filesuffix_lc(path_filename: &str) -> Option<String> {
     Path::new(path_filename)
@@ -926,44 +901,10 @@ DKIM Results: Passed=true";
     }
 
     #[test]
-    fn test_extract_grpid_from_rfc724_mid() {
-        // Should return None if we pass invalid mid
-        let mid = "foobar";
-        let grpid = extract_grpid_from_rfc724_mid(mid);
-        assert_eq!(grpid, None);
-
-        // Should return None if grpid has a length which is not 11 or 16
-        let mid = "Gr.12345678.morerandom@domain.de";
-        let grpid = extract_grpid_from_rfc724_mid(mid);
-        assert_eq!(grpid, None);
-
-        // Should return extracted grpid for grpid with length of 11
-        let mid = "Gr.12345678901.morerandom@domain.de";
-        let grpid = extract_grpid_from_rfc724_mid(mid);
-        assert_eq!(grpid, Some("12345678901"));
-
-        // Should return extracted grpid for grpid with length of 11
-        let mid = "Gr.1234567890123456.morerandom@domain.de";
-        let grpid = extract_grpid_from_rfc724_mid(mid);
-        assert_eq!(grpid, Some("1234567890123456"));
-
-        // Should return extracted grpid for grpid with length of 11
-        let mid = "<Gr.12345678901.morerandom@domain.de>";
-        let grpid = extract_grpid_from_rfc724_mid(mid);
-        assert_eq!(grpid, Some("12345678901"));
-
-        // Should return extracted grpid for grpid with length of 11
-        let mid = "<Gr.1234567890123456.morerandom@domain.de>";
-        let grpid = extract_grpid_from_rfc724_mid(mid);
-        assert_eq!(grpid, Some("1234567890123456"));
-    }
-
-    #[test]
     fn test_create_outgoing_rfc724_mid() {
         let mid = create_outgoing_rfc724_mid();
         assert!(mid.starts_with("Mr."));
         assert!(mid.ends_with("@localhost"));
-        assert!(extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
     }
 
     proptest! {

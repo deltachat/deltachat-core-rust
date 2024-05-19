@@ -40,7 +40,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid};
+use crate::tools::{self, buf_compress};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
 use iroh_net::NodeAddr;
@@ -1829,7 +1829,7 @@ async fn create_or_lookup_group(
     to_ids: &[ContactId],
     verified_encryption: &VerifiedEncryption,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    let Some(grpid) = try_getting_grpid(mime_parser) else {
+    let Some(grpid) = mime_parser.get_chat_group_id().map(|s| s.to_string()) else {
         if is_partial_download {
             // Partial download may be an encrypted message with protected Subject header.
             //
@@ -2469,37 +2469,6 @@ async fn apply_mailinglist_changes(
     }
 
     Ok(())
-}
-
-fn try_getting_grpid(mime_parser: &MimeMessage) -> Option<String> {
-    if let Some(optional_field) = mime_parser.get_chat_group_id() {
-        return Some(optional_field.to_string());
-    }
-
-    // Useful for undecipherable messages sent to known group.
-    if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::MessageId) {
-        return Some(extracted_grpid.to_string());
-    }
-
-    if !mime_parser.has_chat_version() {
-        if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
-            return Some(extracted_grpid.to_string());
-        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
-            return Some(extracted_grpid.to_string());
-        }
-    }
-
-    None
-}
-
-/// try extract a grpid from a message-id list header value
-fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
-    let header = mime_parser.get_header(headerdef)?;
-    let parts = header
-        .split(',')
-        .map(str::trim)
-        .filter(|part| !part.is_empty());
-    parts.filter_map(extract_grpid_from_rfc724_mid).next()
 }
 
 /// Creates ad-hoc group and returns chat ID on success.
