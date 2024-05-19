@@ -25,6 +25,7 @@
 
 use anyhow::{anyhow, Context as _, Result};
 use email::Header;
+use futures_lite::StreamExt;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::relay::{RelayMap, RelayUrl};
@@ -242,6 +243,15 @@ impl Context {
         // Shuts down on deltachat shutdown
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
 
+        let endp = endpoint.clone();
+        let gsp = gossip.clone();
+        tokio::spawn(async move {
+            let mut stream = endp.local_endpoints();
+            while let Some(endpoints) = stream.next().await {
+                gsp.update_endpoints(&endpoints)?;
+            }
+            anyhow::Ok(())
+        });
         Ok(Iroh {
             endpoint,
             gossip,
