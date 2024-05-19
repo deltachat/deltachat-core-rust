@@ -834,18 +834,13 @@ async fn add_parts(
             create_blocked_default
         };
 
-        if chat_id.is_none() {
+        if chat_id.is_none() && (allow_creation || test_normal_chat.is_some()) {
             // try to create a group
 
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 mime_parser,
                 is_partial_download.is_some(),
-                if test_normal_chat.is_none() {
-                    allow_creation
-                } else {
-                    true
-                },
                 create_blocked,
                 from_id,
                 to_ids,
@@ -1104,12 +1099,11 @@ async fn add_parts(
         }
 
         if !to_ids.is_empty() {
-            if chat_id.is_none() {
+            if chat_id.is_none() && allow_creation {
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     mime_parser,
                     is_partial_download.is_some(),
-                    allow_creation,
                     Blocked::Not,
                     from_id,
                     to_ids,
@@ -1826,12 +1820,10 @@ async fn is_probably_private_reply(
 /// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the found/created (chat_id, chat_blocked) tuple.
-#[allow(clippy::too_many_arguments)]
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
     is_partial_download: bool,
-    allow_creation: bool,
     create_blocked: Blocked,
     from_id: ContactId,
     to_ids: &[ContactId],
@@ -1839,9 +1831,6 @@ async fn create_or_lookup_group(
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
-    } else if !allow_creation {
-        info!(context, "Creating ad-hoc group prevented from caller.");
-        return Ok(None);
     } else if is_partial_download {
         // Partial download may be an encrypted message with protected Subject header.
         //
@@ -1920,11 +1909,6 @@ async fn create_or_lookup_group(
                 || self_explicitly_added(context, &mime_parser).await?)
     {
         // Group does not exist but should be created.
-        if !allow_creation {
-            info!(context, "Creating group forbidden by caller.");
-            return Ok(None);
-        }
-
         let grpname = mime_parser
             .get_header(HeaderDef::ChatGroupName)
             .context("Chat-Group-Name vanished")?
