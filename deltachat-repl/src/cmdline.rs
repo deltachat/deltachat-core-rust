@@ -19,6 +19,7 @@ use deltachat::location;
 use deltachat::log::LogExt;
 use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::mimeparser::SystemMessage;
+use deltachat::peer_channels::{send_webxdc_realtime_advertisement, send_webxdc_realtime_data};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::reaction::send_reaction;
@@ -641,6 +642,30 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             }
             println!("{cnt} chats");
             println!("{time_needed:?} to create this list");
+        }
+        "start-realtime" => {
+            if arg1.is_empty() {
+                bail!("missing msgid");
+            }
+            let msg_id = MsgId::new(arg1.parse()?);
+            let res = send_webxdc_realtime_advertisement(&context, msg_id).await?;
+
+            if let Some(res) = res {
+                println!("waiting for peer channel join");
+                res.await?;
+            }
+            println!("joined peer channel");
+        }
+        "send-realtime" => {
+            if arg1.is_empty() {
+                bail!("missing msgid");
+            }
+            if arg2.is_empty() {
+                bail!("no message");
+            }
+            let msg_id = MsgId::new(arg1.parse()?);
+            send_webxdc_realtime_data(&context, msg_id, arg2.as_bytes().to_vec()).await?;
+            println!("sent realtime message");
         }
         "chat" => {
             if sel_chat.is_none() && arg1.is_empty() {
