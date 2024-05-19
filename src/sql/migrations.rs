@@ -137,9 +137,9 @@ ALTER TABLE acpeerstates ADD COLUMN gossip_key;"#,
         // the current ones are defined by chats.blocked=2
         sql.execute_migration(
             r#"
-DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;"
-CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);"
-ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;")
+DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;
+CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);
+ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;
 ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;"#,
             27,
         )
