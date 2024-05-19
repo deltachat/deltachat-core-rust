@@ -267,7 +267,7 @@ CREATE INDEX msgs_index6 ON msgs (location_id);"#,
         // so, msg_id may or may not exist.
         sql.execute_migration(
             r#"
-CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER DEFAULT 0);",
+CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER DEFAULT 0);
 CREATE INDEX devmsglabels_index1 ON devmsglabels (label);"#, 59)
             .await?;
         if exists_before_update && sql.get_raw_config_int("bcc_self").await?.is_none() {
