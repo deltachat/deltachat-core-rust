@@ -955,7 +955,7 @@ async fn add_parts(
                     if create_blocked == Blocked::Request && parent.is_some() {
                         // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                         // the contact requests will pop up and this should be just fine.
-                        Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo)
+                        ContactId::scaleup_origin(context, &[from_id], Origin::IncomingReplyTo)
                             .await?;
                         info!(
                             context,
