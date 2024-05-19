@@ -28,6 +28,9 @@ async fn main() {
     // "For technical reasons, stdin is implemented by using an ordinary blocking read on a separate
     // thread, and it is impossible to cancel that read. This can make shutdown of the runtime hang
     // until the user presses enter."
+    if let Err(error) = &r {
+        log::error!("Fatal Error: {error}")
+    }
     std::process::exit(if r.is_ok() { 0 } else { 1 });
 }
 
