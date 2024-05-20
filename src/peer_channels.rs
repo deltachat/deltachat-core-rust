@@ -244,9 +244,12 @@ impl Context {
         {
             RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)))
         } else {
-            // FIXME: this should be RelayMode::Disabled instead.
-            // Currently using default relays because otherwise Rust tests fail.
-            RelayMode::Default
+            #[cfg(test)]
+            {
+                RelayMode::Default
+            }
+            #[cfg(not(test))]
+            RelayMode::Disabled
         };
 
         let endpoint = Endpoint::builder()
