@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.139.3] - 2024-05-20
+
+### API-Changes
+
+- [**breaking**] @deltachat/stdio-rpc-server: change api: don't search in path unless `options.takeVersionFromPATH` is set to `true`
+- @deltachat/stdio-rpc-server: remove `DELTA_CHAT_SKIP_PATH` environment variable
+- @deltachat/stdio-rpc-server: remove version check / search for dc rpc server in $PATH
+- @deltachat/stdio-rpc-server: remove `options.skipSearchInPath`
+- @deltachat/stdio-rpc-server: add `options.takeVersionFromPATH`
+- deltachat-rpc-client: Add Account.wait_for_incoming_msg().
+
+### Features / Changes
+
+- Replace env_logger with tracing_subscriber.
+
+### Fixes
+
+- Ignore event channel overflows.
+- mimeparser: Take the last header of multiple ones with the same name.
+- Db migration version 59, it contained an sql syntax error.
+- Sql syntax error in db migration 27.
+- Log/print exit error of deltachat-rpc-server ([#5601](https://github.com/deltachat/deltachat-core-rust/pull/5601)).
+- @deltachat/stdio-rpc-server: set default options for `startDeltaChat`.
+- Always convert absolute paths to relative in accounts.toml.
+
+### Refactor
+
+- receive_imf: Do not check for ContactId::UNDEFINED.
+- receive_imf: Remove unnecessary check for is_mdn.
+- receive_imf: Only call create_or_lookup_group() with allow_creation=true.
+- Use let..else in create_or_lookup_group().
+- Stop trying to extract chat ID from Message-IDs.
+- Do not try to lookup group in create_or_lookup_group().
+
 ## [1.139.2] - 2024-05-18
 
 ### Build system
@@ -4221,4 +4255,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.138.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.4...v1.138.5
 [1.139.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.5...v1.139.0
 [1.139.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.0...v1.139.1
-[1.139.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.1...v1.139.2
+[1.139.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.1...v1.139.2
+[1.139.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.2...v1.139.3
