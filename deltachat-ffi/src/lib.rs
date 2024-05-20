@@ -658,7 +658,6 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ConnectivityChanged
         | EventType::WebxdcInstanceDeleted { .. }
         | EventType::IncomingMsgBunch { .. }
-        | EventType::WebxdcRealtimeData { .. }
         | EventType::SelfavatarChanged
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatlistChanged
@@ -679,6 +678,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
             status_update_serial,
             ..
         } => status_update_serial.to_u32() as libc::c_int,
+        EventType::WebxdcRealtimeData { data, .. } => data.len() as libc::c_int,
     }
 }
 
@@ -725,7 +725,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SelfavatarChanged
         | EventType::WebxdcStatusUpdate { .. }
         | EventType::WebxdcInstanceDeleted { .. }
-        | EventType::WebxdcRealtimeData { .. }
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. }
         | EventType::IncomingMsgBunch { .. }
@@ -745,6 +744,11 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         EventType::ConfigSynced { key } => {
             let data2 = key.to_string().to_c_string().unwrap_or_default();
             data2.into_raw()
+        }
+        EventType::WebxdcRealtimeData { data, .. } => {
+            let ptr = libc::malloc(data.len());
+            libc::memcpy(ptr, data.as_ptr() as *mut libc::c_void, data.len());
+            ptr as *mut libc::c_char
         }
     }
 }
