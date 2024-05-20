@@ -29,6 +29,8 @@ def log(msg):
 
 
 def setup_realtime_webxdc(ac1, ac2, path_to_webxdc):
+    assert ac1.get_config("webxdc_realtime_enabled") == "1"
+    assert ac2.get_config("webxdc_realtime_enabled") == "1"
     ac1_ac2_chat = ac1.create_chat(ac2)
     ac2.create_chat(ac1)
 
@@ -75,6 +77,8 @@ def wait_receive_realtime_data(msg_data_list):
 def test_realtime_sequentially(acfactory, path_to_webxdc):
     """Test two peers trying to establish connection sequentially."""
     ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1.set_config("webxdc_realtime_enabled", "1")
+    ac2.set_config("webxdc_realtime_enabled", "1")
     ac1.create_chat(ac2)
     ac2.create_chat(ac1)
 
@@ -115,6 +119,8 @@ def test_realtime_sequentially(acfactory, path_to_webxdc):
 def test_realtime_simultaneously(acfactory, path_to_webxdc):
     """Test two peers trying to establish connection simultaneously."""
     ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1.set_config("webxdc_realtime_enabled", "1")
+    ac2.set_config("webxdc_realtime_enabled", "1")
 
     ac1_webxdc_msg, ac2_webxdc_msg = setup_realtime_webxdc(ac1, ac2, path_to_webxdc)
 
@@ -125,6 +131,8 @@ def test_realtime_simultaneously(acfactory, path_to_webxdc):
 def test_two_parallel_realtime_simultaneously(acfactory, path_to_webxdc):
     """Test two peers trying to establish connection simultaneously."""
     ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1.set_config("webxdc_realtime_enabled", "1")
+    ac2.set_config("webxdc_realtime_enabled", "1")
 
     ac1_webxdc_msg, ac2_webxdc_msg = setup_realtime_webxdc(ac1, ac2, path_to_webxdc)
     ac1_webxdc_msg2, ac2_webxdc_msg2 = setup_realtime_webxdc(ac1, ac2, path_to_webxdc)
@@ -141,6 +149,8 @@ def test_two_parallel_realtime_simultaneously(acfactory, path_to_webxdc):
 def test_no_duplicate_messages(acfactory, path_to_webxdc):
     """Test that messages are received only once."""
     ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1.set_config("webxdc_realtime_enabled", "1")
+    ac2.set_config("webxdc_realtime_enabled", "1")
 
     ac1_ac2_chat = ac1.create_chat(ac2)
 

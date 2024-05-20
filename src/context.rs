@@ -967,6 +967,12 @@ impl Context {
                 .await?
                 .to_string(),
         );
+        res.insert(
+            "webxdc_realtime_enabled",
+            self.get_config_bool(Config::WebxdcRealtimeEnabled)
+                .await?
+                .to_string(),
+        );
 
         let elapsed = time_elapsed(&self.creation_time);
         res.insert("uptime", duration_to_str(elapsed));
@@ -1673,7 +1679,6 @@ mod tests {
             "socks5_password",
             "key_id",
             "webxdc_integration",
-            "iroh_secret_key",
         ];
         let t = TestContext::new().await;
         let info = t.get_info().await.unwrap();

@@ -37,6 +37,7 @@ use tokio::task::JoinHandle;
 use url::Url;
 
 use crate::chat::send_msg;
+use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
 use crate::message::{Message, MsgId, Viewtype};
@@ -338,6 +339,10 @@ pub async fn send_webxdc_realtime_advertisement(
     ctx: &Context,
     msg_id: MsgId,
 ) -> Result<Option<JoinTopicFut>> {
+    if !ctx.get_config_bool(Config::WebxdcRealtimeEnabled).await? {
+        return Ok(None);
+    }
+
     let iroh = ctx.get_or_try_init_peer_channel().await?;
     let conn = iroh.join_and_subscribe_gossip(ctx, msg_id).await?;
 
@@ -351,8 +356,12 @@ pub async fn send_webxdc_realtime_advertisement(
     Ok(conn)
 }
 
-/// Send realtime data to the gossip swarm.
+/// Send realtime data to other peers using iroh.
 pub async fn send_webxdc_realtime_data(ctx: &Context, msg_id: MsgId, data: Vec<u8>) -> Result<()> {
+    if !ctx.get_config_bool(Config::WebxdcRealtimeEnabled).await? {
+        return Ok(());
+    }
+
     let iroh = ctx.get_or_try_init_peer_channel().await?;
     iroh.send_webxdc_realtime_data(ctx, msg_id, data).await?;
     Ok(())
@@ -360,6 +369,10 @@ pub async fn send_webxdc_realtime_data(ctx: &Context, msg_id: MsgId, data: Vec<u
 
 /// Leave the gossip of the webxdc with given [MsgId].
 pub async fn leave_webxdc_realtime(ctx: &Context, msg_id: MsgId) -> Result<()> {
+    if !ctx.get_config_bool(Config::WebxdcRealtimeEnabled).await? {
+        return Ok(());
+    }
+
     let iroh = ctx.get_or_try_init_peer_channel().await?;
     iroh.leave_realtime(get_iroh_topic_for_msg(ctx, msg_id).await?)
         .await?;
@@ -464,6 +477,17 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
+
+        bob.ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
+        alice
+            .ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
 
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
@@ -596,6 +620,21 @@ mod tests {
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
 
+        bob.ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
+        alice
+            .ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
+        assert!(alice
+            .get_config_bool(Config::WebxdcRealtimeEnabled)
+            .await
+            .unwrap());
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
         let mut instance = Message::new(Viewtype::File);
@@ -731,6 +770,17 @@ mod tests {
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
 
+        bob.ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
+        alice
+            .ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
         let mut instance = Message::new(Viewtype::File);
@@ -792,5 +842,30 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_peer_channels_disabled() {
+        let mut tcm = TestContextManager::new();
+        let alice = &mut tcm.alice().await;
+
+        // creates iroh endpoint as side effect
+        send_webxdc_realtime_advertisement(alice, MsgId::new(1))
+            .await
+            .unwrap();
+
+        assert!(alice.ctx.iroh.get().is_none());
+
+        // creates iroh endpoint as side effect
+        send_webxdc_realtime_data(alice, MsgId::new(1), vec![])
+            .await
+            .unwrap();
+
+        assert!(alice.ctx.iroh.get().is_none());
+
+        // creates iroh endpoint as side effect
+        leave_webxdc_realtime(alice, MsgId::new(1)).await.unwrap();
+
+        assert!(alice.ctx.iroh.get().is_none())
     }
 }
