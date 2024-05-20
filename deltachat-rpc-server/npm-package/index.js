@@ -123,7 +123,14 @@ export async function getRPCServerPath(
 import { StdioDeltaChat } from "@deltachat/jsonrpc-client";
 
 /** @type {import("./index").FnTypes.startDeltaChat} */
-export async function startDeltaChat(directory, options) {
+export async function startDeltaChat(
+  directory,
+  options = {
+    skipSearchInPath: false,
+    disableEnvPath: false,
+    muteStdErr: false,
+  }
+) {
   const pathToServerBinary = await getRPCServerPath(options);
   const server = spawn(pathToServerBinary, {
     env: {
