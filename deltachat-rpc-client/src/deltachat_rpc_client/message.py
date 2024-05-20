@@ -73,3 +73,6 @@ class Message:
 
     def send_webxdc_realtime_advertisement(self) -> None:
         self._rpc.send_webxdc_realtime_advertisement(self.account.id, self.id)
+
+    def send_webxdc_realtime_data(self, data) -> None:
+        self._rpc.send_webxdc_realtime_data(self.account.id, self.id, list(data))
