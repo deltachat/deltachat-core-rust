@@ -837,7 +837,7 @@ async fn add_parts(
         if chat_id.is_none() && (allow_creation || test_normal_chat.is_some()) {
             // try to create a group
 
-            if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
+            if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
                 context,
                 mime_parser,
                 is_partial_download.is_some(),
@@ -862,7 +862,7 @@ async fn add_parts(
             }
         }
 
-        // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
+        // In lookup_chat_by_reply() and create_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
         if let Some(group_chat_id) = chat_id {
             if !chat::is_contact_in_chat(context, group_chat_id, from_id).await? {
@@ -1100,7 +1100,7 @@ async fn add_parts(
 
         if !to_ids.is_empty() {
             if chat_id.is_none() && allow_creation {
-                if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
+                if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
                     context,
                     mime_parser,
                     is_partial_download.is_some(),
@@ -1815,12 +1815,12 @@ async fn is_probably_private_reply(
     Ok(true)
 }
 
-/// This function tries to extract the group-id from the message and returns the corresponding
-/// chat_id. If the chat does not exist, it is created. If there is no group-id and there are more
+/// This function tries to extract the group-id from the message and create a new group
+/// chat with this ID. If there is no group-id and there are more
 /// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the found/created (chat_id, chat_blocked) tuple.
-async fn create_or_lookup_group(
+async fn create_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
     is_partial_download: bool,
@@ -1856,15 +1856,8 @@ async fn create_or_lookup_group(
         return Ok(res);
     };
 
-    let mut chat_id;
-    let mut chat_id_blocked;
-    if let Some((id, _protected, blocked)) = chat::get_chat_id_by_grpid(context, &grpid).await? {
-        chat_id = Some(id);
-        chat_id_blocked = blocked;
-    } else {
-        chat_id = None;
-        chat_id_blocked = Default::default();
-    }
+    let mut chat_id = None;
+    let mut chat_id_blocked = Default::default();
 
     // For chat messages, we don't have to guess (is_*probably*_private_reply()) but we know for sure that
     // they belong to the group because of the Chat-Group-Id or Message-Id header
