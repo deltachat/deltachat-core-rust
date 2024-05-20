@@ -4253,7 +4253,7 @@ pub(crate) async fn save_copy_in_self_talk(
     let row_id = context
         .sql
         .insert(
-            &*format!(
+            &format!(
                 "INSERT INTO msgs ({copy_fields}, chat_id, rfc724_mid, state, timestamp, param, starred) \
                             SELECT {copy_fields}, ?, ?, ?, ?, ?, ? \
                             FROM msgs WHERE id=?;"
