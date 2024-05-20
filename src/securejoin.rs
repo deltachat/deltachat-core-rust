@@ -757,9 +757,9 @@ mod tests {
     use deltachat_contact_tools::{ContactAddress, EmailAddress};
 
     use super::*;
-    use crate::chat::remove_contact_from_chat;
+    use crate::chat::{remove_contact_from_chat, CantSendReason};
     use crate::chatlist::Chatlist;
-    use crate::constants::Chattype;
+    use crate::constants::{self, Chattype};
     use crate::imex::{imex, ImexMode};
     use crate::receive_imf::receive_imf;
     use crate::stock_str::{self, chat_protection_enabled};
@@ -774,6 +774,7 @@ mod tests {
         Normal,
         CheckProtectionTimestamp,
         WrongAliceGossip,
+        SecurejoinWaitTimeout,
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -789,6 +790,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact_wrong_alice_gossip() {
         test_setup_contact_ex(SetupContactCase::WrongAliceGossip).await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_setup_contact_wait_timeout() {
+        test_setup_contact_ex(SetupContactCase::SecurejoinWaitTimeout).await
     }
 
     async fn test_setup_contact_ex(case: SetupContactCase) {
@@ -850,9 +856,21 @@ mod tests {
             msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vc-auth-required"
         );
+        let bob_chat = bob.create_chat(&alice).await;
+        assert_eq!(bob_chat.can_send(&bob).await.unwrap(), false);
+        assert_eq!(
+            bob_chat.why_cant_send(&bob).await.unwrap(),
+            Some(CantSendReason::SecurejoinWait)
+        );
+        if case == SetupContactCase::SecurejoinWaitTimeout {
+            SystemTime::shift(Duration::from_secs(constants::SECUREJOIN_WAIT_TIMEOUT));
+            assert_eq!(bob_chat.can_send(&bob).await.unwrap(), true);
+        }
 
         // Step 4: Bob receives vc-auth-required, sends vc-request-with-auth
         bob.recv_msg_trash(&sent).await;
+        let bob_chat = bob.create_chat(&alice).await;
+        assert_eq!(bob_chat.can_send(&bob).await.unwrap(), true);
 
         // Check Bob emitted the JoinerProgress event.
         let event = bob
@@ -986,12 +1004,36 @@ mod tests {
         bob.recv_msg_trash(&sent).await;
         assert_eq!(contact_alice.is_verified(&bob.ctx).await.unwrap(), true);
 
-        // Check Bob got the verified message in his 1:1 chat.
-        let chat = bob.create_chat(&alice).await;
-        let msg = get_chat_msg(&bob, chat.get_id(), 0, 2).await;
+        if case != SetupContactCase::SecurejoinWaitTimeout {
+            // Later we check that the timeout message isn't added to the already protected chat.
+            SystemTime::shift(Duration::from_secs(constants::SECUREJOIN_WAIT_TIMEOUT + 1));
+            assert_eq!(
+                bob_chat
+                    .check_securejoin_wait(&bob, constants::SECUREJOIN_WAIT_TIMEOUT)
+                    .await
+                    .unwrap(),
+                0
+            );
+        }
+
+        // Check Bob got expected info messages in his 1:1 chat.
+        let msg_cnt: usize = match case {
+            SetupContactCase::SecurejoinWaitTimeout => 3,
+            _ => 2,
+        };
+        let mut i = 0..msg_cnt;
+        let msg = get_chat_msg(&bob, bob_chat.get_id(), i.next().unwrap(), msg_cnt).await;
         assert!(msg.is_info());
         assert_eq!(msg.get_text(), stock_str::securejoin_wait(&bob).await);
-        let msg = get_chat_msg(&bob, chat.get_id(), 1, 2).await;
+        if case == SetupContactCase::SecurejoinWaitTimeout {
+            let msg = get_chat_msg(&bob, bob_chat.get_id(), i.next().unwrap(), msg_cnt).await;
+            assert!(msg.is_info());
+            assert_eq!(
+                msg.get_text(),
+                stock_str::securejoin_wait_timeout(&bob).await
+            );
+        }
+        let msg = get_chat_msg(&bob, bob_chat.get_id(), i.next().unwrap(), msg_cnt).await;
         assert!(msg.is_info());
         assert_eq!(msg.get_text(), chat_protection_enabled(&bob).await);
     }
