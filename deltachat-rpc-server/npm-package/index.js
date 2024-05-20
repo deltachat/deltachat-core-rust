@@ -1,15 +1,9 @@
 //@ts-check
-import { execFile, spawn } from "node:child_process";
-import { stat, readdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { stat } from "node:fs/promises";
 import os from "node:os";
-import { join, basename } from "node:path";
 import process from "node:process";
-import { promisify } from "node:util";
-import {
-  ENV_VAR_NAME,
-  PATH_EXECUTABLE_NAME,
-  SKIP_SEARCH_IN_PATH,
-} from "./src/const.js";
+import { ENV_VAR_NAME, PATH_EXECUTABLE_NAME } from "./src/const.js";
 import {
   ENV_VAR_LOCATION_NOT_FOUND,
   FAILED_TO_START_SERVER_EXECUTABLE,
@@ -39,38 +33,13 @@ function findRPCServerInNodeModules() {
   }
 }
 
-/**
- * @returns {Promise<string>}
- */
-async function getLocationInPath() {
-  const exec = promisify(execFile);
-
-  if (os.platform() === "win32") {
-    const { stdout: executable } = await exec("where", [PATH_EXECUTABLE_NAME], {
-      shell: true,
-    });
-    return executable;
-  }
-
-  try {
-    const { stdout: executable } = await exec(
-      "command",
-      ["-v", PATH_EXECUTABLE_NAME],
-      { shell: true }
-    );
-    return executable;
-  } catch (error) {
-    if (error.code > 0) return "";
-    else throw error;
-  }
-}
-
 /** @type {import("./index").FnTypes.getRPCServerPath} */
-export async function getRPCServerPath(
-  options = { skipSearchInPath: false, disableEnvPath: false }
-) {
-  // @TODO: improve confusing naming of these options
-  const { skipSearchInPath, disableEnvPath } = options;
+export async function getRPCServerPath(options = {}) {
+  const { takeVersionFromPATH, disableEnvPath } = {
+    takeVersionFromPATH: false,
+    disableEnvPath: false,
+    ...options,
+  };
   // 1. check if it is set as env var
   if (process.env[ENV_VAR_NAME] && !disableEnvPath) {
     try {
@@ -85,35 +54,9 @@ export async function getRPCServerPath(
     return process.env[ENV_VAR_NAME];
   }
 
-  // 2. check if it can be found in PATH
-  if (!process.env[SKIP_SEARCH_IN_PATH] && !skipSearchInPath) {
-    const executable = await getLocationInPath();
-
-    // by just trying to execute it and then use "command -v deltachat-rpc-server" (unix) or "where deltachat-rpc-server" (windows) to get the path to the executable
-    if (executable.length > 1) {
-      // test if it is the right version
-      try {
-        // for some unknown reason it is in stderr and not in stdout
-        const { stderr } = await promisify(execFile)(
-          executable,
-          ["--version"],
-          { shell: true }
-        );
-        const version = stderr.slice(0, stderr.indexOf("\n"));
-        if (package_json.version !== version) {
-          throw new Error(
-            `version mismatch: (npm package: ${package_json.version})  (installed ${PATH_EXECUTABLE_NAME} version: ${version})`
-          );
-        } else {
-          return executable;
-        }
-      } catch (error) {
-        console.error(
-          "Found executable in PATH, but there was an error: " + error
-        );
-        console.error("So falling back to using prebuild...");
-      }
-    }
+  // 2. check if PATH should be used
+  if (takeVersionFromPATH) {
+    return PATH_EXECUTABLE_NAME;
   }
   // 3. check for prebuilds
 
@@ -123,14 +66,7 @@ export async function getRPCServerPath(
 import { StdioDeltaChat } from "@deltachat/jsonrpc-client";
 
 /** @type {import("./index").FnTypes.startDeltaChat} */
-export async function startDeltaChat(
-  directory,
-  options = {
-    skipSearchInPath: false,
-    disableEnvPath: false,
-    muteStdErr: false,
-  }
-) {
+export async function startDeltaChat(directory, options = {}) {
   const pathToServerBinary = await getRPCServerPath(options);
   const server = spawn(pathToServerBinary, {
     env: {

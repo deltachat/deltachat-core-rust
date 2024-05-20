@@ -1,8 +1,8 @@
 import { StdioDeltaChat } from "@deltachat/jsonrpc-client";
 
 export interface SearchOptions {
-  /** whether to disable looking for deltachat-rpc-server inside of $PATH */
-  skipSearchInPath: boolean;
+  /** whether take deltachat-rpc-server inside of $PATH*/
+  takeVersionFromPATH: boolean;
 
   /** whether to disable the DELTA_CHAT_RPC_SERVER environment variable */
   disableEnvPath: boolean;

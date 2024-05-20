@@ -46,11 +46,10 @@ references:
 When you import this package it searches for the rpc server in the following locations and order:
 
 1. `DELTA_CHAT_RPC_SERVER` environment variable
-2. in PATH
-   - unless `DELTA_CHAT_SKIP_PATH=1` is specified
-   - searches in .cargo/bin directory first
-   - but there an additional version check is performed
+2. use the PATH when `{takeVersionFromPATH: true}` is supplied in the options. 
 3. prebuilds in npm packages
+
+so by default it uses the prebuilds.
 
 ## How do you built this package in CI
 
