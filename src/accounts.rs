@@ -485,10 +485,6 @@ impl Config {
 
     /// Read a configuration from the given file into memory.
     pub async fn from_file(file: PathBuf, writable: bool) -> Result<Self> {
-        let dir = file
-            .parent()
-            .context("Cannot get config file directory")?
-            .to_path_buf();
         let mut config = Self::new_nosync(file, writable).await?;
         let bytes = fs::read(&config.file)
             .await
@@ -500,9 +496,13 @@ impl Config {
         // Convert them to relative paths.
         let mut modified = false;
         for account in &mut config.inner.accounts {
-            if let Ok(new_dir) = account.dir.strip_prefix(&dir) {
-                account.dir = new_dir.to_path_buf();
-                modified = true;
+            if account.dir.is_absolute() {
+                if let Some(old_path_parent) = account.dir.parent() {
+                    if let Ok(new_path) = account.dir.strip_prefix(old_path_parent) {
+                        account.dir = new_path.to_path_buf();
+                        modified = true;
+                    }
+                }
             }
         }
         if modified && writable {
