@@ -70,3 +70,6 @@ class Message:
             event = self.account.wait_for_event()
             if event.kind == EventType.MSG_DELIVERED and event.msg_id == self.id:
                 break
+
+    def send_webxdc_realtime_advertisement(self) -> None:
+        self._rpc.send_webxdc_realtime_advertisement(self.account.id, self.id)
