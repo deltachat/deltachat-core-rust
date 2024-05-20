@@ -154,10 +154,6 @@ impl Iroh {
 
         self.gossip.broadcast(topic, data.into()).await?;
 
-        if env::var("REALTIME_DEBUG").is_ok() {
-            info!(ctx, "Sent realtime data");
-        }
-
         Ok(())
     }
 
@@ -353,7 +349,9 @@ pub async fn send_webxdc_realtime_advertisement(
     msg.param.set_cmd(SystemMessage::IrohNodeAddr);
     msg.in_reply_to = Some(webxdc.rfc724_mid.clone());
     send_msg(ctx, webxdc.chat_id, &mut msg).await?;
-    info!(ctx, "IROH_REALTIME: Sent realtime advertisement");
+    if env::var("REALTIME_DEBUG").is_ok() {
+        info!(ctx, "IROH_REALTIME: Sent realtime advertisement");
+    }
     Ok(conn)
 }
 
@@ -369,6 +367,7 @@ pub async fn leave_webxdc_realtime(ctx: &Context, msg_id: MsgId) -> Result<()> {
     let iroh = ctx.get_or_try_init_peer_channel().await?;
     iroh.leave_realtime(get_iroh_topic_for_msg(ctx, msg_id).await?)
         .await?;
+
     info!(ctx, "IROH_REALTIME: Left gossip for message {msg_id}");
 
     Ok(())
@@ -436,11 +435,12 @@ async fn subscribe_loop(
         let event = stream.recv().await?;
         match event {
             IrohEvent::NeighborUp(node) => {
-                info!(context, "IROH_REALTIME: NeighborUp: {}", node.to_string());
                 iroh_add_peer_for_topic(context, msg_id, topic, node, None).await?;
             }
             IrohEvent::Received(event) => {
-                info!(context, "IROH_REALTIME: Received realtime data");
+                if env::var("REALTIME_DEBUG").is_ok() {
+                    info!(context, "IROH_REALTIME: Received realtime data");
+                }
                 context.emit_event(EventType::WebxdcRealtimeData {
                     msg_id,
                     data: event
