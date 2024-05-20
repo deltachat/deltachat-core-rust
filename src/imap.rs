@@ -1472,13 +1472,15 @@ impl Session {
                     admin = m.value;
                 }
                 "/shared/vendor/deltachat/irohrelay" => {
-                    if let Some(url) = m.value.as_deref().and_then(|s| Url::parse(s).ok()) {
-                        iroh_relay = Some(url);
-                    } else {
-                        warn!(
-                            context,
-                            "Got invalid URL from iroh relay metadata: {:?}.", m.value
-                        );
+                    if let Some(value) = m.value {
+                        if let Ok(url) = Url::parse(&value) {
+                            iroh_relay = Some(url);
+                        } else {
+                            warn!(
+                                context,
+                                "Got invalid URL from iroh relay metadata: {:?}.", value
+                            );
+                        }
                     }
                 }
                 _ => {}
