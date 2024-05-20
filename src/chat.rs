@@ -4215,9 +4215,8 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
 }
 
 async fn save_copies_in_self_talk_and_sync(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
-    let self_addr = context.get_primary_self_addr().await?;
     for src_msg_id in msg_ids {
-        let dest_rfc724_mid = create_outgoing_rfc724_mid(&self_addr);
+        let dest_rfc724_mid = create_outgoing_rfc724_mid();
         let src_rfc724_mid = save_copy_in_self_talk(context, src_msg_id, &dest_rfc724_mid).await?;
         context
             .add_sync_item(SyncData::SaveMessage {
@@ -4771,7 +4770,6 @@ mod tests {
     use super::*;
     use crate::chatlist::get_archived_cnt;
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
-    use crate::contact::{Contact, ContactAddress};
     use crate::headerdef::HeaderDef;
     use crate::message::{delete_msgs, MessengerMessage};
     use crate::receive_imf::receive_imf;
