@@ -542,6 +542,7 @@
             ])
             cargo-deny
             rust-analyzer-nightly
+            cargo-nextest
             perl # needed to build vendored OpenSSL
             git-cliff
           ];
