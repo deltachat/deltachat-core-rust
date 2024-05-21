@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.139.4] - 2024-05-21
+
+### Features / Changes
+
+- Scale up contact origins to OutgoingTo when sending a message.
+- Add import_vcard() ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
+
+### Fixes
+
+- Do not log warning if iroh relay metadata is NIL.
+- contact-tools: Parse_vcard: Support `\r\n` newlines.
+- Make_vcard: Add authname and key for ContactId::SELF.
+
+### Other
+
+- nix: Add nextest ([#5610](https://github.com/deltachat/deltachat-core-rust/pull/5610)).
+
 ## [1.139.3] - 2024-05-20
 
 ### API-Changes
@@ -4257,3 +4274,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.139.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.0...v1.139.1
 [1.139.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.1...v1.139.2
 [1.139.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.2...v1.139.3
+[1.139.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.3...v1.139.4
