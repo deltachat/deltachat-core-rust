@@ -263,6 +263,9 @@ pub enum EventType {
     /// If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
     #[serde(rename_all = "camelCase")]
     ChatlistItemChanged { chat_id: Option<u32> },
+
+    /// Inform than some events have been skipped due to event channel overflow.
+    EventChannelOverflow { n: u64 },
 }
 
 impl From<CoreEventType> for EventType {
@@ -378,6 +381,7 @@ impl From<CoreEventType> for EventType {
                 chat_id: chat_id.map(|id| id.to_u32()),
             },
             CoreEventType::ChatlistChanged => ChatlistChanged,
+            CoreEventType::EventChannelOverflow { n } => EventChannelOverflow { n },
         }
     }
 }
