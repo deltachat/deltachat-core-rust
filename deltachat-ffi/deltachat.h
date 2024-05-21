@@ -6324,6 +6324,14 @@ void dc_event_unref(dc_event_t* event);
 
 #define DC_EVENT_CHATLIST_ITEM_CHANGED         2301
 
+
+/**
+ * Inform that some events have been skipped due to event channel overflow.
+ *
+ * @param data1 (int) number of events that have been skipped
+ */
+#define DC_EVENT_CHANNEL_OVERFLOW              2400
+
 /**
  * @}
  */

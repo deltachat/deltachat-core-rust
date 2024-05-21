@@ -566,6 +566,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::AccountsBackgroundFetchDone => 2200,
         EventType::ChatlistChanged => 2300,
         EventType::ChatlistItemChanged { .. } => 2301,
+        EventType::EventChannelOverflow { .. } => 2400,
     }
 }
 
@@ -624,6 +625,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         EventType::ChatlistItemChanged { chat_id } => {
             chat_id.unwrap_or_default().to_u32() as libc::c_int
         }
+        EventType::EventChannelOverflow { n } => *n as libc::c_int,
     }
 }
 
@@ -662,8 +664,9 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatlistChanged
         | EventType::ChatlistItemChanged { .. }
-        | EventType::ConfigSynced { .. } => 0,
-        EventType::ChatModified(_) => 0,
+        | EventType::ConfigSynced { .. }
+        | EventType::ChatModified(_)
+        | EventType::EventChannelOverflow { .. } => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::ReactionsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
@@ -729,7 +732,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ChatEphemeralTimerModified { .. }
         | EventType::IncomingMsgBunch { .. }
         | EventType::ChatlistItemChanged { .. }
-        | EventType::ChatlistChanged => ptr::null_mut(),
+        | EventType::ChatlistChanged
+        | EventType::EventChannelOverflow { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
                 comment.to_c_string().unwrap_or_default().into_raw()
