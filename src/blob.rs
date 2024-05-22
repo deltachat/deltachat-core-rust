@@ -1191,6 +1191,21 @@ mod tests {
         .await
         .unwrap();
 
+        send_image_check_mediaquality(
+            Viewtype::File,
+            Some("1"),
+            bytes,
+            "png",
+            false, // no Exif
+            1920,
+            1080,
+            0,
+            1920,
+            1080,
+        )
+        .await
+        .unwrap();
+
         // This will be sent as Image, see [`BlobObject::maybe_sticker`] for explanation.
         send_image_check_mediaquality(
             Viewtype::Sticker,
