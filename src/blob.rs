@@ -1336,6 +1336,11 @@ mod tests {
             .get_blobdir()
             .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
         bob_msg.save_file(&bob, &file_saved).await?;
+        if viewtype == Viewtype::File {
+            assert_eq!(file_saved.extension().unwrap(), extension);
+            let bytes1 = fs::read(&file_saved).await?;
+            assert_eq!(&bytes1, bytes);
+        }
 
         let blob = BlobObject::new_from_path(&bob, &file_saved).await?;
         let (_, exif) = blob.metadata()?;
