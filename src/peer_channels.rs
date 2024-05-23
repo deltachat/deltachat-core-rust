@@ -28,7 +28,7 @@ use email::Header;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::relay::{RelayMap, RelayUrl};
-use iroh_net::{key::SecretKey, relay::RelayMode, MagicEndpoint};
+use iroh_net::{key::SecretKey, relay::RelayMode, Endpoint};
 use iroh_net::{NodeAddr, NodeId};
 use std::collections::{BTreeSet, HashMap};
 use std::env;
@@ -50,8 +50,8 @@ const PUBLIC_KEY_STUB: &[u8] = "static_string".as_bytes();
 /// Store iroh peer channels for the context.
 #[derive(Debug)]
 pub struct Iroh {
-    /// [MagicEndpoint] needed for iroh peer channels.
-    pub(crate) endpoint: MagicEndpoint,
+    /// [Endpoint] needed for iroh peer channels.
+    pub(crate) endpoint: Endpoint,
 
     /// [Gossip] needed for iroh peer channels.
     pub(crate) gossip: Gossip,
@@ -225,7 +225,7 @@ impl Context {
             RelayMode::Default
         };
 
-        let endpoint = MagicEndpoint::builder()
+        let endpoint = Endpoint::builder()
             .secret_key(secret_key.clone())
             .alpns(vec![GOSSIP_ALPN.to_vec()])
             .relay_mode(relay_mode)
@@ -380,7 +380,7 @@ pub(crate) async fn create_iroh_header(
     ))
 }
 
-async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip) {
+async fn endpoint_loop(context: Context, endpoint: Endpoint, gossip: Gossip) {
     while let Some(conn) = endpoint.accept().await {
         info!(context, "IROH_REALTIME: accepting iroh connection");
         let gossip = gossip.clone();
@@ -395,12 +395,12 @@ async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip
 
 async fn handle_connection(
     context: &Context,
-    mut conn: iroh_net::magic_endpoint::Connecting,
+    mut conn: iroh_net::endpoint::Connecting,
     gossip: Gossip,
 ) -> anyhow::Result<()> {
     let alpn = conn.alpn().await?;
     let conn = conn.await?;
-    let peer_id = iroh_net::magic_endpoint::get_remote_node_id(&conn)?;
+    let peer_id = iroh_net::endpoint::get_remote_node_id(&conn)?;
 
     match alpn.as_bytes() {
         GOSSIP_ALPN => gossip
