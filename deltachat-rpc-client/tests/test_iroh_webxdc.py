@@ -136,3 +136,43 @@ def test_two_parallel_realtime_simultaneously(acfactory, path_to_webxdc):
 
     wait_receive_realtime_data([(ac1_webxdc_msg, [30]), (ac1_webxdc_msg2, [40])])
     wait_receive_realtime_data([(ac2_webxdc_msg, [10]), (ac2_webxdc_msg2, [20])])
+
+
+def test_no_duplicate_messages(acfactory, path_to_webxdc):
+    """Test that messages are received only once."""
+    ac1, ac2 = acfactory.get_online_accounts(2)
+
+    ac1_ac2_chat = ac1.create_chat(ac2)
+
+    ac1_webxdc_msg = ac1_ac2_chat.send_message(text="webxdc", file=path_to_webxdc)
+
+    ac1_webxdc_msg.send_webxdc_realtime_advertisement
+
+    ac2_webxdc_msg = ac2.wait_for_incoming_msg()
+    ac2_webxdc_msg.get_snapshot().chat.accept()
+    assert ac2_webxdc_msg.get_snapshot().text == "webxdc"
+
+    # Issue a "send" call in parallel with sending advertisement.
+    # Previously due to a bug this caused subscribing to the channel twice.
+    future = ac2_webxdc_msg.send_webxdc_realtime_data.future(b"foobar")
+    ac2_webxdc_msg.send_webxdc_realtime_advertisement()
+
+    def thread_run():
+        for i in range(10):
+            data = str(i).encode()
+            ac1_webxdc_msg.send_webxdc_realtime_data(data)
+            time.sleep(1)
+
+    threading.Thread(target=thread_run, daemon=True).start()
+
+    while 1:
+        event = ac2.wait_for_event()
+        if event.kind == EventType.WEBXDC_REALTIME_DATA:
+            n = int(bytes(event.data).decode())
+            break
+
+    while 1:
+        event = ac2.wait_for_event()
+        if event.kind == EventType.WEBXDC_REALTIME_DATA:
+            assert int(bytes(event.data).decode()) > n
+            break
