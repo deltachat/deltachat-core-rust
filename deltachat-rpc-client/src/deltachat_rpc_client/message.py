@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
 
-from ._utils import AttrDict
+from ._utils import AttrDict, futuremethod
 from .const import EventType
 from .contact import Contact
 
@@ -71,8 +71,10 @@ class Message:
             if event.kind == EventType.MSG_DELIVERED and event.msg_id == self.id:
                 break
 
-    def send_webxdc_realtime_advertisement(self) -> None:
-        self._rpc.send_webxdc_realtime_advertisement(self.account.id, self.id)
+    @futuremethod
+    def send_webxdc_realtime_advertisement(self):
+        yield self._rpc.send_webxdc_realtime_advertisement.future(self.account.id, self.id)
 
+    @futuremethod
     def send_webxdc_realtime_data(self, data) -> None:
-        self._rpc.send_webxdc_realtime_data(self.account.id, self.id, list(data))
+        yield self._rpc.send_webxdc_realtime_data.future(self.account.id, self.id, list(data))
