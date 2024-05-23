@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.139.5] - 2024-05-23
+
+### API-Changes
+
+- deltachat-ffi: Make WebXdcRealtimeData data usable in CFFI.
+- Add event channel overflow event.
+- deltachat-rpc-client: Add EventType.WEBXDC_REALTIME_DATA constant.
+- deltachat-rpc-client: Add Message.send_webxdc_realtime_advertisement().
+- deltachat-rpc-client: Add Message.send_webxdc_realtime_data().
+
+### Features / Changes
+
+- deltachat-repl: Add start-realtime and send-realtime commands.
+
+### Fixes
+
+- peer_channels: Connect to peers that advertise to you.
+- Don't recode images in `Viewtype::File` messages ([#5617](https://github.com/deltachat/deltachat-core-rust/pull/5617)).
+
+### Tests
+
+- peer_channels: Add test_parallel_connect().
+- "SecureJoin wait" state and info messages.
+
 ## [1.139.4] - 2024-05-21
 
 ### Features / Changes
@@ -4275,3 +4299,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.139.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.1...v1.139.2
 [1.139.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.2...v1.139.3
 [1.139.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.3...v1.139.4
+[1.139.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.4...v1.139.5
