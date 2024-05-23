@@ -407,7 +407,7 @@ async fn inbox_loop(
             } else {
                 match connection.prepare(&ctx).await {
                     Err(err) => {
-                        warn!(ctx, "Failed to prepare connection: {:#}.", err);
+                        warn!(ctx, "Failed to prepare INBOX connection: {:#}.", err);
                         continue;
                     }
                     Ok(session) => session,
@@ -714,7 +714,10 @@ async fn simple_imap_loop(
             } else {
                 match connection.prepare(&ctx).await {
                     Err(err) => {
-                        warn!(ctx, "Failed to prepare connection: {:#}.", err);
+                        warn!(
+                            ctx,
+                            "Failed to prepare {folder_meaning} connection: {err:#}."
+                        );
                         continue;
                     }
                     Ok(session) => session,
