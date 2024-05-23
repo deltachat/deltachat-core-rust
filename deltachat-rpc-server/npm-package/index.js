@@ -70,7 +70,7 @@ export async function startDeltaChat(directory, options = {}) {
   const pathToServerBinary = await getRPCServerPath(options);
   const server = spawn(pathToServerBinary, {
     env: {
-      RUST_LOG: process.env.RUST_LOG || "info",
+      RUST_LOG: process.env.RUST_LOG,
       DC_ACCOUNTS_PATH: directory,
     },
     stdio: ["pipe", "pipe", options.muteStdErr ? "ignore" : "inherit"],
