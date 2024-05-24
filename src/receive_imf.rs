@@ -1664,7 +1664,13 @@ RETURNING id
         replace_msg_id.trash(context, on_server).await?;
     }
 
-    chat_id.unarchive_if_not_muted(context, state).await?;
+    let unarchive = match mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
+        Some(addr) => context.is_self_addr(addr).await?,
+        None => true,
+    };
+    if unarchive {
+        chat_id.unarchive_if_not_muted(context, state).await?;
+    }
 
     info!(
         context,

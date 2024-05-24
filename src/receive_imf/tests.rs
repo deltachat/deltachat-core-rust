@@ -4686,6 +4686,40 @@ Chat-Group-Member-Removed: charlie@example.com",
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_unarchive_on_member_removal() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let bob_id = Contact::create(alice, "", "bob@example.net").await?;
+    let fiona_id = Contact::create(alice, "", "fiona@example.net").await?;
+    let alice_chat_id = create_group_chat(alice, ProtectionStatus::Unprotected, "foos").await?;
+    add_contact_to_chat(alice, alice_chat_id, bob_id).await?;
+    add_contact_to_chat(alice, alice_chat_id, fiona_id).await?;
+
+    send_text_msg(alice, alice_chat_id, "populate".to_string()).await?;
+    let msg = alice.pop_sent_msg().await;
+    bob.recv_msg(&msg).await;
+    let bob_chat_id = bob.get_last_msg().await.chat_id;
+    bob_chat_id
+        .set_visibility(bob, ChatVisibility::Archived)
+        .await?;
+
+    remove_contact_from_chat(alice, alice_chat_id, fiona_id).await?;
+    let msg = alice.pop_sent_msg().await;
+    bob.recv_msg(&msg).await;
+    let bob_chat = Chat::load_from_db(bob, bob_chat_id).await?;
+    assert_eq!(bob_chat.get_visibility(), ChatVisibility::Archived);
+
+    remove_contact_from_chat(alice, alice_chat_id, bob_id).await?;
+    let msg = alice.pop_sent_msg().await;
+    bob.recv_msg(&msg).await;
+    let bob_chat = Chat::load_from_db(bob, bob_chat_id).await?;
+    assert_eq!(bob_chat.get_visibility(), ChatVisibility::Normal);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_forged_from() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
