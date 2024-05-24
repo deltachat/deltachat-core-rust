@@ -4659,6 +4659,33 @@ async fn test_protected_group_add_remove_member_missing_key() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_dont_create_adhoc_group_on_member_removal() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let bob = &tcm.bob().await;
+    async fn get_chat_cnt(ctx: &Context) -> Result<usize> {
+        ctx.sql
+            .count("SELECT COUNT(*) FROM chats WHERE id>9", ())
+            .await
+    }
+    let chat_cnt = get_chat_cnt(bob).await?;
+    receive_imf(
+        bob,
+        b"From: Alice <alice@example.org>\n\
+To: <bob@example.net>, <charlie@example.com>\n\
+Chat-Version: 1.0\n\
+Subject: subject\n\
+Message-ID: <first@example.org>\n\
+Date: Sun, 14 Nov 2021 00:10:00 +0000\
+Content-Type: text/plain
+Chat-Group-Member-Removed: charlie@example.com",
+        false,
+    )
+    .await?;
+    assert_eq!(get_chat_cnt(bob).await?, chat_cnt);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_forged_from() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
