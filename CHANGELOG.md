@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.139.6] - 2024-05-25
+
+### Build system
+
+- Update `iroh` to the git version.
+- nix: Add iroh-base output hash.
+- Upgrade iroh to 0.17.0.
+
+### Fixes
+
+- @deltachat/stdio-rpc-server: Do not set RUST_LOG to "info" by default.
+- Acquire write lock on iroh_channels before checking for subscribe_loop.
+
+### Miscellaneous Tasks
+
+- Fix python lint.
+- cargo-deny: Remove unused entry from deny.toml.
+
+### Refactor
+
+- Log IMAP connection type on connection failure.
+
+### Tests
+
+- Viewtype::File attachments are sent unchanged and preserve extensions.
+- deltachat-rpc-client: Add realtime channel tests.
+- deltachat-rpc-client: Regression test for double gossip subscription.
+
 ## [1.139.5] - 2024-05-23
 
 ### API-Changes
@@ -4300,3 +4328,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.139.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.2...v1.139.3
 [1.139.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.3...v1.139.4
 [1.139.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.4...v1.139.5
+[1.139.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.5...v1.139.6
