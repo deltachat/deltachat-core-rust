@@ -3237,8 +3237,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-base"
-version = "0.16.0"
-source = "git+https://github.com/n0-computer/iroh?rev=c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e#c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1be0b442ed44d20905cf77c673169906c883e05c829e3fb303b131e925139fc"
 dependencies = [
  "aead",
  "anyhow",
@@ -3277,8 +3278,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-gossip"
-version = "0.16.0"
-source = "git+https://github.com/n0-computer/iroh?rev=c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e#c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "857aa77a0b29283edf99224bd12cd739684c5873e639b85adb38b8d1d777162d"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3302,8 +3304,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics"
-version = "0.16.0"
-source = "git+https://github.com/n0-computer/iroh?rev=c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e#c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd54b9cf342b2618efc8d3ff6cdcd083fa5a2cf6cc78bb473bd32e228eabb40e"
 dependencies = [
  "anyhow",
  "erased_set",
@@ -3322,8 +3325,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-net"
-version = "0.16.0"
-source = "git+https://github.com/n0-computer/iroh?rev=c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e#c8690a2c6eb5753c4ec6b7e44db72abf09df3c6e"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a744000e6c5704479eeb4751eb23b9b8e7e56a0fc484beb8831694fc93e378f"
 dependencies = [
  "aead",
  "anyhow",
@@ -3368,7 +3372,7 @@ dependencies = [
  "postcard",
  "rand 0.8.5",
  "rand_core 0.6.4",
- "rcgen 0.11.3",
+ "rcgen 0.12.1",
  "reqwest 0.12.4",
  "ring 0.17.8",
  "rtnetlink",
@@ -3398,9 +3402,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-quinn"
-version = "0.10.4"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b934380145fd5d53a583d01ae9500f4807efe6b0f0fe115c7be4afa2b35db99f"
+checksum = "906875956feb75d3d41d708ddaffeb11fdb10cd05f23efbcb17600037e411779"
 dependencies = [
  "bytes",
  "iroh-quinn-proto",
@@ -3415,13 +3419,13 @@ dependencies = [
 
 [[package]]
 name = "iroh-quinn-proto"
-version = "0.10.7"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16f2656b322c7f6cf3eb95e632d1c0f2fa546841915b0270da581f918c70c4be"
+checksum = "c6bf92478805e67f2320459285496e1137edf5171411001a0d4d85f9bbafb792"
 dependencies = [
  "bytes",
  "rand 0.8.5",
- "ring 0.16.20",
+ "ring 0.17.8",
  "rustc-hash",
  "rustls 0.21.11",
  "rustls-native-certs",
@@ -3433,9 +3437,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-quinn-udp"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6679979a7271c24f9dae9622c0b4a543881508aa3a7396f55dfbaaa56f01c063"
+checksum = "edc7915b3a31f08ee0bc02f73f4d61a5d5be146a1081ef7f70622a11627fd314"
 dependencies = [
  "bytes",
  "libc",
@@ -5051,18 +5055,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffbe84efe2f38dea12e9bfc1f65377fdf03e53a18cb3b995faedf7934c7e785b"
 dependencies = [
  "pem 1.1.1",
- "ring 0.16.20",
- "time 0.3.34",
- "yasna",
-]
-
-[[package]]
-name = "rcgen"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52c4f3084aa3bc7dfbba4eff4fab2a54db4324965d8872ab933565e6fbd83bc6"
-dependencies = [
- "pem 3.0.4",
  "ring 0.16.20",
  "time 0.3.34",
  "yasna",
