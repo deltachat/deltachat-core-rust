@@ -49,7 +49,7 @@ def setup_realtime_webxdc(ac1, ac2, path_to_webxdc):
 
 def setup_thread_send_realtime_data(msg, data):
     def thread_run():
-        for i in range(10):
+        for _i in range(10):
             msg.send_webxdc_realtime_data(data)
             time.sleep(1)
 
@@ -146,15 +146,13 @@ def test_no_duplicate_messages(acfactory, path_to_webxdc):
 
     ac1_webxdc_msg = ac1_ac2_chat.send_message(text="webxdc", file=path_to_webxdc)
 
-    ac1_webxdc_msg.send_webxdc_realtime_advertisement
-
     ac2_webxdc_msg = ac2.wait_for_incoming_msg()
     ac2_webxdc_msg.get_snapshot().chat.accept()
     assert ac2_webxdc_msg.get_snapshot().text == "webxdc"
 
     # Issue a "send" call in parallel with sending advertisement.
     # Previously due to a bug this caused subscribing to the channel twice.
-    future = ac2_webxdc_msg.send_webxdc_realtime_data.future(b"foobar")
+    ac2_webxdc_msg.send_webxdc_realtime_data.future(b"foobar")
     ac2_webxdc_msg.send_webxdc_realtime_advertisement()
 
     def thread_run():
