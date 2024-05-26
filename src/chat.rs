@@ -1932,6 +1932,10 @@ impl Chat {
         // reset encrypt error state eg. for forwarding
         msg.param.remove(Param::ErroneousE2ee);
 
+        let is_bot = context.get_config_bool(Config::Bot).await?;
+        msg.param
+            .set_optional(Param::Bot, Some("1").filter(|_| is_bot));
+
         // Set "In-Reply-To:" to identify the message to which the composed message is a reply.
         // Set "References:" to identify the "thread" of the conversation.
         // Both according to [RFC 5322 3.6.4, page 25](https://www.rfc-editor.org/rfc/rfc5322#section-3.6.4).

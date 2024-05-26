@@ -3214,6 +3214,29 @@ async fn test_auto_accept_group_for_bots() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_send_as_bot() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    alice.set_config(Config::Bot, Some("1")).await.unwrap();
+    let bob = &tcm.bob().await;
+    let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+    let alice_bob_id = Contact::create(alice, "", &bob_addr).await?;
+    let bob_chat_id = tcm.send_recv_accept(alice, bob, "hi").await.chat_id;
+    let alice_chat_id = ChatId::lookup_by_contact(alice, alice_bob_id)
+        .await?
+        .unwrap();
+    let msg = alice.get_last_msg_in(alice_chat_id).await;
+    assert!(msg.is_bot());
+    let msg = bob.get_last_msg_in(bob_chat_id).await;
+    assert!(msg.is_bot());
+    chat::forward_msgs(bob, &[msg.id], bob_chat_id).await?;
+    let msg = bob.get_last_msg_in(bob_chat_id).await;
+    assert!(msg.is_forwarded());
+    assert!(!msg.is_bot());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
