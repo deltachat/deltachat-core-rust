@@ -88,6 +88,9 @@ pub enum Param {
     /// For Messages: quoted text.
     Quote = b'q',
 
+    /// For Messages: the 1st part of summary text (i.e. before the dash if any).
+    Summary1 = b'4',
+
     /// For Messages
     Cmd = b'S',
 

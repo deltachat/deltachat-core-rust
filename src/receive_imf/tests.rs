@@ -4705,10 +4705,15 @@ async fn test_receive_vcard() -> Result<()> {
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
-    for vcard_contains_address in [true, false] {
-        let mut msg = Message::new(Viewtype::Vcard);
+    async fn test(
+        alice: &TestContext,
+        bob: &TestContext,
+        vcard_contains_address: bool,
+        viewtype: Viewtype,
+    ) -> Result<()> {
+        let mut msg = Message::new(viewtype);
         msg.set_file_from_bytes(
-            &alice,
+            alice,
             "claire.vcf",
             format!(
                 "BEGIN:VCARD\n\
@@ -4728,19 +4733,24 @@ async fn test_receive_vcard() -> Result<()> {
         .await
         .unwrap();
 
-        let alice_bob_chat = alice.create_chat(&bob).await;
+        let alice_bob_chat = alice.create_chat(bob).await;
         let sent = alice.send_msg(alice_bob_chat.id, &mut msg).await;
         let rcvd = bob.recv_msg(&sent).await;
+        let sent = Message::load_from_db(alice, sent.sender_msg_id).await?;
 
         if vcard_contains_address {
+            assert_eq!(sent.viewtype, Viewtype::Vcard);
+            assert_eq!(sent.get_summary_text(alice).await, "👤 Claire");
             assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+            assert_eq!(rcvd.get_summary_text(bob).await, "👤 Claire");
         } else {
             // VCards without an email address are not "deltachat contacts",
             // so they are shown as files
+            assert_eq!(sent.viewtype, Viewtype::File);
             assert_eq!(rcvd.viewtype, Viewtype::File);
         }
 
-        let vcard = tokio::fs::read(rcvd.get_file(&bob).unwrap()).await?;
+        let vcard = tokio::fs::read(rcvd.get_file(bob).unwrap()).await?;
         let vcard = std::str::from_utf8(&vcard)?;
         let parsed = deltachat_contact_tools::parse_vcard(vcard);
         assert_eq!(parsed.len(), 1);
@@ -4748,6 +4758,13 @@ async fn test_receive_vcard() -> Result<()> {
             assert_eq!(&parsed[0].addr, "claire@example.org");
         } else {
             assert_eq!(&parsed[0].addr, "");
+        }
+        Ok(())
+    }
+
+    for vcard_contains_address in [true, false] {
+        for viewtype in [Viewtype::File, Viewtype::Vcard] {
+            test(&alice, &bob, vcard_contains_address, viewtype).await?;
         }
     }
 
@@ -4776,7 +4793,9 @@ async fn test_make_n_send_vcard() -> Result<()> {
     let sent = Message::load_from_db(alice, sent.sender_msg_id).await?;
 
     assert_eq!(sent.viewtype, Viewtype::Vcard);
+    assert_eq!(sent.get_summary_text(alice).await, "👤 Claire");
     assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+    assert_eq!(rcvd.get_summary_text(bob).await, "👤 Claire");
 
     let vcard = tokio::fs::read(rcvd.get_file(bob).unwrap()).await?;
     let vcard = std::str::from_utf8(&vcard)?;

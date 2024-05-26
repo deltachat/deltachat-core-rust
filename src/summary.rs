@@ -10,6 +10,7 @@ use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::message::{Message, MessageState, Viewtype};
 use crate::mimeparser::SystemMessage;
+use crate::param::Param;
 use crate::stock_str;
 use crate::stock_str::msg_reacted;
 use crate::tools::truncate;
@@ -149,7 +150,7 @@ impl Summary {
 
 impl Message {
     /// Returns a summary text.
-    async fn get_summary_text(&self, context: &Context) -> String {
+    pub(crate) async fn get_summary_text(&self, context: &Context) -> String {
         let summary = self.get_summary_text_without_prefix(context).await;
 
         if self.is_forwarded() {
@@ -231,8 +232,8 @@ impl Message {
             }
             Viewtype::Vcard => {
                 emoji = Some("👤");
-                type_name = Some(stock_str::contact(context).await);
-                type_file = None;
+                type_name = None;
+                type_file = self.param.get(Param::Summary1).map(|s| s.to_string());
                 append_text = true;
             }
             Viewtype::Text | Viewtype::Unknown => {
@@ -284,6 +285,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::ChatId;
     use crate::param::Param;
     use crate::test_utils as test;
 
@@ -296,7 +298,9 @@ mod tests {
     async fn test_get_summary_text() {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
-
+        let chat_id = ChatId::create_for_contact(ctx, ContactId::SELF)
+            .await
+            .unwrap();
         let some_text = " bla \t\n\tbla\n\t".to_string();
 
         let mut msg = Message::new(Viewtype::Text);
@@ -367,25 +371,34 @@ mod tests {
         assert_summary_texts(&msg, ctx, "Video chat invitation").await; // text is not added for videochat invitations
 
         let mut msg = Message::new(Viewtype::Vcard);
-        msg.set_file("foo.vcf", None);
-        assert_summary_texts(&msg, ctx, "👤 Contact").await;
+        msg.set_file_from_bytes(ctx, "foo.vcf", b"", None)
+            .await
+            .unwrap();
+        chat_id.set_draft(ctx, Some(&mut msg)).await.unwrap();
+        // If a vCard can't be parsed, the message becomes `Viewtype::File`.
+        assert_eq!(msg.viewtype, Viewtype::File);
+        assert_summary_texts(&msg, ctx, "📎 foo.vcf").await;
         msg.set_text(some_text.clone());
-        assert_summary_texts(&msg, ctx, "👤 bla bla").await;
+        assert_summary_texts(&msg, ctx, "📎 foo.vcf \u{2013} bla bla").await;
 
-        let mut msg = Message::new(Viewtype::Vcard);
-        msg.set_file_from_bytes(
-            ctx,
-            "alice.vcf",
-            b"BEGIN:VCARD\n\
-              VERSION:4.0\n\
-              FN:Alice Wonderland\n\
-              EMAIL;TYPE=work:alice@example.org\n\
-              END:VCARD",
-            None,
-        )
-        .await
-        .unwrap();
-        assert_summary_texts(&msg, ctx, "👤 Contact").await;
+        for vt in [Viewtype::Vcard, Viewtype::File] {
+            let mut msg = Message::new(vt);
+            msg.set_file_from_bytes(
+                ctx,
+                "alice.vcf",
+                b"BEGIN:VCARD\n\
+                  VERSION:4.0\n\
+                  FN:Alice Wonderland\n\
+                  EMAIL;TYPE=work:alice@example.org\n\
+                  END:VCARD",
+                None,
+            )
+            .await
+            .unwrap();
+            chat_id.set_draft(ctx, Some(&mut msg)).await.unwrap();
+            assert_eq!(msg.viewtype, Viewtype::Vcard);
+            assert_summary_texts(&msg, ctx, "👤 Alice Wonderland").await;
+        }
 
         // Forwarded
         let mut msg = Message::new(Viewtype::Text);

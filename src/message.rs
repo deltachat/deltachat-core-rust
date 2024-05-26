@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::str;
 
 use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_contact_tools::{parse_vcard, VcardContact};
@@ -1093,6 +1094,18 @@ impl Message {
             .await
     }
 
+    /// Updates message state from the vCard attachment.
+    pub(crate) async fn try_set_vcard(&mut self, context: &Context, path: &Path) -> Result<()> {
+        let vcard = fs::read(path).await.context("Could not read {path}")?;
+        if let Some(summary) = get_vcard_summary(&vcard) {
+            self.param.set(Param::Summary1, summary);
+        } else {
+            warn!(context, "try_set_vcard: Not a valid DeltaChat vCard.");
+            self.viewtype = Viewtype::File;
+        }
+        Ok(())
+    }
+
     /// Set different sender name for a message.
     /// This overrides the name set by the `set_config()`-option `displayname`.
     pub fn set_override_sender_name(&mut self, name: Option<String>) {
@@ -1945,6 +1958,19 @@ pub(crate) async fn get_by_rfc724_mids(
         latest.get_or_insert(msg);
     }
     Ok(latest)
+}
+
+/// Returns the 1st part of summary text (i.e. before the dash if any) for a valid DeltaChat vCard.
+pub(crate) fn get_vcard_summary(vcard: &[u8]) -> Option<String> {
+    let vcard = str::from_utf8(vcard).ok()?;
+    let contacts = deltachat_contact_tools::parse_vcard(vcard);
+    let [c] = &contacts[..] else {
+        return None;
+    };
+    if !deltachat_contact_tools::may_be_valid_addr(&c.addr) {
+        return None;
+    }
+    Some(c.display_name().to_string())
 }
 
 /// How a message is primarily displayed.

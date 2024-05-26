@@ -49,7 +49,6 @@ use crate::tools::{
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
     smeared_time, time, IsNoneOrEmpty, SystemTime,
 };
-use crate::webxdc::WEBXDC_SUFFIX;
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -894,8 +893,20 @@ impl ChatId {
                     .await?
                     .context("no file stored in params")?;
                 msg.param.set(Param::File, blob.as_name());
-                if blob.suffix() == Some(WEBXDC_SUFFIX) {
-                    msg.viewtype = Viewtype::Webxdc;
+                if msg.viewtype == Viewtype::File {
+                    if let Some((better_type, _)) =
+                        message::guess_msgtype_from_suffix(&blob.to_abs_path())
+                            // We do not do an automatic conversion to other viewtypes here so that
+                            // users can send images as "files" to preserve the original quality
+                            // (usually we compress images). The remaining conversions are done by
+                            // `prepare_msg_blob()` later.
+                            .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
+                    {
+                        msg.viewtype = better_type;
+                    }
+                }
+                if msg.viewtype == Viewtype::Vcard {
+                    msg.try_set_vcard(context, &blob.to_abs_path()).await?;
                 }
             }
         }
@@ -2647,6 +2658,10 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             context
                 .ensure_sendable_webxdc_file(&blob.to_abs_path())
                 .await?;
+        }
+
+        if msg.viewtype == Viewtype::Vcard {
+            msg.try_set_vcard(context, &blob.to_abs_path()).await?;
         }
 
         let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
