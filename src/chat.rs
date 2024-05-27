@@ -2991,11 +2991,7 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
 
     msg.subject.clone_from(&rendered_msg.subject);
     msg.update_subject(context).await?;
-    let chunk_size = context
-        .get_configured_provider()
-        .await?
-        .and_then(|provider| provider.opt.max_smtp_rcpt_to)
-        .map_or(constants::DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
+    let chunk_size = context.get_max_smtp_rcpt_to().await?;
     let trans_fn = |t: &mut rusqlite::Transaction| {
         let mut row_ids = Vec::<i64>::new();
         for recipients_chunk in recipients.chunks(chunk_size) {
