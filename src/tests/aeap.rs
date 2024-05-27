@@ -327,6 +327,12 @@ async fn check_no_transition_done(groups: &[ChatId], old_alice_addr: &str, bob: 
             last_info_msg.is_none(),
             "{last_info_msg:?} shouldn't be there (or it's an unrelated info msg)"
         );
+
+        let sent = bob.send_text(*group, "hi").await;
+        let msg = Message::load_from_db(bob, sent.sender_msg_id)
+            .await
+            .unwrap();
+        assert_eq!(msg.get_showpadlock(), true);
     }
 }
 

@@ -538,10 +538,18 @@ impl Peerstate {
             if let Some(old_addr) = old_addr {
                 // We are doing an AEAP transition to the new address and the SQL INSERT below will
                 // save the existing peerstate as belonging to this new address. We now need to
-                // delete the peerstate that belongs to the current address in case if the contact
-                // later wants to move back to the current address. Otherwise the old entry will be
-                // just found and updated instead of doing AEAP.
-                t.execute("DELETE FROM acpeerstates WHERE addr=?", (old_addr,))?;
+                // "unverify" the peerstate that belongs to the current address in case if the
+                // contact later wants to move back to the current address. Otherwise the old entry
+                // will be just found and updated instead of doing AEAP. We can't just delete the
+                // existing peerstate as this would break encryption to it. This is critical for
+                // non-verified groups -- if we can't encrypt to the old address, we can't securely
+                // remove it from the group (to add the new one instead).
+                t.execute(
+                    "UPDATE acpeerstates \
+                     SET verified_key=NULL, verified_key_fingerprint='', verifier='' \
+                     WHERE addr=?",
+                    (old_addr,),
+                )?;
             }
             t.execute(
                 "INSERT INTO acpeerstates (
