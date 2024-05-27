@@ -249,7 +249,9 @@ impl Context {
                 RelayMode::Default
             }
             #[cfg(not(test))]
-            RelayMode::Disabled
+            RelayMode::Custom(RelayMap::from_url(
+                Url::parse("ir.testrun.org").unwrap().into(),
+            ))
         };
 
         let endpoint = Endpoint::builder()
