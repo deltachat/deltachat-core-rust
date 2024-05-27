@@ -5,7 +5,7 @@ use deltachat_contact_tools::EmailAddress;
 use rusqlite::OptionalExtension;
 
 use crate::config::Config;
-use crate::constants::{self, ShowEmails};
+use crate::constants::ShowEmails;
 use crate::context::Context;
 use crate::imap;
 use crate::message::MsgId;
@@ -839,11 +839,7 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
 
     if dbversion < 108 {
         let version = 108;
-        let chunk_size = context
-            .get_configured_provider()
-            .await?
-            .and_then(|provider| provider.opt.max_smtp_rcpt_to)
-            .map_or(constants::DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
+        let chunk_size = context.get_max_smtp_rcpt_to().await?;
         sql.transaction(move |trans| {
             Sql::set_db_version_trans(trans, version)?;
             let id_max =

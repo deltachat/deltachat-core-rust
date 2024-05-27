@@ -498,6 +498,23 @@ impl Context {
         self.get_config_bool(Config::IsChatmail).await
     }
 
+    /// Returns maximum number of recipients the provider allows to send a single email to.
+    pub(crate) async fn get_max_smtp_rcpt_to(&self) -> Result<usize> {
+        let is_chatmail = self.is_chatmail().await?;
+        let val = self
+            .get_configured_provider()
+            .await?
+            .and_then(|provider| provider.opt.max_smtp_rcpt_to)
+            .map_or_else(
+                || match is_chatmail {
+                    true => usize::MAX,
+                    false => constants::DEFAULT_MAX_SMTP_RCPT_TO,
+                },
+                usize::from,
+            );
+        Ok(val)
+    }
+
     /// Does a background fetch
     /// pauses the scheduler and does one imap fetch, then unpauses and returns
     pub async fn background_fetch(&self) -> Result<()> {
