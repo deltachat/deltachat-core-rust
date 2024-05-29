@@ -3276,6 +3276,24 @@ async fn test_auto_accept_group_for_bots() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_auto_accept_protected_group_for_bots() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    bob.set_config(Config::Bot, Some("1")).await.unwrap();
+    mark_as_verified(alice, bob).await;
+    mark_as_verified(bob, alice).await;
+    let group_id = alice
+        .create_group_with_members(ProtectionStatus::Protected, "Group", &[bob])
+        .await;
+    let sent = alice.send_text(group_id, "Hello!").await;
+    let msg = bob.recv_msg(&sent).await;
+    let chat = chat::Chat::load_from_db(bob, msg.chat_id).await?;
+    assert!(!chat.is_contact_request());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_send_as_bot() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = &tcm.alice().await;
