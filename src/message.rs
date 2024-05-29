@@ -1433,7 +1433,7 @@ pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
         "txt" => (Viewtype::File, "text/plain"),
         "vcard" => (Viewtype::Vcard, "text/vcard"),
         "vcf" => (Viewtype::Vcard, "text/vcard"),
-        "wav" => (Viewtype::File, "audio/wav"),
+        "wav" => (Viewtype::Audio, "audio/wav"),
         "weba" => (Viewtype::File, "audio/webm"),
         "webm" => (Viewtype::Video, "video/webm"),
         "webp" => (Viewtype::Image, "image/webp"), // iOS via SDWebImage, Android since 4.0
