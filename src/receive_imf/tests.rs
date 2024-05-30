@@ -13,7 +13,7 @@ use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
 use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
-use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
+use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
 use crate::tools::SystemTime;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -4461,6 +4461,40 @@ Chat-Group-Member-Added: charlie@example.com",
     assert_eq!(timestamp3, timestamp4);
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_leave_protected_group_missing_member_key() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    mark_as_verified(alice, bob).await;
+    let alice_bob_id = alice.add_or_lookup_contact(bob).await.id;
+    let group_id = create_group_chat(alice, ProtectionStatus::Protected, "Group").await?;
+    add_contact_to_chat(alice, group_id, alice_bob_id).await?;
+    alice.send_text(group_id, "Hello!").await;
+    alice
+        .sql
+        .execute(
+            "UPDATE acpeerstates SET addr=? WHERE addr=?",
+            ("b@b", "bob@example.net"),
+        )
+        .await?;
+    assert!(remove_contact_from_chat(alice, group_id, ContactId::SELF)
+        .await
+        .is_err());
+    assert!(is_contact_in_chat(alice, group_id, ContactId::SELF).await?);
+    alice
+        .sql
+        .execute(
+            "UPDATE acpeerstates SET addr=? WHERE addr=?",
+            ("bob@example.net", "b@b"),
+        )
+        .await?;
+    remove_contact_from_chat(alice, group_id, ContactId::SELF).await?;
+    alice.pop_sent_msg().await;
+    assert!(!is_contact_in_chat(alice, group_id, ContactId::SELF).await?);
     Ok(())
 }
 
