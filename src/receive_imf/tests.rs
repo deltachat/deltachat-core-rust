@@ -1820,26 +1820,31 @@ async fn test_save_mime_headers_on() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestContext, TestContext) {
+async fn check_alias_reply(from_dc: bool, chat_request: bool, group_request: bool) {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+
     // Claire, a customer, sends a support request
-    // to the alias address <support@example.org> from a classic MUA.
+    // to the alias address <support@example.org>.
+    // If `chat_request` is true, Claire is using Delta Chat,
+    // otherwise Claire sends the request from a classic MUA.
     // The alias expands to the supporters Alice and Bob.
-    // Check that Alice receives the message in a group chat.
     let claire_request = if group_request {
         format!(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                To: support@example.org, ceo@example.org\n\
-                From: claire@example.org\n\
-                Subject: i have a question\n\
-                Message-ID: <non-dc-1@example.org>\n\
-                {}\
-                Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
-                Content-Type: text/plain\n\
-                \n\
-                hi support! what is the current version?",
+             To: support@example.org, ceo@example.org\n\
+             From: claire@example.org\n\
+             Subject: i have a question\n\
+             Message-ID: <non-dc-1@example.org>\n\
+             {}\
+             Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
+             Content-Type: text/plain\n\
+             \n\
+             hi support! what is the current version?",
             if chat_request {
-                "Chat-Group-ID: 8ud29aridt29arid\n\
-                    Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n"
+                "Chat-Version: 1.0\n\
+                 Chat-Group-ID: 8ud29aridt29arid\n\
+                 Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n"
             } else {
                 ""
             }
@@ -1847,15 +1852,15 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
     } else {
         format!(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                To: support@example.org\n\
-                From: claire@example.org\n\
-                Subject: i have a question\n\
-                Message-ID: <non-dc-1@example.org>\n\
-                {}\
-                Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
-                Content-Type: text/plain\n\
-                \n\
-                hi support! what is the current version?",
+             To: support@example.org\n\
+             From: claire@example.org\n\
+             Subject: i have a question\n\
+             Message-ID: <non-dc-1@example.org>\n\
+             {}\
+             Date: Sun, 14 Mar 2021 17:04:36 +0100\n\
+             Content-Type: text/plain\n\
+             \n\
+             hi support! what is the current version?",
             if chat_request {
                 "Chat-Version: 1.0\n"
             } else {
@@ -1864,11 +1869,11 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
         )
     };
 
-    let alice = TestContext::new_alice().await;
     receive_imf(&alice, claire_request.as_bytes(), false)
         .await
         .unwrap();
 
+    // Check that Alice receives the message in a group chat.
     let msg = alice.get_last_msg().await;
     assert_eq!(msg.get_subject(), "i have a question");
     assert!(msg.get_text().contains("hi support!"));
@@ -1882,7 +1887,7 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
     }
     assert_eq!(msg.get_override_sender_name(), None);
 
-    let claire = TestContext::new().await;
+    let claire = tcm.unconfigured().await;
     claire.configure_addr("claire@example.org").await;
     receive_imf(&claire, claire_request.as_bytes(), false)
         .await
@@ -1906,15 +1911,48 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
     assert_eq!(get_chat_msgs(&claire, chat.id).await.unwrap().len(), 1);
     assert_eq!(msg.get_override_sender_name(), None);
 
-    (claire, alice)
-}
-
-async fn check_alias_reply(reply: &[u8], chat_request: bool, group_request: bool) {
-    let (claire, alice) = create_test_alias(chat_request, group_request).await;
+    let reply = if from_dc {
+        // Bob, the other supporter, answers with Delta Chat.
+        format!(
+            "To: support@example.org, claire@example.org\n\
+          From: bob@example.net\n\
+          Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+          References: <bobreply@localhost>\n\
+          In-Reply-To: <non-dc-1@example.org>\n\
+          Message-ID: <bobreply@localhost>\n\
+          Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+          Chat-Version: 1.0\n\
+          {}\
+          Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n\
+          Chat-Disposition-Notification-To: bob@example.net\n\
+          Content-Type: text/plain\n\
+          \n\
+          hi claire, the version is 1.0, cheers bob",
+            if group_request && chat_request {
+                "Chat-Group-ID: 8ud29aridt29arid\n"
+            } else {
+                // Ad-hoc group has no ID.
+                ""
+            }
+        )
+    } else {
+        // Bob, the other supporter, answers with a classic MUA.
+        "To: support@example.org, claire@example.org\n\
+         From: bob@example.net\n\
+         Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
+         References: <non-dc-1@example.org>\n\
+         In-Reply-To: <non-dc-1@example.org>\n\
+         Message-ID: <non-dc-2@example.net>\n\
+         Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
+         Content-Type: text/plain\n\
+         \n\
+         hi claire, the version is 1.0, cheers bob"
+            .to_string()
+    };
 
     // Check that Alice gets the message in the same chat.
     let request = alice.get_last_msg().await;
-    receive_imf(&alice, reply, false).await.unwrap();
+    receive_imf(&alice, reply.as_bytes(), false).await.unwrap();
     let answer = alice.get_last_msg().await;
     assert_eq!(answer.get_subject(), "Re: i have a question");
     assert!(answer.get_text().contains("the version is 1.0"));
@@ -1937,7 +1975,7 @@ async fn check_alias_reply(reply: &[u8], chat_request: bool, group_request: bool
 
     // Check that Claire also gets the message in the same chat.
     let request = claire.get_last_msg().await;
-    receive_imf(&claire, reply, false).await.unwrap();
+    receive_imf(&claire, reply.as_bytes(), false).await.unwrap();
     let answer = claire.get_last_msg().await;
     assert_eq!(answer.get_subject(), "Re: i have a question");
     assert!(answer.get_text().contains("the version is 1.0"));
@@ -1949,47 +1987,36 @@ async fn check_alias_reply(reply: &[u8], chat_request: bool, group_request: bool
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_alias_support_answer_from_nondc() {
-    // Bob, the other supporter, answers with a classic MUA.
-    let bob_answer = b"To: support@example.org, claire@example.org\n\
-        From: bob@example.net\n\
-        Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
-        References: <non-dc-1@example.org>\n\
-        In-Reply-To: <non-dc-1@example.org>\n\
-        Message-ID: <non-dc-2@example.net>\n\
-        Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
-        Content-Type: text/plain\n\
-        \n\
-        hi claire, the version is 1.0, cheers bob";
-
-    check_alias_reply(bob_answer, true, true).await;
-    check_alias_reply(bob_answer, false, true).await;
-    check_alias_reply(bob_answer, true, false).await;
-    check_alias_reply(bob_answer, false, false).await;
+async fn test_alias_support_answer_from_nondc_nonchat_nongroup() {
+    check_alias_reply(false, false, false).await;
 }
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_alias_answer_from_dc() {
-    // Bob, the other supporter, answers with Delta Chat.
-    let bob_answer = b"To: support@example.org, claire@example.org\n\
-                From: bob@example.net\n\
-                Subject: =?utf-8?q?Re=3A_i_have_a_question?=\n\
-                References: <Gr.af9e810c9b592927.gNm8dVdkZsH@example.net>\n\
-                In-Reply-To: <non-dc-1@example.org>\n\
-                Message-ID: <Gr.af9e810c9b592927.gNm8dVdkZsH@example.net>\n\
-                Date: Sun, 14 Mar 2021 16:04:57 +0000\n\
-                Chat-Version: 1.0\n\
-                Chat-Group-ID: af9e810c9b592927\n\
-                Chat-Group-Name: =?utf-8?q?i_have_a_question?=\n\
-                Chat-Disposition-Notification-To: bob@example.net\n\
-                Content-Type: text/plain\n\
-                \n\
-                hi claire, the version is 1.0, cheers bob";
-
-    check_alias_reply(bob_answer, true, true).await;
-    check_alias_reply(bob_answer, false, true).await;
-    check_alias_reply(bob_answer, true, false).await;
-    check_alias_reply(bob_answer, false, false).await;
+async fn test_alias_support_answer_from_nondc_nonchat_group() {
+    check_alias_reply(false, false, true).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_alias_support_answer_from_nondc_chat_nongroup() {
+    check_alias_reply(false, true, false).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_alias_support_answer_from_nondc_chat_group() {
+    check_alias_reply(false, true, true).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_alias_support_answer_from_dc_nonchat_nongroup() {
+    check_alias_reply(true, false, false).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_alias_support_answer_from_dc_nonchat_group() {
+    check_alias_reply(true, false, true).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_alias_support_answer_from_dc_chat_nongroup() {
+    check_alias_reply(true, true, false).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_alias_support_answer_from_dc_chat_group() {
+    check_alias_reply(true, true, true).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
