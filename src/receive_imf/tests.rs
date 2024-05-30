@@ -4403,7 +4403,7 @@ Chat-Group-Member-Added: charlie@example.com",
     let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
     assert_eq!(contacts.len(), 3);
 
-    // Bob fully reives the partial message.
+    // Bob fully receives the partial message.
     let msg_id = receive_imf_from_inbox(
         &bob,
         "first@example.org",
