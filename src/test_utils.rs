@@ -193,7 +193,18 @@ impl TestContextManager {
 #[derive(Debug, Clone, Default)]
 pub struct TestContextBuilder {
     key_pair: Option<KeyPair>,
-    log_sink: LogSink,
+
+    /// Log sink if set.
+    ///
+    /// If log sink is not set,
+    /// a new one will be created and stored
+    /// inside the test context when it is built.
+    /// If log sink is provided by the caller,
+    /// it will be subscribed to the test context,
+    /// but not stored inside of it,
+    /// so the caller should store the LogSink elsewhere to
+    /// prevent it from being dropped immediately.
+    log_sink: Option<LogSink>,
 }
 
 impl TestContextBuilder {
@@ -234,7 +245,7 @@ impl TestContextBuilder {
     /// sequence as they occurred rather than all messages from each context in a single
     /// block.
     pub fn with_log_sink(mut self, sink: LogSink) -> Self {
-        self.log_sink = sink;
+        self.log_sink = Some(sink);
         self
     }
 
@@ -242,7 +253,7 @@ impl TestContextBuilder {
     pub async fn build(self) -> TestContext {
         let name = self.key_pair.as_ref().map(|key| key.addr.local.clone());
 
-        let test_context = TestContext::new_internal(name, Some(self.log_sink.clone())).await;
+        let test_context = TestContext::new_internal(name, self.log_sink).await;
 
         if let Some(key_pair) = self.key_pair {
             test_context
