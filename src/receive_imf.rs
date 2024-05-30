@@ -782,29 +782,6 @@ async fn add_parts(
             info!(context, "Message is an MDN (TRASH).",);
         }
 
-        // Try to assign to a chat based on Chat-Group-ID.
-        if chat_id.is_none() {
-            if let Some(grpid) = mime_parser.get_chat_group_id() {
-                if let Some((id, _protected, blocked)) =
-                    chat::get_chat_id_by_grpid(context, grpid).await?
-                {
-                    chat_id = Some(id);
-                    chat_id_blocked = blocked;
-                }
-            }
-        }
-
-        if chat_id.is_none() {
-            // try to assign to a chat based on In-Reply-To/References:
-
-            if let Some((new_chat_id, new_chat_id_blocked)) =
-                lookup_chat_by_reply(context, mime_parser, &parent, to_ids, from_id).await?
-            {
-                chat_id = Some(new_chat_id);
-                chat_id_blocked = new_chat_id_blocked;
-            }
-        }
-
         // signals whether the current user is a bot
         let is_bot = context.get_config_bool(Config::Bot).await?;
 
@@ -834,26 +811,48 @@ async fn add_parts(
             create_blocked_default
         };
 
-        if chat_id.is_none() && (allow_creation || test_normal_chat.is_some()) {
-            // try to create a group
-
+        // Try to assign to a chat based on Chat-Group-ID.
+        if chat_id.is_none() {
             if let Some(grpid) = mime_parser.get_chat_group_id().map(|s| s.to_string()) {
-                if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
-                    context,
-                    mime_parser,
-                    is_partial_download.is_some(),
-                    create_blocked,
-                    from_id,
-                    to_ids,
-                    &verified_encryption,
-                    &grpid,
-                )
-                .await?
+                if let Some((id, _protected, blocked)) =
+                    chat::get_chat_id_by_grpid(context, &grpid).await?
                 {
-                    chat_id = Some(new_chat_id);
-                    chat_id_blocked = new_chat_id_blocked;
+                    chat_id = Some(id);
+                    chat_id_blocked = blocked;
+                } else if allow_creation || test_normal_chat.is_some() {
+                    if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
+                        context,
+                        mime_parser,
+                        is_partial_download.is_some(),
+                        create_blocked,
+                        from_id,
+                        to_ids,
+                        &verified_encryption,
+                        &grpid,
+                    )
+                    .await?
+                    {
+                        chat_id = Some(new_chat_id);
+                        chat_id_blocked = new_chat_id_blocked;
+                    }
                 }
-            } else if let Some(new_chat_id) = create_adhoc_group(
+            }
+        }
+
+        if chat_id.is_none() {
+            // try to assign to a chat based on In-Reply-To/References:
+
+            if let Some((new_chat_id, new_chat_id_blocked)) =
+                lookup_chat_by_reply(context, mime_parser, &parent, to_ids, from_id).await?
+            {
+                chat_id = Some(new_chat_id);
+                chat_id_blocked = new_chat_id_blocked;
+            }
+        }
+
+        if chat_id.is_none() && (allow_creation || test_normal_chat.is_some()) {
+            // Try to create an ad hoc group.
+            if let Some(new_chat_id) = create_adhoc_group(
                 context,
                 mime_parser,
                 create_blocked,
@@ -1062,12 +1061,28 @@ async fn add_parts(
 
         // Try to assign to a chat based on Chat-Group-ID.
         if chat_id.is_none() {
-            if let Some(grpid) = mime_parser.get_chat_group_id() {
+            if let Some(grpid) = mime_parser.get_chat_group_id().map(|s| s.to_string()) {
                 if let Some((id, _protected, blocked)) =
-                    chat::get_chat_id_by_grpid(context, grpid).await?
+                    chat::get_chat_id_by_grpid(context, &grpid).await?
                 {
                     chat_id = Some(id);
                     chat_id_blocked = blocked;
+                } else if allow_creation {
+                    if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
+                        context,
+                        mime_parser,
+                        is_partial_download.is_some(),
+                        Blocked::Not,
+                        from_id,
+                        to_ids,
+                        &verified_encryption,
+                        &grpid,
+                    )
+                    .await?
+                    {
+                        chat_id = Some(new_chat_id);
+                        chat_id_blocked = new_chat_id_blocked;
+                    }
                 }
             }
         }
@@ -1115,23 +1130,7 @@ async fn add_parts(
         }
 
         if chat_id.is_none() && allow_creation {
-            if let Some(grpid) = mime_parser.get_chat_group_id().map(|s| s.to_string()) {
-                if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
-                    context,
-                    mime_parser,
-                    is_partial_download.is_some(),
-                    Blocked::Not,
-                    from_id,
-                    to_ids,
-                    &verified_encryption,
-                    &grpid,
-                )
-                .await?
-                {
-                    chat_id = Some(new_chat_id);
-                    chat_id_blocked = new_chat_id_blocked;
-                }
-            } else if let Some(new_chat_id) = create_adhoc_group(
+            if let Some(new_chat_id) = create_adhoc_group(
                 context,
                 mime_parser,
                 Blocked::Not,
