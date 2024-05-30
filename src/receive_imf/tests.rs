@@ -3923,6 +3923,7 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
     bob_chat_id.accept(&bob).await?;
 
     remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+    bob.pop_sent_msg().await;
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 1);
 
     SystemTime::shift(Duration::from_secs(3600));
@@ -4085,6 +4086,7 @@ async fn test_mua_can_readd() -> Result<()> {
 
     // And leaves it.
     remove_contact_from_chat(&alice, alice_chat.id, ContactId::SELF).await?;
+    alice.pop_sent_msg().await;
     assert!(!is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
 
     // Bob uses a classical MUA to answer, adding Alice back.
@@ -4159,6 +4161,7 @@ async fn test_recreate_member_list_on_missing_add_of_self() -> Result<()> {
     // But if Bob just left, they mustn't recreate the member list even after missing a message.
     bob_chat_id.accept(&bob).await?;
     remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+    bob.pop_sent_msg().await;
     send_text_msg(&alice, alice_chat_id, "3rd message".to_string()).await?;
     alice.pop_sent_msg().await;
     send_text_msg(&alice, alice_chat_id, "4th message".to_string()).await?;
@@ -4495,6 +4498,33 @@ async fn test_leave_protected_group_missing_member_key() -> Result<()> {
     remove_contact_from_chat(alice, group_id, ContactId::SELF).await?;
     alice.pop_sent_msg().await;
     assert!(!is_contact_in_chat(alice, group_id, ContactId::SELF).await?);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_protected_group_remove_member_missing_key() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+    mark_as_verified(alice, bob).await;
+    let group_id = create_group_chat(alice, ProtectionStatus::Protected, "Group").await?;
+    let alice_bob_id = alice.add_or_lookup_contact(bob).await.id;
+    add_contact_to_chat(alice, group_id, alice_bob_id).await?;
+    alice.send_text(group_id, "Hello!").await;
+    alice
+        .sql
+        .execute("DELETE FROM acpeerstates WHERE addr=?", (&bob_addr,))
+        .await?;
+    remove_contact_from_chat(alice, group_id, alice_bob_id).await?;
+    assert!(!is_contact_in_chat(alice, group_id, alice_bob_id).await?);
+    let msg = alice.get_last_msg_in(group_id).await;
+    assert!(msg.is_info());
+    assert_eq!(
+        msg.get_text(),
+        stock_str::msg_del_member_local(alice, &bob_addr, ContactId::SELF,).await
+    );
+    assert!(msg.error().is_some());
     Ok(())
 }
 

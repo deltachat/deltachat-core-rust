@@ -1403,6 +1403,7 @@ First thread."#;
 
         let alice_bob_contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
         remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        alice.pop_sent_msg().await;
 
         // The message from Bob is delivered late, Bob is already removed.
         let msg = alice.recv_msg(&sent).await;

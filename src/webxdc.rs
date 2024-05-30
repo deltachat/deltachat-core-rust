@@ -2588,6 +2588,7 @@ sth_for_the = "future""#
         );
 
         remove_contact_from_chat(&alice, chat_id, contact_bob).await?;
+        alice.pop_sent_msg().await;
         let status =
             helper_send_receive_status_update(&bob, &alice, &bob_instance, &instance).await?;
 

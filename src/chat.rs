@@ -3916,8 +3916,7 @@ pub async fn remove_contact_from_chat(
             if let Some(contact) = Contact::get_by_id_optional(context, contact_id).await? {
                 if chat.typ == Chattype::Group && chat.is_promoted() {
                     msg.viewtype = Viewtype::Text;
-                    if contact.id == ContactId::SELF {
-                        set_group_explicitly_left(context, &chat.grpid).await?;
+                    if contact_id == ContactId::SELF {
                         msg.text = stock_str::msg_group_left_local(context, ContactId::SELF).await;
                     } else {
                         msg.text = stock_str::msg_del_member_local(
@@ -3929,17 +3928,24 @@ pub async fn remove_contact_from_chat(
                     }
                     msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                     msg.param.set(Param::Arg, contact.get_addr().to_lowercase());
-                    msg.id = send_msg(context, chat_id, &mut msg).await?;
+                    let res = send_msg(context, chat_id, &mut msg).await;
+                    if contact_id == ContactId::SELF {
+                        res?;
+                        set_group_explicitly_left(context, &chat.grpid).await?;
+                    } else if let Err(e) = res {
+                        warn!(context, "remove_contact_from_chat({chat_id}, {contact_id}): send_msg() failed: {e:#}.");
+                    }
                 } else {
                     sync = Sync;
                 }
             }
             // we remove the member from the chat after constructing the
             // to-be-send message. If between send_msg() and here the
-            // process dies the user will have to re-do the action.  It's
-            // better than the other way round: you removed
-            // someone from DB but no peer or device gets to know about it and
-            // group membership is thus different on different devices.
+            // process dies, the user will be able to redo the action. It's better than the other
+            // way round: you removed someone from DB but no peer or device gets to know about it
+            // and group membership is thus different on different devices. But if send_msg()
+            // failed, we still remove the member locally, otherwise it would be impossible to
+            // remove a member with missing key from a protected group.
             // Note also that sending a message needs all recipients
             // in order to correctly determine encryption so if we
             // removed it first, it would complicate the
@@ -5023,6 +5029,7 @@ mod tests {
 
         // Bob leaves the chat.
         remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+        bob.pop_sent_msg().await;
 
         // Bob receives a msg about Alice adding Claire to the group.
         bob.recv_msg(&alice_sent_add_msg).await;
@@ -5075,6 +5082,7 @@ mod tests {
         let sent_msg = alice.pop_sent_msg().await;
         bob.recv_msg(&sent_msg).await;
         remove_contact_from_chat(&bob, bob_chat_id, bob_fiona_contact_id).await?;
+        bob.pop_sent_msg().await;
 
         // This doesn't add Fiona back because Bob just removed them.
         let sent_msg = alice.send_text(alice_chat_id, "Welcome, Fiona!").await;
