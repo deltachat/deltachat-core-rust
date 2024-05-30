@@ -4593,3 +4593,22 @@ async fn test_receive_vcard() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_group_no_recipients() -> Result<()> {
+    let t = &TestContext::new_alice().await;
+    let raw = b"From: alice@example.org\n\
+                    Subject: Group\n\
+                    Chat-Version: 1.0\n\
+                    Chat-Group-Name: Group\n\
+                    Chat-Group-ID: GePFDkwEj2K\n\
+                    Message-ID: <foobar@localhost>\n\
+                    \n\
+                    Hello!";
+    let received = receive_imf(t, raw, false).await?.unwrap();
+    let msg = Message::load_from_db(t, *received.msg_ids.last().unwrap()).await?;
+    let chat = Chat::load_from_db(t, msg.chat_id).await?;
+    assert_eq!(chat.typ, Chattype::Group);
+
+    Ok(())
+}

@@ -1098,23 +1098,24 @@ async fn add_parts(
             }
         }
 
-        if !to_ids.is_empty() {
-            if chat_id.is_none() && allow_creation {
-                if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
-                    context,
-                    mime_parser,
-                    is_partial_download.is_some(),
-                    Blocked::Not,
-                    from_id,
-                    to_ids,
-                    &verified_encryption,
-                )
-                .await?
-                {
-                    chat_id = Some(new_chat_id);
-                    chat_id_blocked = new_chat_id_blocked;
-                }
+        if chat_id.is_none() && allow_creation {
+            if let Some((new_chat_id, new_chat_id_blocked)) = create_group(
+                context,
+                mime_parser,
+                is_partial_download.is_some(),
+                Blocked::Not,
+                from_id,
+                to_ids,
+                &verified_encryption,
+            )
+            .await?
+            {
+                chat_id = Some(new_chat_id);
+                chat_id_blocked = new_chat_id_blocked;
             }
+        }
+
+        if !to_ids.is_empty() {
             if chat_id.is_none() && allow_creation {
                 let to_contact = Contact::get_by_id(context, to_id).await?;
                 if let Some(list_id) = to_contact.param.get(Param::ListId) {
