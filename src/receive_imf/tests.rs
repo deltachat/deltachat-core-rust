@@ -14,6 +14,7 @@ use crate::contact;
 use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
+use crate::securejoin::get_securejoin_qr;
 use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
 use crate::tools::{time, SystemTime};
 
@@ -3290,6 +3291,28 @@ async fn test_auto_accept_protected_group_for_bots() -> Result<()> {
     let msg = bob.recv_msg(&sent).await;
     let chat = chat::Chat::load_from_db(bob, msg.chat_id).await?;
     assert!(!chat.is_contact_request());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_bot_accepts_another_group_after_qr_scan() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    bob.set_config(Config::Bot, Some("1")).await?;
+
+    let group_id = chat::create_group_chat(alice, ProtectionStatus::Protected, "Group").await?;
+    let qr = get_securejoin_qr(alice, Some(group_id)).await?;
+    tcm.exec_securejoin_qr(bob, alice, &qr).await;
+
+    let group_id = alice
+        .create_group_with_members(ProtectionStatus::Protected, "Group", &[bob])
+        .await;
+    let sent = alice.send_text(group_id, "Hello!").await;
+    let msg = bob.recv_msg(&sent).await;
+    let chat = chat::Chat::load_from_db(bob, msg.chat_id).await?;
+    assert!(!chat.is_contact_request());
+
     Ok(())
 }
 
