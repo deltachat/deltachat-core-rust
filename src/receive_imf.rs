@@ -1821,7 +1821,7 @@ async fn is_probably_private_reply(
 /// chat with this ID. If there is no group-id and there are more
 /// than two members, a new ad hoc group is created.
 ///
-/// On success the function returns the found/created (chat_id, chat_blocked) tuple.
+/// On success the function returns the created (chat_id, chat_blocked) tuple.
 async fn create_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
