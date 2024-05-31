@@ -4502,7 +4502,7 @@ async fn test_leave_protected_group_missing_member_key() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_protected_group_remove_member_missing_key() -> Result<()> {
+async fn test_protected_group_add_remove_member_missing_key() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = &tcm.alice().await;
     let bob = &tcm.bob().await;
@@ -4516,6 +4516,18 @@ async fn test_protected_group_remove_member_missing_key() -> Result<()> {
         .sql
         .execute("DELETE FROM acpeerstates WHERE addr=?", (&bob_addr,))
         .await?;
+
+    let fiona = &tcm.fiona().await;
+    mark_as_verified(alice, fiona).await;
+    let alice_fiona_id = alice.add_or_lookup_contact(fiona).await.id;
+    assert!(add_contact_to_chat(alice, group_id, alice_fiona_id)
+        .await
+        .is_err());
+    assert!(!is_contact_in_chat(alice, group_id, alice_fiona_id).await?);
+    // Now the chat has a message "You added member fiona@example.net. [INFO] !!" (with error) that
+    // may be confusing, but if the error is displayed in UIs, it's more or less ok. This is not a
+    // normal scenario anyway.
+
     remove_contact_from_chat(alice, group_id, alice_bob_id).await?;
     assert!(!is_contact_in_chat(alice, group_id, alice_bob_id).await?);
     let msg = alice.get_last_msg_in(group_id).await;
