@@ -3760,7 +3760,10 @@ pub(crate) async fn add_contact_to_chat_ex(
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
         msg.param.set(Param::Arg, contact_addr);
         msg.param.set_int(Param::Arg2, from_handshake.into());
-        msg.id = send_msg(context, chat_id, &mut msg).await?;
+        if let Err(e) = send_msg(context, chat_id, &mut msg).await {
+            remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+            return Err(e);
+        }
         sync = Nosync;
     }
     context.emit_event(EventType::ChatModified(chat_id));
