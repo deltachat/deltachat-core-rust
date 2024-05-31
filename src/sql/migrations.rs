@@ -932,6 +932,11 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 114 {
+        sql.execute_migration("CREATE INDEX reactions_index1 ON reactions (msg_id)", 114)
+            .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
