@@ -13,7 +13,7 @@ dirs = "5"
 log = "0.4.21"
 rusqlite = "0.31"
 rustyline = "14"
-tokio = { version = "1.37.0", features = ["fs", "rt-multi-thread", "macros"] }
+tokio = { version = "1.38.0", features = ["fs", "rt-multi-thread", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
