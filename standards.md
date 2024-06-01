@@ -25,6 +25,7 @@ Messenger functions              | [Chat-over-Email](https://github.com/deltacha
 Detect mailing list              | List-Id ([RFC 2919][]) and Precedence ([RFC 3834][])
 User and chat colors             | [XEP-0392][]: Consistent Color Generation
 Send and receive system messages | Multipart/Report Media Type ([RFC 6522][])
+Send and receive contact files   | vCard ([RFC 6350][])
 Return receipts                  | Message Disposition Notification (MDN, [RFC 8098][], [RFC 3503][]) using the Chat-Disposition-Notification-To header
 Locations                        | KML ([Open Geospatial Consortium](http://www.opengeospatial.org/standards/kml/), [Google Dev](https://developers.google.com/kml/))
 
@@ -53,6 +54,7 @@ Locations                        | KML ([Open Geospatial Consortium](http://www.
 [RFC 5321]: https://tools.ietf.org/html/rfc5321
 [RFC 5322]: https://tools.ietf.org/html/rfc5322
 [RFC 6154]: https://tools.ietf.org/html/rfc6154
+[RFC 6350]: https://tools.ietf.org/html/rfc6350
 [RFC 6522]: https://tools.ietf.org/html/rfc6522
 [RFC 6749]: https://tools.ietf.org/html/rfc6749
 [RFC 7162]: https://tools.ietf.org/html/rfc7162
