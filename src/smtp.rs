@@ -830,20 +830,26 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         .await
         .context("failed to update MDN retries count")?;
 
-    let res = send_mdn_msg_id(context, msg_id, contact_id, smtp).await;
-    if let Err(ref err) = res {
-        // If there is an error, for example there is no message corresponding to the msg_id in the
-        // database, do not try to send this MDN again.
-        warn!(
-            context,
-            "Error sending MDN for {msg_id}, removing it: {err:#}."
-        );
-        context
-            .sql
-            .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
-            .await?;
+    match send_mdn_msg_id(context, msg_id, contact_id, smtp).await {
+        Err(err) => {
+            // If there is an error, for example there is no message corresponding to the msg_id in the
+            // database, do not try to send this MDN again.
+            warn!(
+                context,
+                "Error sending MDN for {msg_id}, removing it: {err:#}."
+            );
+            context
+                .sql
+                .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
+                .await?;
+            Err(err)
+        }
+        Ok(false) => {
+            bail!("Temporary error while sending an MDN");
+        }
+        Ok(true) => {
+            // Successfully sent MDN.
+            Ok(true)
+        }
     }
-    // If there's a temporary error, pretend there are no more MDNs to send. It's unlikely that
-    // other MDNs could be sent successfully in case of connectivity problems.
-    res
 }
