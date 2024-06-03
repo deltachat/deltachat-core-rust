@@ -363,8 +363,8 @@ pub enum Config {
     /// MsgId of webxdc map integration.
     WebxdcIntegration,
 
-    /// Iroh secret key.
-    IrohSecretKey,
+    /// Enable webxdc realtime features.
+    WebxdcRealtimeEnabled,
 }
 
 impl Config {
