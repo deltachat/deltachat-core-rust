@@ -313,7 +313,7 @@ impl Imap {
         if !ratelimit_duration.is_zero() {
             warn!(
                 context,
-                "IMAP got rate limited, waiting for {} until can connect",
+                "IMAP got rate limited, waiting for {} until can connect.",
                 duration_to_str(ratelimit_duration),
             );
             let interrupted = async {
