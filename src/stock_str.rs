@@ -426,7 +426,7 @@ pub enum StockMessage {
     InvalidUnencryptedMail = 174,
 
     #[strum(props(
-        fallback = "⚠️ It seems you are using Delta Chat on multiple devices that cannot decrypt each other's outgoing messages. To fix this, on the older device use \"Settings / Add Second Device\" and follow the instructions."
+        fallback = "⚠️ Could not decrypt outgoing messages that may be from Delta Chat on your other device. If so, to fix this, on the older device use \"Settings / Add Second Device\" and follow the instructions."
     ))]
     CantDecryptOutgoingMsgs = 175,
 
