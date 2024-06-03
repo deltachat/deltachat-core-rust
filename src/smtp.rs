@@ -87,7 +87,7 @@ impl Smtp {
     /// Connect using configured parameters.
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
         if self.has_maybe_stale_connection() {
-            info!(context, "Closing stale connection");
+            info!(context, "Closing stale connection.");
             self.disconnect();
         }
 
@@ -364,7 +364,7 @@ pub(crate) async fn smtp_send(
     msg_id: MsgId,
 ) -> SendResult {
     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-        info!(context, "smtp-sending out mime message:");
+        info!(context, "SMTP-sending out mime message:");
         println!("{message}");
     }
 
@@ -385,7 +385,7 @@ pub(crate) async fn smtp_send(
     let status = match send_result {
         Err(crate::smtp::send::Error::SmtpSend(err)) => {
             // Remote error, retry later.
-            info!(context, "SMTP failed to send: {:?}", &err);
+            info!(context, "SMTP failed to send: {:?}.", &err);
 
             let res = match err {
                 async_smtp::error::Error::Permanent(ref response) => {
@@ -412,10 +412,10 @@ pub(crate) async fn smtp_send(
                     };
 
                     if maybe_transient {
-                        info!(context, "Permanent error that is likely to actually be transient, postponing retry for later");
+                        info!(context, "Permanent error that is likely to actually be transient, postponing retry for later.");
                         SendResult::Retry
                     } else {
-                        info!(context, "Permanent error, message sending failed");
+                        info!(context, "Permanent error, message sending failed.");
                         // If we do not retry, add an info message to the chat.
                         // Yandex error "554 5.7.1 [2] Message rejected under suspicion of SPAM; https://ya.cc/..."
                         // should definitely go here, because user has to open the link to
@@ -436,20 +436,19 @@ pub(crate) async fn smtp_send(
                             // Any extended smtp status codes like x.1.1, x.1.2 or x.1.3 that we
                             // receive as a transient error are misconfigurations of the smtp server.
                             // See <https://tools.ietf.org/html/rfc3463#section-3.2>
-                            info!(context, "Received extended status code {} for a transient error. This looks like a misconfigured SMTP server, let's fail immediately", first_word);
+                            info!(context, "Received extended status code {first_word} for a transient error. This looks like a misconfigured SMTP server, let's fail immediately.");
                             SendResult::Failure(format_err!("Permanent SMTP error: {}", err))
                         } else {
                             info!(
                                 context,
-                                "Transient error with status code {}, postponing retry for later",
-                                first_word
+                                "Transient error with status code {first_word}, postponing retry for later."
                             );
                             SendResult::Retry
                         }
                     } else {
                         info!(
                             context,
-                            "Transient error without status code, postponing retry for later"
+                            "Transient error without status code, postponing retry for later."
                         );
                         SendResult::Retry
                     }
@@ -457,14 +456,14 @@ pub(crate) async fn smtp_send(
                 _ => {
                     info!(
                         context,
-                        "Message sending failed without error returned by the server, retry later"
+                        "Message sending failed without error returned by the server, retry later."
                     );
                     SendResult::Retry
                 }
             };
 
             // this clears last_success info
-            info!(context, "Failed to send message over SMTP, disconnecting");
+            info!(context, "Failed to send message over SMTP, disconnecting.");
             smtp.disconnect();
 
             res
@@ -472,19 +471,19 @@ pub(crate) async fn smtp_send(
         Err(crate::smtp::send::Error::Envelope(err)) => {
             // Local error, job is invalid, do not retry.
             smtp.disconnect();
-            warn!(context, "SMTP job is invalid: {}", err);
+            warn!(context, "SMTP job is invalid: {err:#}.");
             SendResult::Failure(err)
         }
         Err(crate::smtp::send::Error::NoTransport) => {
             // Should never happen.
             // It does not even make sense to disconnect here.
-            error!(context, "SMTP job failed because SMTP has no transport");
+            error!(context, "SMTP job failed because SMTP has no transport.");
             SendResult::Failure(format_err!("SMTP has not transport"))
         }
         Err(crate::smtp::send::Error::Other(err)) => {
             // Local error, job is invalid, do not retry.
             smtp.disconnect();
-            warn!(context, "unable to load job: {}", err);
+            warn!(context, "Unable to load SMTP job: {err:#}.");
             SendResult::Failure(err)
         }
         Ok(()) => SendResult::Success,
@@ -558,12 +557,12 @@ pub(crate) async fn send_msg_to_smtp(
             .sql
             .execute("DELETE FROM smtp WHERE id=?", (rowid,))
             .await
-            .context("failed to remove message with exceeded retry limit from smtp table")?;
+            .context("Failed to remove message with exceeded retry limit from smtp table")?;
         return Ok(());
     }
     info!(
         context,
-        "Try number {retries} to send message {msg_id} (entry {rowid}) over SMTP"
+        "Try number {retries} to send message {msg_id} (entry {rowid}) over SMTP."
     );
 
     let recipients_list = recipients
@@ -572,7 +571,7 @@ pub(crate) async fn send_msg_to_smtp(
             |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
                 Ok(addr) => Some(addr),
                 Err(err) => {
-                    warn!(context, "invalid recipient: {} {:?}", addr, err);
+                    warn!(context, "Invalid recipient: {} {:?}.", addr, err);
                     None
                 }
             },
@@ -650,7 +649,7 @@ pub(crate) async fn send_msg_to_smtp(
 async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<()> {
     loop {
         if !context.ratelimit.read().await.can_send() {
-            info!(context, "Ratelimiter does not allow sending MDNs now");
+            info!(context, "Ratelimiter does not allow sending MDNs now.");
             return Ok(());
         }
 
@@ -697,7 +696,7 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
     for rowid in rowids {
         send_msg_to_smtp(context, connection, rowid)
             .await
-            .context("failed to send message")?;
+            .context("Failed to send message")?;
     }
 
     // although by slow sending, ratelimit may have been expired meanwhile,
@@ -706,7 +705,7 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
     if !ratelimited {
         send_mdns(context, connection)
             .await
-            .context("failed to send MDNs")?;
+            .context("Failed to send MDNs")?;
     }
     Ok(())
 }
@@ -762,7 +761,7 @@ async fn send_mdn_msg_id(
 
     match smtp_send(context, &recipients, &body, smtp, msg_id).await {
         SendResult::Success => {
-            info!(context, "Successfully sent MDN for {}", msg_id);
+            info!(context, "Successfully sent MDN for {msg_id}.");
             context
                 .sql
                 .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
@@ -782,7 +781,7 @@ async fn send_mdn_msg_id(
         SendResult::Retry => {
             info!(
                 context,
-                "Temporary SMTP failure while sending an MDN for {}", msg_id
+                "Temporary SMTP failure while sending an MDN for {msg_id}."
             );
             Ok(false)
         }
@@ -798,7 +797,7 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         context.sql.execute("DELETE FROM smtp_mdns", []).await?;
         return Ok(false);
     }
-    info!(context, "Sending MDNs");
+    info!(context, "Sending MDNs.");
 
     context
         .sql
@@ -828,7 +827,7 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
             (msg_id,),
         )
         .await
-        .context("failed to update MDN retries count")?;
+        .context("Failed to update MDN retries count")?;
 
     match send_mdn_msg_id(context, msg_id, contact_id, smtp).await {
         Err(err) => {

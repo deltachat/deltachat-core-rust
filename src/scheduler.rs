@@ -749,7 +749,7 @@ async fn smtp_loop(
 ) {
     use futures::future::FutureExt;
 
-    info!(ctx, "starting smtp loop");
+    info!(ctx, "Starting SMTP loop.");
     let SmtpConnectionHandlers {
         mut connection,
         stop_receiver,
@@ -760,14 +760,14 @@ async fn smtp_loop(
     let fut = async move {
         let ctx = ctx1;
         if let Err(()) = started.send(()) {
-            warn!(&ctx, "smtp loop, missing started receiver");
+            warn!(&ctx, "SMTP loop, missing started receiver.");
             return;
         }
 
         let mut timeout = None;
         loop {
             if let Err(err) = send_smtp_messages(&ctx, &mut connection).await {
-                warn!(ctx, "send_smtp_messages failed: {:#}", err);
+                warn!(ctx, "send_smtp_messages failed: {:#}.", err);
                 timeout = Some(timeout.unwrap_or(30));
             } else {
                 timeout = None;
@@ -784,7 +784,7 @@ async fn smtp_loop(
             }
 
             // Fake Idle
-            info!(ctx, "smtp fake idle - started");
+            info!(ctx, "SMTP fake idle started.");
             match &connection.last_send_error {
                 None => connection.connectivity.set_idle(&ctx).await,
                 Some(err) => connection.connectivity.set_err(&ctx, err).await,
@@ -798,7 +798,7 @@ async fn smtp_loop(
                 let now = tools::Time::now();
                 info!(
                     ctx,
-                    "smtp has messages to retry, planning to retry {} seconds later", t,
+                    "SMTP has messages to retry, planning to retry {t} seconds later."
                 );
                 let duration = std::time::Duration::from_secs(t);
                 tokio::time::timeout(duration, async {
@@ -812,18 +812,18 @@ async fn smtp_loop(
                     slept.saturating_add(rand::thread_rng().gen_range((slept / 2)..=slept)),
                 ));
             } else {
-                info!(ctx, "smtp has no messages to retry, waiting for interrupt");
+                info!(ctx, "SMTP has no messages to retry, waiting for interrupt.");
                 idle_interrupt_receiver.recv().await.unwrap_or_default();
             };
 
-            info!(ctx, "smtp fake idle - interrupted")
+            info!(ctx, "SMTP fake idle interrupted.")
         }
     };
 
     stop_receiver
         .recv()
         .map(|_| {
-            info!(ctx, "shutting down smtp loop");
+            info!(ctx, "Shutting down SMTP loop.");
         })
         .race(fut)
         .await;
