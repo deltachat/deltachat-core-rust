@@ -235,25 +235,15 @@ impl Context {
         let secret_key = SecretKey::generate();
         let public_key = secret_key.public();
 
-        let relay_mode = if let Some(relay_url) = self
+        let relay_url = self
             .metadata
             .read()
             .await
             .as_ref()
             .and_then(|conf| conf.iroh_relay.clone())
-        {
-            RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)))
-        } else {
-            #[cfg(test)]
-            {
-                RelayMode::Default
-            }
-            #[cfg(not(test))]
-            RelayMode::Custom(RelayMap::from_url(
-                Url::parse("ir.testrun.org").unwrap().into(),
-            ))
-        };
+            .unwrap_or(Url::parse("https://iroh.testrun.org:4443").unwrap());
 
+        let relay_mode = RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)));
         let endpoint = Endpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
