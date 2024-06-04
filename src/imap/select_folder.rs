@@ -10,12 +10,6 @@ type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("IMAP Connection Lost or no connection established")]
-    ConnectionLost,
-
-    #[error("IMAP Folder name invalid: {0}")]
-    BadFolderName(String),
-
     #[error("Got a NO response when trying to select {0}, usually this means that it doesn't exist: {1}")]
     NoFolder(String, String),
 
@@ -84,10 +78,6 @@ impl ImapSession {
                 self.selected_folder = Some(folder.to_string());
                 self.selected_mailbox = Some(mailbox);
                 Ok(NewlySelected::Yes)
-            }
-            Err(async_imap::error::Error::ConnectionLost) => Err(Error::ConnectionLost),
-            Err(async_imap::error::Error::Validate(_)) => {
-                Err(Error::BadFolderName(folder.to_string()))
             }
             Err(async_imap::error::Error::No(response)) => {
                 Err(Error::NoFolder(folder.to_string(), response))
