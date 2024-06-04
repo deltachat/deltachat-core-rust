@@ -27,7 +27,8 @@ impl ImapSession {
     /// Issues a CLOSE command if selected folder needs expunge,
     /// i.e. if Delta Chat marked a message there as deleted previously.
     ///
-    /// CLOSE is considerably faster than an EXPUNGE, see
+    /// CLOSE is considerably faster than an EXPUNGE
+    /// because no EXPUNGE responses are sent, see
     /// <https://tools.ietf.org/html/rfc3501#section-6.4.2>
     pub(super) async fn maybe_close_folder(&mut self, context: &Context) -> anyhow::Result<()> {
         if let Some(folder) = &self.selected_folder {
