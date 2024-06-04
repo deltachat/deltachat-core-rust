@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.140.0] - 2024-06-04
+
+### Features / Changes
+
+- Remove limit on number of email recipients for chatmail clients ([#5598](https://github.com/deltachat/deltachat-core-rust/pull/5598)).
+- Add config option to enable iroh ([#5607](https://github.com/deltachat/deltachat-core-rust/pull/5607)).
+- Map `*.wav` to Viewtype::Audio ([#5633](https://github.com/deltachat/deltachat-core-rust/pull/5633)).
+- Add a db index for reactions by msg_id ([#5507](https://github.com/deltachat/deltachat-core-rust/pull/5507)).
+
+### Fixes
+
+- Set Param::Bot for messages on the sender side as well ([#5615](https://github.com/deltachat/deltachat-core-rust/pull/5615)).
+- AEAP: Remove old peerstate verified_key instead of removing the whole peerstate ([#5535](https://github.com/deltachat/deltachat-core-rust/pull/5535)).
+- Allow creation of groups by outgoing messages without recipients.
+- Prefer `Chat-Group-ID` over references for new groups.
+- Do not fail to send images with wrong extensions.
+
+### Build system
+
+- Unpin OpenSSL version and update to OpenSSL 3.3.0.
+
+### CI
+
+- Remove cargo-nextest bug workaround.
+
+### Documentation
+
+- Add vCard as supported standard.
+- Create_group() does not find chats, only creates them.
+- Fix a typo in test_partial_group_consistency().
+
+### Refactor
+
+- Factor create_adhoc_group() call out of create_group().
+- Put duplicate code into `lookup_chat_or_create_adhoc_group`.
+
+### Tests
+
+- Fix logging of TestContext created using TestContext::new_alice().
+- Refactor `test_alias_*` into 8 separate tests.
+
 ## [1.139.6] - 2024-05-25
 
 ### Build system
@@ -4329,3 +4370,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.139.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.3...v1.139.4
 [1.139.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.4...v1.139.5
 [1.139.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.5...v1.139.6
+[1.140.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.6...v1.140.0
