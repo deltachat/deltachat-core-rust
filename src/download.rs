@@ -184,7 +184,7 @@ impl Session {
             bail!("Attempt to fetch UID 0");
         }
 
-        self.select_folder(context, folder).await?;
+        self.select_with_uidvalidity(context, folder).await?;
 
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);

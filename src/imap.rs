@@ -543,15 +543,16 @@ impl Imap {
             return Ok(false);
         }
 
-        let new_emails = session
+        session
             .select_with_uidvalidity(context, folder)
             .await
             .with_context(|| format!("Failed to select folder {folder:?}"))?;
 
-        if !new_emails && !fetch_existing_msgs {
+        if !session.new_mail && !fetch_existing_msgs {
             info!(context, "No new emails in folder {folder:?}.");
             return Ok(false);
         }
+        session.new_mail = false;
 
         let uid_validity = get_uidvalidity(context, folder).await?;
         let old_uid_next = get_uid_next(context, folder).await?;
@@ -838,7 +839,7 @@ impl Session {
         // Collect pairs of UID and Message-ID.
         let mut msgs = BTreeMap::new();
 
-        self.select_folder(context, folder).await?;
+        self.select_with_uidvalidity(context, folder).await?;
 
         let mut list = self
             .uid_fetch("1:*", RFC724MID_UID)
@@ -1039,7 +1040,7 @@ impl Session {
             // MOVE/DELETE operations. This does not result in multiple SELECT commands
             // being sent because `select_folder()` does nothing if the folder is already
             // selected.
-            self.select_folder(context, folder).await?;
+            self.select_with_uidvalidity(context, folder).await?;
 
             // Empty target folder name means messages should be deleted.
             if target.is_empty() {
@@ -1087,7 +1088,7 @@ impl Session {
             .await?;
 
         for (folder, rowid_set, uid_set) in UidGrouper::from(rows) {
-            self.select_folder(context, &folder)
+            self.select_with_uidvalidity(context, &folder)
                 .await
                 .context("failed to select folder")?;
 
@@ -1131,7 +1132,7 @@ impl Session {
             return Ok(());
         }
 
-        self.select_folder(context, folder)
+        self.select_with_uidvalidity(context, folder)
             .await
             .context("failed to select folder")?;
 

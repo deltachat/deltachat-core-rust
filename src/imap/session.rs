@@ -40,6 +40,11 @@ pub(crate) struct Session {
     pub selected_mailbox: Option<Mailbox>,
 
     pub selected_folder_needs_expunge: bool,
+
+    /// True if currently selected folder has new messages.
+    ///
+    /// Should be false if no folder is currently selected.
+    pub new_mail: bool,
 }
 
 impl Deref for Session {
@@ -67,6 +72,7 @@ impl Session {
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
+            new_mail: false,
         }
     }
 
