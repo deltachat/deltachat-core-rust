@@ -838,7 +838,7 @@ impl Session {
         // Collect pairs of UID and Message-ID.
         let mut msgs = BTreeMap::new();
 
-        self.select_folder(context, Some(folder)).await?;
+        self.select_folder(context, folder).await?;
 
         let mut list = self
             .uid_fetch("1:*", RFC724MID_UID)
@@ -1039,7 +1039,7 @@ impl Session {
             // MOVE/DELETE operations. This does not result in multiple SELECT commands
             // being sent because `select_folder()` does nothing if the folder is already
             // selected.
-            self.select_folder(context, Some(folder)).await?;
+            self.select_folder(context, folder).await?;
 
             // Empty target folder name means messages should be deleted.
             if target.is_empty() {
@@ -1087,7 +1087,7 @@ impl Session {
             .await?;
 
         for (folder, rowid_set, uid_set) in UidGrouper::from(rows) {
-            self.select_folder(context, Some(&folder))
+            self.select_folder(context, &folder)
                 .await
                 .context("failed to select folder")?;
 
@@ -1131,7 +1131,7 @@ impl Session {
             return Ok(());
         }
 
-        self.select_folder(context, Some(folder))
+        self.select_folder(context, folder)
             .await
             .context("failed to select folder")?;
 
@@ -1563,7 +1563,7 @@ impl Session {
     ) -> Result<Option<&'a str>> {
         // Close currently selected folder if needed.
         // We are going to select folders using low-level EXAMINE operations below.
-        self.select_folder(context, None).await?;
+        self.maybe_close_folder(context).await?;
 
         for folder in folders {
             info!(context, "Looking for MVBOX-folder \"{}\"...", &folder);

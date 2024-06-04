@@ -29,7 +29,7 @@ impl Session {
     ) -> Result<Self> {
         use futures::future::FutureExt;
 
-        self.select_folder(context, Some(folder)).await?;
+        self.select_folder(context, folder).await?;
 
         if self.server_sent_unsolicited_exists(context)? {
             return Ok(self);

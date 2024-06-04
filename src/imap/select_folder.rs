@@ -55,15 +55,13 @@ impl ImapSession {
     pub(crate) async fn select_folder(
         &mut self,
         context: &Context,
-        folder: Option<&str>,
+        folder: &str,
     ) -> Result<NewlySelected> {
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
         // if there is _no_ new folder, we continue as we might want to expunge below.
-        if let Some(folder) = folder {
-            if let Some(selected_folder) = &self.selected_folder {
-                if folder == selected_folder {
-                    return Ok(NewlySelected::No);
-                }
+        if let Some(selected_folder) = &self.selected_folder {
+            if folder == selected_folder {
+                return Ok(NewlySelected::No);
             }
         }
 
@@ -71,34 +69,30 @@ impl ImapSession {
         self.maybe_close_folder(context).await?;
 
         // select new folder
-        if let Some(folder) = folder {
-            let res = if self.can_condstore() {
-                self.select_condstore(folder).await
-            } else {
-                self.select(folder).await
-            };
-
-            // <https://tools.ietf.org/html/rfc3501#section-6.3.1>
-            // says that if the server reports select failure we are in
-            // authenticated (not-select) state.
-
-            match res {
-                Ok(mailbox) => {
-                    self.selected_folder = Some(folder.to_string());
-                    self.selected_mailbox = Some(mailbox);
-                    Ok(NewlySelected::Yes)
-                }
-                Err(async_imap::error::Error::ConnectionLost) => Err(Error::ConnectionLost),
-                Err(async_imap::error::Error::Validate(_)) => {
-                    Err(Error::BadFolderName(folder.to_string()))
-                }
-                Err(async_imap::error::Error::No(response)) => {
-                    Err(Error::NoFolder(folder.to_string(), response))
-                }
-                Err(err) => Err(Error::Other(err.to_string())),
-            }
+        let res = if self.can_condstore() {
+            self.select_condstore(folder).await
         } else {
-            Ok(NewlySelected::No)
+            self.select(folder).await
+        };
+
+        // <https://tools.ietf.org/html/rfc3501#section-6.3.1>
+        // says that if the server reports select failure we are in
+        // authenticated (not-select) state.
+
+        match res {
+            Ok(mailbox) => {
+                self.selected_folder = Some(folder.to_string());
+                self.selected_mailbox = Some(mailbox);
+                Ok(NewlySelected::Yes)
+            }
+            Err(async_imap::error::Error::ConnectionLost) => Err(Error::ConnectionLost),
+            Err(async_imap::error::Error::Validate(_)) => {
+                Err(Error::BadFolderName(folder.to_string()))
+            }
+            Err(async_imap::error::Error::No(response)) => {
+                Err(Error::NoFolder(folder.to_string(), response))
+            }
+            Err(err) => Err(Error::Other(err.to_string())),
         }
     }
 
@@ -108,7 +102,7 @@ impl ImapSession {
         context: &Context,
         folder: &str,
     ) -> anyhow::Result<NewlySelected> {
-        match self.select_folder(context, Some(folder)).await {
+        match self.select_folder(context, folder).await {
             Ok(newly_selected) => Ok(newly_selected),
             Err(err) => match err {
                 Error::NoFolder(..) => {
@@ -118,7 +112,7 @@ impl ImapSession {
                         info!(context, "Couldn't select folder, then create() failed: {err:#}.");
                         // Need to recheck, could have been created in parallel.
                     }
-                    let select_res = self.select_folder(context, Some(folder)).await.with_context(|| format!("failed to select newely created folder {folder}"));
+                    let select_res = self.select_folder(context, folder).await.with_context(|| format!("failed to select newely created folder {folder}"));
                     if select_res.is_err() {
                         create_res?;
                     }
