@@ -29,9 +29,13 @@ impl Session {
     ) -> Result<Self> {
         use futures::future::FutureExt;
 
-        self.select_folder(context, folder).await?;
+        self.select_with_uidvalidity(context, folder).await?;
 
         if self.server_sent_unsolicited_exists(context)? {
+            self.new_mail = true;
+        }
+
+        if self.new_mail {
             return Ok(self);
         }
 
@@ -91,6 +95,9 @@ impl Session {
             .with_context(|| format!("{folder}: IMAP IDLE failed"))?;
         session.as_mut().set_read_timeout(Some(IMAP_TIMEOUT));
         self.inner = session;
+
+        // Fetch mail once we exit IDLE.
+        self.new_mail = true;
 
         Ok(self)
     }
