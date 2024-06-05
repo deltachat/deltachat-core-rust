@@ -15,7 +15,7 @@ impl Context {
         let mut msg = Message::new(Viewtype::Webxdc);
         msg.set_file(file, None);
         msg.hidden = true;
-        msg.param.set_int(Param::WebxdcIntegration, 1);
+        msg.param.set_int(Param::WebxdcIntegration, 1); // can be removed when all UI upgraded to maps.xdc having integration=maps in the manifest
         msg.param.set_int(Param::GuaranteeE2ee, 1); // needed to pass `internet_access` requirements
         send_msg(self, chat_id, &mut msg).await?;
         Ok(())

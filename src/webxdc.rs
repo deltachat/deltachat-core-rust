@@ -66,6 +66,9 @@ pub struct WebxdcManifest {
     /// Optional URL of webxdc source code.
     pub source_code_url: Option<String>,
 
+    /// If the webxdc is an integration.
+    pub integration: Option<String>,
+
     /// If the webxdc requests network access.
     pub request_internet_access: Option<bool>,
 }
@@ -220,7 +223,8 @@ impl Context {
     }
 
     /// Ensure that a file is an acceptable webxdc for sending.
-    pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
+    /// Moreover, check if the webxdc is an integration and add that information to the message object.
+    pub(crate) async fn prepare_webxdc_file(&self, path: &Path, msg: &mut Message) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
         if !filename.ends_with(WEBXDC_SUFFIX) {
             bail!("{} is not a valid webxdc file", filename);
@@ -232,6 +236,16 @@ impl Context {
                     warn!(self, "{} misses index.html", filename);
                     false
                 } else {
+                    if let Ok(bytes) = get_blob(&archive, "manifest.toml").await {
+                        if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
+                            if let Some(integration) = manifest.integration {
+                                if integration == "maps" {
+                                    msg.param.set_int(Param::WebxdcIntegration, 1);
+                                }
+                            }
+                        }
+                    }
+
                     true
                 }
             }

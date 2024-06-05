@@ -2636,7 +2636,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             {
                 if better_type != Viewtype::Webxdc
                     || context
-                        .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                        .prepare_webxdc_file(&blob.to_abs_path(), msg)
                         .await
                         .is_ok()
                 {
@@ -2645,7 +2645,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         } else if msg.viewtype == Viewtype::Webxdc {
             context
-                .ensure_sendable_webxdc_file(&blob.to_abs_path())
+                .prepare_webxdc_file(&blob.to_abs_path(), msg)
                 .await?;
         }
 
@@ -2913,7 +2913,7 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         recipients.push(from);
     }
 
-    // Webxdc integrations are messages, however, shipped with main app and must not be sent out
+    // Webxdc integrations are local (shipped with app or added to "Saved Messages") and must not be sent out
     if msg.param.get_int(Param::WebxdcIntegration).is_some() {
         recipients.clear();
     }
