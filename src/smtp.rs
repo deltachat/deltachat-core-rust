@@ -364,8 +364,7 @@ pub(crate) async fn smtp_send(
     msg_id: MsgId,
 ) -> SendResult {
     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-        info!(context, "SMTP-sending out mime message:");
-        println!("{message}");
+        info!(context, "SMTP-sending out mime message:\n{message}");
     }
 
     smtp.connectivity.set_working(context).await;
