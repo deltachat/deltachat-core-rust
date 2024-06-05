@@ -766,10 +766,6 @@ impl Imap {
         context: &Context,
         session: &mut Session,
     ) -> Result<()> {
-        if context.get_config_bool(Config::Bot).await? {
-            return Ok(()); // Bots don't want those messages
-        }
-
         add_all_recipients_as_contacts(context, session, Config::ConfiguredSentboxFolder)
             .await
             .context("failed to get recipients from the sentbox")?;
