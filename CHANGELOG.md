@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.140.1] - 2024-06-05
+
+### Fixes
+
+- Retry sending MDNs on temporary error.
+- Set Config::IsChatmail in configure().
+- Do not miss new messages while expunging the folder.
+- Log messages with `info!` instead of `println!`.
+
+### Documentation
+
+- imap: Document why CLOSE is faster than EXPUNGE.
+
+### Refactor
+
+- imap: Make select_folder() accept non-optional folder.
+- Improve SMTP logs and errors.
+- Remove unused `select_folder::Error` variants.
+
+### Tests
+
+- deltachat-rpc-client: reenable `log_cli`.
+
 ## [1.140.0] - 2024-06-04
 
 ### Features / Changes
@@ -4371,3 +4394,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.139.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.4...v1.139.5
 [1.139.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.5...v1.139.6
 [1.140.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.6...v1.140.0
+[1.140.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.0...v1.140.1
