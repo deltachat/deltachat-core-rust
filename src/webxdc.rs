@@ -230,33 +230,19 @@ impl Context {
             bail!("{} is not a valid webxdc file", filename);
         }
 
-        let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
-            Ok(archive) => {
-                if find_zip_entry(archive.file(), "index.html").is_none() {
-                    warn!(self, "{} misses index.html", filename);
-                    false
-                } else {
-                    if let Ok(bytes) = get_blob(&archive, "manifest.toml").await {
-                        if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
-                            if let Some(integration) = manifest.integration {
-                                if integration == "maps" {
-                                    msg.param.set_int(Param::WebxdcIntegration, 1);
-                                }
-                            }
-                        }
-                    }
+        let archive = async_zip::read::fs::ZipFileReader::new(path).await?;
+        if find_zip_entry(archive.file(), "index.html").is_none() {
+            bail!("{} misses index.html", filename);
+        }
 
-                    true
+        if let Ok(bytes) = get_blob(&archive, "manifest.toml").await {
+            let manifest = parse_webxdc_manifest(&bytes)?;
+            if let Some(integration) = manifest.integration {
+                if integration == "maps" && msg.chat_id.is_self_talk(&self).await? {
+                    info!(self, "{} set as maps integration", filename);
+                    msg.param.set_int(Param::WebxdcIntegration, 1);
                 }
             }
-            Err(_) => {
-                warn!(self, "{} cannot be opened as zip-file", filename);
-                false
-            }
-        };
-
-        if !valid {
-            bail!("{} is not a valid webxdc file", filename);
         }
 
         Ok(())
