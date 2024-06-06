@@ -10,6 +10,7 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
+use crate::contact;
 use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
@@ -4693,6 +4694,39 @@ async fn test_receive_vcard() -> Result<()> {
             assert_eq!(&parsed[0].addr, "");
         }
     }
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_make_n_send_vcard() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let vcard = "BEGIN:VCARD\n\
+         VERSION:4.0\n\
+         FN:Claire\n\
+         EMAIL;TYPE=work:claire@example.org\n\
+         END:VCARD";
+    let contact_ids = contact::import_vcard(alice, vcard).await?;
+    assert_eq!(contact_ids.len(), 1);
+
+    let mut msg = Message::new(Viewtype::File);
+    msg.make_vcard(alice, &contact_ids).await?;
+
+    let alice_bob_chat = alice.create_chat(bob).await;
+    let sent = alice.send_msg(alice_bob_chat.id, &mut msg).await;
+    let rcvd = bob.recv_msg(&sent).await;
+    let sent = Message::load_from_db(alice, sent.sender_msg_id).await?;
+
+    assert_eq!(sent.viewtype, Viewtype::Vcard);
+    assert_eq!(rcvd.viewtype, Viewtype::Vcard);
+
+    let vcard = tokio::fs::read(rcvd.get_file(bob).unwrap()).await?;
+    let vcard = std::str::from_utf8(&vcard)?;
+    let parsed = deltachat_contact_tools::parse_vcard(vcard);
+    assert_eq!(parsed.len(), 1);
+    assert_eq!(&parsed[0].addr, "claire@example.org");
 
     Ok(())
 }
