@@ -49,6 +49,7 @@ impl WebxdcMessageInfo {
             document,
             summary,
             source_code_url,
+            integration: _,
             internet_access,
         } = message.get_webxdc_info(context).await?;
 
