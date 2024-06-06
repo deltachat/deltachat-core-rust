@@ -57,14 +57,34 @@ impl Context {
     }
 
     // Check if a Webxdc shall be used as an integration and remember that.
-    pub(crate) async fn update_webxdc_integration_database(&self, msg: &Message) -> Result<()> {
-        if msg.viewtype == Viewtype::Webxdc && msg.param.get_int(Param::WebxdcIntegration).is_some()
-        {
-            self.set_config_internal(
-                Config::WebxdcIntegration,
-                Some(&msg.id.to_u32().to_string()),
-            )
-            .await?;
+    pub(crate) async fn update_webxdc_integration_database(
+        &self,
+        msg: &mut Message,
+        context: &Context,
+    ) -> Result<()> {
+        if msg.viewtype == Viewtype::Webxdc {
+            let is_integration = if msg.param.get_int(Param::WebxdcIntegration).is_some() {
+                true
+            } else if msg.chat_id.is_self_talk(context).await? {
+                let info = msg.get_webxdc_info(context).await?;
+                if info.integration == "maps" {
+                    msg.param.set_int(Param::WebxdcIntegration, 1);
+                    msg.update_param(context).await?;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if is_integration {
+                self.set_config_internal(
+                    Config::WebxdcIntegration,
+                    Some(&msg.id.to_u32().to_string()),
+                )
+                .await?;
+            }
         }
         Ok(())
     }

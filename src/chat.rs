@@ -2161,7 +2161,9 @@ impl Chat {
             msg.id = MsgId::new(u32::try_from(raw_id)?);
 
             maybe_set_logging_xdc(context, msg, self.id).await?;
-            context.update_webxdc_integration_database(msg).await?;
+            context
+                .update_webxdc_integration_database(msg, context)
+                .await?;
         }
         context.scheduler.interrupt_ephemeral_task().await;
         Ok(msg.id)
@@ -2934,8 +2936,8 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         recipients.push(from);
     }
 
-    // Webxdc integrations are messages, however, shipped with main app and must not be sent out
-    if msg.param.get_int(Param::WebxdcIntegration).is_some() {
+    // Default Webxdc integrations are hidden messages and must not be sent out
+    if msg.param.get_int(Param::WebxdcIntegration).is_some() && msg.hidden {
         recipients.clear();
     }
 
