@@ -16,7 +16,7 @@ use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
-use crate::contact::{Contact, ContactId};
+use crate::contact::{self, Contact, ContactId};
 use crate::context::Context;
 use crate::debug_logging::set_debug_logging_xdc;
 use crate::download::DownloadState;
@@ -1079,6 +1079,18 @@ impl Message {
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);
         Ok(())
+    }
+
+    /// Makes message a vCard-containing message using the specified contacts.
+    pub async fn make_vcard(&mut self, context: &Context, contacts: &[ContactId]) -> Result<()> {
+        ensure!(
+            matches!(self.viewtype, Viewtype::File | Viewtype::Vcard),
+            "Wrong viewtype for vCard: {}",
+            self.viewtype,
+        );
+        let vcard = contact::make_vcard(context, contacts).await?;
+        self.set_file_from_bytes(context, "vcard.vcf", vcard.as_bytes(), None)
+            .await
     }
 
     /// Set different sender name for a message.
