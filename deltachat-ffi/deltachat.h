@@ -7339,6 +7339,12 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by the provider's domain.
 #define DC_STR_INVALID_UNENCRYPTED_MAIL 174
 
+/// "⚠️ Could not decrypt outgoing messages that may be from Delta Chat on your other device. If so, to fix this, on the older device use \"Settings / Add Second Device\" and follow the instructions."
+///
+/// Added to the device chat if could not decrypt a new outgoing message (i.e. not when fetching
+/// existing messages). But no more than once a day.
+#define DC_STR_CANT_DECRYPT_OUTGOING_MSGS 175
+
 /// "You reacted %1$s to '%2$s'"
 ///
 /// `%1$s` will be replaced by the reaction, usually an emoji
