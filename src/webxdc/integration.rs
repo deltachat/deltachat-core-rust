@@ -126,7 +126,10 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use crate::config::Config;
+    use crate::context::Context;
+    use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContext;
+    use crate::{chat, message};
     use anyhow::Result;
     use std::time::Duration;
 
@@ -143,6 +146,67 @@ mod tests {
         // default integrations are shipped with the apps and should not be sent over the wire
         let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
         assert!(sent.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_overwrite_default_integration() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let self_chat = &t.get_self_chat().await;
+        assert!(t.init_webxdc_integration(None).await?.is_none());
+
+        async fn assert_integration(t: &Context, name: &str) -> Result<()> {
+            let integration_id = t.init_webxdc_integration(None).await?.unwrap();
+            let integration = Message::load_from_db(t, integration_id).await?;
+            let integration_info = integration.get_webxdc_info(t).await?;
+            assert_eq!(integration_info.name, name);
+            Ok(())
+        }
+
+        // set default integration
+        let bytes = include_bytes!("../../test-data/webxdc/with-manifest-and-png-icon.xdc");
+        let file = t.get_blobdir().join("maps.xdc");
+        tokio::fs::write(&file, bytes).await.unwrap();
+        t.set_webxdc_integration(file.to_str().unwrap()).await?;
+        assert_integration(&t, "with some icon").await?;
+
+        // send a maps.xdc with insufficient manifest
+        let mut msg = Message::new(Viewtype::Webxdc);
+        msg.set_file_from_bytes(
+            &t,
+            "mapstest.xdc",
+            include_bytes!("../../test-data/webxdc/mapstest-integration-unset.xdc"),
+            None,
+        )
+        .await?;
+        chat::send_msg(&t, self_chat.id, &mut msg).await?;
+        let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
+        assert!(sent.is_some());
+        assert_integration(&t, "with some icon").await?; // still the default integration
+
+        // send a maps.xdc with manifest including the line `integration = "maps"`
+        let mut msg = Message::new(Viewtype::Webxdc);
+        msg.set_file_from_bytes(
+            &t,
+            "mapstest.xdc",
+            include_bytes!("../../test-data/webxdc/mapstest-integration-set.xdc"),
+            None,
+        )
+        .await?;
+        chat::send_msg(&t, self_chat.id, &mut msg).await?;
+        let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
+        assert!(sent.is_some());
+        assert_integration(&t, "Maps Test 2").await?;
+
+        // when maps.xdc is received on another device, the integration is not accepted
+        let t2 = TestContext::new_alice().await;
+        t2.recv_msg(&sent.unwrap()).await;
+        assert!(t2.init_webxdc_integration(None).await?.is_none());
+
+        // deleting maps.xdc removes the user's integration - the UI will go back to default calling set_webxdc_integration() then
+        message::delete_msgs(&t, &[msg.id]).await?;
+        assert!(t.init_webxdc_integration(None).await?.is_none());
 
         Ok(())
     }
