@@ -55,9 +55,10 @@ for (const { folder_name, package_name } of platform_package_names) {
 }
 
 if (is_local) {
-  package_json.peerDependencies["@deltachat/jsonrpc-client"] = 'file:../../deltachat-jsonrpc/typescript'
+  package_json.peerDependencies["@deltachat/jsonrpc-client"] =
+    `file:${join(expected_cwd, "/../../deltachat-jsonrpc/typescript")}`;
 } else {
-  package_json.peerDependencies["@deltachat/jsonrpc-client"] = "*"
+  package_json.peerDependencies["@deltachat/jsonrpc-client"] = "*";
 }
 
 await fs.writeFile("./package.json", JSON.stringify(package_json, null, 4));
