@@ -127,9 +127,9 @@ impl Message {
 mod tests {
     use crate::config::Config;
     use crate::context::Context;
+    use crate::message;
     use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContext;
-    use crate::{chat, message};
     use anyhow::Result;
     use std::time::Duration;
 
@@ -180,9 +180,7 @@ mod tests {
             None,
         )
         .await?;
-        chat::send_msg(&t, self_chat.id, &mut msg).await?;
-        let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
-        assert!(sent.is_some());
+        t.send_msg(self_chat.id, &mut msg).await;
         assert_integration(&t, "with some icon").await?; // still the default integration
 
         // send a maps.xdc with manifest including the line `integration = "maps"`
@@ -194,14 +192,12 @@ mod tests {
             None,
         )
         .await?;
-        chat::send_msg(&t, self_chat.id, &mut msg).await?;
-        let sent = t.pop_sent_msg_opt(Duration::from_secs(1)).await;
-        assert!(sent.is_some());
+        let sent = t.send_msg(self_chat.id, &mut msg).await;
         assert_integration(&t, "Maps Test 2").await?;
 
         // when maps.xdc is received on another device, the integration is not accepted
         let t2 = TestContext::new_alice().await;
-        t2.recv_msg(&sent.unwrap()).await;
+        t2.recv_msg(&sent).await;
         assert!(t2.init_webxdc_integration(None).await?.is_none());
 
         // deleting maps.xdc removes the user's integration - the UI will go back to default calling set_webxdc_integration() then
