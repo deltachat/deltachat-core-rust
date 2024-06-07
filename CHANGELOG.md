@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.140.2] - 2024-06-07
+
+### API-Changes
+
+- jsonrpc: Add set_draft_vcard(.., msg_id, contacts).
+
+### Fixes
+
+- Allow fetch_existing_msgs for bots ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
+- Remove group member locally even if send_msg() fails ([#5508](https://github.com/deltachat/deltachat-core-rust/pull/5508)).
+- Revert member addition if the corresponding message couldn't be sent ([#5508](https://github.com/deltachat/deltachat-core-rust/pull/5508)).
+- @deltachat/stdio-rpc-server: Make local non-symlinked installation possible by using absolute paths for local dev version ([#5679](https://github.com/deltachat/deltachat-core-rust/pull/5679)).
+
+### Miscellaneous Tasks
+
+- cargo: Bump schemars from 0.8.19 to 0.8.21.
+- cargo: Bump backtrace from 0.3.71 to 0.3.72.
+
+### Refactor
+
+- @deltachat/stdio-rpc-server: Use old school require instead of the experimental json import ([#5628](https://github.com/deltachat/deltachat-core-rust/pull/5628)).
+
+### Tests
+
+- Set fetch_existing_msgs for bots ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
+- Don't leave protected group if some member's key is missing ([#5508](https://github.com/deltachat/deltachat-core-rust/pull/5508)).
+
 ## [1.140.1] - 2024-06-05
 
 ### Fixes
@@ -4395,3 +4422,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.139.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.5...v1.139.6
 [1.140.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.6...v1.140.0
 [1.140.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.0...v1.140.1
+[1.140.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.1...v1.140.2
