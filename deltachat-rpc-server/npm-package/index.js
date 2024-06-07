@@ -11,9 +11,6 @@ import {
   NPM_NOT_FOUND_UNSUPPORTED_PLATFORM_ERROR,
 } from "./src/errors.js";
 
-// Because this is not compiled by typescript, esm needs this stuff (` with { type: "json" };`,
-// nodejs still complains about it being experimental, but deno also uses it, so treefit bets taht it will become standard)
-import package_json from "./package.json" with { type: "json" };
 import { createRequire } from "node:module";
 
 function findRPCServerInNodeModules() {
@@ -25,7 +22,12 @@ function findRPCServerInNodeModules() {
     return resolve(package_name);
   } catch (error) {
     console.debug("findRpcServerInNodeModules", error);
-    if (Object.keys(package_json.optionalDependencies).includes(package_name)) {
+    const require = createRequire(import.meta.url);
+    if (
+      Object.keys(require("./package.json").optionalDependencies).includes(
+        package_name
+      )
+    ) {
       throw new Error(NPM_NOT_FOUND_SUPPORTED_PLATFORM_ERROR(package_name));
     } else {
       throw new Error(NPM_NOT_FOUND_UNSUPPORTED_PLATFORM_ERROR());
