@@ -2887,6 +2887,18 @@ async fn test_incoming_contact_request() -> Result<()> {
     }
 }
 
+async fn get_parent_message(
+    context: &Context,
+    mime_parser: &MimeMessage,
+) -> Result<Option<Message>> {
+    super::get_parent_message(
+        context,
+        mime_parser.get_header(HeaderDef::References),
+        mime_parser.get_header(HeaderDef::InReplyTo),
+    )
+    .await
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_parent_message() -> Result<()> {
     let t = TestContext::new_alice().await;
@@ -4620,6 +4632,50 @@ async fn test_references() -> Result<()> {
     // When the message is received, it is assigned correctly because of `Chat-Group-ID` header.
     let bob_received_msg = bob.recv_msg(&sent).await;
     assert_eq!(bob_chat_id, bob_received_msg.chat_id);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_prefer_references_to_downloaded_msgs() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    bob.set_config(Config::DownloadLimit, Some("1")).await?;
+    let fiona = &tcm.fiona().await;
+    let alice_bob_id = tcm.send_recv(bob, alice, "hi").await.from_id;
+    let alice_fiona_id = tcm.send_recv(fiona, alice, "hi").await.from_id;
+    let alice_chat_id = create_group_chat(alice, ProtectionStatus::Unprotected, "Group").await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_bob_id).await?;
+    // W/o fiona the test doesn't work -- the last message is assigned to the 1:1 chat due to
+    // `is_probably_private_reply()`.
+    add_contact_to_chat(alice, alice_chat_id, alice_fiona_id).await?;
+    let sent = alice.send_text(alice_chat_id, "Hi").await;
+    let received = bob.recv_msg(&sent).await;
+    assert_eq!(received.download_state, DownloadState::Done);
+    let bob_chat_id = received.chat_id;
+
+    let file_bytes = include_bytes!("../../test-data/image/screenshot.gif");
+    let mut msg = Message::new(Viewtype::File);
+    msg.set_file_from_bytes(alice, "file", file_bytes, None)
+        .await?;
+    let mut sent = alice.send_msg(alice_chat_id, &mut msg).await;
+    sent.payload = sent
+        .payload
+        .replace("References:", "X-Microsoft-Original-References:")
+        .replace("In-Reply-To:", "X-Microsoft-Original-In-Reply-To:");
+    let received = bob.recv_msg(&sent).await;
+    assert_eq!(received.download_state, DownloadState::Available);
+    assert_ne!(received.chat_id, bob_chat_id);
+    assert_eq!(received.chat_id, bob.get_chat(alice).await.id);
+
+    let mut msg = Message::new(Viewtype::File);
+    msg.set_file_from_bytes(alice, "file", file_bytes, None)
+        .await?;
+    let sent = alice.send_msg(alice_chat_id, &mut msg).await;
+    let received = bob.recv_msg(&sent).await;
+    assert_eq!(received.download_state, DownloadState::Available);
+    assert_eq!(received.chat_id, bob_chat_id);
 
     Ok(())
 }

@@ -1921,21 +1921,30 @@ pub(crate) async fn rfc724_mid_exists_and(
     Ok(res)
 }
 
-/// Given a list of Message-IDs, returns the latest message found in the database.
+/// Given a list of Message-IDs, returns the most relevant message found in the database.
 ///
+/// Relevance here is `(download_state == Done, index)`, where `index` is an index of Message-ID in
+/// `mids`. This means Message-IDs should be ordered from the least late to the latest one (like in
+/// the References header).
 /// Only messages that are not in the trash chat are considered.
-pub(crate) async fn get_latest_by_rfc724_mids(
+pub(crate) async fn get_by_rfc724_mids(
     context: &Context,
     mids: &[String],
 ) -> Result<Option<Message>> {
+    let mut latest = None;
     for id in mids.iter().rev() {
-        if let Some((msg_id, _)) = rfc724_mid_exists(context, id).await? {
-            if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
-                return Ok(Some(msg));
-            }
+        let Some((msg_id, _)) = rfc724_mid_exists(context, id).await? else {
+            continue;
+        };
+        let Some(msg) = Message::load_from_db_optional(context, msg_id).await? else {
+            continue;
+        };
+        if msg.download_state == DownloadState::Done {
+            return Ok(Some(msg));
         }
+        latest.get_or_insert(msg);
     }
-    Ok(None)
+    Ok(latest)
 }
 
 /// How a message is primarily displayed.
