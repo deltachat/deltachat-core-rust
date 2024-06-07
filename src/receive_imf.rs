@@ -489,7 +489,9 @@ pub(crate) async fn receive_imf_inner(
             can_info_msg = false;
             Some(Message::load_from_db(context, insert_msg_id).await?)
         } else if let Some(field) = mime_parser.get_header(HeaderDef::InReplyTo) {
-            if let Some(instance) = get_rfc724_mid_in_list(context, field).await? {
+            if let Some(instance) =
+                message::get_by_rfc724_mids(context, &parse_message_ids(field)).await?
+            {
                 can_info_msg = instance.download_state() == DownloadState::Done;
                 Some(instance)
             } else {
@@ -707,9 +709,13 @@ async fn add_parts(
         better_msg = Some(stock_str::msg_location_enabled_by(context, from_id).await);
     }
 
-    let parent = get_parent_message(context, mime_parser)
-        .await?
-        .filter(|p| Some(p.id) != replace_msg_id);
+    let parent = get_parent_message(
+        context,
+        mime_parser.get_header(HeaderDef::References),
+        mime_parser.get_header(HeaderDef::InReplyTo),
+    )
+    .await?
+    .filter(|p| Some(p.id) != replace_msg_id);
 
     let is_dc_message = if mime_parser.has_chat_version() {
         MessengerMessage::Yes
@@ -2792,53 +2798,35 @@ async fn get_previous_message(
     Ok(None)
 }
 
-/// Given a list of Message-IDs, returns the latest message found in the database.
-///
-/// Only messages that are not in the trash chat are considered.
-async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Option<Message>> {
-    message::get_latest_by_rfc724_mids(context, &parse_message_ids(mid_list)).await
-}
-
 /// Returns the last message referenced from References: header found in the database.
 ///
 /// If none found, tries In-Reply-To: as a fallback for classic MUAs that don't set the
 /// References: header.
 async fn get_parent_message(
     context: &Context,
-    mime_parser: &MimeMessage,
+    references: Option<&str>,
+    in_reply_to: Option<&str>,
 ) -> Result<Option<Message>> {
-    if let Some(field) = mime_parser.get_header(HeaderDef::References) {
-        if let Some(msg) = get_rfc724_mid_in_list(context, field).await? {
-            return Ok(Some(msg));
-        }
+    let mut mids = Vec::new();
+    if let Some(field) = in_reply_to {
+        mids = parse_message_ids(field);
     }
-
-    if let Some(field) = mime_parser.get_header(HeaderDef::InReplyTo) {
-        if let Some(msg) = get_rfc724_mid_in_list(context, field).await? {
-            return Ok(Some(msg));
-        }
+    if let Some(field) = references {
+        mids.append(&mut parse_message_ids(field));
     }
-
-    Ok(None)
+    message::get_by_rfc724_mids(context, &mids).await
 }
 
 pub(crate) async fn get_prefetch_parent_message(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Message>> {
-    if let Some(field) = headers.get_header_value(HeaderDef::References) {
-        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
-            return Ok(Some(msg));
-        }
-    }
-
-    if let Some(field) = headers.get_header_value(HeaderDef::InReplyTo) {
-        if let Some(msg) = get_rfc724_mid_in_list(context, &field).await? {
-            return Ok(Some(msg));
-        }
-    }
-
-    Ok(None)
+    get_parent_message(
+        context,
+        headers.get_header_value(HeaderDef::References).as_deref(),
+        headers.get_header_value(HeaderDef::InReplyTo).as_deref(),
+    )
+    .await
 }
 
 /// Looks up contact IDs from the database given the list of recipients.

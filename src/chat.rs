@@ -4620,7 +4620,7 @@ impl Context {
                     .0
             }
             SyncId::Msgids(msgids) => {
-                let msg = message::get_latest_by_rfc724_mids(self, msgids)
+                let msg = message::get_by_rfc724_mids(self, msgids)
                     .await?
                     .with_context(|| format!("No message found for Message-IDs {msgids:?}"))?;
                 ChatId::lookup_by_message(&msg)
