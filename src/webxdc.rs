@@ -66,7 +66,7 @@ pub struct WebxdcManifest {
     /// Optional URL of webxdc source code.
     pub source_code_url: Option<String>,
 
-    /// If the webxdc is an integration.
+    /// Set to "maps" if the webxdc is an integration.
     pub integration: Option<String>,
 
     /// If the webxdc requests network access.
