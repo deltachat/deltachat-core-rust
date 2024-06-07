@@ -121,6 +121,18 @@ impl Message {
             None
         }
     }
+
+    // Check if the message is an actually used as Webxdc integration.
+    pub(crate) async fn is_set_as_webxdc_integration(&self, context: &Context) -> Result<bool> {
+        if let Some(integration_id) = context
+            .get_config_parsed::<u32>(Config::WebxdcIntegration)
+            .await?
+        {
+            Ok(integration_id == self.id.to_u32())
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -193,11 +205,15 @@ mod tests {
         )
         .await?;
         let sent = t.send_msg(self_chat.id, &mut msg).await;
+        let info = msg.get_webxdc_info(&t).await?;
+        assert!(info.summary.contains("Used as map"));
         assert_integration(&t, "Maps Test 2").await?;
 
-        // when maps.xdc is received on another device, the integration is not accepted
+        // when maps.xdc is received on another device, the integration is not accepted (needs to be forwarded again)
         let t2 = TestContext::new_alice().await;
-        t2.recv_msg(&sent).await;
+        let msg2 = t2.recv_msg(&sent).await;
+        let info = msg2.get_webxdc_info(&t2).await?;
+        assert!(info.summary.contains("To use as map,"));
         assert!(t2.init_webxdc_integration(None).await?.is_none());
 
         // deleting maps.xdc removes the user's integration - the UI will go back to default calling set_webxdc_integration() then

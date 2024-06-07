@@ -824,6 +824,9 @@ impl Message {
             }
         }
 
+        let request_integration = manifest.integration.unwrap_or_default();
+        let is_integrated = self.is_set_as_webxdc_integration(context).await?;
+
         let internet_access = manifest.request_internet_access.unwrap_or_default()
             && self.chat_id.is_self_talk(context).await.unwrap_or_default()
             && self.get_showpadlock();
@@ -846,7 +849,12 @@ impl Message {
                 .get(Param::WebxdcDocument)
                 .unwrap_or_default()
                 .to_string(),
-            summary: if internet_access {
+            summary: if is_integrated {
+                "🌍 Used as map. Delete to use default. Do not enter sensitive data".to_string()
+            } else if request_integration == "maps" {
+                "🌏 To use as map, forward to \"Saved Messages\" again. Do not enter sensitive data"
+                    .to_string()
+            } else if internet_access {
                 "Dev Mode: Do not enter sensitive data!".to_string()
             } else {
                 self.param
@@ -859,7 +867,7 @@ impl Message {
             } else {
                 "".to_string()
             },
-            integration: manifest.integration.unwrap_or_default(),
+            integration: request_integration,
             internet_access,
         })
     }
