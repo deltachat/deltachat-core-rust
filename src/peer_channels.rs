@@ -216,20 +216,15 @@ impl Context {
     async fn init_peer_channels(&self) -> Result<Iroh> {
         let secret_key: SecretKey = SecretKey::generate();
 
-        let relay_mode = if let Some(relay_url) = self
+        let relay_url = self
             .metadata
             .read()
             .await
             .as_ref()
             .and_then(|conf| conf.iroh_relay.clone())
-        {
-            RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)))
-        } else {
-            // FIXME: this should be RelayMode::Disabled instead.
-            // Currently using default relays because otherwise Rust tests fail.
-            RelayMode::Default
-        };
+            .unwrap_or(Url::parse("https://iroh.testrun.org:4443").unwrap());
 
+        let relay_mode = RelayMode::Custom(RelayMap::from_url(RelayUrl::from(relay_url)));
         let endpoint = Endpoint::builder()
             .secret_key(secret_key.clone())
             .alpns(vec![GOSSIP_ALPN.to_vec()])
