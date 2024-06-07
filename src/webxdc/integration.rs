@@ -67,7 +67,7 @@ impl Context {
                 true
             } else if msg.chat_id.is_self_talk(context).await? {
                 let info = msg.get_webxdc_info(context).await?;
-                if info.integration == "maps" {
+                if info.request_integration == "map" {
                     msg.param.set_int(Param::WebxdcIntegration, 1);
                     msg.update_param(context).await?;
                     true
@@ -195,7 +195,7 @@ mod tests {
         t.send_msg(self_chat.id, &mut msg).await;
         assert_integration(&t, "with some icon").await?; // still the default integration
 
-        // send a maps.xdc with manifest including the line `integration = "maps"`
+        // send a maps.xdc with manifest including the line `request_integration = "map"`
         let mut msg = Message::new(Viewtype::Webxdc);
         msg.set_file_from_bytes(
             &t,

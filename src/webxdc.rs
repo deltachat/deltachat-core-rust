@@ -66,8 +66,8 @@ pub struct WebxdcManifest {
     /// Optional URL of webxdc source code.
     pub source_code_url: Option<String>,
 
-    /// Set to "maps" if the webxdc is an integration.
-    pub integration: Option<String>,
+    /// Set to "map" to request integration.
+    pub request_integration: Option<String>,
 
     /// If the webxdc requests network access.
     pub request_internet_access: Option<bool>,
@@ -95,8 +95,8 @@ pub struct WebxdcInfo {
     /// URL of webxdc source code or an empty string.
     pub source_code_url: String,
 
-    /// Set to "maps" if the webxdc is an integration, otherwise an empty string.
-    pub integration: String,
+    /// Set to "map" to request integration, otherwise an empty string.
+    pub request_integration: String,
 
     /// If the webxdc is allowed to access the network.
     /// It should request access, be encrypted
@@ -824,7 +824,7 @@ impl Message {
             }
         }
 
-        let request_integration = manifest.integration.unwrap_or_default();
+        let request_integration = manifest.request_integration.unwrap_or_default();
         let is_integrated = self.is_set_as_webxdc_integration(context).await?;
 
         let internet_access = manifest.request_internet_access.unwrap_or_default()
@@ -851,7 +851,7 @@ impl Message {
                 .to_string(),
             summary: if is_integrated {
                 "🌍 Used as map. Delete to use default. Do not enter sensitive data".to_string()
-            } else if request_integration == "maps" {
+            } else if request_integration == "map" {
                 "🌏 To use as map, forward to \"Saved Messages\" again. Do not enter sensitive data"
                     .to_string()
             } else if internet_access {
@@ -867,7 +867,7 @@ impl Message {
             } else {
                 "".to_string()
             },
-            integration: request_integration,
+            request_integration,
             internet_access,
         })
     }
