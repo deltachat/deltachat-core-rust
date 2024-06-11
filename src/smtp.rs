@@ -661,9 +661,6 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<()> {
 }
 
 /// Tries to send all messages currently in `smtp`, `smtp_status_updates` and `smtp_mdns` tables.
-///
-/// Logs and ignores SMTP errors to ensure that a single SMTP message constantly failing to be sent
-/// does not block other messages in the queue from being sent.
 pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<()> {
     let ratelimited = if context.ratelimit.read().await.can_send() {
         // add status updates and sync messages to end of sending queue
