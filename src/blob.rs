@@ -1101,32 +1101,34 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-        send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("0"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "0",
             bytes,
-            "jpg",
-            true, // has Exif
-            1000,
-            1000,
-            0,
-            1000,
-            1000,
-        )
+            extension: "jpg",
+            has_exif: true,
+            original_width: 1000,
+            original_height: 1000,
+            compressed_width: 1000,
+            compressed_height: 1000,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
-        send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("1"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "1",
             bytes,
-            "jpg",
-            true, // has Exif
-            1000,
-            1000,
-            0,
-            1000,
-            1000,
-        )
+            extension: "jpg",
+            has_exif: true,
+            original_width: 1000,
+            original_height: 1000,
+            compressed_width: 1000,
+            compressed_height: 1000,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
     }
@@ -1135,18 +1137,20 @@ mod tests {
     async fn test_recode_image_2() {
         // The "-rotated" files are rotated by 270 degrees using the Exif metadata
         let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
-        let img_rotated = send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("0"),
+        let img_rotated = SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "0",
             bytes,
-            "jpg",
-            true, // has Exif
-            2000,
-            1800,
-            270,
-            1800,
-            2000,
-        )
+            extension: "jpg",
+            has_exif: true,
+            original_width: 2000,
+            original_height: 1800,
+            orientation: 270,
+            compressed_width: 1800,
+            compressed_height: 2000,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
         assert_correct_rotation(&img_rotated);
@@ -1155,18 +1159,18 @@ mod tests {
         img_rotated.write_to(&mut buf, ImageFormat::Jpeg).unwrap();
         let bytes = buf.into_inner();
 
-        let img_rotated = send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("1"),
-            &bytes,
-            "jpg",
-            false, // no Exif
-            1800,
-            2000,
-            0,
-            1800,
-            2000,
-        )
+        let img_rotated = SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "1",
+            bytes: &bytes,
+            extension: "jpg",
+            original_width: 1800,
+            original_height: 2000,
+            compressed_width: 1800,
+            compressed_height: 2000,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
         assert_correct_rotation(&img_rotated);
@@ -1176,64 +1180,80 @@ mod tests {
     async fn test_recode_image_balanced_png() {
         let bytes = include_bytes!("../test-data/image/screenshot.png");
 
-        send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("0"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "0",
             bytes,
-            "png",
-            false, // no Exif
-            1920,
-            1080,
-            0,
-            1920,
-            1080,
-        )
+            extension: "png",
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: 1920,
+            compressed_height: 1080,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
 
-        send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("1"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "1",
             bytes,
-            "png",
-            false, // no Exif
-            1920,
-            1080,
-            0,
-            constants::WORSE_IMAGE_SIZE,
-            constants::WORSE_IMAGE_SIZE * 1080 / 1920,
-        )
+            extension: "png",
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: constants::WORSE_IMAGE_SIZE,
+            compressed_height: constants::WORSE_IMAGE_SIZE * 1080 / 1920,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
 
-        send_image_check_mediaquality(
-            Viewtype::File,
-            Some("1"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::File,
+            media_quality_config: "1",
             bytes,
-            "png",
-            false, // no Exif
-            1920,
-            1080,
-            0,
-            1920,
-            1080,
-        )
+            extension: "png",
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: 1920,
+            compressed_height: 1080,
+            ..Default::default()
+        }
+        .test()
+        .await
+        .unwrap();
+
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::File,
+            media_quality_config: "1",
+            bytes,
+            extension: "png",
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: 1920,
+            compressed_height: 1080,
+            set_draft: true,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
 
         // This will be sent as Image, see [`BlobObject::maybe_sticker`] for explanation.
-        send_image_check_mediaquality(
-            Viewtype::Sticker,
-            Some("0"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Sticker,
+            media_quality_config: "0",
             bytes,
-            "png",
-            false, // no Exif
-            1920,
-            1080,
-            0,
-            1920,
-            1080,
-        )
+            extension: "png",
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: 1920,
+            compressed_height: 1080,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
     }
@@ -1244,18 +1264,18 @@ mod tests {
     async fn test_recode_image_rgba_png_to_jpeg() {
         let bytes = include_bytes!("../test-data/image/screenshot-rgba.png");
 
-        send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("1"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "1",
             bytes,
-            "png",
-            false, // no Exif
-            1920,
-            1080,
-            0,
-            constants::WORSE_IMAGE_SIZE,
-            constants::WORSE_IMAGE_SIZE * 1080 / 1920,
-        )
+            extension: "png",
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: constants::WORSE_IMAGE_SIZE,
+            compressed_height: constants::WORSE_IMAGE_SIZE * 1080 / 1920,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
     }
@@ -1263,18 +1283,19 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_huge_jpg() {
         let bytes = include_bytes!("../test-data/image/screenshot.jpg");
-        send_image_check_mediaquality(
-            Viewtype::Image,
-            Some("0"),
+        SendImageCheckMediaquality {
+            viewtype: Viewtype::Image,
+            media_quality_config: "0",
             bytes,
-            "jpg",
-            true, // has Exif
-            1920,
-            1080,
-            0,
-            constants::BALANCED_IMAGE_SIZE,
-            constants::BALANCED_IMAGE_SIZE * 1080 / 1920,
-        )
+            extension: "jpg",
+            has_exif: true,
+            original_width: 1920,
+            original_height: 1080,
+            compressed_width: constants::BALANCED_IMAGE_SIZE,
+            compressed_height: constants::BALANCED_IMAGE_SIZE * 1080 / 1920,
+            ..Default::default()
+        }
+        .test()
         .await
         .unwrap();
     }
@@ -1296,71 +1317,93 @@ mod tests {
         assert_eq!(luma, 0);
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn send_image_check_mediaquality(
-        viewtype: Viewtype,
-        media_quality_config: Option<&str>,
-        bytes: &[u8],
-        extension: &str,
-        has_exif: bool,
-        original_width: u32,
-        original_height: u32,
-        orientation: i32,
-        compressed_width: u32,
-        compressed_height: u32,
-    ) -> anyhow::Result<DynamicImage> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
-        alice
-            .set_config(Config::MediaQuality, media_quality_config)
-            .await?;
-        let file = alice.get_blobdir().join("file").with_extension(extension);
+    #[derive(Default)]
+    struct SendImageCheckMediaquality<'a> {
+        pub(crate) viewtype: Viewtype,
+        pub(crate) media_quality_config: &'a str,
+        pub(crate) bytes: &'a [u8],
+        pub(crate) extension: &'a str,
+        pub(crate) has_exif: bool,
+        pub(crate) original_width: u32,
+        pub(crate) original_height: u32,
+        pub(crate) orientation: i32,
+        pub(crate) compressed_width: u32,
+        pub(crate) compressed_height: u32,
+        pub(crate) set_draft: bool,
+    }
 
-        fs::write(&file, &bytes)
-            .await
-            .context("failed to write file")?;
-        check_image_size(&file, original_width, original_height);
+    impl SendImageCheckMediaquality<'_> {
+        pub(crate) async fn test(self) -> anyhow::Result<DynamicImage> {
+            let viewtype = self.viewtype;
+            let media_quality_config = self.media_quality_config;
+            let bytes = self.bytes;
+            let extension = self.extension;
+            let has_exif = self.has_exif;
+            let original_width = self.original_width;
+            let original_height = self.original_height;
+            let orientation = self.orientation;
+            let compressed_width = self.compressed_width;
+            let compressed_height = self.compressed_height;
+            let set_draft = self.set_draft;
 
-        let (_, exif) = image_metadata(&std::fs::File::open(&file)?)?;
-        if has_exif {
-            let exif = exif.unwrap();
-            assert_eq!(exif_orientation(&exif, &alice), orientation);
-        } else {
+            let alice = TestContext::new_alice().await;
+            let bob = TestContext::new_bob().await;
+            alice
+                .set_config(Config::MediaQuality, Some(media_quality_config))
+                .await?;
+            let file = alice.get_blobdir().join("file").with_extension(extension);
+
+            fs::write(&file, &bytes)
+                .await
+                .context("failed to write file")?;
+            check_image_size(&file, original_width, original_height);
+
+            let (_, exif) = image_metadata(&std::fs::File::open(&file)?)?;
+            if has_exif {
+                let exif = exif.unwrap();
+                assert_eq!(exif_orientation(&exif, &alice), orientation);
+            } else {
+                assert!(exif.is_none());
+            }
+
+            let mut msg = Message::new(viewtype);
+            msg.set_file(file.to_str().unwrap(), None);
+            let chat = alice.create_chat(&bob).await;
+            if set_draft {
+                chat.id.set_draft(&alice, Some(&mut msg)).await.unwrap();
+                msg = chat.id.get_draft(&alice).await.unwrap().unwrap();
+                assert_eq!(msg.get_viewtype(), Viewtype::File);
+            }
+            let sent = alice.send_msg(chat.id, &mut msg).await;
+            let alice_msg = alice.get_last_msg().await;
+            assert_eq!(alice_msg.get_width() as u32, compressed_width);
+            assert_eq!(alice_msg.get_height() as u32, compressed_height);
+            let file_saved = alice
+                .get_blobdir()
+                .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
+            alice_msg.save_file(&alice, &file_saved).await?;
+            check_image_size(file_saved, compressed_width, compressed_height);
+
+            let bob_msg = bob.recv_msg(&sent).await;
+            assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
+            assert_eq!(bob_msg.get_width() as u32, compressed_width);
+            assert_eq!(bob_msg.get_height() as u32, compressed_height);
+            let file_saved = bob
+                .get_blobdir()
+                .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
+            bob_msg.save_file(&bob, &file_saved).await?;
+            if viewtype == Viewtype::File {
+                assert_eq!(file_saved.extension().unwrap(), extension);
+                let bytes1 = fs::read(&file_saved).await?;
+                assert_eq!(&bytes1, bytes);
+            }
+
+            let (_, exif) = image_metadata(&std::fs::File::open(&file_saved)?)?;
             assert!(exif.is_none());
+
+            let img = check_image_size(file_saved, compressed_width, compressed_height);
+            Ok(img)
         }
-
-        let mut msg = Message::new(viewtype);
-        msg.set_file(file.to_str().unwrap(), None);
-        let chat = alice.create_chat(&bob).await;
-        let sent = alice.send_msg(chat.id, &mut msg).await;
-        let alice_msg = alice.get_last_msg().await;
-        assert_eq!(alice_msg.get_width() as u32, compressed_width);
-        assert_eq!(alice_msg.get_height() as u32, compressed_height);
-        let file_saved = alice
-            .get_blobdir()
-            .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
-        alice_msg.save_file(&alice, &file_saved).await?;
-        check_image_size(file_saved, compressed_width, compressed_height);
-
-        let bob_msg = bob.recv_msg(&sent).await;
-        assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
-        assert_eq!(bob_msg.get_width() as u32, compressed_width);
-        assert_eq!(bob_msg.get_height() as u32, compressed_height);
-        let file_saved = bob
-            .get_blobdir()
-            .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
-        bob_msg.save_file(&bob, &file_saved).await?;
-        if viewtype == Viewtype::File {
-            assert_eq!(file_saved.extension().unwrap(), extension);
-            let bytes1 = fs::read(&file_saved).await?;
-            assert_eq!(&bytes1, bytes);
-        }
-
-        let (_, exif) = image_metadata(&std::fs::File::open(&file_saved)?)?;
-        assert!(exif.is_none());
-
-        let img = check_image_size(file_saved, compressed_width, compressed_height);
-        Ok(img)
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
