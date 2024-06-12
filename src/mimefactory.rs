@@ -266,25 +266,14 @@ impl<'a> MimeFactory<'a> {
 
         let contact = Contact::get_by_id(context, msg.from_id).await?;
         let from_addr = context.get_primary_self_addr().await?;
-        let from_displayname = context
-            .get_config(Config::Displayname)
-            .await?
-            .unwrap_or_default();
-        let selfstatus = context
-            .get_config(Config::Selfstatus)
-            .await?
-            .unwrap_or_default();
         let timestamp = create_smeared_timestamp(context);
 
         let res = MimeFactory::<'a> {
             from_addr,
-            from_displayname,
+            from_displayname: "".to_string(),
             sender_displayname: None,
-            selfstatus,
-            recipients: vec![(
-                contact.get_authname().to_string(),
-                contact.get_addr().to_string(),
-            )],
+            selfstatus: "".to_string(),
+            recipients: vec![("".to_string(), contact.get_addr().to_string())],
             timestamp,
             loaded: Loaded::Mdn { additional_msg_ids },
             msg,
@@ -1950,7 +1939,14 @@ mod tests {
     async fn test_mdn_create_encrypted() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
+        alice
+            .set_config(Config::Displayname, Some("Alice Exampleorg"))
+            .await?;
         let bob = tcm.bob().await;
+        bob.set_config(Config::Displayname, Some("Bob Examplenet"))
+            .await?;
+        bob.set_config(Config::Selfstatus, Some("Bob Examplenet"))
+            .await?;
         bob.set_config_bool(Config::MdnsEnabled, true).await?;
 
         let mut msg = Message::new(Viewtype::Text);
@@ -1964,6 +1960,10 @@ mod tests {
         let rendered_msg = mimefactory.render(&bob).await?;
 
         assert!(!rendered_msg.is_encrypted);
+        assert!(!rendered_msg.message.contains("Bob Examplenet"));
+        assert!(!rendered_msg.message.contains("Alice Exampleorg"));
+        let bob_alice_contact = bob.add_or_lookup_contact(&alice).await;
+        assert_eq!(bob_alice_contact.get_authname(), "Alice Exampleorg");
 
         let rcvd = tcm.send_recv(&alice, &bob, "Heyho").await;
         message::markseen_msgs(&bob, vec![rcvd.id]).await?;
@@ -1973,6 +1973,8 @@ mod tests {
 
         // When encrypted, the MDN should be encrypted as well
         assert!(rendered_msg.is_encrypted);
+        assert!(!rendered_msg.message.contains("Bob Examplenet"));
+        assert!(!rendered_msg.message.contains("Alice Exampleorg"));
 
         Ok(())
     }
