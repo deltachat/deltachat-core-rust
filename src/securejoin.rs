@@ -802,6 +802,9 @@ mod tests {
         let alice = tcm.alice().await;
         let alice_addr = &alice.get_config(Config::Addr).await.unwrap().unwrap();
         let bob = tcm.bob().await;
+        bob.set_config(Config::Displayname, Some("Bob Examplenet"))
+            .await
+            .unwrap();
         alice
             .set_config(Config::VerifiedOneOnOneChats, Some("1"))
             .await
@@ -824,6 +827,11 @@ mod tests {
 
         // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
         let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
+        // We want Bob to learn Alice's name from their messages, not from the QR code.
+        alice
+            .set_config(Config::Displayname, Some("Alice Exampleorg"))
+            .await
+            .unwrap();
 
         // Step 2: Bob scans QR-code, sends vc-request
         join_securejoin(&bob.ctx, &qr).await.unwrap();
@@ -895,6 +903,7 @@ mod tests {
 
         // Check Bob sent the right message.
         let sent = bob.pop_sent_msg().await;
+        assert!(!sent.payload.contains("Bob Examplenet"));
         let mut msg = alice.parse_msg(&sent).await;
         let vc_request_with_auth_ts_sent = msg
             .get_header(HeaderDef::Date)
@@ -946,6 +955,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), false);
+        assert_eq!(contact_bob.get_authname(), "");
 
         if case == SetupContactCase::CheckProtectionTimestamp {
             SystemTime::shift(Duration::from_secs(3600));
@@ -954,6 +964,10 @@ mod tests {
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
         alice.recv_msg_trash(&sent).await;
         assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), true);
+        let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id)
+            .await
+            .unwrap();
+        assert_eq!(contact_bob.get_authname(), "Bob Examplenet");
 
         // exactly one one-to-one chat should be visible for both now
         // (check this before calling alice.create_chat() explicitly below)
@@ -981,8 +995,19 @@ mod tests {
             }
         }
 
+        // Make sure Alice hasn't yet sent their name to Bob.
+        let contact_alice_id = Contact::lookup_id_by_addr(&bob.ctx, alice_addr, Origin::Unknown)
+            .await
+            .expect("Error looking up contact")
+            .expect("Contact not found");
+        let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id)
+            .await
+            .unwrap();
+        assert_eq!(contact_alice.get_authname(), "");
+
         // Check Alice sent the right message to Bob.
         let sent = alice.pop_sent_msg().await;
+        assert!(!sent.payload.contains("Alice Exampleorg"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
@@ -991,18 +1016,15 @@ mod tests {
         );
 
         // Bob should not yet have Alice verified
-        let contact_alice_id = Contact::lookup_id_by_addr(&bob.ctx, alice_addr, Origin::Unknown)
-            .await
-            .expect("Error looking up contact")
-            .expect("Contact not found");
-        let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id)
-            .await
-            .unwrap();
-        assert_eq!(contact_bob.is_verified(&bob.ctx).await.unwrap(), false);
+        assert_eq!(contact_alice.is_verified(&bob.ctx).await.unwrap(), false);
 
         // Step 7: Bob receives vc-contact-confirm
         bob.recv_msg_trash(&sent).await;
         assert_eq!(contact_alice.is_verified(&bob.ctx).await.unwrap(), true);
+        let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id)
+            .await
+            .unwrap();
+        assert_eq!(contact_alice.get_authname(), "Alice Exampleorg");
 
         if case != SetupContactCase::SecurejoinWaitTimeout {
             // Later we check that the timeout message isn't added to the already protected chat.
@@ -1119,7 +1141,7 @@ mod tests {
         // Alice should not yet have Bob verified
         let (contact_bob_id, _modified) = Contact::add_or_lookup(
             &alice.ctx,
-            "Bob",
+            "",
             &ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
