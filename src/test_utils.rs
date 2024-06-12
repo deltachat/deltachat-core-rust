@@ -566,18 +566,12 @@ impl TestContext {
 
     /// Returns the [`Contact`] for the other [`TestContext`], creating it if necessary.
     pub async fn add_or_lookup_contact(&self, other: &TestContext) -> Contact {
-        let name = other
-            .ctx
-            .get_config(Config::Displayname)
-            .await
-            .unwrap_or_default()
-            .unwrap_or_default();
         let primary_self_addr = other.ctx.get_primary_self_addr().await.unwrap();
         let addr = ContactAddress::new(&primary_self_addr).unwrap();
         // MailinglistAddress is the lowest allowed origin, we'd prefer to not modify the
         // origin when creating this contact.
         let (contact_id, modified) =
-            Contact::add_or_lookup(self, &name, &addr, Origin::MailinglistAddress)
+            Contact::add_or_lookup(self, "", &addr, Origin::MailinglistAddress)
                 .await
                 .expect("add_or_lookup");
         match modified {
