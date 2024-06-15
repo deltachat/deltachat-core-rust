@@ -283,7 +283,7 @@ pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     } else {
         (name, addr.to_string())
     };
-    let mut name = normalize_name(&strip_rtlo_characters(name));
+    let mut name = normalize_name(name);
 
     // If the 'display name' is just the address, remove it:
     // Otherwise, the contact would sometimes be shown as "alice@example.com (alice@example.com)" (see `get_name_n_addr()`).
@@ -295,21 +295,26 @@ pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     (name, addr)
 }
 
-/// Normalize a name.
+/// Normalizes a name.
 ///
-/// - Remove quotes (come from some bad MUA implementations)
+/// - Removes newlines
+/// - Removes quotes (come from some bad MUA implementations)
 /// - Trims the resulting string
+/// - Removes potentially-malicious RTLO characters
 ///
 /// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
-pub fn normalize_name(full_name: &str) -> String {
-    let full_name = full_name.trim();
+pub fn normalize_name(name: &str) -> String {
+    let name = name.replace(['\n', '\r'], " ");
+    let name = name.trim();
 
-    match full_name.as_bytes() {
-        [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => full_name
-            .get(1..full_name.len() - 1)
+    let name = match name.as_bytes() {
+        [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => name
+            .get(1..name.len() - 1)
             .map_or("".to_string(), |s| s.trim().to_string()),
-        _ => full_name.to_string(),
-    }
+        _ => name.to_string(),
+    };
+
+    strip_rtlo_characters(&name)
 }
 
 const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
