@@ -481,8 +481,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `bot`          = Set to "1" if this is a bot.
  *                    Prevents adding the "Device messages" and "Saved messages" chats,
  *                    adds Auto-Submitted header to outgoing messages,
- *                    accepts contact requests automatically (calling dc_accept_chat() is not needed for bots)
- *                    and does not cut large incoming text messages.
+ *                    accepts contact requests automatically (calling dc_accept_chat() is not needed),
+ *                    does not cut large incoming text messages,
+ *                    handles existing messages the same way as new ones if `fetch_existing_msgs=1`.
  * - `last_msg_id` = database ID of the last message processed by the bot.
  *                   This ID and IDs below it are guaranteed not to be returned
  *                   by dc_get_next_msgs() and dc_wait_next_msgs().
@@ -493,8 +494,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                   For most bots calling `dc_markseen_msgs()` is the
  *                   recommended way to update this value
  *                   even for self-sent messages.
- * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
- *                    0=do not fetch existing messages on configure.
+ * - `fetch_existing_msgs` = 0=do not fetch existing messages on configure (default),
+ *                    1=fetch most recent existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
  * - `disable_idle` = 1=disable IMAP IDLE even if the server supports it,
  *                    0=use IMAP IDLE if the server supports it.
