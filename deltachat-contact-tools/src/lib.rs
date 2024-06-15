@@ -272,21 +272,18 @@ pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     let (name, addr) = if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
         (
             if name.is_empty() {
-                strip_rtlo_characters(captures.get(1).map_or("", |m| m.as_str()))
+                captures.get(1).map_or("", |m| m.as_str())
             } else {
-                strip_rtlo_characters(name)
+                name
             },
             captures
                 .get(2)
                 .map_or("".to_string(), |m| m.as_str().to_string()),
         )
     } else {
-        (
-            strip_rtlo_characters(&normalize_name(name)),
-            addr.to_string(),
-        )
+        (name, addr.to_string())
     };
-    let mut name = normalize_name(&name);
+    let mut name = normalize_name(&strip_rtlo_characters(name));
 
     // If the 'display name' is just the address, remove it:
     // Otherwise, the contact would sometimes be shown as "alice@example.com (alice@example.com)" (see `get_name_n_addr()`).
@@ -306,9 +303,6 @@ pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
 /// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
 pub fn normalize_name(full_name: &str) -> String {
     let full_name = full_name.trim();
-    if full_name.is_empty() {
-        return full_name.into();
-    }
 
     match full_name.as_bytes() {
         [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => full_name
