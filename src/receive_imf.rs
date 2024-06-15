@@ -696,6 +696,9 @@ async fn add_parts(
     prevent_rename: bool,
     verified_encryption: VerifiedEncryption,
 ) -> Result<ReceivedMsg> {
+    let is_bot = context.get_config_bool(Config::Bot).await?;
+    // Bots handle existing messages the same way as new ones.
+    let fetching_existing_messages = fetching_existing_messages && !is_bot;
     let rfc724_mid_orig = &mime_parser
         .get_rfc724_mid()
         .unwrap_or(rfc724_mid.to_string());
@@ -787,9 +790,6 @@ async fn add_parts(
             chat_id = Some(DC_CHAT_ID_TRASH);
             info!(context, "Message is an MDN (TRASH).",);
         }
-
-        // signals whether the current user is a bot
-        let is_bot = context.get_config_bool(Config::Bot).await?;
 
         let create_blocked_default = if is_bot {
             Blocked::Not
