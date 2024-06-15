@@ -263,7 +263,10 @@ impl rusqlite::types::ToSql for ContactAddress {
     }
 }
 
-/// Make the name and address
+/// Takes a name and an address and sanitizes them:
+/// - Extracts a name from the addr if the addr is in form "Alice <alice@example.org>"
+/// - Removes special characters from the name
+/// - Removes the name if it is equal to the address by setting it to ""
 pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
     let (name, addr) = if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
