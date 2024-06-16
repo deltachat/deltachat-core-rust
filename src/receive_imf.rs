@@ -40,7 +40,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{self, buf_compress};
+use crate::tools::{self, buf_compress, remove_subject_prefix};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
 use iroh_net::NodeAddr;
@@ -1938,8 +1938,9 @@ async fn create_group(
         let grpname = mime_parser
             .get_header(HeaderDef::ChatGroupName)
             .context("Chat-Group-Name vanished")?
-            // W/a for "Space added before long group names after MIME serialization/deserialization
-            // #3650" issue. DC itself never creates group names with leading/trailing whitespace.
+            // Workaround for the "Space added before long group names after MIME
+            // serialization/deserialization #3650" issue. DC itself never creates group names with
+            // leading/trailing whitespace.
             .trim();
         let new_chat_id = ChatId::create_multiuser_record(
             context,
@@ -2129,12 +2130,10 @@ async fn apply_group_changes(
         }
     } else if let Some(old_name) = mime_parser
         .get_header(HeaderDef::ChatGroupNameChanged)
-        // See create_or_lookup_group() for explanation
         .map(|s| s.trim())
     {
         if let Some(grpname) = mime_parser
             .get_header(HeaderDef::ChatGroupName)
-            // See create_or_lookup_group() for explanation
             .map(|grpname| grpname.trim())
             .filter(|grpname| grpname.len() < 200)
         {
@@ -2549,9 +2548,9 @@ async fn create_adhoc_group(
         return Ok(None);
     }
 
-    // use subject as initial chat name
     let grpname = mime_parser
         .get_subject()
+        .map(|s| remove_subject_prefix(&s))
         .unwrap_or_else(|| "Unnamed group".to_string());
 
     let new_chat_id: ChatId = ChatId::create_multiuser_record(

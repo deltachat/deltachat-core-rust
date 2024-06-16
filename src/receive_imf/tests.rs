@@ -4269,6 +4269,33 @@ async fn test_keep_member_list_if_possibly_nomember() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_adhoc_grp_name_no_prefix() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let chat_id = receive_imf(
+        alice,
+        b"Subject: Re: Once upon a time this was with the only Re: here\n\
+          From: <bob@example.net>\n\
+          To: <claire@example.org>, <alice@example.org>\n\
+          Date: Mon, 12 Dec 3000 14:32:39 +0000\n\
+          Message-ID: <thisone@example.net>\n\
+          In-Reply-To: <previous@example.net>\n\
+          \n\
+          Adding Alice the Delta Chat lover",
+        false,
+    )
+    .await?
+    .unwrap()
+    .chat_id;
+    let chat = Chat::load_from_db(alice, chat_id).await.unwrap();
+    assert_eq!(
+        chat.get_name(),
+        "Once upon a time this was with the only Re: here"
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_download_later() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
