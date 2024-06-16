@@ -48,7 +48,7 @@ async_zip = { version = "0.0.12", default-features = false, features = ["deflate
 backtrace = "0.3"
 base64 = { workspace = true }
 brotli = { version = "6", default-features=false, features = ["std"] }
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["alloc", "clock", "std"] }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
 escaper = "0.1"
@@ -86,7 +86,7 @@ rusqlite = { workspace = true, features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 sanitize-filename = { workspace = true }
 serde_json = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 sha-1 = "0.10"
 sha2 = "0.10"
 smallvec = "1.13.2"
@@ -162,7 +162,7 @@ anyhow = "1"
 ansi_term = "0.12.1"
 async-channel = "2.3.1"
 base64 = "0.22"
-chrono = { version = "0.4.38", default-features = false, features = ["alloc", "clock", "std"] }
+chrono = { version = "0.4.38", default-features = false }
 futures = "0.3.30"
 futures-lite = "2.3.0"
 libc = "0.2"
@@ -174,12 +174,12 @@ regex = "1.10"
 rusqlite = "0.31"
 sanitize-filename = "0.5"
 serde_json = "1"
-serde = { version = "1.0", features = ["derive"] }
+serde = "1.0"
 tempfile = "3.10.1"
 thiserror = "1"
 tokio = "1.38.0"
 tokio-util = "0.7.11"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = "0.3"
 yerpc = "0.5.2"
 
 [features]

@@ -18,7 +18,7 @@ deltachat = { path = ".." }
 deltachat-contact-tools = { path = "../deltachat-contact-tools" }
 num-traits = { workspace = true }
 schemars = "0.8.21"
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 tempfile = { workspace = true }
 log = { workspace = true }
 async-channel = { workspace = true }
