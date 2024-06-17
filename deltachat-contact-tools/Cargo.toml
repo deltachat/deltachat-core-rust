@@ -12,7 +12,7 @@ anyhow = { workspace = true }
 once_cell = { workspace = true }
 regex = { workspace = true }
 rusqlite = { workspace = true } # Needed in order to `impl rusqlite::types::ToSql for EmailAddress`. Could easily be put behind a feature.
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["alloc", "clock", "std"] }
 
 [dev-dependencies]
 anyhow = { workspace = true, features = ["backtrace"] } # Enable `backtrace` feature in tests.

@@ -6,15 +6,15 @@ edition = "2021"
 repository = "https://github.com/deltachat/deltachat-core-rust"
 
 [dependencies]
-ansi_term = "0.12.1"
-anyhow = "1"
+ansi_term = { workspace = true }
+anyhow = { workspace = true }
 deltachat = { path = "..", features = ["internals"]}
 dirs = "5"
-log = "0.4.21"
-rusqlite = "0.31"
+log = { workspace = true }
+rusqlite = { workspace = true }
 rustyline = "14"
-tokio = { version = "1.38.0", features = ["fs", "rt-multi-thread", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "macros"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [features]
 default = ["vendored"]
