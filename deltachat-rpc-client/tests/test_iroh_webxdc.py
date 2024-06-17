@@ -68,7 +68,7 @@ def wait_receive_realtime_data(msg_data_list):
         if event.kind == EventType.WEBXDC_REALTIME_DATA:
             for i, (msg, data) in enumerate(msg_data_list):
                 if msg.id == event.msg_id:
-                    assert data == event.data
+                    assert list(data) == event.data
                     log(f"msg {msg.id}: got correct realtime data {data}")
                     del msg_data_list[i]
                     break
@@ -184,3 +184,26 @@ def test_no_duplicate_messages(acfactory, path_to_webxdc):
         if event.kind == EventType.WEBXDC_REALTIME_DATA:
             assert int(bytes(event.data).decode()) > n
             break
+
+
+def test_no_reordering(acfactory, path_to_webxdc):
+    """Test that sending a lot of realtime messages does not result in reordering."""
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1.set_config("webxdc_realtime_enabled", "1")
+    ac2.set_config("webxdc_realtime_enabled", "1")
+
+    ac1_webxdc_msg, ac2_webxdc_msg = setup_realtime_webxdc(ac1, ac2, path_to_webxdc)
+
+    setup_thread_send_realtime_data(ac1_webxdc_msg, b"hello")
+    wait_receive_realtime_data([(ac2_webxdc_msg, b"hello")])
+
+    for i in range(200):
+        ac1_webxdc_msg.send_webxdc_realtime_data([i])
+
+    for i in range(200):
+        while 1:
+            event = ac2.wait_for_event()
+            if event.kind == EventType.WEBXDC_REALTIME_DATA and bytes(event.data) != b"hello":
+                if event.data[0] == i:
+                    break
+                pytest.fail("Reordering detected")
