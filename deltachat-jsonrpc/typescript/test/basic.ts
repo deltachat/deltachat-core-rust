@@ -4,7 +4,8 @@ import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
 import { StdioDeltaChat as DeltaChat } from "../deltachat.js";
 
-import { RpcServerHandle, startServer } from "./test_base.js";
+import type { RpcServerHandle } from "./test_base.js";
+import { startServer } from "./test_base.js";
 
 describe("basic tests", () => {
   let serverHandle: RpcServerHandle;
