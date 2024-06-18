@@ -2551,7 +2551,7 @@ async fn create_adhoc_group(
     let grpname = mime_parser
         .get_subject()
         .map(|s| remove_subject_prefix(&s))
-        .unwrap_or_else(|| "Unnamed group".to_string());
+        .unwrap_or_else(|| "👥📧".to_string());
 
     let new_chat_id: ChatId = ChatId::create_multiuser_record(
         context,
