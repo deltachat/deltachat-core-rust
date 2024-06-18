@@ -4,9 +4,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
-use deltachat_contact_tools::{
-    addr_cmp, may_be_valid_addr, normalize_name, strip_rtlo_characters, ContactAddress,
-};
+use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, strip_rtlo_characters, ContactAddress};
 use iroh_gossip::proto::TopicId;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
@@ -2871,10 +2869,8 @@ async fn add_or_lookup_contact_by_addr(
     if context.is_self_addr(&addr).await? {
         return Ok(ContactId::SELF);
     }
-    let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
-
     let (contact_id, _modified) =
-        Contact::add_or_lookup(context, &display_name_normalized, &addr, origin).await?;
+        Contact::add_or_lookup(context, &display_name.unwrap_or_default(), &addr, origin).await?;
     Ok(contact_id)
 }
 

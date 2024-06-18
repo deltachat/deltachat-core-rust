@@ -16,7 +16,7 @@ use std::{
 use anyhow::{bail, format_err, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
-use deltachat_contact_tools::{normalize_name, ContactAddress};
+use deltachat_contact_tools::ContactAddress;
 use futures::{FutureExt as _, StreamExt, TryStreamExt};
 use futures_lite::FutureExt;
 use num_traits::FromPrimitive;
@@ -2424,12 +2424,6 @@ async fn add_all_recipients_as_contacts(
 
     let mut any_modified = false;
     for recipient in recipients {
-        let display_name_normalized = recipient
-            .display_name
-            .as_ref()
-            .map(|s| normalize_name(s))
-            .unwrap_or_default();
-
         let recipient_addr = match ContactAddress::new(&recipient.addr) {
             Err(err) => {
                 warn!(
@@ -2445,7 +2439,7 @@ async fn add_all_recipients_as_contacts(
 
         let (_, modified) = Contact::add_or_lookup(
             context,
-            &display_name_normalized,
+            &recipient.display_name.unwrap_or_default(),
             &recipient_addr,
             Origin::OutgoingTo,
         )

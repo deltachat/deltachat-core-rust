@@ -11,7 +11,7 @@ use async_channel::{self as channel, Receiver, Sender};
 use base64::Engine as _;
 pub use deltachat_contact_tools::may_be_valid_addr;
 use deltachat_contact_tools::{
-    self as contact_tools, addr_cmp, addr_normalize, sanitize_name_and_addr, strip_rtlo_characters,
+    self as contact_tools, addr_cmp, addr_normalize, normalize_name, sanitize_name_and_addr,
     ContactAddress, VcardContact,
 };
 use deltachat_derive::{FromSql, ToSql};
@@ -769,7 +769,7 @@ impl Contact {
             return Ok((ContactId::SELF, sth_modified));
         }
 
-        let mut name = strip_rtlo_characters(name);
+        let mut name = normalize_name(name);
         #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             // The user may accidentally have written to a "noreply" address with another MUA:
