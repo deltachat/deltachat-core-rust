@@ -22,7 +22,8 @@
     clippy::bool_assert_comparison,
     clippy::manual_split_once,
     clippy::format_push_string,
-    clippy::bool_to_int_with_if
+    clippy::bool_to_int_with_if,
+    clippy::manual_range_contains
 )]
 
 use std::fmt;
@@ -318,10 +319,47 @@ pub fn normalize_name(name: &str) -> String {
 }
 
 const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
+const ISOLATE_CHARACTERS: [char; 3] = ['\u{2066}', '\u{2067}', '\u{2068}'];
+const POP_ISOLATE_CHARACTER: char = '\u{2069}';
 /// This method strips all occurrences of the RTLO Unicode character.
 /// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
 pub fn strip_rtlo_characters(input_str: &str) -> String {
-    input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
+    // RTLO_CHARACTERS are apparently rarely used in practice.
+    // They can impact all following text, so, better remove them all:
+    let input_str = input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "");
+
+    // If the ISOLATE characters are not ended with a POP DIRECTIONAL ISOLATE character,
+    // we regard the input as potentially malicious and simply remove all ISOLATE characters.
+    // See https://en.wikipedia.org/wiki/Bidirectional_text#Unicode_bidi_support
+    // and https://www.w3.org/International/questions/qa-bidi-unicode-controls.en
+    // for an explanation about ISOLATE characters.
+    fn isolate_characters_are_valid(input_str: &str) -> bool {
+        let mut isolate_character_nesting: i32 = 0;
+        for char in input_str.chars() {
+            if ISOLATE_CHARACTERS.contains(&char) {
+                isolate_character_nesting += 1;
+            } else if char == POP_ISOLATE_CHARACTER {
+                isolate_character_nesting -= 1;
+            }
+
+            // According to Wikipedia, 125 levels are allowed:
+            // https://en.wikipedia.org/wiki/Unicode_control_characters
+            // (although, in practice, we could also significantly lower this number)
+            if isolate_character_nesting < 0 || isolate_character_nesting > 125 {
+                return false;
+            }
+        }
+        isolate_character_nesting == 0
+    }
+
+    if isolate_characters_are_valid(&input_str) {
+        input_str
+    } else {
+        input_str.replace(
+            |char| ISOLATE_CHARACTERS.contains(&char) || POP_ISOLATE_CHARACTER == char,
+            "",
+        )
+    }
 }
 
 /// Returns false if addr is an invalid address, otherwise true.
@@ -669,5 +707,50 @@ END:VCARD
             assert_eq!(contacts[0].key, None);
             assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
         }
+    }
+
+    #[test]
+    fn test_strip_rtlo_characters() {
+        // Legit inputs:
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{2067}ting Delta Chat\u{2069}"),
+            "Tes\u{2067}ting Delta Chat\u{2069}"
+        );
+
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{2067}ting \u{2068} Delta Chat\u{2069}\u{2069}"),
+            "Tes\u{2067}ting \u{2068} Delta Chat\u{2069}\u{2069}"
+        );
+
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{2067}ting\u{2069} Delta Chat\u{2067}\u{2069}"),
+            "Tes\u{2067}ting\u{2069} Delta Chat\u{2067}\u{2069}"
+        );
+
+        // Potentially-malicious inputs:
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{202C}ting Delta Chat"),
+            "Testing Delta Chat"
+        );
+
+        assert_eq!(
+            &strip_rtlo_characters("Testing Delta Chat\u{2069}"),
+            "Testing Delta Chat"
+        );
+
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{2067}ting Delta Chat"),
+            "Testing Delta Chat"
+        );
+
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{2069}ting Delta Chat\u{2067}"),
+            "Testing Delta Chat"
+        );
+
+        assert_eq!(
+            &strip_rtlo_characters("Tes\u{2068}ting Delta Chat"),
+            "Testing Delta Chat"
+        );
     }
 }
