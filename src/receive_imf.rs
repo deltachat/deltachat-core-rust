@@ -658,10 +658,10 @@ pub async fn from_field_to_contact_id(
         }
     };
 
-    let from_id = add_or_lookup_contact_by_addr(
+    let (from_id, _) = Contact::add_or_lookup(
         context,
-        display_name,
-        from_addr,
+        display_name.unwrap_or_default(),
+        &from_addr,
         Origin::IncomingUnknownFrom,
     )
     .await?;
@@ -2848,8 +2848,9 @@ async fn add_or_lookup_contacts_by_address_list(
         }
         let display_name = info.display_name.as_deref();
         if let Ok(addr) = ContactAddress::new(addr) {
-            let contact_id =
-                add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?;
+            let (contact_id, _) =
+                Contact::add_or_lookup(context, display_name.unwrap_or_default(), &addr, origin)
+                    .await?;
             contact_ids.insert(contact_id);
         } else {
             warn!(context, "Contact with address {:?} cannot exist.", addr);
@@ -2857,21 +2858,6 @@ async fn add_or_lookup_contacts_by_address_list(
     }
 
     Ok(contact_ids.into_iter().collect::<Vec<ContactId>>())
-}
-
-/// Add contacts to database on receiving messages.
-async fn add_or_lookup_contact_by_addr(
-    context: &Context,
-    display_name: Option<&str>,
-    addr: ContactAddress,
-    origin: Origin,
-) -> Result<ContactId> {
-    if context.is_self_addr(&addr).await? {
-        return Ok(ContactId::SELF);
-    }
-    let (contact_id, _modified) =
-        Contact::add_or_lookup(context, &display_name.unwrap_or_default(), &addr, origin).await?;
-    Ok(contact_id)
 }
 
 #[cfg(test)]
