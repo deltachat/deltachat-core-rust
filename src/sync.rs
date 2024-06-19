@@ -101,7 +101,7 @@ impl Context {
     /// Adds item and timestamp to the list of items that should be synchronized to other devices.
     /// If device synchronization is disabled, the function does nothing.
     async fn add_sync_item_with_timestamp(&self, data: SyncData, timestamp: i64) -> Result<()> {
-        if !self.get_config_bool(Config::SyncMsgs).await? {
+        if !self.should_send_sync_msgs().await? {
             return Ok(());
         }
 
@@ -121,7 +121,7 @@ impl Context {
     /// If device synchronization is disabled,
     /// no tokens exist or the chat is unpromoted, the function does nothing.
     pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
-        if !self.get_config_bool(Config::SyncMsgs).await? {
+        if !self.should_send_sync_msgs().await? {
             return Ok(());
         }
 
@@ -328,11 +328,24 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_config_sync_msgs() -> Result<()> {
         let t = TestContext::new_alice().await;
-        assert!(!t.get_config_bool(Config::SyncMsgs).await?);
+        assert_eq!(t.get_config_bool(Config::SyncMsgs).await?, false);
+        assert_eq!(t.get_config_bool(Config::BccSelf).await?, true);
+        assert_eq!(t.should_send_sync_msgs().await?, false);
+
         t.set_config_bool(Config::SyncMsgs, true).await?;
-        assert!(t.get_config_bool(Config::SyncMsgs).await?);
+        assert_eq!(t.get_config_bool(Config::SyncMsgs).await?, true);
+        assert_eq!(t.get_config_bool(Config::BccSelf).await?, true);
+        assert_eq!(t.should_send_sync_msgs().await?, true);
+
+        t.set_config_bool(Config::BccSelf, false).await?;
+        assert_eq!(t.get_config_bool(Config::SyncMsgs).await?, true);
+        assert_eq!(t.get_config_bool(Config::BccSelf).await?, false);
+        assert_eq!(t.should_send_sync_msgs().await?, false);
+
         t.set_config_bool(Config::SyncMsgs, false).await?;
-        assert!(!t.get_config_bool(Config::SyncMsgs).await?);
+        assert_eq!(t.get_config_bool(Config::SyncMsgs).await?, false);
+        assert_eq!(t.get_config_bool(Config::BccSelf).await?, false);
+        assert_eq!(t.should_send_sync_msgs().await?, false);
         Ok(())
     }
 
