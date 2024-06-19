@@ -707,7 +707,22 @@ impl CommandApi {
         ChatId::new(chat_id).get_encryption_info(&ctx).await
     }
 
-    /// Get QR code (text and SVG) that will offer an Setup-Contact or Verified-Group invitation.
+    /// Get QR code text that will offer a [SecureJoin](https://securejoin.delta.chat/) invitation.
+    ///
+    /// If `chat_id` is a group chat ID, SecureJoin QR code for the group is returned.
+    /// If `chat_id` is unset, setup contact QR code is returned.
+    async fn get_chat_securejoin_qr_code(
+        &self,
+        account_id: u32,
+        chat_id: Option<u32>,
+    ) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let chat = chat_id.map(ChatId::new);
+        let qr = securejoin::get_securejoin_qr(&ctx, chat).await?;
+        Ok(qr)
+    }
+
+    /// Get QR code (text and SVG) that will offer a Setup-Contact or Verified-Group invitation.
     /// The QR code is compatible to the OPENPGP4FPR format
     /// so that a basic fingerprint comparison also works e.g. with OpenKeychain.
     ///
@@ -729,10 +744,9 @@ impl CommandApi {
     ) -> Result<(String, String)> {
         let ctx = self.get_context(account_id).await?;
         let chat = chat_id.map(ChatId::new);
-        Ok((
-            securejoin::get_securejoin_qr(&ctx, chat).await?,
-            get_securejoin_qr_svg(&ctx, chat).await?,
-        ))
+        let qr = securejoin::get_securejoin_qr(&ctx, chat).await?;
+        let svg = get_securejoin_qr_svg(&ctx, chat).await?;
+        Ok((qr, svg))
     }
 
     /// Continue a Setup-Contact or Verified-Group-Invite protocol
