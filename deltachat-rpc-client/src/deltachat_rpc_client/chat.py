@@ -96,7 +96,11 @@ class Chat:
         """Return encryption info for this chat."""
         return self._rpc.get_chat_encryption_info(self.account.id, self.id)
 
-    def get_qr_code(self) -> tuple[str, str]:
+    def get_qr_code(self) -> str:
+        """Get Join-Group QR code text."""
+        return self._rpc.get_chat_securejoin_qr_code(self.account.id, self.id)
+
+    def get_qr_code_svg(self) -> tuple[str, str]:
         """Get Join-Group QR code text and SVG data."""
         return self._rpc.get_chat_securejoin_qr_code_svg(self.account.id, self.id)
 
