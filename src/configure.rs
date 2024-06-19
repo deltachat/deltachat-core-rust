@@ -513,8 +513,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
 /// Retrieve available autoconfigurations.
 ///
-/// A Search configurations from the domain used in the email-address, prefer encrypted
-/// B. If we have no configuration yet, search configuration in Thunderbird's centeral database
+/// A. Search configurations from the domain used in the email-address
+/// B. If we have no configuration yet, search configuration in Thunderbird's central database
 async fn get_autoconfig(
     ctx: &Context,
     param: &LoginParam,

@@ -24,7 +24,7 @@ pub struct Response {
     /// Response body.
     pub blob: Vec<u8>,
 
-    /// MIME type exntracted from the `Content-Type` header, if any.
+    /// MIME type extracted from the `Content-Type` header, if any.
     pub mimetype: Option<String>,
 
     /// Encoding extracted from the `Content-Type` header, if any.
