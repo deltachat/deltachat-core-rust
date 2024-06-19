@@ -250,12 +250,16 @@ class Account:
         """
         return Chat(self, self._rpc.secure_join(self.id, qrdata))
 
-    def get_qr_code(self) -> tuple[str, str]:
-        """Get Setup-Contact QR Code text and SVG data.
+    def get_qr_code(self) -> str:
+        """Get Setup-Contact QR Code text.
 
-        this data needs to be transferred to another Delta Chat account
+        This data needs to be transferred to another Delta Chat account
         in a second channel, typically used by mobiles with QRcode-show + scan UX.
         """
+        return self._rpc.get_chat_securejoin_qr_code(self.id, None)
+
+    def get_qr_code_svg(self) -> tuple[str, str]:
+        """Get Setup-Contact QR code text and SVG."""
         return self._rpc.get_chat_securejoin_qr_code_svg(self.id, None)
 
     def get_message_by_id(self, msg_id: int) -> Message:
