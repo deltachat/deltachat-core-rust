@@ -1346,7 +1346,7 @@ impl Context {
         Ok(sentbox.as_deref() == Some(folder_name))
     }
 
-    /// Returns true if given folder name is the name of the "Delta Chat" folder.
+    /// Returns true if given folder name is the name of the "DeltaChat" folder.
     pub async fn is_mvbox(&self, folder_name: &str) -> Result<bool> {
         let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
         Ok(mvbox.as_deref() == Some(folder_name))
