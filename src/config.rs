@@ -378,14 +378,14 @@ impl Config {
     /// multiple users are sharing an account. Another example is `Self::SyncMsgs` itself which
     /// mustn't be controlled by other devices.
     pub(crate) fn is_synced(&self) -> bool {
-        // We don't restart IO from the synchronisation code, so this is to be on the safe side.
-        if self.needs_io_restart() {
-            return false;
-        }
+        // NB: We don't restart IO from the synchronisation code, so `MvboxMove` isn't effective
+        // immediately if `ConfiguredMvboxFolder` is unset, but only after a reconnect (see
+        // `Imap::prepare()`).
         matches!(
             self,
             Self::Displayname
                 | Self::MdnsEnabled
+                | Self::MvboxMove
                 | Self::ShowEmails
                 | Self::Selfavatar
                 | Self::Selfstatus,
@@ -981,15 +981,12 @@ mod tests {
         sync(&alice0, &alice1).await;
         assert_eq!(alice1.get_config_bool(Config::MdnsEnabled).await?, false);
 
-        let show_emails = alice0.get_config_bool(Config::ShowEmails).await?;
-        alice0
-            .set_config_bool(Config::ShowEmails, !show_emails)
-            .await?;
-        sync(&alice0, &alice1).await;
-        assert_eq!(
-            alice1.get_config_bool(Config::ShowEmails).await?,
-            !show_emails
-        );
+        for key in [Config::ShowEmails, Config::MvboxMove] {
+            let val = alice0.get_config_bool(key).await?;
+            alice0.set_config_bool(key, !val).await?;
+            sync(&alice0, &alice1).await;
+            assert_eq!(alice1.get_config_bool(key).await?, !val);
+        }
 
         // `Config::SyncMsgs` mustn't be synced.
         alice0.set_config_bool(Config::SyncMsgs, false).await?;
