@@ -551,10 +551,6 @@ class ACFactory:
         fn = module.__file__
 
         bot_cfg = self.get_next_liveconfig()
-        # The bot process is run asynchronously, so some messages can arrive before the bot is fully
-        # initialised. Also delete messages immediately to not process them again after restart.
-        bot_cfg["fetch_existing_msgs"] = "1"
-        bot_cfg["delete_server_after"] = "1"
         bot_ac = self.prepare_account_from_liveconfig(bot_cfg)
 
         # Forget ac as it will be opened by the bot subprocess
