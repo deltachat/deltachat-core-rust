@@ -2800,8 +2800,13 @@ async fn test_read_receipts_dont_create_chats() -> Result<()> {
     assert_eq!(chats.len(), 0);
 
     // Bob sends a read receipt.
-    let mdn_mimefactory =
-        crate::mimefactory::MimeFactory::from_mdn(&bob, &received_msg, vec![]).await?;
+    let mdn_mimefactory = crate::mimefactory::MimeFactory::from_mdn(
+        &bob,
+        received_msg.from_id,
+        received_msg.rfc724_mid,
+        vec![],
+    )
+    .await?;
     let rendered_mdn = mdn_mimefactory.render(&bob).await?;
     let mdn_body = rendered_mdn.message;
 
@@ -2830,8 +2835,13 @@ async fn test_read_receipts_dont_unmark_bots() -> Result<()> {
     let received_msg = bob.get_last_msg().await;
 
     // Bob sends a read receipt.
-    let mdn_mimefactory =
-        crate::mimefactory::MimeFactory::from_mdn(bob, &received_msg, vec![]).await?;
+    let mdn_mimefactory = crate::mimefactory::MimeFactory::from_mdn(
+        bob,
+        received_msg.from_id,
+        received_msg.rfc724_mid,
+        vec![],
+    )
+    .await?;
     let rendered_mdn = mdn_mimefactory.render(bob).await?;
     let mdn_body = rendered_mdn.message;
 

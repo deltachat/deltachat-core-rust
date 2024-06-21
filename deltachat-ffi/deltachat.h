@@ -6649,6 +6649,8 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as message text of outgoing read receipts.
 /// - %1$s will be replaced by the subject of the displayed message
+///
+/// @deprecated Deprecated 2024-06-23, use DC_STR_READRCPT_MAILBODY2 instead.
 #define DC_STR_READRCPT_MAILBODY          32
 
 /// @deprecated Deprecated, this string is no longer needed.
@@ -7366,6 +7368,11 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as info message.
 #define DC_STR_SECUREJOIN_WAIT_TIMEOUT 191
+
+/// "The message is a receipt notification."
+///
+/// Used as message text of outgoing read receipts.
+#define DC_STR_READRCPT_MAILBODY2 192
 
 /// "Contact". Deprecated, currently unused.
 #define DC_STR_CONTACT 200

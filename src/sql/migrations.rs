@@ -578,7 +578,7 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
     if dbversion < 90 {
         sql.execute_migration(
             r#"CREATE TABLE smtp_mdns (
-              msg_id INTEGER NOT NULL, -- id of the message in msgs table which requested MDN
+              msg_id INTEGER NOT NULL, -- id of the message in msgs table which requested MDN (DEPRECATED 2024-06-21)
               from_id INTEGER NOT NULL, -- id of the contact that sent the message, MDN destination
               rfc724_mid TEXT NOT NULL, -- Message-ID header
               retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send MDN

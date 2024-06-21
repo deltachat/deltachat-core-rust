@@ -542,7 +542,7 @@ async fn test_mdn_doesnt_disable_verification() -> Result<()> {
     let rcvd = tcm.send_recv_accept(&alice, &bob, "Heyho").await;
     message::markseen_msgs(&bob, vec![rcvd.id]).await?;
 
-    let mimefactory = MimeFactory::from_mdn(&bob, &rcvd, vec![]).await?;
+    let mimefactory = MimeFactory::from_mdn(&bob, rcvd.from_id, rcvd.rfc724_mid, vec![]).await?;
     let rendered_msg = mimefactory.render(&bob).await?;
     let body = rendered_msg.message;
     receive_imf(&alice, body.as_bytes(), false).await.unwrap();
