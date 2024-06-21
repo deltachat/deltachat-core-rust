@@ -116,34 +116,6 @@ pub struct RenderedEmail {
     pub subject: String,
 }
 
-#[derive(Debug, Clone, Default)]
-struct MessageHeaders {
-    /// Opportunistically protected headers.
-    ///
-    /// These headers are placed into encrypted part *if* the message is encrypted. Place headers
-    /// which are not needed before decryption (e.g. Chat-Group-Name) or are not interesting if the
-    /// message cannot be decrypted (e.g. Chat-Disposition-Notification-To) here.
-    ///
-    /// If the message is not encrypted, these headers are placed into IMF header section, so make
-    /// sure that the message will be encrypted if you place any sensitive information here.
-    pub protected: Vec<Header>,
-
-    /// Headers that must go into IMF header section.
-    ///
-    /// These are standard headers such as Date, In-Reply-To, References, which cannot be placed
-    /// anywhere else according to the standard. Placing headers here also allows them to be fetched
-    /// individually over IMAP without downloading the message body. This is why Chat-Version is
-    /// placed here.
-    pub unprotected: Vec<Header>,
-
-    /// Headers that MUST NOT go into IMF header section.
-    ///
-    /// These are large headers which may hit the header section size limit on the server, such as
-    /// Chat-User-Avatar with a base64-encoded image inside. Also there are headers duplicated here
-    /// that servers mess up with in the IMF header section, like Message-ID.
-    pub hidden: Vec<Header>,
-}
-
 impl MimeFactory {
     pub async fn from_msg(context: &Context, msg: Message) -> Result<MimeFactory> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
@@ -507,7 +479,7 @@ impl MimeFactory {
     /// Consumes a `MimeFactory` and renders it into a message which is then stored in
     /// `smtp`-table to be used by the SMTP loop
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
-        let mut headers: MessageHeaders = Default::default();
+        let mut headers = Vec::<Header>::new();
 
         let from = Address::new_mailbox_with_name(
             self.from_displayname.to_string(),
@@ -562,18 +534,14 @@ impl MimeFactory {
         // Start with Internet Message Format headers in the order of the standard example
         // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
         let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
-        headers.protected.push(from_header.clone());
+        headers.push(from_header.clone());
 
         if let Some(sender_displayname) = &self.sender_displayname {
             let sender =
                 Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
-            headers
-                .unprotected
-                .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
+            headers.push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
         }
-        headers
-            .protected
-            .push(Header::new_with_value("To".into(), to.clone()).unwrap());
+        headers.push(Header::new_with_value("To".into(), to.clone()).unwrap());
 
         let subject_str = self.subject_str(context).await?;
         let encoded_subject = if subject_str
@@ -586,14 +554,12 @@ impl MimeFactory {
         } else {
             encode_words(&subject_str)
         };
-        headers
-            .protected
-            .push(Header::new("Subject".into(), encoded_subject));
+        headers.push(Header::new("Subject".into(), encoded_subject));
 
         let date = chrono::DateTime::<chrono::Utc>::from_timestamp(self.timestamp, 0)
             .unwrap()
             .to_rfc2822();
-        headers.unprotected.push(Header::new("Date".into(), date));
+        headers.push(Header::new("Date".into(), date));
 
         let rfc724_mid = match &self.loaded {
             Loaded::Message { msg, .. } => msg.rfc724_mid.clone(),
@@ -601,29 +567,24 @@ impl MimeFactory {
         };
         let rfc724_mid_headervalue = render_rfc724_mid(&rfc724_mid);
         let rfc724_mid_header = Header::new("Message-ID".into(), rfc724_mid_headervalue);
-        headers.unprotected.push(rfc724_mid_header.clone());
-        headers.hidden.push(rfc724_mid_header);
+        headers.push(rfc724_mid_header);
 
         // Reply headers as in <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.2>.
         if !self.in_reply_to.is_empty() {
-            headers
-                .unprotected
-                .push(Header::new("In-Reply-To".into(), self.in_reply_to.clone()));
+            headers.push(Header::new("In-Reply-To".into(), self.in_reply_to.clone()));
         }
         if !self.references.is_empty() {
-            headers
-                .unprotected
-                .push(Header::new("References".into(), self.references.clone()));
+            headers.push(Header::new("References".into(), self.references.clone()));
         }
 
         // Automatic Response headers <https://www.rfc-editor.org/rfc/rfc3834>
         if let Loaded::Mdn { .. } = self.loaded {
-            headers.unprotected.push(Header::new(
+            headers.push(Header::new(
                 "Auto-Submitted".to_string(),
                 "auto-replied".to_string(),
             ));
         } else if context.get_config_bool(Config::Bot).await? {
-            headers.unprotected.push(Header::new(
+            headers.push(Header::new(
                 "Auto-Submitted".to_string(),
                 "auto-generated".to_string(),
             ));
@@ -632,7 +593,7 @@ impl MimeFactory {
         if let Loaded::Message { chat, .. } = &self.loaded {
             if chat.typ == Chattype::Broadcast {
                 let encoded_chat_name = encode_words(&chat.name);
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     "List-ID".into(),
                     format!("{encoded_chat_name} <{}>", chat.grpid),
                 ));
@@ -640,15 +601,13 @@ impl MimeFactory {
         }
 
         // Non-standard headers.
-        headers
-            .unprotected
-            .push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
+        headers.push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
 
         if self.req_mdn {
             // we use "Chat-Disposition-Notification-To"
             // because replies to "Disposition-Notification-To" are weird in many cases
             // eg. are just freetext and/or do not follow any standard.
-            headers.protected.push(Header::new(
+            headers.push(Header::new(
                 "Chat-Disposition-Notification-To".into(),
                 self.from_addr.clone(),
             ));
@@ -664,9 +623,7 @@ impl MimeFactory {
         if !skip_autocrypt {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
-            headers
-                .unprotected
-                .push(Header::new("Autocrypt".into(), aheader));
+            headers.push(Header::new("Autocrypt".into(), aheader));
         }
 
         // Add ephemeral timer for non-MDN messages.
@@ -675,18 +632,12 @@ impl MimeFactory {
         if let Loaded::Message { msg, .. } = &self.loaded {
             let ephemeral_timer = msg.chat_id.get_ephemeral_timer(context).await?;
             if let EphemeralTimer::Enabled { duration } = ephemeral_timer {
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     "Ephemeral-Timer".to_string(),
                     duration.to_string(),
                 ));
             }
         }
-
-        // MIME header <https://datatracker.ietf.org/doc/html/rfc2045>.
-        // Content-Type
-        headers
-            .unprotected
-            .push(Header::new("MIME-Version".into(), "1.0".into()));
 
         let mut is_gossiped = false;
 
@@ -694,52 +645,11 @@ impl MimeFactory {
         let should_encrypt =
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
-
-        if is_encrypted {
-            headers.unprotected.insert(
-                0,
-                Header::new_with_value(
-                    "To".into(),
-                    to.into_iter()
-                        .map(|header| match header {
-                            Address::Mailbox(mb) => Address::Mailbox(Mailbox {
-                                address: mb.address,
-                                name: None,
-                            }),
-                            Address::Group(name, participants) => Address::new_group(
-                                name,
-                                participants
-                                    .into_iter()
-                                    .map(|mb| Mailbox {
-                                        address: mb.address,
-                                        name: None,
-                                    })
-                                    .collect(),
-                            ),
-                        })
-                        .collect::<Vec<_>>(),
-                )
-                .unwrap(),
-            );
-        }
-
         let is_securejoin_message = if let Loaded::Message { msg, .. } = &self.loaded {
             msg.param.get_cmd() == SystemMessage::SecurejoinMessage
         } else {
             false
         };
-        if is_encrypted && verified || is_securejoin_message {
-            headers.unprotected.insert(
-                0,
-                Header::new_with_value(
-                    "From".into(),
-                    vec![Address::new_mailbox(self.from_addr.clone())],
-                )
-                .unwrap(),
-            );
-        } else {
-            headers.unprotected.insert(0, from_header);
-        }
 
         let message = match &self.loaded {
             Loaded::Message { msg, .. } => {
@@ -782,16 +692,129 @@ impl MimeFactory {
                 "protected-headers=\"v1\"".to_string(),
             )
         };
+
+        // Split headers based on header confidentiality policy.
+
+        // Headers that must go into IMF header section.
+        //
+        // These are standard headers such as Date, In-Reply-To, References, which cannot be placed
+        // anywhere else according to the standard. Placing headers here also allows them to be fetched
+        // individually over IMAP without downloading the message body. This is why Chat-Version is
+        // placed here.
+        let mut unprotected_headers: Vec<Header> = Vec::new();
+
+        // Headers that MUST NOT go into IMF header section.
+        //
+        // These are large headers which may hit the header section size limit on the server, such as
+        // Chat-User-Avatar with a base64-encoded image inside. Also there are headers duplicated here
+        // that servers mess up with in the IMF header section, like Message-ID.
+        //
+        // The header should be hidden from MTA
+        // by moving it either into protected part
+        // in case of encrypted mails
+        // or unprotected MIME preamble in case of unencrypted mails.
+        let mut hidden_headers: Vec<Header> = Vec::new();
+
+        // Opportunistically protected headers.
+        //
+        // These headers are placed into encrypted part *if* the message is encrypted. Place headers
+        // which are not needed before decryption (e.g. Chat-Group-Name) or are not interesting if the
+        // message cannot be decrypted (e.g. Chat-Disposition-Notification-To) here.
+        //
+        // If the message is not encrypted, these headers are placed into IMF header section, so make
+        // sure that the message will be encrypted if you place any sensitive information here.
+        let mut protected_headers: Vec<Header> = Vec::new();
+
+        // MIME header <https://datatracker.ietf.org/doc/html/rfc2045>.
+        unprotected_headers.push(Header::new("MIME-Version".into(), "1.0".into()));
+        for header in headers {
+            if header.name.to_lowercase().as_str() == "message-id" {
+                unprotected_headers.push(header.clone());
+                hidden_headers.push(header);
+            } else if header.name.to_lowercase().as_str() == "chat-user-avatar" {
+                hidden_headers.push(header);
+            } else if header.name.to_lowercase().as_str() == "autocrypt" {
+                unprotected_headers.push(header.clone());
+            } else if header.name.to_lowercase().as_str() == "from" {
+                protected_headers.push(header.clone());
+                if verified || is_securejoin_message {
+                    unprotected_headers.push(
+                        Header::new_with_value(
+                            header.name,
+                            vec![Address::new_mailbox(self.from_addr.clone())],
+                        )
+                        .unwrap(),
+                    );
+                } else {
+                    unprotected_headers.push(header);
+                }
+            } else if header.name.to_lowercase().as_str() == "to" {
+                protected_headers.push(header.clone());
+                if verified || is_securejoin_message {
+                    unprotected_headers.push(
+                        Header::new_with_value(
+                            header.name,
+                            to.clone()
+                                .into_iter()
+                                .map(|header| match header {
+                                    Address::Mailbox(mb) => Address::Mailbox(Mailbox {
+                                        address: mb.address,
+                                        name: None,
+                                    }),
+                                    Address::Group(name, participants) => Address::new_group(
+                                        name,
+                                        participants
+                                            .into_iter()
+                                            .map(|mb| Mailbox {
+                                                address: mb.address,
+                                                name: None,
+                                            })
+                                            .collect(),
+                                    ),
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                        .unwrap(),
+                    );
+                } else {
+                    unprotected_headers.push(header);
+                }
+            } else if is_encrypted {
+                protected_headers.push(header.clone());
+
+                match header.name.to_lowercase().as_str() {
+                    "subject" => {
+                        unprotected_headers.push(Header::new(header.name, "...".to_string()));
+                    }
+                    "date"
+                    | "in-reply-to"
+                    | "references"
+                    | "auto-submitted"
+                    | "chat-version"
+                    | "autocrypt-setup-message" => {
+                        unprotected_headers.push(header);
+                    }
+                    _ => {
+                        // Other headers are removed from unprotected part.
+                    }
+                }
+            } else {
+                // Copy the header to the protected headers
+                // in case of signed-only message.
+                // If the message is not signed, this value will not be used.
+                protected_headers.push(header.clone());
+                unprotected_headers.push(header)
+            }
+        }
+
         let outer_message = if is_encrypted {
             // Store protected headers in the inner message.
-            let message = headers
-                .protected
+            let message = protected_headers
                 .into_iter()
                 .fold(message, |message, header| message.header(header));
 
             // Add hidden headers to encrypted payload.
-            let mut message = headers
-                .hidden
+            let mut message = hidden_headers
                 .into_iter()
                 .fold(message, |message, header| message.header(header));
 
@@ -867,7 +890,6 @@ impl MimeFactory {
                         .body(encrypted)
                         .build(),
                 )
-                .header(("Subject".to_string(), "...".to_string()))
         } else if matches!(self.loaded, Loaded::Mdn { .. }) {
             // Never add outer multipart/mixed wrapper to MDN
             // as multipart/report Content-Type is used to recognize MDNs
@@ -877,39 +899,23 @@ impl MimeFactory {
             // that normally only allows encrypted mails.
 
             // Hidden headers are dropped.
-
-            // Store protected headers in the outer message.
-            let message = headers
-                .protected
-                .iter()
-                .fold(message, |message, header| message.header(header.clone()));
-
-            let protected: HashSet<Header> = HashSet::from_iter(headers.protected.into_iter());
-            for h in headers.unprotected.split_off(0) {
-                if !protected.contains(&h) {
-                    headers.unprotected.push(h);
-                }
-            }
-
             message
         } else {
-            let message = headers
-                .hidden
+            let message = hidden_headers
                 .into_iter()
                 .fold(message, |message, header| message.header(header));
             let message = PartBuilder::new()
                 .message_type(MimeMultipartType::Mixed)
                 .child(message.build());
-            let message = headers
-                .protected
+            let message = protected_headers
                 .iter()
                 .fold(message, |message, header| message.header(header.clone()));
 
             if skip_autocrypt || !context.get_config_bool(Config::SignUnencrypted).await? {
-                let protected: HashSet<Header> = HashSet::from_iter(headers.protected.into_iter());
-                for h in headers.unprotected.split_off(0) {
+                let protected: HashSet<Header> = HashSet::from_iter(protected_headers.into_iter());
+                for h in unprotected_headers.split_off(0) {
                     if !protected.contains(&h) {
-                        headers.unprotected.push(h);
+                        unprotected_headers.push(h);
                     }
                 }
                 message
@@ -938,8 +944,7 @@ impl MimeFactory {
         };
 
         // Store the unprotected headers on the outer message.
-        let outer_message = headers
-            .unprotected
+        let outer_message = unprotected_headers
             .into_iter()
             .fold(outer_message, |message, header| message.header(header));
 
@@ -1036,7 +1041,7 @@ impl MimeFactory {
     async fn render_message(
         &mut self,
         context: &Context,
-        headers: &mut MessageHeaders,
+        headers: &mut Vec<Header>,
         grpimage: &Option<String>,
         is_encrypted: bool,
     ) -> Result<(PartBuilder, Vec<PartBuilder>)> {
@@ -1056,23 +1061,17 @@ impl MimeFactory {
             Chattype::Broadcast => false,
         };
         if chat.is_protected() && send_verified_headers {
-            headers
-                .protected
-                .push(Header::new("Chat-Verified".to_string(), "1".to_string()));
+            headers.push(Header::new("Chat-Verified".to_string(), "1".to_string()));
         }
 
         if chat.typ == Chattype::Group {
             // Send group ID unless it is an ad hoc group that has no ID.
             if !chat.grpid.is_empty() {
-                headers
-                    .protected
-                    .push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
+                headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
             }
 
             let encoded = encode_words(&chat.name);
-            headers
-                .protected
-                .push(Header::new("Chat-Group-Name".into(), encoded));
+            headers.push(Header::new("Chat-Group-Name".into(), encoded));
 
             match command {
                 SystemMessage::MemberRemovedFromGroup => {
@@ -1091,7 +1090,7 @@ impl MimeFactory {
                     };
 
                     if !email_to_remove.is_empty() {
-                        headers.protected.push(Header::new(
+                        headers.push(Header::new(
                             "Chat-Group-Member-Removed".into(),
                             email_to_remove.into(),
                         ));
@@ -1103,7 +1102,7 @@ impl MimeFactory {
                         Some(stock_str::msg_add_member_remote(context, email_to_add).await);
 
                     if !email_to_add.is_empty() {
-                        headers.protected.push(Header::new(
+                        headers.push(Header::new(
                             "Chat-Group-Member-Added".into(),
                             email_to_add.into(),
                         ));
@@ -1113,7 +1112,7 @@ impl MimeFactory {
                             context,
                             "Sending secure-join message {:?}.", "vg-member-added",
                         );
-                        headers.protected.push(Header::new(
+                        headers.push(Header::new(
                             "Secure-Join".to_string(),
                             "vg-member-added".to_string(),
                         ));
@@ -1121,18 +1120,18 @@ impl MimeFactory {
                 }
                 SystemMessage::GroupNameChanged => {
                     let old_name = msg.param.get(Param::Arg).unwrap_or_default();
-                    headers.protected.push(Header::new(
+                    headers.push(Header::new(
                         "Chat-Group-Name-Changed".into(),
                         maybe_encode_words(old_name),
                     ));
                 }
                 SystemMessage::GroupImageChanged => {
-                    headers.protected.push(Header::new(
+                    headers.push(Header::new(
                         "Chat-Content".to_string(),
                         "group-avatar-changed".to_string(),
                     ));
                     if grpimage.is_none() {
-                        headers.protected.push(Header::new(
+                        headers.push(Header::new(
                             "Chat-Group-Avatar".to_string(),
                             "0".to_string(),
                         ));
@@ -1144,13 +1143,13 @@ impl MimeFactory {
 
         match command {
             SystemMessage::LocationStreamingEnabled => {
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     "Chat-Content".into(),
                     "location-streaming-enabled".into(),
                 ));
             }
             SystemMessage::EphemeralTimerChanged => {
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     "Chat-Content".to_string(),
                     "ephemeral-timer-changed".to_string(),
                 ));
@@ -1166,15 +1165,13 @@ impl MimeFactory {
                 // Adding this header without encryption leaks some
                 // information about the message contents, but it can
                 // already be easily guessed from message timing and size.
-                headers.unprotected.push(Header::new(
+                headers.push(Header::new(
                     "Auto-Submitted".to_string(),
                     "auto-generated".to_string(),
                 ));
             }
             SystemMessage::AutocryptSetupMessage => {
-                headers
-                    .unprotected
-                    .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
+                headers.push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
 
                 placeholdertext = Some(stock_str::ac_setup_msg_body(context).await);
             }
@@ -1182,13 +1179,11 @@ impl MimeFactory {
                 let step = msg.param.get(Param::Arg).unwrap_or_default();
                 if !step.is_empty() {
                     info!(context, "Sending secure-join message {step:?}.");
-                    headers
-                        .protected
-                        .push(Header::new("Secure-Join".into(), step.into()));
+                    headers.push(Header::new("Secure-Join".into(), step.into()));
 
                     let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
                     if !param2.is_empty() {
-                        headers.protected.push(Header::new(
+                        headers.push(Header::new(
                             if step == "vg-request-with-auth" || step == "vc-request-with-auth" {
                                 "Secure-Join-Auth".into()
                             } else {
@@ -1200,32 +1195,30 @@ impl MimeFactory {
 
                     let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
                     if !fingerprint.is_empty() {
-                        headers.protected.push(Header::new(
+                        headers.push(Header::new(
                             "Secure-Join-Fingerprint".into(),
                             fingerprint.into(),
                         ));
                     }
                     if let Some(id) = msg.param.get(Param::Arg4) {
-                        headers
-                            .protected
-                            .push(Header::new("Secure-Join-Group".into(), id.into()));
+                        headers.push(Header::new("Secure-Join-Group".into(), id.into()));
                     };
                 }
             }
             SystemMessage::ChatProtectionEnabled => {
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     "Chat-Content".to_string(),
                     "protection-enabled".to_string(),
                 ));
             }
             SystemMessage::ChatProtectionDisabled => {
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     "Chat-Content".to_string(),
                     "protection-disabled".to_string(),
                 ));
             }
             SystemMessage::IrohNodeAddr => {
-                headers.protected.push(Header::new(
+                headers.push(Header::new(
                     HeaderDef::IrohNodeAddr.get_headername().to_string(),
                     serde_json::to_string(
                         &context
@@ -1244,22 +1237,20 @@ impl MimeFactory {
             let avatar = build_avatar_file(context, grpimage)
                 .await
                 .context("Cannot attach group image")?;
-            headers.hidden.push(Header::new(
+            headers.push(Header::new(
                 "Chat-Group-Avatar".into(),
                 format!("base64:{avatar}"),
             ));
         }
 
         if msg.viewtype == Viewtype::Sticker {
-            headers
-                .protected
-                .push(Header::new("Chat-Content".into(), "sticker".into()));
+            headers.push(Header::new("Chat-Content".into(), "sticker".into()));
         } else if msg.viewtype == Viewtype::VideochatInvitation {
-            headers.protected.push(Header::new(
+            headers.push(Header::new(
                 "Chat-Content".into(),
                 "videochat-invitation".into(),
             ));
-            headers.protected.push(Header::new(
+            headers.push(Header::new(
                 "Chat-Webrtc-Room".into(),
                 msg.param.get(Param::WebrtcRoom).unwrap_or_default().into(),
             ));
@@ -1270,16 +1261,12 @@ impl MimeFactory {
             || msg.viewtype == Viewtype::Video
         {
             if msg.viewtype == Viewtype::Voice {
-                headers
-                    .protected
-                    .push(Header::new("Chat-Voice-Message".into(), "1".into()));
+                headers.push(Header::new("Chat-Voice-Message".into(), "1".into()));
             }
             let duration_ms = msg.param.get_int(Param::Duration).unwrap_or_default();
             if duration_ms > 0 {
                 let dur = duration_ms.to_string();
-                headers
-                    .protected
-                    .push(Header::new("Chat-Duration".into(), dur));
+                headers.push(Header::new("Chat-Duration".into(), dur));
             }
         }
 
@@ -1392,9 +1379,7 @@ impl MimeFactory {
             parts.push(context.build_status_update_part(json));
         } else if msg.viewtype == Viewtype::Webxdc {
             let topic = peer_channels::create_random_topic();
-            headers
-                .protected
-                .push(create_iroh_header(context, topic, msg.id).await?);
+            headers.push(create_iroh_header(context, topic, msg.id).await?);
             if let Some(json) = context
                 .render_webxdc_status_update_object(msg.id, None)
                 .await?
@@ -1406,15 +1391,13 @@ impl MimeFactory {
         if self.attach_selfavatar {
             match context.get_config(Config::Selfavatar).await? {
                 Some(path) => match build_avatar_file(context, &path).await {
-                    Ok(avatar) => headers.hidden.push(Header::new(
+                    Ok(avatar) => headers.push(Header::new(
                         "Chat-User-Avatar".into(),
                         format!("base64:{avatar}"),
                     )),
                     Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
                 },
-                None => headers
-                    .protected
-                    .push(Header::new("Chat-User-Avatar".into(), "0".into())),
+                None => headers.push(Header::new("Chat-User-Avatar".into(), "0".into())),
             }
         }
 
@@ -2363,7 +2346,8 @@ mod tests {
             .await
             .unwrap();
 
-        // send message to bob: that should get multipart/mixed because of the avatar moved to inner header;
+        // send message to bob: that should get multipart/signed.
+        // `Subject:` is protected by copying it.
         // make sure, `Subject:` stays in the outer header (imf header)
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text("this is the text!".to_string());
@@ -2375,7 +2359,7 @@ mod tests {
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Message-ID:").count(), 1);
-        assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
 
@@ -2423,7 +2407,7 @@ mod tests {
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Message-ID:").count(), 1);
-        assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
 
