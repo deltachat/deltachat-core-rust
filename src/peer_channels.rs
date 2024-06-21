@@ -27,8 +27,9 @@ use anyhow::{anyhow, Context as _, Result};
 use email::Header;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
+use iroh_net::key::{PublicKey, SecretKey};
 use iroh_net::relay::{RelayMap, RelayUrl};
-use iroh_net::{key::SecretKey, relay::RelayMode, Endpoint};
+use iroh_net::{relay::RelayMode, Endpoint};
 use iroh_net::{NodeAddr, NodeId};
 use std::collections::{BTreeSet, HashMap};
 use std::env;
@@ -60,8 +61,10 @@ pub struct Iroh {
     /// Topics for which an advertisement has already been sent.
     pub(crate) iroh_channels: RwLock<HashMap<TopicId, ChannelState>>,
 
-    /// Currently used Iroh secret key
-    pub(crate) secret_key: SecretKey,
+    /// Currently used Iroh public key.
+    ///
+    /// This is attached to every message to work around `iroh_gossip` deduplication.
+    pub(crate) public_key: PublicKey,
 }
 
 impl Iroh {
@@ -154,7 +157,7 @@ impl Iroh {
 
         let seq_num = self.get_and_incr(&topic).await;
         data.extend(seq_num.to_le_bytes());
-        data.extend(self.secret_key.public().as_bytes());
+        data.extend(self.public_key.as_bytes());
 
         self.gossip.broadcast(topic, data.into()).await?;
 
@@ -214,7 +217,8 @@ impl ChannelState {
 impl Context {
     /// Create magic endpoint and gossip.
     async fn init_peer_channels(&self) -> Result<Iroh> {
-        let secret_key: SecretKey = SecretKey::generate();
+        let secret_key = SecretKey::generate();
+        let public_key = secret_key.public();
 
         let relay_mode = if let Some(relay_url) = self
             .metadata
@@ -231,7 +235,7 @@ impl Context {
         };
 
         let endpoint = Endpoint::builder()
-            .secret_key(secret_key.clone())
+            .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
             .relay_mode(relay_mode)
             .bind(0)
@@ -251,7 +255,7 @@ impl Context {
             endpoint,
             gossip,
             iroh_channels: RwLock::new(HashMap::new()),
-            secret_key,
+            public_key,
         })
     }
 
