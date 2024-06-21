@@ -83,9 +83,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Return receipt"))]
     ReadRcpt = 31,
 
-    #[strum(props(fallback = "This is a return receipt for the message \"%1$s\"."))]
-    ReadRcptMailBody = 32,
-
     #[strum(props(fallback = "End-to-end encryption preferred"))]
     E2ePreferred = 34,
 
@@ -443,6 +440,9 @@ pub enum StockMessage {
         fallback = "Could not yet establish guaranteed end-to-end encryption, but you may already send a message."
     ))]
     SecurejoinWaitTimeout = 191,
+
+    #[strum(props(fallback = "This message is a receipt notification."))]
+    ReadRcptMailBody = 192,
 }
 
 impl StockMessage {
@@ -770,11 +770,6 @@ pub(crate) async fn gif(context: &Context) -> String {
     translated(context, StockMessage::Gif).await
 }
 
-/// Stock string: `Encrypted message`.
-pub(crate) async fn encrypted_msg(context: &Context) -> String {
-    translated(context, StockMessage::EncryptedMsg).await
-}
-
 /// Stock string: `End-to-end encryption available.`.
 pub(crate) async fn e2e_available(context: &Context) -> String {
     translated(context, StockMessage::E2eAvailable).await
@@ -805,11 +800,9 @@ pub(crate) async fn read_rcpt(context: &Context) -> String {
     translated(context, StockMessage::ReadRcpt).await
 }
 
-/// Stock string: `This is a return receipt for the message "%1$s".`.
-pub(crate) async fn read_rcpt_mail_body(context: &Context, message: &str) -> String {
-    translated(context, StockMessage::ReadRcptMailBody)
-        .await
-        .replace1(message)
+/// Stock string: `This message is a receipt notification.`.
+pub(crate) async fn read_rcpt_mail_body(context: &Context) -> String {
+    translated(context, StockMessage::ReadRcptMailBody).await
 }
 
 /// Stock string: `Group image deleted.`.

@@ -2908,7 +2908,7 @@ async fn prepare_send_msg(
 /// The caller has to interrupt SMTP loop or otherwise process new rows.
 pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -> Result<Vec<i64>> {
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
-    let mimefactory = MimeFactory::from_msg(context, msg).await?;
+    let mimefactory = MimeFactory::from_msg(context, msg.clone()).await?;
     let attach_selfavatar = mimefactory.attach_selfavatar;
     let mut recipients = mimefactory.recipients();
 
