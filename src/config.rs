@@ -608,7 +608,7 @@ impl Context {
         mut value: Option<&str>,
     ) -> Result<()> {
         Self::check_config(key, value)?;
-        let sync = sync == Sync && key.is_synced();
+        let sync = sync == Sync && key.is_synced() && self.is_configured().await?;
         let better_value;
 
         match key {
