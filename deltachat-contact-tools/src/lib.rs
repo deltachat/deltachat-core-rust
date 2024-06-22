@@ -37,7 +37,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 // TODOs to clean up:
-// - Check if sanitizing is done correctly everywhere
 // - Apply lints everywhere (https://doc.rust-lang.org/cargo/reference/workspaces.html#the-lints-table)
 
 #[derive(Debug)]
