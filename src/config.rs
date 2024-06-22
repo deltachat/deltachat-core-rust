@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{ensure, Context as _, Result};
 use base64::Engine as _;
-use deltachat_contact_tools::addr_cmp;
+use deltachat_contact_tools::{addr_cmp, sanitize_single_line};
 use serde::{Deserialize, Serialize};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
@@ -20,7 +20,7 @@ use crate::log::LogExt;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::sync::{self, Sync::*, SyncData};
-use crate::tools::{get_abs_path, improve_single_line_input};
+use crate::tools::get_abs_path;
 
 /// The available configuration keys.
 #[derive(
@@ -647,7 +647,7 @@ impl Context {
             }
             Config::Displayname => {
                 if let Some(v) = value {
-                    better_value = improve_single_line_input(v);
+                    better_value = sanitize_single_line(v);
                     value = Some(&better_value);
                 }
                 self.sql.set_raw_config(key.as_ref(), value).await?;

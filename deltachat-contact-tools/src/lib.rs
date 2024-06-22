@@ -266,7 +266,7 @@ impl rusqlite::types::ToSql for ContactAddress {
 
 /// Takes a name and an address and sanitizes them:
 /// - Extracts a name from the addr if the addr is in form "Alice <alice@example.org>"
-/// - Removes special characters from the name
+/// - Removes special characters from the name, see [`sanitize_name()`]
 /// - Removes the name if it is equal to the address by setting it to ""
 pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
@@ -284,7 +284,7 @@ pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     } else {
         (name, addr.to_string())
     };
-    let mut name = normalize_name(name);
+    let mut name = sanitize_name(name);
 
     // If the 'display name' is just the address, remove it:
     // Otherwise, the contact would sometimes be shown as "alice@example.com (alice@example.com)" (see `get_name_n_addr()`).
@@ -296,34 +296,41 @@ pub fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     (name, addr)
 }
 
-/// Normalizes a name.
+/// Sanitizes a name.
 ///
-/// - Removes newlines
+/// - Removes newlines and trims the string
 /// - Removes quotes (come from some bad MUA implementations)
-/// - Trims the resulting string
-/// - Removes potentially-malicious RTLO characters
-///
-/// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
-pub fn normalize_name(name: &str) -> String {
-    let name = name.replace(['\n', '\r'], " ");
-    let name = name.trim();
+/// - Removes potentially-malicious bidi characters
+pub fn sanitize_name(name: &str) -> String {
+    let name = sanitize_single_line(name);
 
-    let name = match name.as_bytes() {
+    match name.as_bytes() {
         [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => name
             .get(1..name.len() - 1)
             .map_or("".to_string(), |s| s.trim().to_string()),
         _ => name.to_string(),
-    };
+    }
+}
 
-    strip_rtlo_characters(&name)
+/// Sanitizes user input
+///
+/// - Removes newlines and trims the string
+/// - Removes potentially-malicious bidi characters
+pub fn sanitize_single_line(input: &str) -> String {
+    sanitize_bidi_characters(input.replace(['\n', '\r'], " ").trim())
 }
 
 const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
 const ISOLATE_CHARACTERS: [char; 3] = ['\u{2066}', '\u{2067}', '\u{2068}'];
 const POP_ISOLATE_CHARACTER: char = '\u{2069}';
-/// This method strips all occurrences of the RTLO Unicode character.
-/// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
-pub fn strip_rtlo_characters(input_str: &str) -> String {
+/// Some control unicode characters can influence whether adjacent text is shown from
+/// left to right or from right to left.
+///
+/// Since user input is not supposed to influence how adjacent text looks,
+/// this function removes some of these characters.
+///
+/// Also see https://github.com/deltachat/deltachat-core-rust/issues/3479.
+pub fn sanitize_bidi_characters(input_str: &str) -> String {
     // RTLO_CHARACTERS are apparently rarely used in practice.
     // They can impact all following text, so, better remove them all:
     let input_str = input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "");
@@ -710,46 +717,61 @@ END:VCARD
     }
 
     #[test]
-    fn test_strip_rtlo_characters() {
+    fn test_sanitize_name() {
+        assert_eq!(&sanitize_name(" hello world   "), "hello world");
+        assert_eq!(&sanitize_name("<"), "<");
+        assert_eq!(&sanitize_name(">"), ">");
+        assert_eq!(&sanitize_name("'"), "'");
+        assert_eq!(&sanitize_name("\""), "\"");
+    }
+
+    #[test]
+    fn test_sanitize_single_line() {
+        assert_eq!(sanitize_single_line("Hi\naiae "), "Hi aiae");
+        assert_eq!(sanitize_single_line("\r\nahte\n\r"), "ahte");
+    }
+
+    #[test]
+    fn test_sanitize_bidi_characters() {
         // Legit inputs:
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{2067}ting Delta Chat\u{2069}"),
+            &sanitize_bidi_characters("Tes\u{2067}ting Delta Chat\u{2069}"),
             "Tes\u{2067}ting Delta Chat\u{2069}"
         );
 
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{2067}ting \u{2068} Delta Chat\u{2069}\u{2069}"),
+            &sanitize_bidi_characters("Tes\u{2067}ting \u{2068} Delta Chat\u{2069}\u{2069}"),
             "Tes\u{2067}ting \u{2068} Delta Chat\u{2069}\u{2069}"
         );
 
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{2067}ting\u{2069} Delta Chat\u{2067}\u{2069}"),
+            &sanitize_bidi_characters("Tes\u{2067}ting\u{2069} Delta Chat\u{2067}\u{2069}"),
             "Tes\u{2067}ting\u{2069} Delta Chat\u{2067}\u{2069}"
         );
 
         // Potentially-malicious inputs:
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{202C}ting Delta Chat"),
+            &sanitize_bidi_characters("Tes\u{202C}ting Delta Chat"),
             "Testing Delta Chat"
         );
 
         assert_eq!(
-            &strip_rtlo_characters("Testing Delta Chat\u{2069}"),
+            &sanitize_bidi_characters("Testing Delta Chat\u{2069}"),
             "Testing Delta Chat"
         );
 
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{2067}ting Delta Chat"),
+            &sanitize_bidi_characters("Tes\u{2067}ting Delta Chat"),
             "Testing Delta Chat"
         );
 
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{2069}ting Delta Chat\u{2067}"),
+            &sanitize_bidi_characters("Tes\u{2069}ting Delta Chat\u{2067}"),
             "Testing Delta Chat"
         );
 
         assert_eq!(
-            &strip_rtlo_characters("Tes\u{2068}ting Delta Chat"),
+            &sanitize_bidi_characters("Tes\u{2068}ting Delta Chat"),
             "Testing Delta Chat"
         );
     }

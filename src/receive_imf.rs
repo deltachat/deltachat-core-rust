@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
-use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, strip_rtlo_characters, ContactAddress};
+use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, sanitize_single_line, ContactAddress};
 use iroh_gossip::proto::TopicId;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
@@ -38,7 +38,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{self, buf_compress, improve_single_line_input, remove_subject_prefix};
+use crate::tools::{self, buf_compress, remove_subject_prefix};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
 use iroh_net::NodeAddr;
@@ -2139,8 +2139,8 @@ async fn apply_group_changes(
             .map(|grpname| grpname.trim())
             .filter(|grpname| grpname.len() < 200)
         {
-            let grpname = &improve_single_line_input(grpname);
-            let old_name = &improve_single_line_input(old_name);
+            let grpname = &sanitize_single_line(grpname);
+            let old_name = &sanitize_single_line(old_name);
             if chat_id
                 .update_timestamp(
                     context,
@@ -2425,7 +2425,7 @@ fn compute_mailinglist_name(
         }
     }
 
-    improve_single_line_input(&name)
+    sanitize_single_line(&name)
 }
 
 /// Set ListId param on the contact and ListPost param the chat.

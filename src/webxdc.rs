@@ -22,7 +22,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
-use deltachat_contact_tools::strip_rtlo_characters;
+use deltachat_contact_tools::sanitize_bidi_characters;
 use deltachat_derive::FromSql;
 use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;
@@ -349,7 +349,7 @@ impl Context {
             {
                 instance
                     .param
-                    .set(Param::WebxdcSummary, strip_rtlo_characters(summary));
+                    .set(Param::WebxdcSummary, sanitize_bidi_characters(summary));
                 param_changed = true;
             }
         }

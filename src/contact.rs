@@ -11,8 +11,8 @@ use async_channel::{self as channel, Receiver, Sender};
 use base64::Engine as _;
 pub use deltachat_contact_tools::may_be_valid_addr;
 use deltachat_contact_tools::{
-    self as contact_tools, addr_cmp, addr_normalize, normalize_name, sanitize_name_and_addr,
-    ContactAddress, VcardContact,
+    self as contact_tools, addr_cmp, addr_normalize, sanitize_name, sanitize_name_and_addr,
+    sanitize_single_line, ContactAddress, VcardContact,
 };
 use deltachat_derive::{FromSql, ToSql};
 use rusqlite::OptionalExtension;
@@ -37,9 +37,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::sql::{self, params_iter};
 use crate::sync::{self, Sync::*};
-use crate::tools::{
-    duration_to_str, get_abs_path, improve_single_line_input, smeared_time, time, SystemTime,
-};
+use crate::tools::{duration_to_str, get_abs_path, smeared_time, time, SystemTime};
 use crate::{chat, chatlist_events, stock_str};
 
 /// Time during which a contact is considered as seen recently.
@@ -626,7 +624,7 @@ impl Contact {
         name: &str,
         addr: &str,
     ) -> Result<ContactId> {
-        let name = improve_single_line_input(name);
+        let name = sanitize_single_line(name);
 
         let (name, addr) = sanitize_name_and_addr(&name, addr);
         let addr = ContactAddress::new(&addr)?;
@@ -769,7 +767,7 @@ impl Contact {
             return Ok((ContactId::SELF, sth_modified));
         }
 
-        let mut name = normalize_name(name);
+        let mut name = sanitize_name(name);
         #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             // The user may accidentally have written to a "noreply" address with another MUA:
@@ -1924,7 +1922,7 @@ impl RecentlySeenLoop {
 
 #[cfg(test)]
 mod tests {
-    use deltachat_contact_tools::{may_be_valid_addr, normalize_name};
+    use deltachat_contact_tools::may_be_valid_addr;
 
     use super::*;
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
@@ -1961,15 +1959,6 @@ mod tests {
         assert_eq!(may_be_valid_addr("as@sd.de>"), false);
         assert_eq!(may_be_valid_addr("ask dkl@dd.tt"), false);
         assert_eq!(may_be_valid_addr("user@domain.tld."), false);
-    }
-
-    #[test]
-    fn test_normalize_name() {
-        assert_eq!(&normalize_name(" hello world   "), "hello world");
-        assert_eq!(&normalize_name("<"), "<");
-        assert_eq!(&normalize_name(">"), ">");
-        assert_eq!(&normalize_name("'"), "'");
-        assert_eq!(&normalize_name("\""), "\"");
     }
 
     #[test]
