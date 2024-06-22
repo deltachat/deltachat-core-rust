@@ -321,7 +321,7 @@ impl ChatId {
         param: Option<String>,
         timestamp: i64,
     ) -> Result<Self> {
-        let grpname = strip_rtlo_characters(grpname);
+        let grpname = improve_single_line_input(grpname);
         let timestamp = cmp::min(timestamp, smeared_time(context));
         let row_id =
             context.sql.insert(

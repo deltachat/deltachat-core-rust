@@ -38,7 +38,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{self, buf_compress, remove_subject_prefix};
+use crate::tools::{self, buf_compress, improve_single_line_input, remove_subject_prefix};
 use crate::{chatlist_events, location};
 use crate::{contact, imap};
 use iroh_net::NodeAddr;
@@ -2139,6 +2139,8 @@ async fn apply_group_changes(
             .map(|grpname| grpname.trim())
             .filter(|grpname| grpname.len() < 200)
         {
+            let grpname = &improve_single_line_input(grpname);
+            let old_name = &improve_single_line_input(old_name);
             if chat_id
                 .update_timestamp(
                     context,
@@ -2150,10 +2152,7 @@ async fn apply_group_changes(
                 info!(context, "Updating grpname for chat {chat_id}.");
                 context
                     .sql
-                    .execute(
-                        "UPDATE chats SET name=? WHERE id=?;",
-                        (strip_rtlo_characters(grpname), chat_id),
-                    )
+                    .execute("UPDATE chats SET name=? WHERE id=?;", (grpname, chat_id))
                     .await?;
                 send_event_chat_modified = true;
             }
@@ -2426,7 +2425,7 @@ fn compute_mailinglist_name(
         }
     }
 
-    strip_rtlo_characters(&name)
+    improve_single_line_input(&name)
 }
 
 /// Set ListId param on the contact and ListPost param the chat.
