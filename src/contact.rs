@@ -12,7 +12,7 @@ use base64::Engine as _;
 pub use deltachat_contact_tools::may_be_valid_addr;
 use deltachat_contact_tools::{
     self as contact_tools, addr_cmp, addr_normalize, sanitize_name, sanitize_name_and_addr,
-    sanitize_single_line, ContactAddress, VcardContact,
+    ContactAddress, VcardContact,
 };
 use deltachat_derive::{FromSql, ToSql};
 use rusqlite::OptionalExtension;
@@ -624,9 +624,7 @@ impl Contact {
         name: &str,
         addr: &str,
     ) -> Result<ContactId> {
-        let name = sanitize_single_line(name);
-
-        let (name, addr) = sanitize_name_and_addr(&name, addr);
+        let (name, addr) = sanitize_name_and_addr(name, addr);
         let addr = ContactAddress::new(&addr)?;
 
         let (contact_id, sth_modified) =
