@@ -44,11 +44,6 @@ def test_group_tracking_plugin(acfactory, lp):
 
     ac1, ac2 = acfactory.get_online_accounts(2)
 
-    botproc.fnmatch_lines(
-        """
-        *ac_configure_completed*
-    """,
-    )
     ac1.add_account_plugin(FFIEventLogger(ac1))
     ac2.add_account_plugin(FFIEventLogger(ac2))
 

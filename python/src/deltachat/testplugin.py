@@ -552,6 +552,15 @@ class ACFactory:
 
         bot_cfg = self.get_next_liveconfig()
         bot_ac = self.prepare_account_from_liveconfig(bot_cfg)
+        self._acsetup.start_configure(bot_ac)
+        self.wait_configured(bot_ac)
+        bot_ac.start_io()
+        # Wait for DC_EVENT_IMAP_INBOX_IDLE so that all emails appeared in the bot's Inbox later are
+        # considered new and not existing ones, and thus processed by the bot.
+        print(bot_ac._logid, "waiting for inbox IDLE to become ready")
+        bot_ac._evtracker.wait_idle_inbox_ready()
+        bot_ac.stop_io()
+        self._acsetup._account2state[bot_ac] = self._acsetup.IDLEREADY
 
         # Forget ac as it will be opened by the bot subprocess
         # but keep something in the list to not confuse account generation
