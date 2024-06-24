@@ -149,7 +149,7 @@ def process_data(data, file):
     oauth2 = "Some(Oauth2Authorizer::" + camel(oauth2) + ")" if oauth2 != "" else "None"
 
     provider = ""
-    before_login_hint = cleanstr(data.get("before_login_hint", ""))
+    before_login_hint = cleanstr(data.get("before_login_hint", "") or "")
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
     if (not has_imap and not has_smtp) or (has_imap and has_smtp):
         provider += (
