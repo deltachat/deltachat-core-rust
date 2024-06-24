@@ -738,7 +738,7 @@ impl MimeFactory {
                 unprotected_headers.push(header.clone());
             } else if header_name == "from" {
                 protected_headers.push(header.clone());
-                if verified || is_securejoin_message {
+                if is_encrypted && verified || is_securejoin_message {
                     unprotected_headers.push(
                         Header::new_with_value(
                             header.name,
@@ -751,7 +751,7 @@ impl MimeFactory {
                 }
             } else if header_name == "to" {
                 protected_headers.push(header.clone());
-                if verified || is_securejoin_message {
+                if is_encrypted && verified || is_securejoin_message {
                     unprotected_headers.push(
                         Header::new_with_value(
                             header.name,
