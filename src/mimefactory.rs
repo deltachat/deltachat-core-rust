@@ -728,14 +728,15 @@ impl MimeFactory {
         // MIME header <https://datatracker.ietf.org/doc/html/rfc2045>.
         unprotected_headers.push(Header::new("MIME-Version".into(), "1.0".into()));
         for header in headers {
-            if header.name.to_lowercase().as_str() == "message-id" {
+            let header_name = header.name.to_lowercase();
+            if header_name == "message-id" {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header);
-            } else if header.name.to_lowercase().as_str() == "chat-user-avatar" {
+            } else if header_name == "chat-user-avatar" {
                 hidden_headers.push(header);
-            } else if header.name.to_lowercase().as_str() == "autocrypt" {
+            } else if header_name == "autocrypt" {
                 unprotected_headers.push(header.clone());
-            } else if header.name.to_lowercase().as_str() == "from" {
+            } else if header_name == "from" {
                 protected_headers.push(header.clone());
                 if verified || is_securejoin_message {
                     unprotected_headers.push(
@@ -748,7 +749,7 @@ impl MimeFactory {
                 } else {
                     unprotected_headers.push(header);
                 }
-            } else if header.name.to_lowercase().as_str() == "to" {
+            } else if header_name == "to" {
                 protected_headers.push(header.clone());
                 if verified || is_securejoin_message {
                     unprotected_headers.push(
@@ -782,7 +783,7 @@ impl MimeFactory {
             } else if is_encrypted {
                 protected_headers.push(header.clone());
 
-                match header.name.to_lowercase().as_str() {
+                match header_name.as_str() {
                     "subject" => {
                         unprotected_headers.push(Header::new(header.name, "...".to_string()));
                     }
