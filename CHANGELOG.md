@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.141.0] - 2024-06-24
+
+### API-Changes
+
+- deltachat-jsonrpc: Add `get_chat_securejoin_qr_code()`.
+- api!(deltachat-rpc-client): make {Account,Chat}.get_qr_code() return no SVG
+  This is a breaking change, old method is renamed into `get_qr_code_svg()`.
+
+### Features / Changes
+
+- Prefer references to fully downloaded messages for chat assignment ([#5645](https://github.com/deltachat/deltachat-core-rust/pull/5645)).
+- Protect From name for verified chats and To names for encrypted chats ([#5166](https://github.com/deltachat/deltachat-core-rust/pull/5166)).
+- Display vCard contact name in the message summary.
+- Case-insensitive search for non-ASCII messages ([#5052](https://github.com/deltachat/deltachat-core-rust/pull/5052)).
+- Remove subject prefix from ad-hoc group names ([#5385](https://github.com/deltachat/deltachat-core-rust/pull/5385)).
+- Replace "Unnamed group" with "👥📧" to avoid translation.
+- Sync `Config::MvboxMove` across devices ([#5680](https://github.com/deltachat/deltachat-core-rust/pull/5680)).
+- Don't reveal profile data to a not yet verified contact ([#5166](https://github.com/deltachat/deltachat-core-rust/pull/5166)).
+- Don't reveal profile data in MDNs ([#5166](https://github.com/deltachat/deltachat-core-rust/pull/5166)).
+
+### Fixes
+
+- Fetch existing messages for bots as `InFresh` ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
+- Keep tombstones for two days before deleting ([#3685](https://github.com/deltachat/deltachat-core-rust/pull/3685)).
+- Housekeeping: Delete MDNs and webxdc status updates for tombstones.
+- Delete user-deleted messages on the server even if they show up on IMAP later.
+- Do not send sync messages if bcc_self is disabled.
+- Don't generate Config sync messages for unconfigured accounts.
+- Do not require the Message to render MDN.
+
+### CI
+
+- Update Rust to 1.79.0.
+
+### Documentation
+
+- Remove outdated documentation comment from `send_smtp_messages`.
+- Remove misleading configuration comment.
+
+### Miscellaneous Tasks
+
+- Update curve25519-dalek 4.1.x and suppress 3.2.0 warning.
+- Update provider database.
+
+### Refactor
+
+- Deduplicate dependency versions ([#5691](https://github.com/deltachat/deltachat-core-rust/pull/5691)).
+- Store public key instead of secret key for peer channels.
+
+### Tests
+
+- Image drafted as Viewtype::File is sent as is.
+- python: Set delete_server_after=1 ("delete immediately") for bots ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
+- deltachat-rpc-client: Test that webxdc realtime data is not reordered on the sender.
+- python: Wait for bot's DC_EVENT_IMAP_INBOX_IDLE before sending messages to it ([#5699](https://github.com/deltachat/deltachat-core-rust/pull/5699)).
+
 ## [1.140.2] - 2024-06-07
 
 ### API-Changes
@@ -4423,3 +4479,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.140.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.6...v1.140.0
 [1.140.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.0...v1.140.1
 [1.140.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.1...v1.140.2
+[1.141.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.2...v1.141.0
