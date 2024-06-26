@@ -477,7 +477,7 @@ async fn inbox_fetch_idle(ctx: &Context, imap: &mut Imap, mut session: Session) 
         let quota = ctx.quota.read().await;
         quota
             .as_ref()
-            .filter(|quota| time_elapsed(&quota.modified) > Duration::from_secs(60))
+            .filter(|quota| time_elapsed(&quota.modified) < Duration::from_secs(60))
             .is_none()
     };
     if quota_needs_update {
