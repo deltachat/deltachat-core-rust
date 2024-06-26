@@ -547,7 +547,7 @@ impl Context {
                 .as_ref()
                 .filter(|quota| {
                     time_elapsed(&quota.modified)
-                        > Duration::from_secs(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
+                        < Duration::from_secs(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
                 })
                 .is_none()
         };
