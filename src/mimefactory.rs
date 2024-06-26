@@ -286,14 +286,11 @@ impl MimeFactory {
     fn is_e2ee_guaranteed(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat, msg } => {
-                if chat.is_protected() {
-                    return true;
-                }
-
                 !msg.param
                     .get_bool(Param::ForcePlaintext)
                     .unwrap_or_default()
-                    && msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default()
+                    && (chat.is_protected()
+                        || msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default())
             }
             Loaded::Mdn { .. } => false,
         }
