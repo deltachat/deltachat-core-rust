@@ -615,7 +615,6 @@ impl MimeFactory {
 
         let verified = self.verified();
         let grpimage = self.grpimage();
-        let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(context).await?;
@@ -642,9 +641,8 @@ impl MimeFactory {
         let mut is_gossiped = false;
 
         let peerstates = self.peerstates_for_recipients(context).await?;
-        let should_encrypt =
-            encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
-        let is_encrypted = should_encrypt && !force_plaintext;
+        let is_encrypted = !self.should_force_plaintext()
+            && encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_securejoin_message = if let Loaded::Message { msg, .. } = &self.loaded {
             msg.param.get_cmd() == SystemMessage::SecurejoinMessage
         } else {
