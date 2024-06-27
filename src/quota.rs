@@ -1,6 +1,7 @@
 //! # Support for IMAP QUOTA extension.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
@@ -11,7 +12,7 @@ use crate::context::Context;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::session::Session as ImapSession;
 use crate::message::{Message, Viewtype};
-use crate::tools;
+use crate::tools::{self, time_elapsed};
 use crate::{stock_str, EventType};
 
 /// warn about a nearly full mailbox after this usage percentage is reached.
@@ -102,6 +103,16 @@ pub fn needs_quota_warning(curr_percentage: u64, warned_at_percentage: u64) -> b
 }
 
 impl Context {
+    /// Returns whether the quota value needs an update. If so, `update_recent_quota()` should be
+    /// called.
+    pub(crate) async fn quota_needs_update(&self, ratelimit_secs: u64) -> bool {
+        let quota = self.quota.read().await;
+        quota
+            .as_ref()
+            .filter(|quota| time_elapsed(&quota.modified) < Duration::from_secs(ratelimit_secs))
+            .is_none()
+    }
+
     /// Updates `quota.recent`, sets `quota.modified` to the current time
     /// and emits an event to let the UIs update connectivity view.
     ///
@@ -155,6 +166,7 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::TestContextManager;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_needs_quota_warning() -> Result<()> {
@@ -182,5 +194,25 @@ mod tests {
         assert!(QUOTA_WARN_THRESHOLD_PERCENTAGE < QUOTA_ERROR_THRESHOLD_PERCENTAGE);
         assert!(QUOTA_ERROR_THRESHOLD_PERCENTAGE < 100);
         Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_quota_needs_update() {
+        let mut tcm = TestContextManager::new();
+        let t = &tcm.unconfigured().await;
+        const TIMEOUT: u64 = 60;
+        assert!(t.quota_needs_update(TIMEOUT).await);
+
+        *t.quota.write().await = Some(QuotaInfo {
+            recent: Ok(Default::default()),
+            modified: tools::Time::now() - Duration::from_secs(TIMEOUT + 1),
+        });
+        assert!(t.quota_needs_update(TIMEOUT).await);
+
+        *t.quota.write().await = Some(QuotaInfo {
+            recent: Ok(Default::default()),
+            modified: tools::Time::now(),
+        });
+        assert!(!t.quota_needs_update(TIMEOUT).await);
     }
 }

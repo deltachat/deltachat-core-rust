@@ -541,18 +541,10 @@ impl Context {
         }
 
         // update quota (to send warning if full) - but only check it once in a while
-        let quota_needs_update = {
-            let quota = self.quota.read().await;
-            quota
-                .as_ref()
-                .filter(|quota| {
-                    time_elapsed(&quota.modified)
-                        < Duration::from_secs(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
-                })
-                .is_none()
-        };
-
-        if quota_needs_update {
+        if self
+            .quota_needs_update(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
+            .await
+        {
             if let Err(err) = self.update_recent_quota(&mut session).await {
                 warn!(self, "Failed to update quota: {err:#}.");
             }
