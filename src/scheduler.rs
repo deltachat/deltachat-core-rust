@@ -2,7 +2,6 @@ use std::cmp;
 use std::iter::{self, once};
 use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 use anyhow::{bail, Context as _, Error, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -473,14 +472,7 @@ async fn inbox_fetch_idle(ctx: &Context, imap: &mut Imap, mut session: Session) 
     .await?;
 
     // Update quota no more than once a minute.
-    let quota_needs_update = {
-        let quota = ctx.quota.read().await;
-        quota
-            .as_ref()
-            .filter(|quota| time_elapsed(&quota.modified) < Duration::from_secs(60))
-            .is_none()
-    };
-    if quota_needs_update {
+    if ctx.quota_needs_update(60).await {
         if let Err(err) = ctx.update_recent_quota(&mut session).await {
             warn!(ctx, "Failed to update quota: {:#}.", err);
         }
