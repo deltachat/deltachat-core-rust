@@ -625,14 +625,14 @@ async fn try_imap_one_param(
 
     match imap.connect(context).await {
         Err(err) => {
-            info!(context, "failure: {:#}", err);
+            info!(context, "IMAP failure: {err:#}.");
             Err(ConfigurationError {
                 config: inf,
                 msg: format!("{err:#}"),
             })
         }
         Ok(session) => {
-            info!(context, "success: {}", inf);
+            info!(context, "IMAP success: {inf}.");
             Ok((imap, session))
         }
     }
@@ -666,13 +666,13 @@ async fn try_smtp_one_param(
         .connect(context, param, socks5_config, addr, provider_strict_tls)
         .await
     {
-        info!(context, "failure: {}", err);
+        info!(context, "SMTP failure: {err:#}.");
         Err(ConfigurationError {
             config: inf,
             msg: format!("{err:#}"),
         })
     } else {
-        info!(context, "success: {}", inf);
+        info!(context, "SMTP success: {inf}.");
         smtp.disconnect();
         Ok(())
     }
