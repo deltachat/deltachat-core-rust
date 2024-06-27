@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.141.1] - 2024-06-27
+
+### Fixes
+
+- Update quota if it's stale, not fresh ([#5683](https://github.com/deltachat/deltachat-core-rust/pull/5683)).
+- sql: Assign migration adding msgs.deleted a new number.
+
+### Refactor
+
+- mimefactory: Factor out header confidentiality policy ([#5715](https://github.com/deltachat/deltachat-core-rust/pull/5715)).
+- Improve logging during SMTP/IMAP configuration.
+
 ## [1.141.0] - 2024-06-24
 
 ### API-Changes
@@ -4480,3 +4492,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.140.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.0...v1.140.1
 [1.140.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.1...v1.140.2
 [1.141.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.2...v1.141.0
+[1.141.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.0...v1.141.1
