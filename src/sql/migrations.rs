@@ -907,15 +907,6 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         )
         .await?;
     }
-    if dbversion < 111 {
-        // Whether the message part doesn't need to be stored on the server. If all parts are marked
-        // deleted, a server-side deletion is issued.
-        sql.execute_migration(
-            "ALTER TABLE msgs ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
-            111,
-        )
-        .await?;
-    }
 
     if dbversion < 111 {
         sql.execute_migration(
@@ -949,6 +940,16 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
     if dbversion < 115 {
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN txt_normalized TEXT", 115)
             .await?;
+    }
+
+    if dbversion < 116 {
+        // Whether the message part doesn't need to be stored on the server. If all parts are marked
+        // deleted, a server-side deletion is issued.
+        sql.execute_migration(
+            "ALTER TABLE msgs ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
+            116,
+        )
+        .await?;
     }
 
     let new_version = sql
