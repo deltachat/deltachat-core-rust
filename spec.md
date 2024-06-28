@@ -461,30 +461,6 @@ As an extension to RFC 9078, it is allowed to send empty reaction message,
 in which case all previously sent reactions are retracted.
 
 
-# Miscellaneous
-
-Messengers SHOULD use the header `In-Reply-To` as usual.
-
-Messengers MAY send and receive Message Disposition Notifications
-(MDNs, [RFC 8098](https://tools.ietf.org/html/rfc8098),
-[RFC 3503](https://tools.ietf.org/html/rfc3503))
-using the `Chat-Disposition-Notification-To` header
-instead of the `Disposition-Notification-To`
-(which unfortunately forces many other MUAs
-to send weird mails not following any standard).
-
-
-## Sync messages
-
-If some action is required by a message header,
-the action should only be performed if the _effective date_ is newer
-than the date the last action was performed.
-
-We define the effective date of a message
-as the sending time of the message as indicated by its Date header,
-or the time of first receipt if that date is in the future or unavailable.
-
-
 # Attaching a contact to a message
 
 Messengers MAY allow the user to attach a contact to a message
@@ -535,5 +511,29 @@ When receiving a message:
   Replace the contact in _all_ groups,
   possibly deduplicate the members list,
   and add a system message to all of these chats.
+
+
+# Miscellaneous
+
+Messengers SHOULD use the header `In-Reply-To` as usual.
+
+Messengers MAY send and receive Message Disposition Notifications
+(MDNs, [RFC 8098](https://tools.ietf.org/html/rfc8098),
+[RFC 3503](https://tools.ietf.org/html/rfc3503))
+using the `Chat-Disposition-Notification-To` header
+instead of the `Disposition-Notification-To`
+(which unfortunately forces many other MUAs
+to send weird mails not following any standard).
+
+
+## Sync messages
+
+If some action is required by a message header,
+the action should only be performed if the _effective date_ is newer
+than the date the last action was performed.
+
+We define the effective date of a message
+as the sending time of the message as indicated by its Date header,
+or the time of first receipt if that date is in the future or unavailable.
 
 Copyright © 2017-2021 Delta Chat contributors.
