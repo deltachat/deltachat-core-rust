@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
-use deltachat_contact_tools::{strip_rtlo_characters, ContactAddress};
+use deltachat_contact_tools::{sanitize_bidi_characters, sanitize_single_line, ContactAddress};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -46,8 +46,8 @@ use crate::stock_str;
 use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
-    create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
-    smeared_time, time, IsNoneOrEmpty, SystemTime,
+    create_smeared_timestamps, get_abs_path, gm2local_offset, smeared_time, time, IsNoneOrEmpty,
+    SystemTime,
 };
 
 /// An chat item, such as a message or a marker.
@@ -321,7 +321,7 @@ impl ChatId {
         param: Option<String>,
         timestamp: i64,
     ) -> Result<Self> {
-        let grpname = strip_rtlo_characters(grpname);
+        let grpname = sanitize_single_line(grpname);
         let timestamp = cmp::min(timestamp, smeared_time(context));
         let row_id =
             context.sql.insert(
@@ -2858,7 +2858,7 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     // protect all system messages against RTLO attacks
     if msg.is_system_message() {
-        msg.text = strip_rtlo_characters(&msg.text);
+        msg.text = sanitize_bidi_characters(&msg.text);
     }
 
     if !prepare_send_msg(context, chat_id, msg).await?.is_empty() {
@@ -3503,7 +3503,7 @@ pub async fn create_group_chat(
     protect: ProtectionStatus,
     chat_name: &str,
 ) -> Result<ChatId> {
-    let chat_name = improve_single_line_input(chat_name);
+    let chat_name = sanitize_single_line(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let grpid = create_id();
@@ -4017,7 +4017,7 @@ async fn rename_ex(
     chat_id: ChatId,
     new_name: &str,
 ) -> Result<()> {
-    let new_name = improve_single_line_input(new_name);
+    let new_name = sanitize_single_line(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
 
@@ -4048,7 +4048,7 @@ async fn rename_ex(
             if chat.is_promoted()
                 && !chat.is_mailing_list()
                 && chat.typ != Chattype::Broadcast
-                && improve_single_line_input(&chat.name) != new_name
+                && sanitize_single_line(&chat.name) != new_name
             {
                 msg.viewtype = Viewtype::Text;
                 msg.text =

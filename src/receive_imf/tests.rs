@@ -4886,18 +4886,62 @@ async fn test_make_n_send_vcard() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_group_no_recipients() -> Result<()> {
     let t = &TestContext::new_alice().await;
-    let raw = b"From: alice@example.org\n\
-                    Subject: Group\n\
-                    Chat-Version: 1.0\n\
-                    Chat-Group-Name: Group\n\
-                    Chat-Group-ID: GePFDkwEj2K\n\
-                    Message-ID: <foobar@localhost>\n\
-                    \n\
-                    Hello!";
+    let raw = "From: alice@example.org
+Subject: Group
+Chat-Version: 1.0
+Chat-Group-Name: Group
+ name\u{202B}
+Chat-Group-ID: GePFDkwEj2K
+Message-ID: <foobar@localhost>
+
+Hello!"
+        .as_bytes();
     let received = receive_imf(t, raw, false).await?.unwrap();
     let msg = Message::load_from_db(t, *received.msg_ids.last().unwrap()).await?;
     let chat = Chat::load_from_db(t, msg.chat_id).await?;
     assert_eq!(chat.typ, Chattype::Group);
+
+    // Check that the weird group name is sanitzied correctly:
+    let mail = mailparse::parse_mail(raw).unwrap();
+    assert_eq!(
+        mail.headers
+            .get_header(HeaderDef::ChatGroupName)
+            .unwrap()
+            .get_value_raw(),
+        "Group\n name\u{202B}".as_bytes()
+    );
+    assert_eq!(chat.name, "Group name");
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_group_name_with_newline() -> Result<()> {
+    let t = &TestContext::new_alice().await;
+    let raw = "From: alice@example.org
+Subject: Group
+Chat-Version: 1.0
+Chat-Group-Name: =?utf-8?q?Delta=0D=0AChat?=
+Chat-Group-ID: GePFDkwEj2K
+Message-ID: <foobar@localhost>
+
+Hello!"
+        .as_bytes();
+    let received = receive_imf(t, raw, false).await?.unwrap();
+    let msg = Message::load_from_db(t, *received.msg_ids.last().unwrap()).await?;
+    let chat = Chat::load_from_db(t, msg.chat_id).await?;
+    assert_eq!(chat.typ, Chattype::Group);
+
+    // Check that the weird group name is sanitzied correctly:
+    let mail = mailparse::parse_mail(raw).unwrap();
+    assert_eq!(
+        mail.headers
+            .get_header(HeaderDef::ChatGroupName)
+            .unwrap()
+            .get_value(),
+        "Delta\r\nChat"
+    );
+    assert_eq!(chat.name, "Delta  Chat");
 
     Ok(())
 }

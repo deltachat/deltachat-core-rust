@@ -6,7 +6,7 @@ use std::path::Path;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
-use deltachat_contact_tools::{addr_cmp, addr_normalize, strip_rtlo_characters};
+use deltachat_contact_tools::{addr_cmp, addr_normalize, sanitize_bidi_characters};
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::Mime;
@@ -2048,7 +2048,7 @@ fn get_attachment_filename(
         };
     }
 
-    let desired_filename = desired_filename.map(|filename| strip_rtlo_characters(&filename));
+    let desired_filename = desired_filename.map(|filename| sanitize_bidi_characters(&filename));
 
     Ok(desired_filename)
 }

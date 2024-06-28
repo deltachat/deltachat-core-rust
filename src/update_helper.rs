@@ -183,8 +183,8 @@ mod tests {
                  Message-ID: <msg3@example.org>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde123456\n\
-                 Chat-Group-Name: another name update\n\
-                 Chat-Group-Name-Changed: a name update\n\
+                 Chat-Group-Name: =?utf-8?q?another=0Aname update?=\n\
+                 Chat-Group-Name-Changed: =?utf-8?q?a=0Aname update?=\n\
                  Date: Sun, 22 Mar 2021 03:00:00 +0000\n\
                  \n\
                  third message\n",
@@ -198,7 +198,7 @@ mod tests {
                  Message-ID: <msg2@example.org>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde123456\n\
-                 Chat-Group-Name: a name update\n\
+                 Chat-Group-Name: =?utf-8?q?a=0Aname update?=\n\
                  Chat-Group-Name-Changed: initial name\n\
                  Date: Sun, 22 Mar 2021 02:00:00 +0000\n\
                  \n\
@@ -209,6 +209,9 @@ mod tests {
         let msg = t.get_last_msg().await;
         let chat = Chat::load_from_db(&t, msg.chat_id).await?;
         assert_eq!(chat.name, "another name update");
+
+        // Assert that the \n was correctly removed from the group name also in the system message
+        assert_eq!(msg.text.contains('\n'), false);
 
         Ok(())
     }

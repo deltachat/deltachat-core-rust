@@ -22,7 +22,7 @@ pub use std::time::SystemTime;
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
-use deltachat_contact_tools::{strip_rtlo_characters, EmailAddress};
+use deltachat_contact_tools::EmailAddress;
 #[cfg(test)]
 pub use deltachat_time::SystemTimeTools as SystemTime;
 use futures::{StreamExt, TryStreamExt};
@@ -509,13 +509,6 @@ pub fn parse_mailto(mailto_url: &str) -> Option<MailTo> {
     } else {
         None
     }
-}
-
-/// Sanitizes user input
-/// - strip newlines
-/// - strip malicious bidi characters
-pub(crate) fn improve_single_line_input(input: &str) -> String {
-    strip_rtlo_characters(input.replace(['\n', '\r'], " ").trim())
 }
 
 pub(crate) trait IsNoneOrEmpty<T> {
@@ -1023,12 +1016,6 @@ DKIM Results: Passed=true";
         let (w, h) = get_filemeta(data).unwrap();
         assert_eq!(w, 100);
         assert_eq!(h, 50);
-    }
-
-    #[test]
-    fn test_improve_single_line_input() {
-        assert_eq!(improve_single_line_input("Hi\naiae "), "Hi aiae");
-        assert_eq!(improve_single_line_input("\r\nahte\n\r"), "ahte");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

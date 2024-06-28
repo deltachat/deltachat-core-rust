@@ -4,9 +4,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
-use deltachat_contact_tools::{
-    addr_cmp, may_be_valid_addr, normalize_name, strip_rtlo_characters, ContactAddress,
-};
+use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, sanitize_single_line, ContactAddress};
 use iroh_gossip::proto::TopicId;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
@@ -660,10 +658,10 @@ pub async fn from_field_to_contact_id(
         }
     };
 
-    let from_id = add_or_lookup_contact_by_addr(
+    let (from_id, _) = Contact::add_or_lookup(
         context,
-        display_name,
-        from_addr,
+        display_name.unwrap_or_default(),
+        &from_addr,
         Origin::IncomingUnknownFrom,
     )
     .await?;
@@ -2141,6 +2139,8 @@ async fn apply_group_changes(
             .map(|grpname| grpname.trim())
             .filter(|grpname| grpname.len() < 200)
         {
+            let grpname = &sanitize_single_line(grpname);
+            let old_name = &sanitize_single_line(old_name);
             if chat_id
                 .update_timestamp(
                     context,
@@ -2152,10 +2152,7 @@ async fn apply_group_changes(
                 info!(context, "Updating grpname for chat {chat_id}.");
                 context
                     .sql
-                    .execute(
-                        "UPDATE chats SET name=? WHERE id=?;",
-                        (strip_rtlo_characters(grpname), chat_id),
-                    )
+                    .execute("UPDATE chats SET name=? WHERE id=?;", (grpname, chat_id))
                     .await?;
                 send_event_chat_modified = true;
             }
@@ -2428,7 +2425,7 @@ fn compute_mailinglist_name(
         }
     }
 
-    strip_rtlo_characters(&name)
+    sanitize_single_line(&name)
 }
 
 /// Set ListId param on the contact and ListPost param the chat.
@@ -2850,8 +2847,9 @@ async fn add_or_lookup_contacts_by_address_list(
         }
         let display_name = info.display_name.as_deref();
         if let Ok(addr) = ContactAddress::new(addr) {
-            let contact_id =
-                add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?;
+            let (contact_id, _) =
+                Contact::add_or_lookup(context, display_name.unwrap_or_default(), &addr, origin)
+                    .await?;
             contact_ids.insert(contact_id);
         } else {
             warn!(context, "Contact with address {:?} cannot exist.", addr);
@@ -2859,23 +2857,6 @@ async fn add_or_lookup_contacts_by_address_list(
     }
 
     Ok(contact_ids.into_iter().collect::<Vec<ContactId>>())
-}
-
-/// Add contacts to database on receiving messages.
-async fn add_or_lookup_contact_by_addr(
-    context: &Context,
-    display_name: Option<&str>,
-    addr: ContactAddress,
-    origin: Origin,
-) -> Result<ContactId> {
-    if context.is_self_addr(&addr).await? {
-        return Ok(ContactId::SELF);
-    }
-    let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
-
-    let (contact_id, _modified) =
-        Contact::add_or_lookup(context, &display_name_normalized, &addr, origin).await?;
-    Ok(contact_id)
 }
 
 #[cfg(test)]
