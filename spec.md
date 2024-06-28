@@ -1,6 +1,6 @@
 # chat-mail specification
 
-Version: 0.34.0
+Version: 0.35.0
 Status:  In-progress 
 Format:  [Semantic Line Breaks](https://sembr.org/)
 
@@ -483,6 +483,41 @@ than the date the last action was performed.
 We define the effective date of a message
 as the sending time of the message as indicated by its Date header,
 or the time of first receipt if that date is in the future or unavailable.
+
+
+# Attaching a contact to a message
+
+Messengers MAY allow the user to attach a contact to a message
+in order to share it with the chat partner.
+The contact MUST be sent as a [vCard](https://datatracker.ietf.org/doc/html/rfc6350).
+
+The vCard MUST contain `EMAIL`,
+`FN` (display name),
+and `VERSION` (which version of the vCard standard you're using).
+If available, it SHOULD contain
+`REV` (current timestamp),
+`PHOTO` (avatar), and
+`KEY` (OpenPGP public key,
+in binary format,
+encoded with vanilla base64;
+note that this is different from the OpenPGP 'ASCII Armor' format).
+
+Example vCard:
+
+```
+BEGIN:VCARD
+VERSION:4.0
+EMAIL:alice@example.org
+FN:Alice Wonderland
+KEY:data:application/pgp-keys;base64,[Base64-data]
+PHOTO:data:image/jpeg;base64,[image in Base64]
+REV:20240418T184242Z
+END:VCARD
+```
+
+It is fine if messengers do include a full vCard parser
+and e.g. simply search for the line starting with `EMAIL`
+in order to get the email address.
 
 
 # Transitioning to a new e-mail address (AEAP)
