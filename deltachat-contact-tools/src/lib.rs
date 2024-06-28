@@ -175,7 +175,15 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
         let mut photo = None;
         let mut datetime = None;
 
-        for line in lines.by_ref() {
+        for mut line in lines.by_ref() {
+            if let Some(remainder) = remove_prefix(line, "item1.") {
+                // Remove the group name, if the group is called "item1".
+                // If necessary, we can improve this to also remove groups that are called something different that "item1".
+                //
+                // Search "group name" at https://datatracker.ietf.org/doc/html/rfc6350 for more infos.
+                line = remainder;
+            }
+
             if let Some(email) = vcard_property(line, "email") {
                 addr.get_or_insert(email);
             } else if let Some(name) = vcard_property(line, "fn") {
@@ -183,6 +191,7 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
             } else if let Some(k) = remove_prefix(line, "KEY;PGP;ENCODING=BASE64:")
                 .or_else(|| remove_prefix(line, "KEY;TYPE=PGP;ENCODING=b:"))
                 .or_else(|| remove_prefix(line, "KEY:data:application/pgp-keys;base64,"))
+                .or_else(|| remove_prefix(line, "KEY;PREF=1:data:application/pgp-keys;base64,"))
             {
                 key.get_or_insert(k);
             } else if let Some(p) = remove_prefix(line, "PHOTO;JPEG;ENCODING=BASE64:")
@@ -713,6 +722,31 @@ END:VCARD
             assert_eq!(contacts[0].key, None);
             assert_eq!(contacts[0].profile_image.as_deref().unwrap(), "/9j/4AAQSkZJRgABAQAAAQABAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAQwAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAL8bRuAJYoZUYrI4ZY3VWwxw4Ay28AAGBISScmf/2Q==");
         }
+    }
+
+    #[test]
+    fn test_protonmail_vcard() {
+        let contacts = parse_vcard(
+            "BEGIN:VCARD
+VERSION:4.0
+FN;PREF=1:Alice Wonderland
+UID:proton-web-03747582-328d-38dc-5ddd-000000000000
+ITEM1.EMAIL;PREF=1:alice@example.org
+ITEM1.KEY;PREF=1:data:application/pgp-keys;base64,aaaaaaaaaaaaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ITEM1.KEY;PREF=2:data:application/pgp-keys;base64,bbbbbbbbbbbbbbbbbbbbbbbbb
+ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+ITEM1.X-PM-ENCRYPT:true
+ITEM1.X-PM-SIGN:true
+END:VCARD",
+        );
+
+        assert_eq!(contacts.len(), 1);
+        assert_eq!(&contacts[0].addr, "alice@example.org");
+        assert_eq!(&contacts[0].authname, "Alice Wonderland");
+        assert_eq!(contacts[0].key.as_ref().unwrap(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        assert!(contacts[0].timestamp.is_err());
+        assert_eq!(contacts[0].profile_image, None);
     }
 
     #[test]
