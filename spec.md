@@ -22,7 +22,13 @@ to implement typical messenger functions.
 - [Locations](#locations)
     - [User locations](#user-locations)
     - [Points of interest](#points-of-interest)
+- [Stickers](#stickers)
+- [Voice messages](#voice-messages)
+- [Reactions](#reactions)
+- [Attaching a contact to a message](#attaching-a-contact-to-a-message)
+- [Transitioning to a new e-mail address (AEAP)](#transitioning-to-a-new-e-mail-address-aeap)
 - [Miscellaneous](#miscellaneous)
+    - [Sync messages](#sync-messages)
 
 
 # Encryption
