@@ -1,6 +1,6 @@
 # chat-mail specification
 
-Version: 0.34.0
+Version: 0.35.0
 Status:  In-progress 
 Format:  [Semantic Line Breaks](https://sembr.org/)
 
@@ -22,7 +22,13 @@ to implement typical messenger functions.
 - [Locations](#locations)
     - [User locations](#user-locations)
     - [Points of interest](#points-of-interest)
+- [Stickers](#stickers)
+- [Voice messages](#voice-messages)
+- [Reactions](#reactions)
+- [Attaching a contact to a message](#attaching-a-contact-to-a-message)
+- [Transitioning to a new e-mail address (AEAP)](#transitioning-to-a-new-e-mail-address-aeap)
 - [Miscellaneous](#miscellaneous)
+    - [Sync messages](#sync-messages)
 
 
 # Encryption
@@ -461,6 +467,58 @@ As an extension to RFC 9078, it is allowed to send empty reaction message,
 in which case all previously sent reactions are retracted.
 
 
+# Attaching a contact to a message
+
+Messengers MAY allow the user to attach a contact to a message
+in order to share it with the chat partner.
+The contact MUST be sent as a [vCard](https://datatracker.ietf.org/doc/html/rfc6350).
+
+The vCard MUST contain `EMAIL`,
+`FN` (display name),
+and `VERSION` (which version of the vCard standard you're using).
+If available, it SHOULD contain
+`REV` (current timestamp),
+`PHOTO` (avatar), and
+`KEY` (OpenPGP public key,
+in binary format,
+encoded with vanilla base64;
+note that this is different from the OpenPGP 'ASCII Armor' format).
+
+Example vCard:
+
+```
+BEGIN:VCARD
+VERSION:4.0
+EMAIL:alice@example.org
+FN:Alice Wonderland
+KEY:data:application/pgp-keys;base64,[Base64-data]
+PHOTO:data:image/jpeg;base64,[image in Base64]
+REV:20240418T184242Z
+END:VCARD
+```
+
+It is fine if messengers do include a full vCard parser
+and e.g. simply search for the line starting with `EMAIL`
+in order to get the email address.
+
+
+# Transitioning to a new e-mail address (AEAP)
+
+When receiving a message:
+- If the key exists, but belongs to another address
+- AND there is a `Chat-Version` header
+- AND the message is signed correctly
+- AND the From address is (also) in the encrypted (and therefore signed) headers 
+- AND the message timestamp is newer than the contact's `lastseen`
+  (to prevent changing the address back when messages arrive out of order)
+  (this condition is not that important
+  since we will have eventual consistency even without it):
+
+  Replace the contact in _all_ groups,
+  possibly deduplicate the members list,
+  and add a system message to all of these chats.
+
+
 # Miscellaneous
 
 Messengers SHOULD use the header `In-Reply-To` as usual.
@@ -483,22 +541,5 @@ than the date the last action was performed.
 We define the effective date of a message
 as the sending time of the message as indicated by its Date header,
 or the time of first receipt if that date is in the future or unavailable.
-
-
-# Transitioning to a new e-mail address (AEAP)
-
-When receiving a message:
-- If the key exists, but belongs to another address
-- AND there is a `Chat-Version` header
-- AND the message is signed correctly
-- AND the From address is (also) in the encrypted (and therefore signed) headers 
-- AND the message timestamp is newer than the contact's `lastseen`
-  (to prevent changing the address back when messages arrive out of order)
-  (this condition is not that important
-  since we will have eventual consistency even without it):
-
-  Replace the contact in _all_ groups,
-  possibly deduplicate the members list,
-  and add a system message to all of these chats.
 
 Copyright © 2017-2021 Delta Chat contributors.
