@@ -137,46 +137,50 @@ impl Sql {
             .to_str()
             .with_context(|| format!("path {path:?} is not valid unicode"))?
             .to_string();
-        let res = self
-            .call_write(move |conn| {
-                // Check that backup passphrase is correct before resetting our database.
-                conn.execute("ATTACH DATABASE ? AS backup KEY ?", (path_str, passphrase))
-                    .context("failed to attach backup database")?;
-                if let Err(err) = conn
-                    .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
-                    .context("backup passphrase is not correct")
-                {
-                    conn.execute("DETACH DATABASE backup", [])
-                        .context("failed to detach backup database")?;
-                    return Err(err);
-                }
 
-                // Reset the database without reopening it. We don't want to reopen the database because we
-                // don't have main database passphrase at this point.
-                // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
-                // Without resetting import may fail due to existing tables.
+        // Keep `config_cache` locked all the time the db is imported so that nobody can use invalid
+        // values from there. And clear it immediately so as not to forget in case of errors.
+        let mut config_cache = self.config_cache.write().await;
+        config_cache.clear();
+
+        self.call_write(move |conn| {
+            // Check that backup passphrase is correct before resetting our database.
+            conn.execute("ATTACH DATABASE ? AS backup KEY ?", (path_str, passphrase))
+                .context("failed to attach backup database")?;
+            let res = conn
+                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                .context("backup passphrase is not correct");
+
+            // Reset the database without reopening it. We don't want to reopen the database because we
+            // don't have main database passphrase at this point.
+            // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
+            // Without resetting import may fail due to existing tables.
+            let res = res.and_then(|_| {
                 conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
-                    .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")?;
+                    .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")
+            });
+            let res = res.and_then(|_| {
                 conn.execute("VACUUM", [])
-                    .context("failed to vacuum the database")?;
+                    .context("failed to vacuum the database")
+            });
+            let res = res.and(
                 conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
-                    .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
-                let res = conn
-                    .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
-                        Ok(())
-                    })
-                    .context("failed to import from attached backup database");
+                    .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE"),
+            );
+            let res = res.and_then(|_| {
+                conn.query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
+                    Ok(())
+                })
+                .context("failed to import from attached backup database")
+            });
+            let res = res.and(
                 conn.execute("DETACH DATABASE backup", [])
-                    .context("failed to detach backup database")?;
-                res?;
-                Ok(())
-            })
-            .await;
-
-        // The config cache is wrong now that we have a different database
-        self.config_cache.write().await.clear();
-
-        res
+                    .context("failed to detach backup database"),
+            );
+            res?;
+            Ok(())
+        })
+        .await
     }
 
     /// Creates a new connection pool.
