@@ -211,6 +211,9 @@ pub(crate) const DC_FOLDERS_CONFIGURED_KEY: &str = "folders_configured";
 // this value can be increased if the folder configuration is changed and must be redone on next program start
 pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 4;
 
+// Maximum attemps to create a blob file.
+pub(crate) const BLOB_CREATE_ATTEMPTS: u32 = 2;
+
 // If more recipients are needed in SMTP's `RCPT TO:` header, the recipient list is split into
 // chunks. This does not affect MIME's `To:` header. Can be overwritten by setting
 // `max_smtp_rcpt_to` in the provider db.
