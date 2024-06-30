@@ -49,6 +49,7 @@ use crate::tools::{
     create_smeared_timestamps, get_abs_path, gm2local_offset, smeared_time, time, IsNoneOrEmpty,
     SystemTime,
 };
+use crate::webxdc::StatusUpdateSerial;
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -2897,7 +2898,7 @@ async fn prepare_send_msg(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
-    create_send_msg_jobs(context, msg).await
+    create_send_msg_jobs(context, msg, false).await
 }
 
 /// Constructs jobs for sending a message and inserts them into the `smtp` table.
@@ -2906,9 +2907,15 @@ async fn prepare_send_msg(
 /// group with only self and no BCC-to-self configured.
 ///
 /// The caller has to interrupt SMTP loop or otherwise process new rows.
-pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -> Result<Vec<i64>> {
+pub(crate) async fn create_send_msg_jobs(
+    context: &Context,
+    msg: &mut Message,
+    resend: bool,
+) -> Result<Vec<i64>> {
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
-    let mimefactory = MimeFactory::from_msg(context, msg.clone()).await?;
+    let mimefactory = MimeFactory::from_msg(context, msg.clone())
+        .await?
+        .set_resend(resend);
     let attach_selfavatar = mimefactory.attach_selfavatar;
     let mut recipients = mimefactory.recipients();
 
@@ -4212,7 +4219,10 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                 .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                 .await?;
             curr_timestamp += 1;
-            if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
+            if !create_send_msg_jobs(context, &mut msg, false)
+                .await?
+                .is_empty()
+            {
                 context.scheduler.interrupt_smtp().await;
             }
         }
@@ -4272,9 +4282,42 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         msg.timestamp_sort = create_smeared_timestamp(context);
         // note(treefit): only matters if it is the last message in chat (but probably to expensive to check, debounce also solves it)
         chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
-        if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
-            context.scheduler.interrupt_smtp().await;
+        let resend = true;
+        if create_send_msg_jobs(context, &mut msg, resend)
+            .await?
+            .is_empty()
+        {
+            continue;
         }
+        if msg.viewtype == Viewtype::Webxdc {
+            let conn_fn = |conn: &mut rusqlite::Connection| {
+                let range = conn.query_row(
+                    "SELECT IFNULL(min(id), 1), IFNULL(max(id), 0) \
+                     FROM msgs_status_updates WHERE msg_id=?",
+                    (msg.id,),
+                    |row| {
+                        let min_id: StatusUpdateSerial = row.get(0)?;
+                        let max_id: StatusUpdateSerial = row.get(1)?;
+                        Ok((min_id, max_id))
+                    },
+                )?;
+                if range.0 > range.1 {
+                    return Ok(());
+                };
+                // `first_serial` must be decreased to make parallel running
+                // `Context::flush_status_updates()` send the updates again.
+                conn.execute(
+                    "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) \
+                     VALUES(?, ?, ?, '') \
+                     ON CONFLICT(msg_id) \
+                     DO UPDATE SET first_serial=min(first_serial - 1, excluded.first_serial)",
+                    (msg.id, range.0, range.1),
+                )?;
+                Ok(())
+            };
+            context.sql.call_write(conn_fn).await?;
+        }
+        context.scheduler.interrupt_smtp().await;
     }
     Ok(())
 }

@@ -31,6 +31,7 @@ use crate::tools::IsNoneOrEmpty;
 use crate::tools::{
     create_outgoing_rfc724_mid, create_smeared_timestamp, remove_subject_prefix, time,
 };
+use crate::webxdc::StatusUpdateSerial;
 use crate::{location, peer_channels};
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -83,6 +84,7 @@ pub struct MimeFactory {
 
     req_mdn: bool,
     last_added_location_id: Option<u32>,
+    resend: bool,
 
     /// If the created mime-structure contains sync-items,
     /// the IDs of these items are listed here.
@@ -227,6 +229,7 @@ impl MimeFactory {
             references,
             req_mdn,
             last_added_location_id: None,
+            resend: false,
             sync_ids_to_delete: None,
             attach_selfavatar,
         };
@@ -258,11 +261,19 @@ impl MimeFactory {
             references: String::default(),
             req_mdn: false,
             last_added_location_id: None,
+            resend: false,
             sync_ids_to_delete: None,
             attach_selfavatar: false,
         };
 
         Ok(res)
+    }
+
+    /// Returns `MimeFactory` for resending the message if `resend`. E.g. for a resent WebXDC
+    /// instance the status updates must not be sent in the same message to not exceeed the size
+    /// limit.
+    pub(crate) fn set_resend(self, resend: bool) -> Self {
+        Self { resend, ..self }
     }
 
     async fn peerstates_for_recipients(
@@ -1376,8 +1387,14 @@ impl MimeFactory {
         } else if msg.viewtype == Viewtype::Webxdc {
             let topic = peer_channels::create_random_topic();
             headers.push(create_iroh_header(context, topic, msg.id).await?);
-            if let Some(json) = context
-                .render_webxdc_status_update_object(msg.id, None)
+            if self.resend {
+            } else if let (Some(json), _) = context
+                .render_webxdc_status_update_object(
+                    msg.id,
+                    StatusUpdateSerial::MIN,
+                    StatusUpdateSerial::MAX,
+                    None,
+                )
                 .await?
             {
                 parts.push(context.build_status_update_part(&json));
