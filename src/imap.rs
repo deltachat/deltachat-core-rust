@@ -540,6 +540,7 @@ impl Imap {
     ) -> Result<bool> {
         if should_ignore_folder(context, folder, folder_meaning).await? {
             info!(context, "Not fetching from {folder:?}.");
+            session.new_mail = false;
             return Ok(false);
         }
 
