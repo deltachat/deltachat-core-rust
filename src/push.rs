@@ -5,7 +5,6 @@ use anyhow::Result;
 use tokio::sync::RwLock;
 
 use crate::context::Context;
-use crate::net::http;
 
 /// Manages subscription to Apple Push Notification services.
 ///
@@ -48,7 +47,10 @@ impl PushSubscriber {
     }
 
     /// Subscribes for heartbeat notifications with previously set device token.
+    #[cfg(target_os = "ios")]
     pub(crate) async fn subscribe(&self) -> Result<()> {
+        use crate::net::http;
+
         let mut state = self.inner.write().await;
 
         if state.heartbeat_subscribed {
@@ -70,6 +72,14 @@ impl PushSubscriber {
         if response_status.is_success() {
             state.heartbeat_subscribed = true;
         }
+        Ok(())
+    }
+
+    /// Placeholder to skip subscribing to heartbeat notifications outside iOS.
+    #[cfg(not(target_os = "ios"))]
+    pub(crate) async fn subscribe(&self) -> Result<()> {
+        let mut state = self.inner.write().await;
+        state.heartbeat_subscribed = true;
         Ok(())
     }
 
