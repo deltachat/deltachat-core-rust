@@ -322,7 +322,7 @@ mod tests {
     use super::*;
     use crate::chatlist::Chatlist;
     use crate::contact::{Contact, Origin};
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::SystemTime;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -593,6 +593,32 @@ mod tests {
         bob.recv_msg(&sent_msg).await;
         assert!(!token::exists(&bob, token::Namespace::Auth, "testtoken").await?);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_bot_no_sync_msgs() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+        alice.set_config_bool(Config::SyncMsgs, true).await?;
+        let chat_id = alice.create_chat(bob).await.id;
+
+        chat::send_text_msg(alice, chat_id, "hi".to_string()).await?;
+        alice
+            .set_config(Config::Displayname, Some("Alice Human"))
+            .await?;
+        alice.pop_sent_msg().await; // Sync message
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(msg.text, "hi");
+
+        alice.set_config_bool(Config::Bot, true).await?;
+        chat::send_text_msg(alice, chat_id, "hi".to_string()).await?;
+        alice
+            .set_config(Config::Displayname, Some("Alice Bot"))
+            .await?;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(msg.text, "hi");
         Ok(())
     }
 }
