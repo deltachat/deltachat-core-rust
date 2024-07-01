@@ -109,7 +109,7 @@ impl Kml {
         ensure!(to_parse.len() <= 1024 * 1024, "kml-file is too large");
 
         let mut reader = quick_xml::Reader::from_reader(to_parse);
-        reader.trim_text(true);
+        reader.config_mut().trim_text(true);
 
         let mut kml = Kml::new();
         kml.locations = Vec::with_capacity(100);
@@ -226,7 +226,7 @@ impl Kml {
                     == "addr"
             }) {
                 self.addr = addr
-                    .decode_and_unescape_value(reader)
+                    .decode_and_unescape_value(reader.decoder())
                     .ok()
                     .map(|a| a.into_owned());
             }
@@ -256,7 +256,7 @@ impl Kml {
             }) {
                 let v = acc
                     .unwrap()
-                    .decode_and_unescape_value(reader)
+                    .decode_and_unescape_value(reader.decoder())
                     .unwrap_or_default();
 
                 self.curr.accuracy = v.trim().parse().unwrap_or_default();

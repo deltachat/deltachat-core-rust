@@ -162,7 +162,7 @@ fn parse_xml_reader<B: BufRead>(
 
 fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
     let mut reader = quick_xml::Reader::from_str(xml_raw);
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
 
     parse_xml_reader(&mut reader).map_err(|error| Error::InvalidXml {
         position: reader.buffer_position(),

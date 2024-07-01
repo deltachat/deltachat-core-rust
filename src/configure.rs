@@ -730,7 +730,7 @@ pub enum Error {
 
     #[error("XML error at position {position}: {error}")]
     InvalidXml {
-        position: usize,
+        position: u64,
         #[source]
         error: quick_xml::Error,
     },
