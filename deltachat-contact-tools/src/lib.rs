@@ -36,9 +36,6 @@ use chrono::{DateTime, NaiveDateTime};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-// TODOs to clean up:
-// - Apply lints everywhere (https://doc.rust-lang.org/cargo/reference/workspaces.html#the-lints-table)
-
 #[derive(Debug)]
 /// A Contact, as represented in a VCard.
 pub struct VcardContact {
@@ -115,7 +112,9 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
         // If `s` is `EMAIL;TYPE=work:alice@example.com` and `property` is `EMAIL`,
         // then `remainder` is now `;TYPE=work:alice@example.com`
 
-        // TODO this doesn't handle the case where there are quotes around a colon
+        // Note: This doesn't handle the case where there are quotes around a colon,
+        // like `NAME;Foo="Some quoted text: that contains a colon":value`.
+        // This could be improved in the future, but for now, the parsing is good enough.
         let (params, value) = remainder.split_once(':')?;
         // In the example from above, `params` is now `;TYPE=work`
         // and `value` is now `alice@example.com`
