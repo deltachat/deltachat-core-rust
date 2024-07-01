@@ -314,7 +314,8 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DownloadLimit,
 
-    /// Enable sending and executing (applying) sync messages. Sending requires `BccSelf` to be set.
+    /// Enable sending and executing (applying) sync messages. Sending requires `BccSelf` to be set
+    /// and `Bot` unset.
     #[strum(props(default = "1"))]
     SyncMsgs,
 
@@ -494,11 +495,10 @@ impl Context {
     }
 
     /// Returns true if sync messages should be sent.
-    ///
-    /// This requires that both `SyncMsgs` and `BccSelf` settings are enabled.
     pub(crate) async fn should_send_sync_msgs(&self) -> Result<bool> {
         Ok(self.get_config_bool(Config::SyncMsgs).await?
-            && self.get_config_bool(Config::BccSelf).await?)
+            && self.get_config_bool(Config::BccSelf).await?
+            && !self.get_config_bool(Config::Bot).await?)
     }
 
     /// Gets configured "delete_server_after" value.
