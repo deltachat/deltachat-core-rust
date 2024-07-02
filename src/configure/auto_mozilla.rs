@@ -80,7 +80,7 @@ fn parse_server<B: BufRead>(
         })
         .map(|typ| {
             typ.unwrap()
-                .decode_and_unescape_value(reader)
+                .decode_and_unescape_value(reader.decoder())
                 .unwrap_or_default()
                 .to_lowercase()
         })
@@ -191,7 +191,7 @@ fn parse_xml_with_address(in_emailaddr: &str, xml_raw: &str) -> Result<MozAutoco
     };
 
     let mut reader = quick_xml::Reader::from_str(xml_raw);
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
 
     let moz_ac = parse_xml_reader(&mut reader).map_err(|error| Error::InvalidXml {
         position: reader.buffer_position(),

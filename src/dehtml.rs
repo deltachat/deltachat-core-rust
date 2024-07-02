@@ -129,7 +129,7 @@ fn dehtml_quick_xml(buf: &str) -> (String, String) {
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
-    reader.check_end_names(false);
+    reader.config_mut().check_end_names = false;
 
     let mut buf = Vec::new();
 
@@ -299,7 +299,7 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
                 })
             {
                 let href = href
-                    .decode_and_unescape_value(reader)
+                    .decode_and_unescape_value(reader.decoder())
                     .unwrap_or_default()
                     .to_string();
 
@@ -348,7 +348,7 @@ fn maybe_push_tag(
 fn tag_contains_attr(event: &BytesStart, reader: &Reader<impl BufRead>, name: &str) -> bool {
     event.attributes().any(|r| {
         r.map(|a| {
-            a.decode_and_unescape_value(reader)
+            a.decode_and_unescape_value(reader.decoder())
                 .map(|v| v == name)
                 .unwrap_or(false)
         })
@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_dehtml_parse_href() {
-        let html = "<a href=url>text</a";
+        let html = "<a href=url>text</a>";
         let plain = dehtml(html).unwrap().text;
 
         assert_eq!(plain, "[text](url)");
