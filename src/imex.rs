@@ -47,12 +47,13 @@ pub(crate) const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 #[repr(u32)]
 pub enum ImexMode {
     /// Export all private keys and all public keys of the user to the
-    /// directory given as `path`.  The default key is written to the files `public-key-default.asc`
-    /// and `private-key-default.asc`, if there are more keys, they are written to files as
-    /// `public-key-<id>.asc` and `private-key-<id>.asc`
+    /// directory given as `path`. The default key is written to the files
+    /// `{public,private}-key-<addr>-default-<fingerprint>.asc`, if there are more keys, they are
+    /// written to files as `{public,private}-key-<addr>-<id>-<fingerprint>.asc`.
     ExportSelfKeys = 1,
 
-    /// Import private keys found in the directory given as `path`.
+    /// Import private keys found in `path` if it is a directory, otherwise import a private key
+    /// from `path`.
     /// The last imported key is made the default keys unless its name contains the string `legacy`.
     /// Public keys are not imported.
     ImportSelfKeys = 2,
@@ -695,12 +696,12 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
             },
         )
         .await?;
-
+    let self_addr = context.get_primary_self_addr().await?;
     for (id, public_key, private_key, is_default) in keys {
         let id = Some(id).filter(|_| is_default == 0);
 
         if let Ok(key) = public_key {
-            if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
+            if let Err(err) = export_key_to_asc_file(context, dir, &self_addr, id, &key).await {
                 error!(context, "Failed to export public key: {:#}.", err);
                 export_errors += 1;
             }
@@ -708,7 +709,7 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
             export_errors += 1;
         }
         if let Ok(key) = private_key {
-            if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
+            if let Err(err) = export_key_to_asc_file(context, dir, &self_addr, id, &key).await {
                 error!(context, "Failed to export private key: {:#}.", err);
                 export_errors += 1;
             }
@@ -721,15 +722,14 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/*******************************************************************************
- * Classic key export
- ******************************************************************************/
+/// Returns the exported key file name inside `dir`.
 async fn export_key_to_asc_file<T>(
     context: &Context,
     dir: &Path,
+    addr: &str,
     id: Option<i64>,
     key: &T,
-) -> Result<()>
+) -> Result<String>
 where
     T: DcKey + Any,
 {
@@ -740,27 +740,29 @@ where
         } else if any_key.downcast_ref::<SignedSecretKey>().is_some() {
             "private"
         } else {
-            "unknown"
+            bail!("Unknown key type");
         };
         let id = id.map_or("default".into(), |i| i.to_string());
-        dir.join(format!("{}-key-{}.asc", kind, &id))
+        let fp = DcKey::fingerprint(key).hex();
+        format!("{kind}-key-{addr}-{id}-{fp}.asc")
     };
+    let path = dir.join(&file_name);
     info!(
         context,
-        "Exporting key {:?} to {}",
+        "Exporting key {:?} to {}.",
         key.key_id(),
-        file_name.display()
+        path.display()
     );
 
     // Delete the file if it already exists.
-    delete_file(context, &file_name).await.ok();
+    delete_file(context, &path).await.ok();
 
     let content = key.to_asc(None).into_bytes();
-    write_file(context, &file_name, &content)
+    write_file(context, &path, &content)
         .await
-        .with_context(|| format!("cannot write key to {}", file_name.display()))?;
-    context.emit_event(EventType::ImexFileWritten(file_name));
-    Ok(())
+        .with_context(|| format!("cannot write key to {}", path.display()))?;
+    context.emit_event(EventType::ImexFileWritten(path));
+    Ok(file_name)
 }
 
 /// Exports the database to *dest*, encrypted using *passphrase*.
@@ -878,33 +880,46 @@ mod tests {
         let context = TestContext::new().await;
         let key = alice_keypair().public;
         let blobdir = Path::new("$BLOBDIR");
-        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
+        let filename = export_key_to_asc_file(&context.ctx, blobdir, "a@b", None, &key)
             .await
-            .is_ok());
+            .unwrap();
+        assert!(filename.starts_with("public-key-a@b-default-"));
+        assert!(filename.ends_with(".asc"));
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
-        let filename = format!("{blobdir}/public-key-default.asc");
+        let filename = format!("{blobdir}/{filename}");
         let bytes = tokio::fs::read(&filename).await.unwrap();
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_export_private_key_to_asc_file() {
+    async fn test_import_private_key_exported_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().secret;
         let blobdir = Path::new("$BLOBDIR");
-        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
+        let filename = export_key_to_asc_file(&context.ctx, blobdir, "a@b", None, &key)
             .await
-            .is_ok());
+            .unwrap();
+        let fingerprint = filename
+            .strip_prefix("private-key-a@b-default-")
+            .unwrap()
+            .strip_suffix(".asc")
+            .unwrap();
+        assert_eq!(fingerprint, DcKey::fingerprint(&key).hex());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
-        let filename = format!("{blobdir}/private-key-default.asc");
+        let filename = format!("{blobdir}/{filename}");
         let bytes = tokio::fs::read(&filename).await.unwrap();
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
+
+        let alice = &TestContext::new_alice().await;
+        if let Err(err) = imex(alice, ImexMode::ImportSelfKeys, Path::new(&filename), None).await {
+            panic!("got error on import: {err:#}");
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_export_and_import_key() {
+    async fn test_export_and_import_key_from_dir() {
         let export_dir = tempfile::tempdir().unwrap();
 
         let context = TestContext::new_alice().await;
@@ -928,12 +943,6 @@ mod tests {
         )
         .await
         {
-            panic!("got error on import: {err:#}");
-        }
-
-        let keyfile = export_dir.path().join("private-key-default.asc");
-        let context3 = TestContext::new_alice().await;
-        if let Err(err) = imex(&context3.ctx, ImexMode::ImportSelfKeys, &keyfile, None).await {
             panic!("got error on import: {err:#}");
         }
     }

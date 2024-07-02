@@ -30,7 +30,7 @@ def test_qr_setup_contact(acfactory, tmp_path) -> None:
     bob2.export_self_keys(tmp_path)
 
     logging.info("Bob imports a key")
-    bob.import_self_keys(tmp_path / "private-key-default.asc")
+    bob.import_self_keys(tmp_path)
 
     assert bob.get_config("key_id") == "2"
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
