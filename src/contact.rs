@@ -642,7 +642,7 @@ impl Contact {
             set_blocked(context, Nosync, contact_id, false).await?;
         }
 
-        if sync.into() {
+        if sync.into() && sth_modified != Modifier::None {
             chat::sync(
                 context,
                 chat::SyncId::ContactAddr(addr.to_string()),
