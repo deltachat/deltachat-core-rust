@@ -15,7 +15,7 @@ use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
 use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
-use crate::tools::SystemTime;
+use crate::tools::{time, SystemTime};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_outgoing() -> Result<()> {
@@ -3324,6 +3324,22 @@ async fn test_bot_recv_existing_msg() -> Result<()> {
     assert_eq!(chat_id, msg.chat_id);
     assert_eq!(msg_id, msg.id);
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_wrong_date_in_imf_section() {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat_id = tcm.send_recv_accept(bob, alice, "hi").await.chat_id;
+    let time_before_sending = time();
+    let mut sent_msg = alice.send_text(alice_chat_id, "hi").await;
+    sent_msg.payload = sent_msg.payload.replace(
+        "Date:",
+        "Date: Tue, 29 Feb 1972 22:37:57 +0000\nX-Microsoft-Original-Date:",
+    );
+    let msg = bob.recv_msg(&sent_msg).await;
+    assert!(msg.timestamp_sent >= time_before_sending);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
