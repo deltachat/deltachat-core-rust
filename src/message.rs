@@ -1173,13 +1173,17 @@ impl Message {
             );
             self.in_reply_to = Some(quote.rfc724_mid.clone());
 
-            if quote
-                .param
-                .get_bool(Param::GuaranteeE2ee)
-                .unwrap_or_default()
-            {
-                self.param.set(Param::ProtectQuote, "1");
-            }
+            self.param.set_optional(
+                Param::ProtectQuote,
+                match quote
+                    .param
+                    .get_bool(Param::GuaranteeE2ee)
+                    .unwrap_or_default()
+                {
+                    true => Some("1"),
+                    false => None,
+                },
+            );
 
             let text = quote.get_text();
             self.param.set(
@@ -1198,6 +1202,7 @@ impl Message {
         } else {
             self.in_reply_to = None;
             self.param.remove(Param::Quote);
+            self.param.remove(Param::ProtectQuote);
         }
 
         Ok(())
@@ -2325,10 +2330,21 @@ mod tests {
         // Alice quotes encrypted message in unencrypted chat.
         let mut msg = Message::new(Viewtype::Text);
         msg.set_quote(alice, Some(&alice_received_message)).await?;
+        msg.set_text("unencrypted".to_string());
         chat::send_msg(alice, alice_group, &mut msg).await?;
 
         let bob_received_message = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(bob_received_message.quoted_text().unwrap(), "...");
+        assert_eq!(bob_received_message.get_showpadlock(), false);
+
+        // Alice replaces a quote of encrypted message with a quote of unencrypted one.
+        let mut msg1 = Message::new(Viewtype::Text);
+        msg1.set_quote(alice, Some(&alice_received_message)).await?;
+        msg1.set_quote(alice, Some(&msg)).await?;
+        chat::send_msg(alice, alice_group, &mut msg1).await?;
+
+        let bob_received_message = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        assert_eq!(bob_received_message.quoted_text().unwrap(), "unencrypted");
         assert_eq!(bob_received_message.get_showpadlock(), false);
 
         Ok(())
