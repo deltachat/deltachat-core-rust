@@ -1,17 +1,17 @@
 /* eslint-disable camelcase */
 
-import binding from './binding'
-import { C, EventId2EventName } from './constants'
-import { Chat } from './chat'
-import { ChatList } from './chatlist'
-import { Contact } from './contact'
-import { Message } from './message'
-import { Lot } from './lot'
-import { Locations } from './locations'
+import binding from './binding.js'
+import { C, EventId2EventName } from './constants.js'
+import { Chat } from './chat.js'
+import { ChatList } from './chatlist.js'
+import { Contact } from './contact.js'
+import { Message } from './message.js'
+import { Lot } from './lot.js'
+import { Locations } from './locations.js'
 import rawDebug from 'debug'
-import { AccountManager } from './deltachat'
+import { AccountManager } from './deltachat.js'
 import { join } from 'path'
-import { EventEmitter } from 'stream'
+import { EventEmitter } from 'events'
 const debug = rawDebug('deltachat:node:index')
 
 const noop = function () {}

@@ -1,11 +1,12 @@
 /* eslint-disable camelcase */
 
-import binding from './binding'
-import { C } from './constants'
-import { Lot } from './lot'
-import { Chat } from './chat'
-import { WebxdcInfo } from './context'
-const debug = require('debug')('deltachat:node:message')
+import binding from './binding.js'
+import { C } from './constants.js'
+import { Lot } from './lot.js'
+import { Chat } from './chat.js'
+import { WebxdcInfo } from './context.js'
+import rawDebug from 'debug'
+const debug = rawDebug('deltachat:node:message')
 
 export enum MessageDownloadState {
   Available = C.DC_DOWNLOAD_AVAILABLE,

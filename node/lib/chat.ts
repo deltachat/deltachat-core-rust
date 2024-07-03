@@ -1,11 +1,11 @@
 /* eslint-disable camelcase */
 
-import binding from './binding'
+import binding from './binding.js'
 import rawDebug from 'debug'
 const debug = rawDebug('deltachat:node:chat')
-import { C } from './constants'
-import { integerToHexColor } from './util'
-import { ChatJSON } from './types'
+import { C } from './constants.js'
+import { integerToHexColor } from './util.js'
+import { ChatJSON } from './types.js'
 
 interface NativeChat {}
 /**

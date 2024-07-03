@@ -1,9 +1,10 @@
 /* eslint-disable camelcase */
 
-import binding from './binding'
-import { Lot } from './lot'
-import { Chat } from './chat'
-const debug = require('debug')('deltachat:node:chatlist')
+import binding from './binding.js'
+import { Lot } from './lot.js'
+import { Chat } from './chat.js'
+import rawDebug from 'debug'
+const debug = rawDebug('deltachat:node:chatlist')
 
 interface NativeChatList {}
 /**
