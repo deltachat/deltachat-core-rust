@@ -12,7 +12,7 @@ async function run() {
   const password = process.argv[3];
   if (!email || !password)
     throw new Error(
-      "USAGE: node node-add-account.js <EMAILADDRESS> <PASSWORD>"
+      "USAGE: node node-add-account.js <EMAILADDRESS> <PASSWORD>",
     );
   console.log(`creating account for ${email}`);
   const id = await delta.rpc.addAccount();
