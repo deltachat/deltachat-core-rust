@@ -1157,6 +1157,27 @@ impl Message {
         Ok(())
     }
 
+    /// Sets message quote text.
+    ///
+    /// If `text` is `Some((text_str, protect))`, `protect` specifies whether `text_str` should only
+    /// be sent encrypted. If it should, but the message is unencrypted, `text_str` is replaced with
+    /// "...".
+    pub fn set_quote_text(&mut self, text: Option<(String, bool)>) {
+        let Some((text, protect)) = text else {
+            self.param.remove(Param::Quote);
+            self.param.remove(Param::ProtectQuote);
+            return;
+        };
+        self.param.set(Param::Quote, text);
+        self.param.set_optional(
+            Param::ProtectQuote,
+            match protect {
+                true => Some("1"),
+                false => None,
+            },
+        );
+    }
+
     /// Sets message quote.
     ///
     /// Message-Id is used to set Reply-To field, message text is used for quote.
@@ -1173,36 +1194,27 @@ impl Message {
             );
             self.in_reply_to = Some(quote.rfc724_mid.clone());
 
-            self.param.set_optional(
-                Param::ProtectQuote,
-                match quote
+            let text = quote.get_text();
+            let text = if text.is_empty() {
+                // Use summary, similar to "Image" to avoid sending empty quote.
+                quote
+                    .get_summary(context, None)
+                    .await?
+                    .truncated_text(500)
+                    .to_string()
+            } else {
+                text
+            };
+            self.set_quote_text(Some((
+                text,
+                quote
                     .param
                     .get_bool(Param::GuaranteeE2ee)
-                    .unwrap_or_default()
-                {
-                    true => Some("1"),
-                    false => None,
-                },
-            );
-
-            let text = quote.get_text();
-            self.param.set(
-                Param::Quote,
-                if text.is_empty() {
-                    // Use summary, similar to "Image" to avoid sending empty quote.
-                    quote
-                        .get_summary(context, None)
-                        .await?
-                        .truncated_text(500)
-                        .to_string()
-                } else {
-                    text
-                },
-            );
+                    .unwrap_or_default(),
+            )));
         } else {
             self.in_reply_to = None;
-            self.param.remove(Param::Quote);
-            self.param.remove(Param::ProtectQuote);
+            self.set_quote_text(None);
         }
 
         Ok(())

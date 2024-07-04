@@ -577,7 +577,9 @@ pub struct MessageData {
     pub file: Option<String>,
     pub location: Option<(f64, f64)>,
     pub override_sender_name: Option<String>,
+    /// Quoted message id. Takes preference over `quoted_text` (see below).
     pub quoted_message_id: Option<u32>,
+    pub quoted_text: Option<String>,
 }
 
 impl MessageData {
@@ -613,6 +615,9 @@ impl MessageData {
                     ),
                 )
                 .await?;
+        } else if let Some(text) = self.quoted_text {
+            let protect = false;
+            message.set_quote_text(Some((text, protect)));
         }
         Ok(message)
     }
