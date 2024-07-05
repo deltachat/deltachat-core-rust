@@ -1,6 +1,5 @@
 //! # Import/export module.
 
-use std::any::Any;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -731,16 +730,12 @@ async fn export_key_to_asc_file<T>(
     key: &T,
 ) -> Result<()>
 where
-    T: DcKey + Any,
+    T: DcKey,
 {
     let file_name = {
-        let any_key = key as &dyn Any;
-        let kind = if any_key.downcast_ref::<SignedPublicKey>().is_some() {
-            "public"
-        } else if any_key.downcast_ref::<SignedSecretKey>().is_some() {
-            "private"
-        } else {
-            "unknown"
+        let kind = match T::is_private() {
+            false => "public",
+            true => "private",
         };
         let id = id.map_or("default".into(), |i| i.to_string());
         dir.join(format!("{}-key-{}.asc", kind, &id))
