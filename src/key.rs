@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
 
-use anyhow::{ensure, Context as _, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use deltachat_contact_tools::EmailAddress;
 use num_traits::FromPrimitive;
@@ -46,7 +46,14 @@ pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// the ASCII-armored representation.
     fn from_asc(data: &str) -> Result<(Self, BTreeMap<String, String>)> {
         let bytes = data.as_bytes();
-        let (key, headers) = Self::from_armor_single(Cursor::new(bytes)).context("rPGP error")?;
+        let res = Self::from_armor_single(Cursor::new(bytes));
+        let (key, headers) = match res {
+            Err(pgp::errors::Error::NoMatchingPacket) => match Self::is_private() {
+                true => bail!("No private key packet found"),
+                false => bail!("No public key packet found"),
+            },
+            _ => res.context("rPGP error")?,
+        };
         let headers = headers
             .into_iter()
             .map(|(key, values)| {
@@ -89,6 +96,8 @@ pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     fn fingerprint(&self) -> Fingerprint {
         Fingerprint::new(KeyTrait::fingerprint(self))
     }
+
+    fn is_private() -> bool;
 }
 
 pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPublicKey> {
@@ -187,6 +196,10 @@ impl DcKey for SignedPublicKey {
             .unwrap_or_default();
         std::string::String::from_utf8(buf).unwrap_or_default()
     }
+
+    fn is_private() -> bool {
+        false
+    }
 }
 
 impl DcKey for SignedSecretKey {
@@ -201,6 +214,10 @@ impl DcKey for SignedSecretKey {
         self.to_armored_writer(&mut buf, headers.as_ref().into())
             .unwrap_or_default();
         std::string::String::from_utf8(buf).unwrap_or_default()
+    }
+
+    fn is_private() -> bool {
+        true
     }
 }
 
