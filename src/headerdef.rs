@@ -11,6 +11,7 @@ pub enum HeaderDef {
     Date,
     From_,
     To,
+    AutoSubmitted,
 
     /// Carbon copy.
     Cc,

@@ -446,7 +446,11 @@ impl Imap {
             .get_raw_config_int(constants::DC_FOLDERS_CONFIGURED_KEY)
             .await?;
         if folders_configured.unwrap_or_default() < constants::DC_FOLDERS_CONFIGURED_VERSION {
-            let create_mvbox = true;
+            let is_chatmail = match context.get_config_bool(Config::FixIsChatmail).await? {
+                false => session.is_chatmail(),
+                true => context.get_config_bool(Config::IsChatmail).await?,
+            };
+            let create_mvbox = !is_chatmail || context.get_config_bool(Config::MvboxMove).await?;
             self.configure_folders(context, &mut session, create_mvbox)
                 .await?;
         }
@@ -1811,6 +1815,20 @@ async fn needs_move_to_mvbox(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<bool> {
+    let has_chat_version = headers.get_header_value(HeaderDef::ChatVersion).is_some();
+    if !context.get_config_bool(Config::IsChatmail).await?
+        && has_chat_version
+        && headers
+            .get_header_value(HeaderDef::AutoSubmitted)
+            .filter(|val| val.to_ascii_lowercase() == "auto-generated")
+            .is_some()
+    {
+        if let Some(from) = mimeparser::get_from(headers) {
+            if context.is_self_addr(&from.addr).await? {
+                return Ok(true);
+            }
+        }
+    }
     if !context.get_config_bool(Config::MvboxMove).await? {
         return Ok(false);
     }
@@ -1824,7 +1842,7 @@ async fn needs_move_to_mvbox(
         return Ok(false);
     }
 
-    if headers.get_header_value(HeaderDef::ChatVersion).is_some() {
+    if has_chat_version {
         Ok(true)
     } else if let Some(parent) = get_prefetch_parent_message(context, headers).await? {
         match parent.is_dc_message {
