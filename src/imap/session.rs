@@ -24,6 +24,7 @@ const PREFETCH_FLAGS: &str = "(UID INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIE
                               FROM \
                               IN-REPLY-TO REFERENCES \
                               CHAT-VERSION \
+                              AUTO-SUBMITTED \
                               AUTOCRYPT-SETUP-MESSAGE\
                               )])";
 

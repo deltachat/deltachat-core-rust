@@ -13,7 +13,7 @@ use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use tokio::fs;
 
 use crate::blob::BlobObject;
-use crate::constants::{self, DC_VERSION_STR};
+use crate::constants;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -131,7 +131,8 @@ pub enum Config {
     #[strum(props(default = "0"))]
     SentboxWatch,
 
-    /// True if chat messages should be moved to a separate folder.
+    /// True if chat messages should be moved to a separate folder. Auto-sent messages like sync
+    /// ones are moved there anyway.
     #[strum(props(default = "1"))]
     MvboxMove,
 
@@ -385,9 +386,6 @@ impl Config {
     /// multiple users are sharing an account. Another example is `Self::SyncMsgs` itself which
     /// mustn't be controlled by other devices.
     pub(crate) fn is_synced(&self) -> bool {
-        // NB: We don't restart IO from the synchronisation code, so `MvboxMove` isn't effective
-        // immediately if `ConfiguredMvboxFolder` is unset, but only after a reconnect (see
-        // `Imap::prepare()`).
         matches!(
             self,
             Self::Displayname
@@ -401,10 +399,7 @@ impl Config {
 
     /// Whether the config option needs an IO scheduler restart to take effect.
     pub(crate) fn needs_io_restart(&self) -> bool {
-        matches!(
-            self,
-            Config::MvboxMove | Config::OnlyFetchMvbox | Config::SentboxWatch
-        )
+        matches!(self, Config::OnlyFetchMvbox | Config::SentboxWatch)
     }
 }
 
@@ -430,7 +425,7 @@ impl Context {
                         .into_owned()
                 })
             }
-            Config::SysVersion => Some((*DC_VERSION_STR).clone()),
+            Config::SysVersion => Some((*constants::DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{RECOMMENDED_FILE_SIZE}")),
             Config::SysConfigKeys => Some(get_config_keys_string()),
             _ => self.sql.get_raw_config(key.as_ref()).await?,
@@ -488,7 +483,8 @@ impl Context {
     /// Returns true if movebox ("DeltaChat" folder) should be watched.
     pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {
         Ok(self.get_config_bool(Config::MvboxMove).await?
-            || self.get_config_bool(Config::OnlyFetchMvbox).await?)
+            || self.get_config_bool(Config::OnlyFetchMvbox).await?
+            || !self.get_config_bool(Config::IsChatmail).await?)
     }
 
     /// Returns true if sentbox ("Sent" folder) should be watched.

@@ -477,8 +477,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         ctx.set_config(Config::E2eeEnabled, Some("1")).await?;
     }
 
-    let create_mvbox = ctx.should_watch_mvbox().await?;
-
+    let create_mvbox = !is_chatmail;
     imap.configure_folders(ctx, &mut imap_session, create_mvbox)
         .await?;
 
