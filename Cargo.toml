@@ -180,7 +180,7 @@ thiserror = "1"
 tokio = "1.38.0"
 tokio-util = "0.7.11"
 tracing-subscriber = "0.3"
-yerpc = "0.5.2"
+yerpc = "0.6.2"
 
 [features]
 default = ["vendored"]
