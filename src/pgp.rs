@@ -11,6 +11,7 @@ use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
     SignedPublicSubKey, SignedSecretKey, StandaloneSignature, SubkeyParamsBuilder,
 };
+use pgp::crypto::ecc_curve::ECCCurve;
 use pgp::crypto::hash::HashAlgorithm;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{
@@ -115,7 +116,14 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
     let headers = dearmor
         .headers
         .into_iter()
-        .map(|(key, value)| (key.trim().to_lowercase(), value.trim().to_string()))
+        .map(|(key, values)| {
+            (
+                key.trim().to_lowercase(),
+                values
+                    .last()
+                    .map_or_else(String::new, |s| s.trim().to_string()),
+            )
+        })
         .collect();
 
     Ok((typ, headers, bytes))
@@ -145,7 +153,9 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     let (signing_key_type, encryption_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
-        KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
+        KeyGenType::Ed25519 | KeyGenType::Default => {
+            (PgpKeyType::EdDSA, PgpKeyType::ECDH(ECCCurve::Curve25519))
+        }
     };
 
     let user_id = format!("<{addr}>");
@@ -262,7 +272,7 @@ pub async fn pk_encrypt(
                 lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
             };
 
-            let encoded_msg = encrypted_msg.to_armored_string(None)?;
+            let encoded_msg = encrypted_msg.to_armored_string(Default::default())?;
 
             Ok(encoded_msg)
         })
@@ -279,7 +289,7 @@ pub fn pk_calc_signature(
         || "".into(),
         HASH_ALGORITHM,
     )?;
-    let signature = msg.into_signature().to_armored_string(None)?;
+    let signature = msg.into_signature().to_armored_string(Default::default())?;
     Ok(signature)
 }
 
@@ -304,31 +314,26 @@ pub fn pk_decrypt(
 
     let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.iter().collect();
 
-    let (decryptor, _) = msg.decrypt(|| "".into(), &skeys[..])?;
-    let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
+    let (msg, _) = msg.decrypt(|| "".into(), &skeys[..])?;
 
-    if let Some(msg) = msgs.into_iter().next() {
-        // get_content() will decompress the message if needed,
-        // but this avoids decompressing it again to check signatures
-        let msg = msg.decompress()?;
+    // get_content() will decompress the message if needed,
+    // but this avoids decompressing it again to check signatures
+    let msg = msg.decompress()?;
 
-        let content = match msg.get_content()? {
-            Some(content) => content,
-            None => bail!("The decrypted message is empty"),
-        };
+    let content = match msg.get_content()? {
+        Some(content) => content,
+        None => bail!("The decrypted message is empty"),
+    };
 
-        if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
-            for pkey in public_keys_for_validation {
-                if signed_msg.verify(&pkey.primary_key).is_ok() {
-                    let fp = DcKey::fingerprint(pkey);
-                    ret_signature_fingerprints.insert(fp);
-                }
+    if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
+        for pkey in public_keys_for_validation {
+            if signed_msg.verify(&pkey.primary_key).is_ok() {
+                let fp = DcKey::fingerprint(pkey);
+                ret_signature_fingerprints.insert(fp);
             }
         }
-        Ok((content, ret_signature_fingerprints))
-    } else {
-        bail!("No valid messages found");
     }
+    Ok((content, ret_signature_fingerprints))
 }
 
 /// Validates detached signature.
@@ -368,7 +373,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
         let msg =
             lit_msg.encrypt_with_password(&mut rng, s2k, SYMMETRIC_KEY_ALGORITHM, || passphrase)?;
 
-        let encoded_msg = msg.to_armored_string(None)?;
+        let encoded_msg = msg.to_armored_string(Default::default())?;
 
         Ok(encoded_msg)
     })
@@ -384,16 +389,11 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
 
     let passphrase = passphrase.to_string();
     tokio::task::spawn_blocking(move || {
-        let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
+        let msg = enc_msg.decrypt_with_password(|| passphrase)?;
 
-        let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
-        if let Some(msg) = msgs.first() {
-            match msg.get_content()? {
-                Some(content) => Ok(content),
-                None => bail!("Decrypted message is empty"),
-            }
-        } else {
-            bail!("No valid messages found")
+        match msg.get_content()? {
+            Some(content) => Ok(content),
+            None => bail!("Decrypted message is empty"),
         }
     })
     .await?
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn test_split_armored_data_1() {
         let (typ, _headers, base64) = split_armored_data(
-            b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\naGVsbG8gd29ybGQ=\n-----END PGP MESSAGE----",
+            b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\naGVsbG8gd29ybGQ=\n-----END PGP MESSAGE-----",
         )
         .unwrap();
 
