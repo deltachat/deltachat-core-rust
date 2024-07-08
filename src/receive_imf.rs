@@ -1444,12 +1444,19 @@ async fn add_parts(
             Ok(node_addr) => {
                 info!(context, "Adding iroh peer with address {node_addr:?}.");
                 let instance_id = parent.context("Failed to get parent message")?.id;
-                let node_id = node_addr.node_id;
-                let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
-                let topic = get_iroh_topic_for_msg(context, instance_id).await?;
-                iroh_add_peer_for_topic(context, instance_id, topic, node_id, relay_server).await?;
-                let iroh = context.get_or_try_init_peer_channel().await?;
-                iroh.maybe_add_gossip_peers(topic, vec![node_addr]).await?;
+                if let Some(topic) = get_iroh_topic_for_msg(context, instance_id).await? {
+                    let node_id = node_addr.node_id;
+                    let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
+                    iroh_add_peer_for_topic(context, instance_id, topic, node_id, relay_server)
+                        .await?;
+                    let iroh = context.get_or_try_init_peer_channel().await?;
+                    iroh.maybe_add_gossip_peers(topic, vec![node_addr]).await?;
+                } else {
+                    warn!(
+                        context,
+                        "Could not add iroh peer because {instance_id} has no topic"
+                    );
+                }
                 chat_id = DC_CHAT_ID_TRASH;
             }
             Err(err) => {
