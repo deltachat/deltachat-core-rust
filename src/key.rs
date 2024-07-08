@@ -46,7 +46,19 @@ pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// the ASCII-armored representation.
     fn from_asc(data: &str) -> Result<(Self, BTreeMap<String, String>)> {
         let bytes = data.as_bytes();
-        Self::from_armor_single(Cursor::new(bytes)).context("rPGP error")
+        let (key, headers) = Self::from_armor_single(Cursor::new(bytes)).context("rPGP error")?;
+        let headers = headers
+            .into_iter()
+            .map(|(key, values)| {
+                (
+                    key.trim().to_lowercase(),
+                    values
+                        .last()
+                        .map_or_else(String::new, |s| s.trim().to_string()),
+                )
+            })
+            .collect();
+        Ok((key, headers))
     }
 
     /// Serialise the key as bytes.
@@ -168,13 +180,10 @@ impl DcKey for SignedPublicKey {
         // safe to ignore this error.
         // Because we write to a Vec<u8> the io::Write impls never
         // fail and we can hide this error.
-        let headers = header.map(|(key, value)| {
-            let mut m = BTreeMap::new();
-            m.insert(key.to_string(), value.to_string());
-            m
-        });
+        let headers =
+            header.map(|(key, value)| BTreeMap::from([(key.to_string(), vec![value.to_string()])]));
         let mut buf = Vec::new();
-        self.to_armored_writer(&mut buf, headers.as_ref())
+        self.to_armored_writer(&mut buf, headers.as_ref().into())
             .unwrap_or_default();
         std::string::String::from_utf8(buf).unwrap_or_default()
     }
@@ -186,13 +195,10 @@ impl DcKey for SignedSecretKey {
         // safe to do these unwraps.
         // Because we write to a Vec<u8> the io::Write impls never
         // fail and we can hide this error.  The string is always ASCII.
-        let headers = header.map(|(key, value)| {
-            let mut m = BTreeMap::new();
-            m.insert(key.to_string(), value.to_string());
-            m
-        });
+        let headers =
+            header.map(|(key, value)| BTreeMap::from([(key.to_string(), vec![value.to_string()])]));
         let mut buf = Vec::new();
-        self.to_armored_writer(&mut buf, headers.as_ref())
+        self.to_armored_writer(&mut buf, headers.as_ref().into())
             .unwrap_or_default();
         std::string::String::from_utf8(buf).unwrap_or_default()
     }
