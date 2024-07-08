@@ -2095,6 +2095,18 @@ Message content",
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_no_unencrypted_name_in_self_chat() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let bob = &tcm.bob().await;
+    bob.set_config(Config::Displayname, Some("Bob Smith"))
+        .await?;
+    let chat_id = bob.get_self_chat().await.id;
+    let msg = bob.send_text(chat_id, "Happy birthday to me").await;
+    assert_eq!(msg.payload.contains("Bob Smith"), false);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_outgoing_classic_mail_creates_chat() {
     let alice = TestContext::new_alice().await;
 

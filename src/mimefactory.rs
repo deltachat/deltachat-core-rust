@@ -299,19 +299,12 @@ impl MimeFactory {
     fn verified(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat, msg } => {
-                if chat.is_protected() {
-                    if msg.get_info_type() == SystemMessage::SecurejoinMessage {
-                        // Securejoin messages are supposed to verify a key.
-                        // In order to do this, it is necessary that they can be sent
-                        // to a key that is not yet verified.
-                        // This has to work independently of whether the chat is protected right now.
-                        false
-                    } else {
-                        true
-                    }
-                } else {
-                    false
-                }
+                chat.is_self_talk() ||
+                    // Securejoin messages are supposed to verify a key.
+                    // In order to do this, it is necessary that they can be sent
+                    // to a key that is not yet verified.
+                    // This has to work independently of whether the chat is protected right now.
+                    chat.is_protected() && msg.get_info_type() != SystemMessage::SecurejoinMessage
             }
             Loaded::Mdn { .. } => false,
         }
