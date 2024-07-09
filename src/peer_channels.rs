@@ -183,7 +183,7 @@ impl Iroh {
 
     /// Get the iroh [NodeAddr] without direct IP addresses.
     pub(crate) async fn get_node_addr(&self) -> Result<NodeAddr> {
-        let mut addr = self.endpoint.my_addr().await?;
+        let mut addr = self.endpoint.node_addr().await?;
         addr.info.direct_addresses = BTreeSet::new();
         Ok(addr)
     }
@@ -246,7 +246,7 @@ impl Context {
             .await?;
 
         // create gossip
-        let my_addr = endpoint.my_addr().await?;
+        let my_addr = endpoint.node_addr().await?;
         let gossip = Gossip::from_endpoint(endpoint.clone(), Default::default(), &my_addr.info);
 
         // spawn endpoint loop that forwards incoming connections to the gossiper
@@ -440,11 +440,11 @@ async fn handle_connection(
     let conn = conn.await?;
     let peer_id = iroh_net::endpoint::get_remote_node_id(&conn)?;
 
-    match alpn.as_bytes() {
+    match alpn.as_slice() {
         GOSSIP_ALPN => gossip
             .handle_connection(conn)
             .await
-            .context(format!("Connection to {peer_id} with ALPN {alpn} failed"))?,
+            .context(format!("Gossip connection to {peer_id} failed"))?,
         _ => warn!(
             context,
             "Ignoring connection from {peer_id}: unsupported ALPN protocol"
