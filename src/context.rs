@@ -814,6 +814,10 @@ impl Context {
         }
 
         res.insert("is_chatmail", self.is_chatmail().await?.to_string());
+        res.insert(
+            "is_muted",
+            self.get_config_bool(Config::IsMuted).await?.to_string(),
+        );
 
         if let Some(metadata) = &*self.metadata.read().await {
             if let Some(comment) = &metadata.comment {
@@ -1548,6 +1552,22 @@ mod tests {
         let bob = Chat::load_from_db(&t, bob.id).await.unwrap();
         assert!(!bob.is_muted());
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_muted_context() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 0);
+        t.set_config(Config::IsMuted, Some("1")).await?;
+        let chat = t.create_chat_with_contact("", "bob@g.it").await;
+        receive_msg(&t, &chat).await;
+
+        // muted contexts should still show dimmed badge counters eg. in the sidebars,
+        // (same as muted chats show dimmed badge counters in the chatlist)
+        // therefore the fresh messages count should not be affected.
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
