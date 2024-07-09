@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.141.2] - 2024-07-09
+
+### Features / Changes
+
+- Add `is_muted` config option.
+- Parse vcards exported by protonmail ([#5723](https://github.com/deltachat/deltachat-core-rust/pull/5723)).
+- Disable sending sync messages for bots ([#5705](https://github.com/deltachat/deltachat-core-rust/pull/5705)).
+
+### Fixes
+
+- Don't fail if going to send plaintext, but some peerstate is missing.
+- Correctly sanitize input everywhere ([#5697](https://github.com/deltachat/deltachat-core-rust/pull/5697)).
+- Do not try to register non-iOS tokens for heartbeats.
+- imap: Reset new_mail if folder is ignored.
+- Use and prefer Date from signed message part ([#5716](https://github.com/deltachat/deltachat-core-rust/pull/5716)).
+- Distinguish between database errors and no gossip topic.
+- MimeFactory::verified: Return true for self-chat.
+
+### Refactor
+
+- `MimeFactory::is_e2ee_guaranteed()`: always respect `Param::ForcePlaintext`.
+- Protect from reusing migration versions ([#5719](https://github.com/deltachat/deltachat-core-rust/pull/5719)).
+- Move `quota_needs_update` calculation to a separate function ([#5683](https://github.com/deltachat/deltachat-core-rust/pull/5683)).
+
+### Other
+
+- Document vCards in the specification ([#5724](https://github.com/deltachat/deltachat-core-rust/pull/5724))
+
+### Miscellaneous Tasks
+
+- cargo: Bump toml from 0.8.13 to 0.8.14.
+- cargo: Bump serde_json from 1.0.117 to 1.0.120.
+- cargo: Bump syn from 2.0.66 to 2.0.68.
+- cargo: Bump async-broadcast from 0.7.0 to 0.7.1.
+- cargo: Bump url from 2.5.0 to 2.5.2.
+- cargo: Bump log from 0.4.21 to 0.4.22.
+- cargo: Bump regex from 1.10.4 to 1.10.5.
+- cargo: Bump proptest from 1.4.0 to 1.5.0.
+- cargo: Bump uuid from 1.8.0 to 1.9.1.
+- cargo: Bump backtrace from 0.3.72 to 0.3.73.
+- cargo: Bump quick-xml from 0.31.0 to 0.35.0.
+- cargo: Update yerpc to 0.6.2.
+- cargo: Update rPGP from 0.11 to 0.13.
+
 ## [1.141.1] - 2024-06-27
 
 ### Fixes
@@ -4493,3 +4537,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.140.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.1...v1.140.2
 [1.141.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.2...v1.141.0
 [1.141.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.0...v1.141.1
+[1.141.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.1...v1.141.2
