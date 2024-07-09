@@ -103,21 +103,22 @@ impl Iroh {
         };
 
         let peers = get_iroh_gossip_peers(ctx, msg_id).await?;
+        let node_ids = peers.iter().map(|p| p.node_id).collect::<Vec<_>>();
+
         info!(
             ctx,
-            "IROH_REALTIME: Joining gossip with peers: {:?}",
-            peers.iter().map(|p| p.node_id).collect::<Vec<_>>()
+            "IROH_REALTIME: Joining gossip with peers: {:?}", node_ids,
         );
 
-        // Connect to all peers
-        for peer in &peers {
-            self.endpoint.add_node_addr(peer.clone())?;
+        // Inform iroh of potentially new node addresses
+        for node_addr in &peers {
+            if !node_addr.info.is_empty() {
+                self.endpoint.add_node_addr(node_addr.clone())?;
+            }
         }
 
-        let connect_future = self
-            .gossip
-            .join(topic, peers.into_iter().map(|addr| addr.node_id).collect())
-            .await?;
+        // Connect to all peers
+        let connect_future = self.gossip.join(topic, node_ids).await?;
 
         let ctx = ctx.clone();
         let gossip = self.gossip.clone();
