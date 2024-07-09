@@ -78,6 +78,7 @@ skip = [
      { name = "ring", version = "0.16.20" },
      { name = "rustls-pemfile", version = "1.0.4" },
      { name = "rustls", version = "0.21.11" },
+     { name = "rustls", version = "0.22.4" },
      { name = "rustls-webpki", version = "0.101.7" },
      { name = "sec1", version = "0.3.0" },
      { name = "sha2", version = "<0.10" },
