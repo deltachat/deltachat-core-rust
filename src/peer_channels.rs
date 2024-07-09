@@ -636,6 +636,46 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sets_topic() {
+        let mut tcm = TestContextManager::new();
+        let alice = &mut tcm.alice().await;
+        let bob = &mut tcm.bob().await;
+
+        bob.ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
+        alice
+            .ctx
+            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
+            .await
+            .unwrap();
+
+        assert!(alice
+            .get_config_bool(Config::WebxdcRealtimeEnabled)
+            .await
+            .unwrap());
+        // Alice sends webxdc to bob
+        let alice_chat = alice.create_chat(bob).await;
+        let mut instance = Message::new(Viewtype::File);
+        instance
+            .set_file_from_bytes(
+                alice,
+                "minimal.xdc",
+                include_bytes!("../test-data/webxdc/minimal.xdc"),
+                None,
+            )
+            .await
+            .unwrap();
+
+        send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
+        let webxdc = alice.pop_sent_msg().await;
+        let bob_webdxc = bob.recv_msg(&webxdc).await;
+        assert!(get_iroh_topic_for_msg(bob, bob_webdxc.id).await.unwrap().is_some())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_can_reconnect() {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
