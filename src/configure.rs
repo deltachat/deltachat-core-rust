@@ -454,15 +454,27 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 900);
 
-    if imap_session.is_chatmail() {
-        ctx.set_config(Config::IsChatmail, Some("1")).await?;
+    let is_chatmail = match ctx.get_config_bool(Config::FixIsChatmail).await? {
+        false => {
+            let is_chatmail = imap_session.is_chatmail();
+            ctx.set_config(
+                Config::IsChatmail,
+                Some(match is_chatmail {
+                    false => "0",
+                    true => "1",
+                }),
+            )
+            .await?;
+            is_chatmail
+        }
+        true => ctx.get_config_bool(Config::IsChatmail).await?,
+    };
+    if is_chatmail {
         ctx.set_config(Config::SentboxWatch, None).await?;
         ctx.set_config(Config::MvboxMove, Some("0")).await?;
         ctx.set_config(Config::OnlyFetchMvbox, None).await?;
         ctx.set_config(Config::ShowEmails, None).await?;
         ctx.set_config(Config::E2eeEnabled, Some("1")).await?;
-    } else {
-        ctx.set_config(Config::IsChatmail, Some("0")).await?;
     }
 
     let create_mvbox = ctx.should_watch_mvbox().await?;

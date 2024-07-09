@@ -815,6 +815,12 @@ impl Context {
 
         res.insert("is_chatmail", self.is_chatmail().await?.to_string());
         res.insert(
+            "fix_is_chatmail",
+            self.get_config_bool(Config::FixIsChatmail)
+                .await?
+                .to_string(),
+        );
+        res.insert(
             "is_muted",
             self.get_config_bool(Config::IsMuted).await?.to_string(),
         );

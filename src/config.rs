@@ -257,6 +257,9 @@ pub enum Config {
     /// True if account is a chatmail account.
     IsChatmail,
 
+    /// True if `IsChatmail` mustn't be autoconfigured. For tests.
+    FixIsChatmail,
+
     /// True if account is muted.
     IsMuted,
 
