@@ -257,6 +257,9 @@ pub enum Config {
     /// True if account is a chatmail account.
     IsChatmail,
 
+    /// True if account is muted.
+    IsMuted,
+
     /// All secondary self addresses separated by spaces
     /// (`addr1@example.org addr2@example.org addr3@example.org`)
     SecondaryAddrs,
