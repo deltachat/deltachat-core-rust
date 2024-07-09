@@ -672,7 +672,10 @@ mod tests {
         send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
         let webxdc = alice.pop_sent_msg().await;
         let bob_webdxc = bob.recv_msg(&webxdc).await;
-        assert!(get_iroh_topic_for_msg(bob, bob_webdxc.id).await.unwrap().is_some())
+        assert!(get_iroh_topic_for_msg(bob, bob_webdxc.id)
+            .await
+            .unwrap()
+            .is_some())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
