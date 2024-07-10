@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
 use deltachat_contact_tools::EmailAddress;
-use futures::StreamExt;
+use futures::TryStreamExt;
 use futures_lite::FutureExt;
 
 use tokio::fs::{self, File};
@@ -269,16 +269,37 @@ async fn import_backup(
         context.get_dbfile().display()
     );
 
+    import_backup_stream(context, backup_file, file_size, passphrase).await?;
+    Ok(())
+}
+
+/// Imports backup by reading a tar file from a stream.
+///
+/// `file_size` is ideally the size of the tar file,
+/// but can be an estimate such as the sum of all
+/// archived files without taking headers into account.
+/// It is used to emit progress events.
+pub(crate) async fn import_backup_stream<R: tokio::io::AsyncRead + Unpin>(
+    context: &Context,
+    backup_file: R,
+    file_size: u64,
+    passphrase: String,
+) -> Result<()> {
     let mut archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
     let mut last_progress = 0;
-    while let Some(file) = entries.next().await {
-        let f = &mut file?;
-
+    while let Some(mut f) = entries
+        .try_next()
+        .await
+        .context("Failed to get next entry")?
+    {
         let current_pos = f.raw_file_position();
-        let progress = 1000 * current_pos / file_size;
-        if progress != last_progress && progress > 10 && progress < 1000 {
+        let progress = std::cmp::min(
+            1000 * current_pos.checked_div(file_size).unwrap_or_default(),
+            999,
+        );
+        if progress != last_progress && progress > 10 {
             // We already emitted ImexProgress(10) above
             context.emit_event(EventType::ImexProgress(progress as usize));
             last_progress = progress;
@@ -286,7 +307,9 @@ async fn import_backup(
 
         if f.path()?.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
             // async_tar can't unpack to a specified file name, so we just unpack to the blobdir and then move the unpacked file.
-            f.unpack_in(context.get_blobdir()).await?;
+            f.unpack_in(context.get_blobdir())
+                .await
+                .context("Failed to unpack database")?;
             let unpacked_database = context.get_blobdir().join(DBFILE_BACKUP_NAME);
             context
                 .sql
@@ -298,7 +321,9 @@ async fn import_backup(
                 .context("cannot remove unpacked database")?;
         } else {
             // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
-            f.unpack_in(context.get_blobdir()).await?;
+            f.unpack_in(context.get_blobdir())
+                .await
+                .context("Failed to unpack blob")?;
             let from_path = context.get_blobdir().join(f.path()?);
             if from_path.is_file() {
                 if let Some(name) = from_path.file_name() {
@@ -375,26 +400,32 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         dest_path.display(),
     );
 
-    export_backup_inner(context, &temp_db_path, &temp_path).await?;
+    let file = File::create(&temp_path).await?;
+    let blobdir = BlobDirContents::new(context).await?;
+    export_backup_stream(context, &temp_db_path, blobdir, file)
+        .await
+        .context("Exporting backup to file failed")?;
     fs::rename(temp_path, &dest_path).await?;
     context.emit_event(EventType::ImexFileWritten(dest_path));
     Ok(())
 }
 
-async fn export_backup_inner(
-    context: &Context,
+/// Exports the database and blobs into a stream.
+pub(crate) async fn export_backup_stream<'a, W>(
+    context: &'a Context,
     temp_db_path: &Path,
-    temp_path: &Path,
-) -> Result<()> {
-    let file = File::create(temp_path).await?;
-
-    let mut builder = tokio_tar::Builder::new(file);
+    blobdir: BlobDirContents<'a>,
+    writer: W,
+) -> Result<()>
+where
+    W: tokio::io::AsyncWrite + tokio::io::AsyncWriteExt + Unpin + Send + 'static,
+{
+    let mut builder = tokio_tar::Builder::new(writer);
 
     builder
         .append_path_with_name(temp_db_path, DBFILE_BACKUP_NAME)
         .await?;
 
-    let blobdir = BlobDirContents::new(context).await?;
     let mut last_progress = 0;
 
     for (i, blob) in blobdir.iter().enumerate() {

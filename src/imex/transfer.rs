@@ -1,16 +1,11 @@
 //! Transfer a backup to an other device.
 //!
-//! This module provides support for using n0's iroh tool to initiate transfer of a backup
-//! to another device using a QR code.
+//! This module provides support for using [iroh](https://iroh.computer/)
+//! to initiate transfer of a backup to another device using a QR code.
 //!
-//! Using the iroh terminology there are two parties to this:
-//!
+//! There are two parties to this:
 //! - The *Provider*, which starts a server and listens for connections.
 //! - The *Getter*, which connects to the server and retrieves the data.
-//!
-//! Iroh is designed around the idea of verifying hashes, the downloads are verified as
-//! they are retrieved.  The entire transfer is initiated by requesting the data of a single
-//! root hash.
 //!
 //! Both the provider and the getter are authenticated:
 //!
@@ -21,23 +16,29 @@
 //! Both these are transferred in the QR code offered to the getter.  This ensures that the
 //! getter can not connect to an impersonated provider and the provider does not offer the
 //! download to an impersonated getter.
+//!
+//! Protocol starts by getter opening a bidirectional QUIC stream
+//! to the provider and sending authentication token.
+//! Provider verifies received authentication token
+//! and streams back the backup in tar format.
+//! Getter receives the backup and acknowledges successful reception
+//! by sending a single byte.
+//! Provider closes the endpoint after receiving an acknowledgment.
 
 use std::future::Future;
-use std::net::Ipv4Addr;
-use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
-use async_channel::Receiver;
 use futures_lite::StreamExt;
-use iroh::blobs::Collection;
-use iroh::get::DataStream;
-use iroh::progress::ProgressEmitter;
-use iroh::protocol::AuthToken;
-use iroh::provider::{DataSource, Event, Provider, Ticket};
-use iroh::Hash;
-use iroh_old as iroh;
+use iroh_net::relay::RelayMode;
+use iroh_net::Endpoint;
+use iroh_old;
+use iroh_old::blobs::Collection;
+use iroh_old::get::DataStream;
+use iroh_old::progress::ProgressEmitter;
+use iroh_old::provider::Ticket;
 use tokio::fs::{self, File};
 use tokio::io::{self, AsyncWriteExt, BufWriter};
 use tokio::sync::broadcast::error::RecvError;
@@ -46,18 +47,21 @@ use tokio::task::{JoinHandle, JoinSet};
 use tokio_stream::wrappers::ReadDirStream;
 use tokio_util::sync::CancellationToken;
 
-use crate::blob::BlobDirContents;
 use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
 use crate::context::Context;
+use crate::imex::BlobDirContents;
 use crate::message::{Message, Viewtype};
 use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
-use crate::tools::{time, TempPathGuard};
-use crate::{e2ee, EventType};
+use crate::tools::{create_id, time, TempPathGuard};
+use crate::EventType;
 
-use super::{export_database, DBFILE_BACKUP_NAME};
+use super::{export_backup_stream, export_database, import_backup_stream, DBFILE_BACKUP_NAME};
 
 const MAX_CONCURRENT_DIALS: u8 = 16;
+
+/// ALPN protocol identifier for the backup transfer protocol.
+const BACKUP_ALPN: &[u8] = b"/deltachat/backup";
 
 /// Provide or send a backup of this device.
 ///
@@ -69,15 +73,21 @@ const MAX_CONCURRENT_DIALS: u8 = 16;
 ///
 /// This starts a task which acquires the global "ongoing" mutex.  If you need to stop the
 /// task use the [`Context::stop_ongoing`] mechanism.
-///
-/// The task implements [`Future`] and awaiting it will complete once a transfer has been
-/// either completed or aborted.
 #[derive(Debug)]
 pub struct BackupProvider {
-    /// The supervisor task, run by [`BackupProvider::watch_provider`].
+    /// iroh-net endpoint.
+    _endpoint: Endpoint,
+
+    /// iroh-net address.
+    node_addr: iroh_net::NodeAddr,
+
+    /// Authentication token that should be submitted
+    /// to retrieve the backup.
+    auth_token: String,
+
+    /// Handle for the task accepting backup transfer requests.
     handle: JoinHandle<Result<()>>,
-    /// The ticket to retrieve the backup collection.
-    ticket: Ticket,
+
     /// Guard to cancel the provider on drop.
     _drop_guard: tokio_util::sync::DropGuard,
 }
@@ -94,9 +104,13 @@ impl BackupProvider {
     ///
     /// [`Accounts::stop_io`]: crate::accounts::Accounts::stop_io
     pub async fn prepare(context: &Context) -> Result<Self> {
-        e2ee::ensure_secret_key_exists(context)
-            .await
-            .context("Private key not available, aborting backup export")?;
+        let relay_mode = RelayMode::Disabled;
+        let endpoint = Endpoint::builder()
+            .alpns(vec![BACKUP_ALPN.to_vec()])
+            .relay_mode(relay_mode)
+            .bind(0)
+            .await?;
+        let node_addr = endpoint.node_addr().await?;
 
         // Acquire global "ongoing" mutex.
         let cancel_token = context.alloc_ongoing().await?;
@@ -104,195 +118,153 @@ impl BackupProvider {
         let context_dir = context
             .get_blobdir()
             .parent()
-            .ok_or_else(|| anyhow!("Context dir not found"))?;
+            .context("Context dir not found")?;
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
             warn!(context, "Previous database export deleted");
         }
         let dbfile = TempPathGuard::new(dbfile);
-        let res = tokio::select! {
-            biased;
-            res = Self::prepare_inner(context, &dbfile) => {
-                match res {
-                    Ok(slf) => Ok(slf),
-                    Err(err) => {
-                        error!(context, "Failed to set up second device setup: {:#}", err);
-                        Err(err)
-                    },
-                }
-            },
-            _ = cancel_token.recv() => Err(format_err!("cancelled")),
-        };
-        let (provider, ticket) = match res {
-            Ok((provider, ticket)) => (provider, ticket),
-            Err(err) => {
-                context.free_ongoing().await;
-                return Err(err);
-            }
-        };
+
+        // Authentication token that receiver should send us to receive a backup.
+        let auth_token = create_id();
+
+        let passphrase = String::new();
+
+        export_database(context, &dbfile, passphrase, time())
+            .await
+            .context("Database export failed")?;
+        context.emit_event(EventType::ImexProgress(300));
+
         let drop_token = CancellationToken::new();
         let handle = {
             let context = context.clone();
             let drop_token = drop_token.clone();
+            let endpoint = endpoint.clone();
+            let auth_token = auth_token.clone();
             tokio::spawn(async move {
-                let res = Self::watch_provider(&context, provider, cancel_token, drop_token).await;
+                Self::accept_loop(
+                    context.clone(),
+                    endpoint,
+                    auth_token,
+                    cancel_token,
+                    drop_token,
+                    dbfile,
+                )
+                .await;
+                info!(context, "Finished accept loop.");
+
                 context.free_ongoing().await;
 
                 // Explicit drop to move the guards into this future
                 drop(paused_guard);
-                drop(dbfile);
-                res
+                Ok(())
             })
         };
         Ok(Self {
+            _endpoint: endpoint,
+            node_addr,
+            auth_token,
             handle,
-            ticket,
             _drop_guard: drop_token.drop_guard(),
         })
     }
 
-    /// Creates the provider task.
-    ///
-    /// Having this as a function makes it easier to cancel it when needed.
-    async fn prepare_inner(context: &Context, dbfile: &Path) -> Result<(Provider, Ticket)> {
-        // Generate the token up front: we also use it to encrypt the database.
-        let token = AuthToken::generate();
-        context.emit_event(SendProgress::Started.into());
-        export_database(context, dbfile, token.to_string(), time())
-            .await
-            .context("Database export failed")?;
-        context.emit_event(SendProgress::DatabaseExported.into());
+    async fn handle_connection(
+        context: Context,
+        conn: iroh_net::endpoint::Connecting,
+        auth_token: String,
+        dbfile: Arc<TempPathGuard>,
+    ) -> Result<()> {
+        let conn = conn.await?;
+        let (mut send_stream, mut recv_stream) = conn.accept_bi().await?;
 
-        // Now we can be sure IO is not running.
-        let mut files = vec![DataSource::with_name(
-            dbfile.to_owned(),
-            format!("db/{DBFILE_BACKUP_NAME}"),
-        )];
-        let blobdir = BlobDirContents::new(context).await?;
-        for blob in blobdir.iter() {
-            let path = blob.to_abs_path();
-            let name = format!("blob/{}", blob.as_file_name());
-            files.push(DataSource::with_name(path, name));
+        // Read authentication token from the stream.
+        let mut received_auth_token = [0u8; 11];
+        recv_stream.read_exact(&mut received_auth_token).await?;
+        if received_auth_token.as_slice() != auth_token.as_bytes() {
+            warn!(context, "Received wrong backup authentication token.");
+            return Ok(());
         }
 
-        // Start listening.
-        let (db, hash) = iroh::provider::create_collection(files).await?;
-        context.emit_event(SendProgress::CollectionCreated.into());
-        let provider = Provider::builder(db)
-            .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
-            .auth_token(token)
-            .spawn()?;
-        context.emit_event(SendProgress::ProviderListening.into());
-        info!(context, "Waiting for remote to connect");
-        let ticket = provider.ticket(hash)?;
-        Ok((provider, ticket))
+        info!(context, "Received valid backup authentication token.");
+
+        let blobdir = BlobDirContents::new(&context).await?;
+
+        let mut file_size = 0;
+        file_size += dbfile.metadata()?.len();
+        for blob in blobdir.iter() {
+            file_size += blob.to_abs_path().metadata()?.len()
+        }
+
+        send_stream.write_all(&file_size.to_be_bytes()).await?;
+
+        export_backup_stream(&context, &dbfile, blobdir, send_stream)
+            .await
+            .context("Failed to write backup into QUIC stream")?;
+        info!(context, "Finished writing backup into QUIC stream.");
+        let mut buf = [0u8; 1];
+        info!(context, "Waiting for acknowledgment.");
+        recv_stream.read_exact(&mut buf).await?;
+        info!(context, "Received backup reception acknowledgement.");
+        context.emit_event(EventType::ImexProgress(1000));
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = backup_transfer_msg_body(&context).await;
+        add_device_msg(&context, None, Some(&mut msg)).await?;
+
+        Ok(())
     }
 
-    /// Supervises the iroh [`Provider`], terminating it when needed.
-    ///
-    /// This will watch the provider and terminate it when:
-    ///
-    /// - A transfer is completed, successful or unsuccessful.
-    /// - An event could not be observed to protect against not knowing of a completed event.
-    /// - The ongoing process is cancelled.
-    ///
-    /// The *cancel_token* is the handle for the ongoing process mutex, when this completes
-    /// we must cancel this operation.
-    async fn watch_provider(
-        context: &Context,
-        mut provider: Provider,
-        cancel_token: Receiver<()>,
+    async fn accept_loop(
+        context: Context,
+        endpoint: Endpoint,
+        auth_token: String,
+        cancel_token: async_channel::Receiver<()>,
         drop_token: CancellationToken,
-    ) -> Result<()> {
-        let mut events = provider.subscribe();
-        let mut total_size = 0;
-        let mut current_size = 0;
-        let res = loop {
+        dbfile: TempPathGuard,
+    ) {
+        let dbfile = Arc::new(dbfile);
+        loop {
             tokio::select! {
                 biased;
-                res = &mut provider => {
-                    break res.context("BackupProvider failed");
-                },
-                maybe_event = events.recv() => {
-                    match maybe_event {
-                        Ok(event) => {
-                            match event {
-                                Event::ClientConnected { ..} => {
-                                    context.emit_event(SendProgress::ClientConnected.into());
-                                }
-                                Event::RequestReceived { .. } => {
-                                }
-                                Event::TransferCollectionStarted { total_blobs_size, .. } => {
-                                    total_size = total_blobs_size;
-                                    context.emit_event(SendProgress::TransferInProgress {
-                                        current_size,
-                                        total_size,
-                                    }.into());
-                                }
-                                Event::TransferBlobCompleted { size, .. } => {
-                                    current_size += size;
-                                    context.emit_event(SendProgress::TransferInProgress {
-                                        current_size,
-                                        total_size,
-                                    }.into());
-                                }
-                                Event::TransferCollectionCompleted { .. } => {
-                                    context.emit_event(SendProgress::TransferInProgress {
-                                        current_size: total_size,
-                                        total_size
-                                    }.into());
-                                    provider.shutdown();
-                                }
-                                Event::TransferAborted { .. } => {
-                                    provider.shutdown();
-                                    break Err(anyhow!("BackupProvider transfer aborted"));
-                                }
-                            }
+
+                conn = endpoint.accept() => {
+                    if let Some(conn) = conn {
+                        // Got a new in-progress connection.
+                        let context = context.clone();
+                        let auth_token = auth_token.clone();
+                        let dbfile = dbfile.clone();
+                        if let Err(err) = Self::handle_connection(context.clone(), conn, auth_token, dbfile).await {
+                            warn!(context, "Error while handling backup connection: {err:#}.");
+                        } else {
+                            info!(context, "Backup transfer finished successfully.");
+                            break;
                         }
-                        Err(broadcast::error::RecvError::Closed) => {
-                            // We should never see this, provider.join() should complete
-                            // first.
-                        }
-                        Err(broadcast::error::RecvError::Lagged(_)) => {
-                            // We really shouldn't be lagging, if we did we may have missed
-                            // a completion event.
-                            provider.shutdown();
-                            break Err(anyhow!("Missed events from BackupProvider"));
-                        }
+                    } else {
+                        break;
                     }
                 },
                 _ = cancel_token.recv() => {
-                    provider.shutdown();
-                    break Err(anyhow!("BackupProvider cancelled"));
-                },
+                    context.emit_event(EventType::ImexProgress(0));
+                    break;
+                }
                 _ = drop_token.cancelled() => {
-                    provider.shutdown();
-                    break Err(anyhow!("BackupProvider dropped"));
+                    context.emit_event(EventType::ImexProgress(0));
+                    break;
                 }
             }
-        };
-        match &res {
-            Ok(_) => {
-                context.emit_event(SendProgress::Completed.into());
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text = backup_transfer_msg_body(context).await;
-                add_device_msg(context, None, Some(&mut msg)).await?;
-            }
-            Err(err) => {
-                error!(context, "Backup transfer failure: {err:#}");
-                context.emit_event(SendProgress::Failed.into())
-            }
         }
-        res
     }
 
     /// Returns a QR code that allows fetching this backup.
     ///
     /// This QR code can be passed to [`get_backup`] on a (different) device.
     pub fn qr(&self) -> Qr {
-        Qr::Backup {
-            ticket: self.ticket.clone(),
+        Qr::Backup2 {
+            node_addr: self.node_addr.clone(),
+
+            auth_token: self.auth_token.clone(),
         }
     }
 }
@@ -300,61 +272,14 @@ impl BackupProvider {
 impl Future for BackupProvider {
     type Output = Result<()>;
 
+    /// Waits for the backup transfer to complete.
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.handle).poll(cx)?
     }
 }
 
-/// Create [`EventType::ImexProgress`] events using readable names.
-///
-/// Plus you get warnings if you don't use all variants.
-#[derive(Debug)]
-enum SendProgress {
-    Failed,
-    Started,
-    DatabaseExported,
-    CollectionCreated,
-    ProviderListening,
-    ClientConnected,
-    TransferInProgress { current_size: u64, total_size: u64 },
-    Completed,
-}
-
-impl From<SendProgress> for EventType {
-    fn from(source: SendProgress) -> Self {
-        use SendProgress::*;
-        let num: u16 = match source {
-            Failed => 0,
-            Started => 100,
-            DatabaseExported => 300,
-            CollectionCreated => 350,
-            ProviderListening => 400,
-            ClientConnected => 450,
-            TransferInProgress {
-                current_size,
-                total_size,
-            } => {
-                // the range is 450..=950
-                450 + ((current_size as f64 / total_size as f64) * 500.).floor() as u16
-            }
-            Completed => 1000,
-        };
-        Self::ImexProgress(num.into())
-    }
-}
-
-/// Contacts a backup provider and receives the backup from it.
-///
-/// This uses a QR code to contact another instance of deltachat which is providing a backup
-/// using the [`BackupProvider`].  Once connected it will authenticate using the secrets in
-/// the QR code and retrieve the backup.
-///
-/// This is a long running operation which will only when completed.
-///
-/// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
-/// does avoid having [`iroh::provider::Ticket`] in the primary API however, without
-/// having to revert to untyped bytes.
-pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
+/// Retrieves backup from a legacy backup provider using iroh 0.4.
+pub async fn get_legacy_backup(context: &Context, qr: Qr) -> Result<()> {
     ensure!(
         matches!(qr, Qr::Backup { .. }),
         "QR code for backup must be of type DCBACKUP"
@@ -378,6 +303,64 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     };
     context.free_ongoing().await;
     res
+}
+
+pub async fn get_backup2(
+    context: &Context,
+    node_addr: iroh_net::NodeAddr,
+    auth_token: String,
+) -> Result<()> {
+    let relay_mode = RelayMode::Disabled;
+
+    let endpoint = Endpoint::builder().relay_mode(relay_mode).bind(0).await?;
+
+    let conn = endpoint.connect(node_addr, BACKUP_ALPN).await?;
+    let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
+    info!(context, "Sending backup authentication token.");
+    send_stream.write_all(auth_token.as_bytes()).await?;
+
+    let passphrase = String::new();
+    info!(context, "Starting to read backup from the stream.");
+
+    let mut file_size_buf = [0u8; 8];
+    recv_stream.read_exact(&mut file_size_buf).await?;
+    let file_size = u64::from_be_bytes(file_size_buf);
+    import_backup_stream(context, recv_stream, file_size, passphrase)
+        .await
+        .context("Failed to import backup from QUIC stream")?;
+    info!(context, "Finished importing backup from the stream.");
+    context.emit_event(EventType::ImexProgress(1000));
+
+    // Send an acknowledgement, but ignore the errors.
+    // We have imported backup successfully already.
+    send_stream.write_all(b".").await.ok();
+    send_stream.finish().await.ok();
+    info!(context, "Sent backup reception acknowledgment.");
+
+    Ok(())
+}
+
+/// Contacts a backup provider and receives the backup from it.
+///
+/// This uses a QR code to contact another instance of deltachat which is providing a backup
+/// using the [`BackupProvider`].  Once connected it will authenticate using the secrets in
+/// the QR code and retrieve the backup.
+///
+/// This is a long running operation which will only when completed.
+///
+/// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
+/// does avoid having [`iroh_old::provider::Ticket`] in the primary API however, without
+/// having to revert to untyped bytes.
+pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
+    match qr {
+        Qr::Backup { .. } => get_legacy_backup(context, qr).await?,
+        Qr::Backup2 {
+            node_addr,
+            auth_token,
+        } => get_backup2(context, node_addr, auth_token).await?,
+        _ => bail!("QR code for backup must be of type DCBACKUP or DCBACKUP2"),
+    }
+    Ok(())
 }
 
 async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
@@ -426,7 +409,7 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
 
     // Perform the transfer.
     let keylog = false; // Do not enable rustls SSLKEYLOGFILE env var functionality
-    let stats = iroh::get::run_ticket(
+    let stats = iroh_old::get::run_ticket(
         ticket,
         keylog,
         MAX_CONCURRENT_DIALS,
@@ -458,7 +441,7 @@ async fn on_blob(
     progress: &ProgressEmitter,
     jobs: &Mutex<JoinSet<()>>,
     ticket: &Ticket,
-    _hash: Hash,
+    _hash: iroh_old::Hash,
     mut reader: DataStream,
     name: String,
 ) -> Result<DataStream> {
@@ -638,24 +621,6 @@ mod tests {
         ctx1.evtracker
             .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
             .await;
-    }
-
-    #[test]
-    fn test_send_progress() {
-        let cases = [
-            ((0, 100), 450),
-            ((10, 100), 500),
-            ((50, 100), 700),
-            ((100, 100), 950),
-        ];
-
-        for ((current_size, total_size), progress) in cases {
-            let out = EventType::from(SendProgress::TransferInProgress {
-                current_size,
-                total_size,
-            });
-            assert_eq!(out, EventType::ImexProgress(progress));
-        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

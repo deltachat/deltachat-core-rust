@@ -2504,6 +2504,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_FPR_WITHOUT_ADDR       230 // test1=formatted fingerprint
 #define         DC_QR_ACCOUNT                250 // text1=domain
 #define         DC_QR_BACKUP                 251
+#define         DC_QR_BACKUP2                252
 #define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain, text2=instance pattern
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
@@ -2550,6 +2551,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   if so, call dc_set_config_from_qr() and then dc_configure().
  *
  * - DC_QR_BACKUP:
+ * - DC_QR_BACKUP2:
  *   ask the user if they want to set up a new device.
  *   If so, pass the qr-code to dc_receive_backup().
  *

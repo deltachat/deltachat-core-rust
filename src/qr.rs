@@ -37,7 +37,12 @@ const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
+
+/// Legacy backup transfer based on iroh 0.4.
 pub(crate) const DCBACKUP_SCHEME: &str = "DCBACKUP:";
+
+/// Backup transfer based on iroh-net.
+pub(crate) const DCBACKUP2_SCHEME: &str = "DCBACKUP2:";
 
 /// Scanned QR code.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,7 +111,7 @@ pub enum Qr {
         domain: String,
     },
 
-    /// Provides a backup that can be retrieve.
+    /// Provides a backup that can be retrieved using legacy iroh 0.4.
     ///
     /// This contains all the data needed to connect to a device and download a backup from
     /// it to configure the receiving device with the same account.
@@ -118,6 +123,15 @@ pub enum Qr {
         ///
         /// The format is somewhat opaque, but `sendme` can deserialise this.
         ticket: iroh::provider::Ticket,
+    },
+
+    /// Provides a backup that can be retrieved using new iroh-net based protocol.
+    Backup2 {
+        /// Iroh node address.
+        node_addr: iroh_net::NodeAddr,
+
+        /// Authentication token.
+        auth_token: String,
     },
 
     /// Ask the user if they want to use the given service for video chats.
@@ -266,6 +280,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         decode_webrtc_instance(context, qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME) {
         decode_backup(qr)?
+    } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
+        decode_backup2(qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr).await?
     } else if qr.starts_with(SMTP_SCHEME) {
@@ -295,6 +311,13 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
 pub fn format_backup(qr: &Qr) -> Result<String> {
     match qr {
         Qr::Backup { ref ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
+        Qr::Backup2 {
+            ref node_addr,
+            ref auth_token,
+        } => {
+            let node_addr = serde_json::to_string(node_addr)?;
+            Ok(format!("{DCBACKUP2_SCHEME}{auth_token}&{node_addr}"))
+        }
         _ => Err(anyhow!("Not a backup QR code")),
     }
 }
@@ -527,6 +550,24 @@ fn decode_backup(qr: &str) -> Result<Qr> {
         .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
     let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
     Ok(Qr::Backup { ticket })
+}
+
+/// Decodes a [`DCBACKUP2_SCHEME`] QR code.
+fn decode_backup2(qr: &str) -> Result<Qr> {
+    let payload = qr
+        .strip_prefix(DCBACKUP2_SCHEME)
+        .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
+    let (auth_token, node_addr) = payload
+        .split_once('&')
+        .context("Backup QR code has no separator")?;
+    let auth_token = auth_token.to_string();
+    let node_addr = serde_json::from_str::<iroh_net::NodeAddr>(node_addr)
+        .context("Invalid node addr in backup QR code")?;
+
+    Ok(Qr::Backup2 {
+        node_addr,
+        auth_token,
+    })
 }
 
 #[derive(Debug, Deserialize)]
