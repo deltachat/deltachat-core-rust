@@ -375,19 +375,10 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         dest_path.display(),
     );
 
-    let res = export_backup_inner(context, &temp_db_path, &temp_path).await;
-
-    match &res {
-        Ok(_) => {
-            fs::rename(temp_path, &dest_path).await?;
-            context.emit_event(EventType::ImexFileWritten(dest_path));
-        }
-        Err(e) => {
-            error!(context, "backup failed: {}", e);
-        }
-    }
-
-    res
+    export_backup_inner(context, &temp_db_path, &temp_path).await?;
+    fs::rename(temp_path, &dest_path).await?;
+    context.emit_event(EventType::ImexFileWritten(dest_path));
+    Ok(())
 }
 
 async fn export_backup_inner(
