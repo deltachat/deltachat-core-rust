@@ -339,7 +339,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  receive-backup <qr>\n\
                  export-keys\n\
                  import-keys\n\
-                 export-setup\n\
                  poke [<eml-file>|<folder>|<addr> <key-file>]\n\
                  reset <flags>\n\
                  stop\n\
@@ -503,17 +502,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "import-keys" => {
             imex(&context, ImexMode::ImportSelfKeys, arg1.as_ref(), None).await?;
-        }
-        "export-setup" => {
-            let setup_code = create_setup_code(&context);
-            let file_name = blobdir.join("autocrypt-setup-message.html");
-            let file_content = render_setup_file(&context, &setup_code).await?;
-            fs::write(&file_name, file_content).await?;
-            println!(
-                "Setup message written to: {}\nSetup code: {}",
-                file_name.display(),
-                &setup_code,
-            );
         }
         "poke" => {
             ensure!(poke_spec(&context, Some(arg1)).await, "Poke failed");
