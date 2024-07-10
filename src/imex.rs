@@ -22,7 +22,9 @@ use crate::log::LogExt;
 use crate::message::{Message, Viewtype};
 use crate::pgp;
 use crate::sql;
-use crate::tools::{create_folder, delete_file, get_filesuffix_lc, read_file, time, write_file};
+use crate::tools::{
+    create_folder, delete_file, get_filesuffix_lc, read_file, time, write_file, TempPathGuard,
+};
 
 mod key_transfer;
 mod transfer;
@@ -359,8 +361,8 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
     let now = time();
     let self_addr = context.get_primary_self_addr().await?;
     let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, &self_addr, now)?;
-    let _d1 = DeleteOnDrop(temp_db_path.clone());
-    let _d2 = DeleteOnDrop(temp_path.clone());
+    let temp_db_path = TempPathGuard::new(temp_db_path);
+    let temp_path = TempPathGuard::new(temp_path);
 
     export_database(context, &temp_db_path, passphrase, now)
         .await
@@ -386,15 +388,6 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
     }
 
     res
-}
-struct DeleteOnDrop(PathBuf);
-impl Drop for DeleteOnDrop {
-    fn drop(&mut self) {
-        let file = self.0.clone();
-        // Not using `tools::delete_file` here because it would send a DeletedBlobFile event
-        // Hack to avoid panic in nested runtime calls of tokio
-        std::fs::remove_file(file).ok();
-    }
 }
 
 async fn export_backup_inner(
