@@ -24,8 +24,7 @@
 
 use std::future::Future;
 use std::net::Ipv4Addr;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -53,7 +52,7 @@ use crate::context::Context;
 use crate::message::{Message, Viewtype};
 use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
-use crate::tools::time;
+use crate::tools::{time, TempPathGuard};
 use crate::{e2ee, EventType};
 
 use super::{export_database, DBFILE_BACKUP_NAME};
@@ -303,37 +302,6 @@ impl Future for BackupProvider {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.handle).poll(cx)?
-    }
-}
-
-/// A guard which will remove the path when dropped.
-///
-/// It implements [`Deref`] it it can be used as a `&Path`.
-#[derive(Debug)]
-struct TempPathGuard {
-    path: PathBuf,
-}
-
-impl TempPathGuard {
-    fn new(path: PathBuf) -> Self {
-        Self { path }
-    }
-}
-
-impl Drop for TempPathGuard {
-    fn drop(&mut self) {
-        let path = self.path.clone();
-        tokio::spawn(async move {
-            fs::remove_file(&path).await.ok();
-        });
-    }
-}
-
-impl Deref for TempPathGuard {
-    type Target = Path;
-
-    fn deref(&self) -> &Self::Target {
-        &self.path
     }
 }
 

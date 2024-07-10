@@ -6,6 +6,7 @@
 use std::borrow::Cow;
 use std::io::{Cursor, Write};
 use std::mem;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 // If a time value doesn't need to be sent to another host, saved to the db or otherwise used across
@@ -359,6 +360,41 @@ pub async fn delete_files_in_dir(context: &Context, path: impl AsRef<Path>) -> R
         }
     }
     Ok(())
+}
+
+/// A guard which will remove the path when dropped.
+///
+/// It implements [`Deref`] so it can be used as a `&Path`.
+#[derive(Debug)]
+pub(crate) struct TempPathGuard {
+    path: PathBuf,
+}
+
+impl TempPathGuard {
+    pub(crate) fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl Drop for TempPathGuard {
+    fn drop(&mut self) {
+        let path = self.path.clone();
+        std::fs::remove_file(path).ok();
+    }
+}
+
+impl Deref for TempPathGuard {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.path
+    }
+}
+
+impl AsRef<Path> for TempPathGuard {
+    fn as_ref(&self) -> &Path {
+        self
+    }
 }
 
 pub(crate) async fn create_folder(
