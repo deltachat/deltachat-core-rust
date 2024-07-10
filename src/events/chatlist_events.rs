@@ -198,9 +198,12 @@ mod test_chatlist_events {
         Ok(())
     }
 
+    /// Mark noticed on a chat in archive should update the unread counter on archive
+    // async fn test_archived_counter_update_on_mark_chat_in_archive_noticed() -> Result<()> {
+
     /// Mark noticed on archive-link chatlistitem should update the unread counter on it
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_archived_counter_update_on_mark_noticed() -> Result<()> {
+    async fn test_archived_counter_update_on_mark_whole_archive_noticed() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;

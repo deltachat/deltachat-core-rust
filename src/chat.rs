@@ -4676,6 +4676,56 @@ mod tests {
     use crate::test_utils::{sync, TestContext, TestContextManager};
     use strum::IntoEnumIterator;
     use tokio::fs;
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        time::Duration,
+    };
+
+    // TODO DRY: these functions are copy-pasted from `chatlist_event.rs`.
+    async fn wait_for_chatlist_and_specific_item(context: &TestContext, chat_id: ChatId) {
+        let first_event_is_item = AtomicBool::new(false);
+        context
+            .evtracker
+            .get_matching(|evt| match evt {
+                EventType::ChatlistItemChanged {
+                    chat_id: Some(ev_chat_id),
+                } => {
+                    if ev_chat_id == &chat_id {
+                        first_event_is_item.store(true, Ordering::Relaxed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                EventType::ChatlistChanged => true,
+                _ => false,
+            })
+            .await;
+        if first_event_is_item.load(Ordering::Relaxed) {
+            wait_for_chatlist(context).await;
+        } else {
+            wait_for_chatlist_specific_item(context, chat_id).await;
+        }
+    }
+
+    async fn wait_for_chatlist_specific_item(context: &TestContext, chat_id: ChatId) {
+        context
+            .evtracker
+            .get_matching(|evt| match evt {
+                EventType::ChatlistItemChanged {
+                    chat_id: Some(ev_chat_id),
+                } => ev_chat_id == &chat_id,
+                _ => false,
+            })
+            .await;
+    }
+
+    async fn wait_for_chatlist(context: &TestContext) {
+        context
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ChatlistChanged))
+            .await;
+    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_info() {
@@ -5815,6 +5865,7 @@ mod tests {
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 0);
 
         msg_from(&t, "bob", 2).await?;
+        wait_for_chatlist_and_specific_item(&t, DC_CHAT_ID_ARCHIVED_LINK).await;
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
 
         msg_from(&t, "bob", 3).await?;
@@ -5832,18 +5883,21 @@ mod tests {
         msg_from(&t, "claire", 7).await?;
         assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
         assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 3);
+        wait_for_chatlist_and_specific_item(&t, DC_CHAT_ID_ARCHIVED_LINK).await;
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
 
         // mark one of the archived+muted chats as noticed: check that the archive-link counter is changed as well
         marknoticed_chat(&t, claire_chat_id).await?;
         assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
         assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        wait_for_chatlist_and_specific_item(&t, DC_CHAT_ID_ARCHIVED_LINK).await;
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
 
         // receive some more messages
         msg_from(&t, "claire", 8).await?;
         assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
         assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        wait_for_chatlist_and_specific_item(&t, DC_CHAT_ID_ARCHIVED_LINK).await;
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
         assert_eq!(t.get_fresh_msgs().await?.len(), 0);
 
@@ -5859,6 +5913,7 @@ mod tests {
         assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 0);
         assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
         assert_eq!(dave_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        wait_for_chatlist_and_specific_item(&t, DC_CHAT_ID_ARCHIVED_LINK).await;
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 0);
         assert_eq!(t.get_fresh_msgs().await?.len(), 1);
 
