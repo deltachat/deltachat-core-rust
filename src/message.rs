@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs, io};
 
 use crate::blob::BlobObject;
-use crate::chat::{Chat, ChatId, ChatIdBlocked};
+use crate::chat::{Chat, ChatId, ChatIdBlocked, ChatVisibility};
 use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{
@@ -1664,6 +1664,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                     m.param AS param,
                     m.from_id AS from_id,
                     m.rfc724_mid AS rfc724_mid,
+                    c.archived AS archived,
                     c.blocked AS blocked
                  FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id
                  WHERE m.id IN ({}) AND m.chat_id>9",
@@ -1677,16 +1678,20 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                 let param: Params = row.get::<_, String>("param")?.parse().unwrap_or_default();
                 let from_id: ContactId = row.get("from_id")?;
                 let rfc724_mid: String = row.get("rfc724_mid")?;
+                let visibility: ChatVisibility = row.get("archived")?;
                 let blocked: Option<Blocked> = row.get("blocked")?;
                 let ephemeral_timer: EphemeralTimer = row.get("ephemeral_timer")?;
                 Ok((
-                    id,
-                    chat_id,
-                    state,
-                    param,
-                    from_id,
-                    rfc724_mid,
-                    blocked.unwrap_or_default(),
+                    (
+                        id,
+                        chat_id,
+                        state,
+                        param,
+                        from_id,
+                        rfc724_mid,
+                        visibility,
+                        blocked.unwrap_or_default(),
+                    ),
                     ephemeral_timer,
                 ))
             },
@@ -1694,25 +1699,28 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         )
         .await?;
 
-    if msgs.iter().any(
-        |(_id, _chat_id, _state, _param, _from_id, _rfc724_mid, _blocked, ephemeral_timer)| {
-            *ephemeral_timer != EphemeralTimer::Disabled
-        },
-    ) {
+    if msgs
+        .iter()
+        .any(|(_, ephemeral_timer)| *ephemeral_timer != EphemeralTimer::Disabled)
+    {
         start_ephemeral_timers_msgids(context, &msg_ids)
             .await
             .context("failed to start ephemeral timers")?;
     }
 
     let mut updated_chat_ids = BTreeSet::new();
+    let mut archived_chats_maybe_noticed = false;
     for (
-        id,
-        curr_chat_id,
-        curr_state,
-        curr_param,
-        curr_from_id,
-        curr_rfc724_mid,
-        curr_blocked,
+        (
+            id,
+            curr_chat_id,
+            curr_state,
+            curr_param,
+            curr_from_id,
+            curr_rfc724_mid,
+            curr_visibility,
+            curr_blocked,
+        ),
         _curr_ephemeral_timer,
     ) in msgs
     {
@@ -1750,11 +1758,16 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             }
             updated_chat_ids.insert(curr_chat_id);
         }
+        archived_chats_maybe_noticed |=
+            curr_state == MessageState::InFresh && curr_visibility == ChatVisibility::Archived;
     }
 
     for updated_chat_id in updated_chat_ids {
         context.emit_event(EventType::MsgsNoticed(updated_chat_id));
         chatlist_events::emit_chatlist_item_changed(context, updated_chat_id);
+    }
+    if archived_chats_maybe_noticed {
+        context.on_archived_chats_maybe_noticed();
     }
 
     Ok(())
