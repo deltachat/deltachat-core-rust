@@ -1201,6 +1201,9 @@ impl Session {
         set_modseq(context, folder, highest_modseq)
             .await
             .with_context(|| format!("failed to set MODSEQ for folder {folder}"))?;
+        if !updated_chat_ids.is_empty() {
+            context.on_archived_chats_maybe_noticed();
+        }
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
             chatlist_events::emit_chatlist_item_changed(context, updated_chat_id);

@@ -3268,35 +3268,25 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
             chatlist_events::emit_chatlist_item_changed(context, chat_id_in_archive);
         }
-        chatlist_events::emit_chatlist_item_changed(context, DC_CHAT_ID_ARCHIVED_LINK);
-    } else {
-        let exists = context
-            .sql
-            .exists(
-                "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
-                (MessageState::InFresh, chat_id),
-            )
-            .await?;
-        if !exists {
-            return Ok(());
-        }
-
-        context
-            .sql
-            .execute(
-                "UPDATE msgs
-                SET state=?
-              WHERE state=?
-                AND hidden=0
-                AND chat_id=?;",
-                (MessageState::InNoticed, MessageState::InFresh, chat_id),
-            )
-            .await?;
+    } else if context
+        .sql
+        .execute(
+            "UPDATE msgs
+            SET state=?
+          WHERE state=?
+            AND hidden=0
+            AND chat_id=?;",
+            (MessageState::InNoticed, MessageState::InFresh, chat_id),
+        )
+        .await?
+        == 0
+    {
+        return Ok(());
     }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
     chatlist_events::emit_chatlist_item_changed(context, chat_id);
-
+    context.on_archived_chats_maybe_noticed();
     Ok(())
 }
 
@@ -3359,6 +3349,7 @@ pub(crate) async fn mark_old_messages_as_noticed(
             context,
             "Marking chats as noticed because there are newer outgoing messages: {changed_chats:?}."
         );
+        context.on_archived_chats_maybe_noticed();
     }
 
     for c in changed_chats {
@@ -4697,6 +4688,14 @@ impl Context {
             SyncAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
         }
     }
+
+    /// Emits the appropriate `MsgsChanged` event. Should be called if the number of unnoticed
+    /// archived chats could decrease. In general we don't want to make an extra db query to know if
+    /// a noticied chat is archived. Emitting events should be cheap, a false-positive `MsgsChanged`
+    /// is ok.
+    pub(crate) fn on_archived_chats_maybe_noticed(&self) {
+        self.emit_msgs_changed(DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0));
+    }
 }
 
 #[cfg(test)]
@@ -5868,7 +5867,27 @@ mod tests {
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
 
         // mark one of the archived+muted chats as noticed: check that the archive-link counter is changed as well
+        t.evtracker.clear_events();
         marknoticed_chat(&t, claire_chat_id).await?;
+        let ev = t
+            .evtracker
+            .get_matching(|ev| {
+                matches!(
+                    ev,
+                    EventType::MsgsChanged {
+                        chat_id: DC_CHAT_ID_ARCHIVED_LINK,
+                        ..
+                    }
+                )
+            })
+            .await;
+        assert_eq!(
+            ev,
+            EventType::MsgsChanged {
+                chat_id: DC_CHAT_ID_ARCHIVED_LINK,
+                msg_id: MsgId::new(0),
+            }
+        );
         assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
         assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
         assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
