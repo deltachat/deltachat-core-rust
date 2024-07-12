@@ -25,6 +25,7 @@
 
 use anyhow::{anyhow, Context as _, Result};
 use email::Header;
+use futures_lite::StreamExt;
 use iroh_gossip::net::{Gossip, JoinTopicFut, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::key::{PublicKey, SecretKey};
@@ -255,6 +256,7 @@ impl Context {
 
         // Shuts down on deltachat shutdown
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
+        tokio::spawn(gossip_direct_address_loop(endpoint.clone(), gossip.clone()));
 
         Ok(Iroh {
             endpoint,
@@ -271,6 +273,15 @@ impl Context {
             .get_or_try_init(|| async { ctx.init_peer_channels().await })
             .await
     }
+}
+
+/// Loop to update direct addresses of the gossip.
+async fn gossip_direct_address_loop(endpoint: Endpoint, gossip: Gossip) -> Result<()> {
+    let mut stream = endpoint.direct_addresses();
+    while let Some(addrs) = stream.next().await {
+        gossip.update_direct_addresses(&addrs)?;
+    }
+    Ok(())
 }
 
 /// Cache a peers [NodeId] for one topic.
