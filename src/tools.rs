@@ -6,7 +6,7 @@
 use std::borrow::Cow;
 use std::io::{Cursor, Write};
 use std::mem;
-use std::ops::Deref;
+use std::ops::{AddAssign, Deref};
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 // If a time value doesn't need to be sent to another host, saved to the db or otherwise used across
@@ -20,7 +20,7 @@ pub use std::time::SystemTime as Time;
 #[cfg(not(test))]
 pub use std::time::SystemTime;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
 use deltachat_contact_tools::EmailAddress;
@@ -30,6 +30,7 @@ use futures::{StreamExt, TryStreamExt};
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
+use num_traits::PrimInt;
 use rand::{thread_rng, Rng};
 use tokio::{fs, io};
 use url::Url;
@@ -681,6 +682,16 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
     decompressor.write_all(buf)?;
     decompressor.flush()?;
     Ok(mem::take(decompressor.get_mut()))
+}
+
+/// Increments `*t` and checks that it equals to `expected` after that.
+pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
+    t: &mut T,
+    expected: T,
+) -> Result<()> {
+    *t += T::one();
+    ensure!(*t == expected, "Incremented value != {expected:?}");
+    Ok(())
 }
 
 #[cfg(test)]
