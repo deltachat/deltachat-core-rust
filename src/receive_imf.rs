@@ -35,7 +35,7 @@ use crate::peerstate::Peerstate;
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::simplify;
-use crate::sql;
+use crate::sql::{self, params_iter};
 use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::{self, buf_compress, remove_subject_prefix};
@@ -1829,9 +1829,6 @@ async fn lookup_chat_or_create_adhoc_group(
     {
         return Ok(Some((new_chat_id, new_chat_id_blocked)));
     }
-    if !allow_creation {
-        return Ok(None);
-    }
     // Partial download may be an encrypted message with protected Subject header. We do not want to
     // create a group with "..." or "Encrypted message" as a subject. The same is for undecipherable
     // messages. Instead, assign the message to 1:1 chat with the sender.
@@ -1854,6 +1851,48 @@ async fn lookup_chat_or_create_adhoc_group(
         .get_subject()
         .map(|s| remove_subject_prefix(&s))
         .unwrap_or_else(|| "👥📧".to_string());
+    let mut contact_ids = Vec::with_capacity(to_ids.len() + 1);
+    contact_ids.extend(to_ids);
+    if !contact_ids.contains(&from_id) {
+        contact_ids.push(from_id);
+    }
+    if let Some((chat_id, blocked)) = context
+        .sql
+        .query_row_optional(
+            &format!(
+                "SELECT c.id, c.blocked
+                FROM chats c INNER JOIN msgs m ON c.id=m.chat_id
+                WHERE m.hidden=0 AND c.grpid='' AND c.name=?
+                AND (SELECT COUNT(*) FROM chats_contacts
+                    WHERE chat_id=c.id)=?
+                AND (SELECT COUNT(*) FROM chats_contacts
+                    WHERE chat_id=c.id
+                    AND contact_id NOT IN ({}))=0
+                ORDER BY m.timestamp DESC",
+                sql::repeat_vars(contact_ids.len()),
+            ),
+            rusqlite::params_from_iter(
+                params_iter(&[&grpname])
+                    .chain(params_iter(&[contact_ids.len()]))
+                    .chain(params_iter(&contact_ids)),
+            ),
+            |row| {
+                let id: ChatId = row.get(0)?;
+                let blocked: Blocked = row.get(1)?;
+                Ok((id, blocked))
+            },
+        )
+        .await?
+    {
+        info!(
+            context,
+            "Assigning message to ad-hoc group {chat_id} with matching name and members."
+        );
+        return Ok(Some((chat_id, blocked)));
+    }
+    if !allow_creation {
+        return Ok(None);
+    }
     create_adhoc_group(
         context,
         mime_parser,

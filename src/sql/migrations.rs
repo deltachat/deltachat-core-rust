@@ -1028,6 +1028,15 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 121)?;
+    if dbversion < migration_version {
+        sql.execute_migration(
+            "CREATE INDEX chats_index4 ON chats (name)",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
