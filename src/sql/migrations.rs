@@ -11,6 +11,7 @@ use crate::imap;
 use crate::message::MsgId;
 use crate::provider::get_provider_by_domain;
 use crate::sql::Sql;
+use crate::tools::inc_and_check;
 
 const DBVERSION: i32 = 68;
 const VERSION_CFG: &str = "dbversion";
@@ -941,10 +942,9 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN txt_normalized TEXT", 115)
             .await?;
     }
-    let migration_version: i32 = 115;
+    let mut migration_version: i32 = 115;
 
-    let migration_version: i32 = migration_version + 1;
-    ensure!(migration_version == 116, "Fix the number here");
+    inc_and_check(&mut migration_version, 116)?;
     if dbversion < migration_version {
         // Whether the message part doesn't need to be stored on the server. If all parts are marked
         // deleted, a server-side deletion is issued.
