@@ -11,6 +11,7 @@ use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::Mime;
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
+use rand::distributions::{Alphanumeric, DistString};
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
@@ -785,7 +786,15 @@ impl MimeMessage {
             .collect::<String>()
             .strip_prefix("base64:")
         {
-            match BlobObject::store_from_base64(context, base64, "avatar").await {
+            // Add random suffix to the filename
+            // to prevent the UI from accidentally using
+            // cached "avatar.jpg".
+            let suffix = Alphanumeric
+                .sample_string(&mut rand::thread_rng(), 7)
+                .to_lowercase();
+
+            match BlobObject::store_from_base64(context, base64, &format!("avatar-{suffix}")).await
+            {
                 Ok(path) => Some(AvatarAction::Change(path)),
                 Err(err) => {
                     warn!(
