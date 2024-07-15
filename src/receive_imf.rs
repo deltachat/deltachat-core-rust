@@ -1827,22 +1827,43 @@ async fn lookup_chat_or_create_adhoc_group(
         // Try to assign to a chat based on In-Reply-To/References.
         lookup_chat_by_reply(context, mime_parser, parent, to_ids, from_id).await?
     {
-        Ok(Some((new_chat_id, new_chat_id_blocked)))
-    } else if allow_creation {
-        // Try to create an ad hoc group.
-        create_adhoc_group(
-            context,
-            mime_parser,
-            create_blocked,
-            from_id,
-            to_ids,
-            is_partial_download,
-        )
-        .await
-        .context("Could not create ad hoc group")
-    } else {
-        Ok(None)
+        return Ok(Some((new_chat_id, new_chat_id_blocked)));
     }
+    if !allow_creation {
+        return Ok(None);
+    }
+    // Partial download may be an encrypted message with protected Subject header. We do not want to
+    // create a group with "..." or "Encrypted message" as a subject. The same is for undecipherable
+    // messages. Instead, assign the message to 1:1 chat with the sender.
+    if is_partial_download {
+        info!(
+            context,
+            "Ad-hoc group cannot be created from partial download."
+        );
+        return Ok(None);
+    }
+    if mime_parser.decrypting_failed {
+        warn!(
+            context,
+            "Not creating ad-hoc group for message that cannot be decrypted."
+        );
+        return Ok(None);
+    }
+
+    let grpname = mime_parser
+        .get_subject()
+        .map(|s| remove_subject_prefix(&s))
+        .unwrap_or_else(|| "👥📧".to_string());
+    create_adhoc_group(
+        context,
+        mime_parser,
+        create_blocked,
+        from_id,
+        to_ids,
+        &grpname,
+    )
+    .await
+    .context("Could not create ad hoc group")
 }
 
 /// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
@@ -2512,19 +2533,8 @@ async fn create_adhoc_group(
     create_blocked: Blocked,
     from_id: ContactId,
     to_ids: &[ContactId],
-    is_partial_download: bool,
+    grpname: &str,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    if is_partial_download {
-        // Partial download may be an encrypted message with protected Subject header.
-        //
-        // We do not want to create a group with "..." or "Encrypted message" as a subject.
-        info!(
-            context,
-            "Ad-hoc group cannot be created from partial download."
-        );
-        return Ok(None);
-    }
-
     let mut member_ids: Vec<ContactId> = to_ids.to_vec();
     if !member_ids.contains(&(from_id)) {
         member_ids.push(from_id);
@@ -2534,22 +2544,6 @@ async fn create_adhoc_group(
     }
 
     if mime_parser.is_mailinglist_message() {
-        return Ok(None);
-    }
-
-    if mime_parser.decrypting_failed {
-        // Do not create a new ad-hoc group if the message cannot be
-        // decrypted.
-        //
-        // The subject may be encrypted and contain a placeholder such
-        // as "...". It can also be a COI group, with encrypted
-        // Chat-Group-ID and incompatible Message-ID format.
-        //
-        // Instead, assign the message to 1:1 chat with the sender.
-        warn!(
-            context,
-            "Not creating ad-hoc group for message that cannot be decrypted."
-        );
         return Ok(None);
     }
     if mime_parser
@@ -2566,16 +2560,11 @@ async fn create_adhoc_group(
         return Ok(None);
     }
 
-    let grpname = mime_parser
-        .get_subject()
-        .map(|s| remove_subject_prefix(&s))
-        .unwrap_or_else(|| "👥📧".to_string());
-
     let new_chat_id: ChatId = ChatId::create_multiuser_record(
         context,
         Chattype::Group,
         "", // Ad hoc groups have no ID.
-        &grpname,
+        grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
         None,
