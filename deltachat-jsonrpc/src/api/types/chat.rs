@@ -32,6 +32,7 @@ pub struct FullChat {
     is_protected: bool,
     profile_image: Option<String>, //BLOBS ?
     archived: bool,
+    pinned: bool,
     // subtitle  - will be moved to frontend because it uses translation functions
     chat_type: u32,
     is_unpromoted: bool,
@@ -104,6 +105,7 @@ impl FullChat {
             is_protected: chat.is_protected(),
             profile_image, //BLOBS ?
             archived: chat.get_visibility() == chat::ChatVisibility::Archived,
+            pinned: chat.get_visibility() == chat::ChatVisibility::Pinned,
             chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
             is_unpromoted: chat.is_unpromoted(),
             is_self_talk: chat.is_self_talk(),
@@ -153,6 +155,7 @@ pub struct BasicChat {
     is_protected: bool,
     profile_image: Option<String>, //BLOBS ?
     archived: bool,
+    pinned: bool,
     chat_type: u32,
     is_unpromoted: bool,
     is_self_talk: bool,
@@ -180,6 +183,7 @@ impl BasicChat {
             is_protected: chat.is_protected(),
             profile_image, //BLOBS ?
             archived: chat.get_visibility() == chat::ChatVisibility::Archived,
+            pinned: chat.get_visibility() == chat::ChatVisibility::Pinned,
             chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
             is_unpromoted: chat.is_unpromoted(),
             is_self_talk: chat.is_self_talk(),
