@@ -210,6 +210,7 @@ def test_multidevice_sync_chat(acfactory: ACFactory) -> None:
     alice_second_device.clear_all_events()
     alice_chat_bob.pin()
     wait_for_chatlist_specific_item(alice_second_device, alice_chat_bob.id)
+    assert alice_second_device.get_chat_by_id(alice_chat_bob.id).get_basic_snapshot().pinned
 
     alice_second_device.clear_all_events()
     alice_chat_bob.mute()
