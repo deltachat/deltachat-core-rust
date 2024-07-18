@@ -288,7 +288,9 @@ pub(crate) async fn import_backup_stream<R: tokio::io::AsyncRead + Unpin>(
     let mut archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
-    let mut last_progress = 0;
+
+    // We already emitted ImexProgress(10) above
+    let mut last_progress = 10;
     while let Some(mut f) = entries
         .try_next()
         .await
@@ -299,8 +301,7 @@ pub(crate) async fn import_backup_stream<R: tokio::io::AsyncRead + Unpin>(
             1000 * current_pos.checked_div(file_size).unwrap_or_default(),
             999,
         );
-        if progress != last_progress && progress > 10 {
-            // We already emitted ImexProgress(10) above
+        if progress > last_progress {
             context.emit_event(EventType::ImexProgress(progress as usize));
             last_progress = progress;
         }
