@@ -19,8 +19,9 @@
 //!
 //! Protocol starts by getter opening a bidirectional QUIC stream
 //! to the provider and sending authentication token.
-//! Provider verifies received authentication token
-//! and streams back the backup in tar format.
+//! Provider verifies received authentication token,
+//! sends the size of all files in a backup (database and all blobs)
+//! as an unsigned 64-bit big endian integer and streams the backup in tar format.
 //! Getter receives the backup and acknowledges successful reception
 //! by sending a single byte.
 //! Provider closes the endpoint after receiving an acknowledgment.
