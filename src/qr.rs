@@ -125,7 +125,7 @@ pub enum Qr {
         ticket: iroh::provider::Ticket,
     },
 
-    /// Provides a backup that can be retrieved using new iroh-net based protocol.
+    /// Provides a backup that can be retrieved using iroh-net based backup transfer protocol.
     Backup2 {
         /// Iroh node address.
         node_addr: iroh_net::NodeAddr,
