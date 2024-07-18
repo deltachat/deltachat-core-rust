@@ -181,7 +181,7 @@ impl BackupProvider {
         let (mut send_stream, mut recv_stream) = conn.accept_bi().await?;
 
         // Read authentication token from the stream.
-        let mut received_auth_token = [0u8; 11];
+        let mut received_auth_token = vec![0u8; auth_token.len()];
         recv_stream.read_exact(&mut received_auth_token).await?;
         if received_auth_token.as_slice() != auth_token.as_bytes() {
             warn!(context, "Received wrong backup authentication token.");
