@@ -275,10 +275,17 @@ async fn import_backup(
 
 /// Imports backup by reading a tar file from a stream.
 ///
-/// `file_size` is ideally the size of the tar file,
-/// but can be an estimate such as the sum of all
-/// archived files without taking headers into account.
-/// It is used to emit progress events.
+/// `file_size` is used to calculate the progress
+/// and emit progress events.
+/// Ideally it is the sum of the entry
+/// sizes without the header overhead,
+/// but can be estimated as tar file size
+/// in which case the progress is underestimated
+/// and may not reach 99.9% by the end of import.
+/// Underestimating is better than
+/// overestimating because the progress
+/// jumps to 100% instead of getting stuck at 99.9%
+/// for some time.
 pub(crate) async fn import_backup_stream<R: tokio::io::AsyncRead + Unpin>(
     context: &Context,
     backup_file: R,
@@ -291,14 +298,15 @@ pub(crate) async fn import_backup_stream<R: tokio::io::AsyncRead + Unpin>(
 
     // We already emitted ImexProgress(10) above
     let mut last_progress = 10;
+    let mut total_size = 0;
     while let Some(mut f) = entries
         .try_next()
         .await
         .context("Failed to get next entry")?
     {
-        let current_pos = f.raw_file_position();
+        total_size += f.header().entry_size()?;
         let progress = std::cmp::min(
-            1000 * current_pos.checked_div(file_size).unwrap_or_default(),
+            1000 * total_size.checked_div(file_size).unwrap_or_default(),
             999,
         );
         if progress > last_progress {
