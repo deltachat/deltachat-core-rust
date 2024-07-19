@@ -1104,6 +1104,7 @@ pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 /// Pops a sync message from alice0 and receives it on alice1. Should be used after an action on
 /// alice0's side that implies sending a sync message.
 pub(crate) async fn sync(alice0: &TestContext, alice1: &TestContext) {
+    alice0.send_sync_msg().await.unwrap();
     let sync_msg = alice0.pop_sent_msg().await;
     let no_msg = alice1.recv_msg_opt(&sync_msg).await;
     assert!(no_msg.is_none());

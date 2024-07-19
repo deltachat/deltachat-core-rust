@@ -688,7 +688,7 @@ impl Context {
         {
             return Ok(());
         }
-        Box::pin(self.send_sync_msg()).await.log_err(self).ok();
+        self.scheduler.interrupt_smtp().await;
         Ok(())
     }
 
@@ -1054,7 +1054,8 @@ mod tests {
 
         let status = "Synced via usual message";
         alice0.set_config(Config::Selfstatus, Some(status)).await?;
-        alice0.pop_sent_msg().await; // Sync message
+        alice0.send_sync_msg().await?;
+        alice0.pop_sent_msg().await;
         let status1 = "Synced via sync message";
         alice1.set_config(Config::Selfstatus, Some(status1)).await?;
         tcm.send_recv(alice0, alice1, "hi Alice!").await;
@@ -1077,7 +1078,8 @@ mod tests {
         alice0
             .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
             .await?;
-        alice0.pop_sent_msg().await; // Sync message
+        alice0.send_sync_msg().await?;
+        alice0.pop_sent_msg().await;
         let file = alice1.dir.path().join("avatar.jpg");
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         tokio::fs::write(&file, bytes).await?;
