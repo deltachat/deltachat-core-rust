@@ -32,9 +32,6 @@ pub enum QrObject {
     Account {
         domain: String,
     },
-    Backup {
-        ticket: String,
-    },
     Backup2 {
         auth_token: String,
 
@@ -140,9 +137,6 @@ impl From<Qr> for QrObject {
             }
             Qr::FprWithoutAddr { fingerprint } => QrObject::FprWithoutAddr { fingerprint },
             Qr::Account { domain } => QrObject::Account { domain },
-            Qr::Backup { ticket } => QrObject::Backup {
-                ticket: ticket.to_string(),
-            },
             Qr::Backup2 {
                 ref node_addr,
                 auth_token,

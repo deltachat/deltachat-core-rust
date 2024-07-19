@@ -22,7 +22,6 @@ use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::token;
 use crate::tools::validate_id;
-use iroh_old as iroh;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const IDELTACHAT_SCHEME: &str = "https://i.delta.chat/#";
@@ -37,9 +36,6 @@ const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
-
-/// Legacy backup transfer based on iroh 0.4.
-pub(crate) const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
 /// Backup transfer based on iroh-net.
 pub(crate) const DCBACKUP2_SCHEME: &str = "DCBACKUP2:";
@@ -109,20 +105,6 @@ pub enum Qr {
     Account {
         /// Server domain name.
         domain: String,
-    },
-
-    /// Provides a backup that can be retrieved using legacy iroh 0.4.
-    ///
-    /// This contains all the data needed to connect to a device and download a backup from
-    /// it to configure the receiving device with the same account.
-    Backup {
-        /// Printable version of the provider information.
-        ///
-        /// This is the printable version of a `sendme` ticket, which contains all the
-        /// information to connect to and authenticate a backup provider.
-        ///
-        /// The format is somewhat opaque, but `sendme` can deserialise this.
-        ticket: iroh::provider::Ticket,
     },
 
     /// Provides a backup that can be retrieved using iroh-net based backup transfer protocol.
@@ -295,8 +277,6 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         decode_webrtc_instance(context, qr)?
     } else if starts_with_ignore_case(qr, TG_SOCKS_SCHEME) {
         decode_tg_socks_proxy(context, qr)?
-    } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME) {
-        decode_backup(qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
         decode_backup2(qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -319,7 +299,7 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
     Ok(qrcode)
 }
 
-/// Formats the text of the [`Qr::Backup`] variant.
+/// Formats the text of the [`Qr::Backup2`] variant.
 ///
 /// This is the inverse of [`check_qr`] for that variant only.
 ///
@@ -327,7 +307,6 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
 /// into `FromStr`.
 pub fn format_backup(qr: &Qr) -> Result<String> {
     match qr {
-        Qr::Backup { ref ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
         Qr::Backup2 {
             ref node_addr,
             ref auth_token,
@@ -588,18 +567,6 @@ fn decode_tg_socks_proxy(_context: &Context, qr: &str) -> Result<Qr> {
     } else {
         bail!("Bad t.me/socks url: {:?}", url);
     }
-}
-
-/// Decodes a [`DCBACKUP_SCHEME`] QR code.
-///
-/// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
-/// [`iroh::provider::Ticket`]'s `Display` impl.
-fn decode_backup(qr: &str) -> Result<Qr> {
-    let payload = qr
-        .strip_prefix(DCBACKUP_SCHEME)
-        .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
-    let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
-    Ok(Qr::Backup { ticket })
 }
 
 /// Decodes a [`DCBACKUP2_SCHEME`] QR code.

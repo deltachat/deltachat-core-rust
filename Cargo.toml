@@ -59,7 +59,6 @@ hex = "0.4.0"
 hickory-resolver = "0.24"
 humansize = "2"
 image = { version = "0.25.1", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh_old = { version = "0.4.2", default-features = false, package = "iroh"}
 iroh-net = { version = "0.23.0", default-features = false }
 iroh-gossip = { version = "0.23.0", default-features = false, features = ["net"] }
 kamadak-exif = "0.5.3"

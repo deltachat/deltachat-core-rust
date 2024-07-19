@@ -1345,12 +1345,12 @@ pub(crate) async fn new_group_send_first_message(context: &Context) -> String {
     translated(context, StockMessage::NewGroupSendFirstMessage).await
 }
 
-/// Text to put in the [`Qr::Backup`] rendered SVG image.
+/// Text to put in the [`Qr::Backup2`] rendered SVG image.
 ///
 /// The default is "Scan to set up second device for <account name (account addr)>".  The
 /// account name and address are looked up from the context.
 ///
-/// [`Qr::Backup`]: crate::qr::Qr::Backup
+/// [`Qr::Backup2`]: crate::qr::Qr::Backup2
 pub(crate) async fn backup_transfer_qr(context: &Context) -> Result<String> {
     let contact = Contact::get_by_id(context, ContactId::SELF).await?;
     let addr = contact.get_addr();
