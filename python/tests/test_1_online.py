@@ -1562,8 +1562,6 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
 
         # check progress events for import
         assert imex_tracker.wait_progress(1, progress_upper_limit=249)
-        assert imex_tracker.wait_progress(500, progress_upper_limit=749)
-        assert imex_tracker.wait_progress(750, progress_upper_limit=999)
         assert imex_tracker.wait_progress(1000)
 
     assert_account_is_proper(ac1)

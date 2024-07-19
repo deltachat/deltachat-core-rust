@@ -35,6 +35,11 @@ pub enum QrObject {
     Backup {
         ticket: String,
     },
+    Backup2 {
+        auth_token: String,
+
+        node_addr: String,
+    },
     WebrtcInstance {
         domain: String,
         instance_pattern: String,
@@ -131,6 +136,14 @@ impl From<Qr> for QrObject {
             Qr::Account { domain } => QrObject::Account { domain },
             Qr::Backup { ticket } => QrObject::Backup {
                 ticket: ticket.to_string(),
+            },
+            Qr::Backup2 {
+                ref node_addr,
+                auth_token,
+            } => QrObject::Backup2 {
+                node_addr: serde_json::to_string(node_addr).unwrap_or_default(),
+
+                auth_token,
             },
             Qr::WebrtcInstance {
                 domain,

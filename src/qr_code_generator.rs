@@ -58,7 +58,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
     )
 }
 
-/// Renders a [`Qr::Backup`] QR code as an SVG image.
+/// Renders a [`Qr::Backup2`] QR code as an SVG image.
 pub async fn generate_backup_qr(context: &Context, qr: &Qr) -> Result<String> {
     let content = qr::format_backup(qr)?;
     let (avatar, displayname, _addr, color) = self_info(context).await?;

@@ -4364,7 +4364,7 @@ pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provid
     let ctx = &*ffi_provider.context;
     let provider = &mut ffi_provider.provider;
     block_on(provider)
-        .context("Failed to await BackupProvider")
+        .context("Failed to await backup provider")
         .log_err(ctx)
         .set_last_error(ctx)
         .ok();
