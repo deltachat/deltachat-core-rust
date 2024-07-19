@@ -427,14 +427,14 @@ where
         .append_path_with_name(temp_db_path, DBFILE_BACKUP_NAME)
         .await?;
 
-    let mut last_progress = 0;
+    let mut last_progress = 10;
 
     for (i, blob) in blobdir.iter().enumerate() {
         let mut file = File::open(blob.to_abs_path()).await?;
         let path_in_archive = PathBuf::from(BLOBS_BACKUP_NAME).join(blob.as_name());
         builder.append_file(path_in_archive, &mut file).await?;
-        let progress = 1000 * i / blobdir.len();
-        if progress != last_progress && progress > 10 && progress < 1000 {
+        let progress = std::cmp::min(1000 * i / blobdir.len(), 999);
+        if progress > last_progress {
             context.emit_event(EventType::ImexProgress(progress));
             last_progress = progress;
         }
