@@ -103,12 +103,12 @@ def test_account(acfactory) -> None:
     assert alice.get_chatlist(snapshot=True)
     assert alice.get_qr_code()
     assert alice.get_fresh_messages()
-    assert alice.get_next_messages()
 
     # Test sending empty message.
     assert len(bob.wait_next_messages()) == 0
     alice_chat_bob.send_text("")
     messages = bob.wait_next_messages()
+    assert bob.get_next_messages() == messages
     assert len(messages) == 1
     message = messages[0]
     snapshot = message.get_snapshot()

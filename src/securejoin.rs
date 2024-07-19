@@ -98,6 +98,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
         let group_name_urlencoded = utf8_percent_encode(group_name, NON_ALPHANUMERIC).to_string();
         if sync_token {
             context.sync_qr_code_tokens(Some(chat.id)).await?;
+            context.scheduler.interrupt_smtp().await;
         }
         format!(
             "OPENPGP4FPR:{}#a={}&g={}&x={}&i={}&s={}",
@@ -112,6 +113,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
         // parameters used: a=n=i=s=
         if sync_token {
             context.sync_qr_code_tokens(None).await?;
+            context.scheduler.interrupt_smtp().await;
         }
         format!(
             "OPENPGP4FPR:{}#a={}&n={}&i={}&s={}",

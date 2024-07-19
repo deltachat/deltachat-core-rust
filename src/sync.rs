@@ -120,6 +120,7 @@ impl Context {
     /// Adds most recent qr-code tokens for a given chat to the list of items to be synced.
     /// If device synchronization is disabled,
     /// no tokens exist or the chat is unpromoted, the function does nothing.
+    /// The caller should perform `SchedulerState::interrupt_smtp()` on its own to trigger sending.
     pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
         if !self.should_send_sync_msgs().await? {
             return Ok(());
@@ -154,6 +155,7 @@ impl Context {
 
     /// Adds deleted qr-code token to the list of items to be synced
     /// so that the token also gets deleted on the other devices.
+    /// This interrupts SMTP on its own.
     pub(crate) async fn sync_qr_code_token_deletion(
         &self,
         invitenumber: String,
@@ -164,10 +166,16 @@ impl Context {
             auth,
             grpid: None,
         }))
-        .await
+        .await?;
+        self.scheduler.interrupt_smtp().await;
+        Ok(())
     }
 
     /// Sends out a self-sent message with items to be synchronized, if any.
+    ///
+    /// Mustn't be called from multiple tasks in parallel to avoid sending the same sync items twice
+    /// because sync items are removed from the db only after successful sending. We guarantee this
+    /// by calling `send_sync_msg()` only from the SMTP loop.
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
             let chat_id =
@@ -608,7 +616,8 @@ mod tests {
         alice
             .set_config(Config::Displayname, Some("Alice Human"))
             .await?;
-        alice.pop_sent_msg().await; // Sync message
+        alice.send_sync_msg().await?;
+        alice.pop_sent_msg().await;
         let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.text, "hi");
 
