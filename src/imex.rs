@@ -312,8 +312,8 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
     let mut blobs = Vec::new();
     // We already emitted ImexProgress(10) above
     let mut last_progress = 10;
-    const PROGRESS_MIGRATIONS: u64 = 999;
-    let mut total_size = 0;
+    const PROGRESS_MIGRATIONS: u128 = 999;
+    let mut total_size: u64 = 0;
     let mut res: Result<()> = loop {
         let mut f = match entries.try_next().await {
             Ok(Some(f)) => f,
@@ -324,9 +324,10 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
             Ok(size) => size,
             Err(e) => break Err(e).context("Failed to get entry size"),
         };
+        let max = PROGRESS_MIGRATIONS - 1;
         let progress = std::cmp::min(
-            1000 * total_size.checked_div(file_size).unwrap_or_default(),
-            PROGRESS_MIGRATIONS - 1,
+            max * u128::from(total_size) / std::cmp::max(u128::from(file_size), 1),
+            max,
         );
         if progress > last_progress {
             context.emit_event(EventType::ImexProgress(progress as usize));
