@@ -20,7 +20,6 @@ use crate::events::EventType;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
-use crate::socks::Socks5Config;
 use crate::token;
 use crate::tools::validate_id;
 use iroh_old as iroh;
@@ -590,8 +589,16 @@ struct CreateAccountErrorResponse {
 #[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
-    let socks5_config = Socks5Config::from_database(&context.sql).await?;
-    let response = crate::net::http::get_client(socks5_config)?
+
+    if !url_str.starts_with(HTTPS_SCHEME) {
+        bail!("DCACCOUNT QR codes must use HTTPS scheme");
+    }
+
+    // As only HTTPS is used, it is safe to load DNS cache.
+    let load_cache = true;
+
+    let response = crate::net::http::get_client(context, load_cache)
+        .await?
         .post(url_str)
         .send()
         .await?;

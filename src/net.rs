@@ -43,7 +43,7 @@ async fn lookup_host_with_timeout(
 ///
 /// If `load_cache` is true, appends cached results not older than 30 days to the end
 /// or entries from fallback cache if there are no cached addresses.
-async fn lookup_host_with_cache(
+pub(crate) async fn lookup_host_with_cache(
     context: &Context,
     hostname: &str,
     port: u16,
