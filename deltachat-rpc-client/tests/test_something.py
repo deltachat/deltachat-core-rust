@@ -1,3 +1,4 @@
+import base64
 import concurrent.futures
 import json
 import logging
@@ -613,3 +614,10 @@ def test_markseen_contact_request(acfactory, tmp_path):
         if event.kind == EventType.MSGS_NOTICED:
             break
     assert message2.get_snapshot().state == MessageState.IN_SEEN
+
+
+def test_get_http_response(acfactory):
+    alice = acfactory.new_configured_account()
+    http_response = alice._rpc.get_http_response(alice.id, "https://example.org")
+    assert http_response["mimetype"] == "text/html"
+    assert b"<title>Example Domain</title>" in base64.b64decode((http_response["blob"] + "==").encode())
