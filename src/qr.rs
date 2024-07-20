@@ -510,7 +510,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
         Ok(Qr::Account {
             domain: url
                 .host_str()
-                .context("can't extract WebRTC instance domain")?
+                .context("can't extract account setup domain")?
                 .to_string(),
         })
     } else {
