@@ -10,7 +10,6 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::provider;
 use crate::provider::Oauth2Authorizer;
-use crate::socks::Socks5Config;
 use crate::tools::time;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
@@ -159,8 +158,12 @@ pub(crate) async fn get_oauth2_access_token(
         }
 
         // ... and POST
-        let socks5_config = Socks5Config::from_database(&context.sql).await?;
-        let client = crate::net::http::get_client(socks5_config)?;
+
+        // All OAuth URLs are hardcoded HTTPS URLs,
+        // so it is safe to load DNS cache.
+        let load_cache = true;
+
+        let client = crate::net::http::get_client(context, load_cache).await?;
 
         let response: Response = match client.post(post_url).form(&post_param).send().await {
             Ok(resp) => match resp.json().await {
@@ -290,8 +293,12 @@ impl Oauth2 {
         //   "verified_email": true,
         //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
         // }
-        let socks5_config = Socks5Config::from_database(&context.sql).await.ok()?;
-        let client = match crate::net::http::get_client(socks5_config) {
+
+        // All OAuth URLs are hardcoded HTTPS URLs,
+        // so it is safe to load DNS cache.
+        let load_cache = true;
+
+        let client = match crate::net::http::get_client(context, load_cache).await {
             Ok(cl) => cl,
             Err(err) => {
                 warn!(context, "failed to get HTTP client: {}", err);
