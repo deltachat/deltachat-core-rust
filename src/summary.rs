@@ -129,6 +129,8 @@ impl Summary {
         {
             msg.get_file(context)
                 .and_then(|path| path.to_str().map(|p| p.to_owned()))
+        } else if msg.viewtype == Viewtype::Webxdc {
+            Some("webxdc-icon://last-msg-id".to_string())
         } else {
             None
         };
@@ -355,6 +357,18 @@ mod tests {
         msg.set_text(some_text.clone());
         msg.set_file("foo.mp3", None);
         assert_summary_texts(&msg, ctx, "🎵 foo.mp3 \u{2013} bla bla").await; // file name and text added for audio
+
+        let mut msg = Message::new(Viewtype::File);
+        let bytes = include_bytes!("../test-data/webxdc/with-minimal-manifest.xdc");
+        msg.set_file_from_bytes(ctx, "foo.xdc", bytes, None)
+            .await
+            .unwrap();
+        chat_id.set_draft(ctx, Some(&mut msg)).await.unwrap();
+        assert_eq!(msg.viewtype, Viewtype::Webxdc);
+        assert_summary_texts(&msg, ctx, "nice app!").await;
+        msg.set_text(some_text.clone());
+        chat_id.set_draft(ctx, Some(&mut msg)).await.unwrap();
+        assert_summary_texts(&msg, ctx, "nice app! \u{2013} bla bla").await;
 
         let mut msg = Message::new(Viewtype::File);
         msg.set_file("foo.bar", None);
