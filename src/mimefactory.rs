@@ -774,7 +774,7 @@ impl MimeFactory {
 
                 match header_name.as_str() {
                     "subject" => {
-                        unprotected_headers.push(Header::new(header.name, "...".to_string()));
+                        unprotected_headers.push(Header::new(header.name, "[...]".to_string()));
                     }
                     "date"
                     | "in-reply-to"
@@ -2511,6 +2511,7 @@ mod tests {
             .await?;
         let sent = bob.send_msg(chat, &mut msg).await;
         assert!(msg.get_showpadlock());
+        assert!(sent.payload.contains("\r\nSubject: [...]\r\n"));
 
         let mime = MimeMessage::from_bytes(&alice, sent.payload.as_bytes(), None).await?;
         let mut payload = str::from_utf8(&mime.decoded_data)?.splitn(2, "\r\n\r\n");
