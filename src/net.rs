@@ -232,14 +232,25 @@ pub(crate) async fn connect_tcp(
             Ok(stream) => {
                 tcp_stream = Some(stream);
 
-                // Maximize priority of this cached entry.
+                // Update timestamp of this cached entry
+                // or insert a new one if cached entry does not exist.
+                //
+                // This increases priority of existing cached entries
+                // and copies fallback addresses from build-in cache
+                // into database cache on successful use.
+                //
+                // Unlike built-in cache,
+                // database cache is used even if DNS
+                // resolver returns a non-empty
+                // (but potentially incorrect and unusable) result.
                 context
                     .sql
                     .execute(
-                        "UPDATE dns_cache
-                         SET timestamp = ?
-                         WHERE address = ?",
-                        (time(), resolved_addr.ip().to_string()),
+                        "INSERT INTO dns_cache (hostname, address, timestamp)
+                         VALUES (?, ?, ?)
+                         ON CONFLICT (hostname, address)
+                         DO UPDATE SET timestamp=excluded.timestamp",
+                        (host, resolved_addr.ip().to_string(), time()),
                     )
                     .await?;
                 break;
