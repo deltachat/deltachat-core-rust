@@ -3560,6 +3560,39 @@ async fn test_prefer_encrypt_mutual_if_encrypted() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_forged_from_and_no_valid_signatures() -> Result<()> {
+    let t = &TestContext::new_bob().await;
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_signed.eml");
+    let received_msg = receive_imf(t, raw, false).await?.unwrap();
+    assert!(!received_msg.from_is_signed);
+    let msg = t.get_last_msg().await;
+    assert!(!msg.chat_id.is_trash());
+    assert!(!msg.get_showpadlock());
+
+    let t = &TestContext::new_bob().await;
+    let raw = String::from_utf8(raw.to_vec())?.replace("alice@example.org", "clarice@example.org");
+    let received_msg = receive_imf(t, raw.as_bytes(), false).await?.unwrap();
+    assert!(received_msg.chat_id.is_trash());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_wrong_from_name_and_no_valid_signatures() -> Result<()> {
+    let t = &TestContext::new_bob().await;
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_signed.eml");
+    let raw = String::from_utf8(raw.to_vec())?.replace("From: Alice", "From: A");
+    let received_msg = receive_imf(t, raw.as_bytes(), false).await?.unwrap();
+    assert!(!received_msg.from_is_signed);
+    let msg = t.get_last_msg().await;
+    assert!(!msg.chat_id.is_trash());
+    assert!(!msg.get_showpadlock());
+    let contact = Contact::get_by_id(t, msg.from_id).await?;
+    assert_eq!(contact.get_authname(), "Alice");
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
     let t = TestContext::new_bob().await;
 
