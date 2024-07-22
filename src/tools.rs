@@ -305,7 +305,7 @@ pub fn get_filesuffix_lc(path_filename: &str) -> Option<String> {
 
 /// Returns the `(width, height)` of the given image buffer.
 pub fn get_filemeta(buf: &[u8]) -> Result<(u32, u32)> {
-    let image = image::io::Reader::new(Cursor::new(buf)).with_guessed_format()?;
+    let image = image::ImageReader::new(Cursor::new(buf)).with_guessed_format()?;
     let dimensions = image.into_dimensions()?;
     Ok(dimensions)
 }
