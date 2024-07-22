@@ -396,13 +396,10 @@ impl MimeMessage {
                 &mail.headers,
             );
 
-            if let (Some(inner_from), true) = (inner_from, !signatures.is_empty()) {
-                if addr_cmp(&inner_from.addr, &from.addr) {
-                    from_is_signed = true;
-                    from = inner_from;
-                } else {
-                    // There is a From: header in the encrypted &
-                    // signed part, but it doesn't match the outer one.
+            if let Some(inner_from) = inner_from {
+                if !addr_cmp(&inner_from.addr, &from.addr) {
+                    // There is a From: header in the encrypted
+                    // part, but it doesn't match the outer one.
                     // This _might_ be because the sender's mail server
                     // replaced the sending address, e.g. in a mailing list.
                     // Or it's because someone is doing some replay attack.
@@ -411,7 +408,7 @@ impl MimeMessage {
                     // so we return an error below.
                     warn!(
                         context,
-                        "From header in signed part doesn't match the outer one",
+                        "From header in encrypted part doesn't match the outer one",
                     );
 
                     // Return an error from the parser.
@@ -420,6 +417,8 @@ impl MimeMessage {
                     // as if the MIME structure is broken.
                     bail!("From header is forged");
                 }
+                from = inner_from;
+                from_is_signed = !signatures.is_empty();
             }
         }
         if signatures.is_empty() {
