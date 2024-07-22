@@ -859,10 +859,10 @@ pub(crate) async fn setup_contact_qr_description(
     display_name: &str,
     addr: &str,
 ) -> String {
-    let name = if display_name == addr {
+    let name = if display_name.is_empty() {
         addr.to_owned()
     } else {
-        format!("{display_name} ({addr})")
+        display_name.to_owned()
     };
     translated(context, StockMessage::SetupContactQRDescription)
         .await

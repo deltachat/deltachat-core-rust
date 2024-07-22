@@ -37,6 +37,28 @@ def test_qr_setup_contact(acfactory, tmp_path) -> None:
     assert not bob_contact_alice_snapshot.is_verified
 
 
+def test_qr_setup_contact_svg(acfactory) -> None:
+    alice = acfactory.new_configured_account()
+    _, _, domain = alice.get_config("addr").rpartition("@")
+
+    _qr_code, svg = alice.get_qr_code_svg()
+
+    # Test that email address is in SVG
+    # when we have no display name.
+    # Check only the domain name, because
+    # long address may be split over multiple lines
+    # and not matched.
+    assert domain in svg
+
+    alice.set_config("displayname", "Alice")
+
+    # Test that display name is used
+    # in SVG and no address is visible.
+    _qr_code, svg = alice.get_qr_code_svg()
+    assert domain not in svg
+    assert "Alice" in svg
+
+
 @pytest.mark.parametrize("protect", [True, False])
 def test_qr_securejoin(acfactory, protect):
     alice, bob = acfactory.get_online_accounts(2)
