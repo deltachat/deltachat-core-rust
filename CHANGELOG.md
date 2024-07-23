@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.142.0] - 2024-07-23
+
+### API-Changes
+
+- deltachat-jsonrpc: Add `pinned` property to `FullChat` and `BasicChat`.
+- deltachat-jsonrpc: Allow to set message quote text without referencing quoted message ([#5695](https://github.com/deltachat/deltachat-core-rust/pull/5695)).
+
+### Features / Changes
+
+- cargo: Update iroh from 0.17 to 0.20.
+- iroh: Pass direct addresses from Endpoint to Gossip.
+- New BACKUP2 transfer protocol.
+- Use `[...]` instead of `...` for protected subject.
+- Add email address and fingerprint to exported key file names ([#5694](https://github.com/deltachat/deltachat-core-rust/pull/5694)).
+- Request `imap` ALPN for IMAP TLS connections and `smtp` ALPN for SMTP TLS connections.
+- Limit the size of aggregated WebXDC update to 100 KiB ([#4825](https://github.com/deltachat/deltachat-core-rust/pull/4825)).
+- Don't create ad-hoc group on a member removal message ([#5618](https://github.com/deltachat/deltachat-core-rust/pull/5618)).
+- Don't unarchive a group on a member removal except SELF ([#5618](https://github.com/deltachat/deltachat-core-rust/pull/5618)).
+- Use custom DNS resolver for HTTP(S).
+- Promote fallback DNS results to cached on successful use.
+- Set summary thumbnail path for WebXDCs to "webxdc-icon://last-msg-id" ([#5782](https://github.com/deltachat/deltachat-core-rust/pull/5782)).
+- Do not show the address in invite QR code SVG.
+- Report better error from DcKey::from_asc() ([#5539](https://github.com/deltachat/deltachat-core-rust/pull/5539)).
+- Contact::create_ex: Don't send sync message if nothing changed ([#5705](https://github.com/deltachat/deltachat-core-rust/pull/5705)).
+
+### Fixes
+
+- `Message::set_quote`: Don't forget to remove `Param::ProtectQuote`.
+- Randomize avatar blob filenames to work around caching.
+- Correct copy-pasted DCACCOUNT parsing errors message.
+- Call `send_sync_msg()` only from the SMTP loop ([#5780](https://github.com/deltachat/deltachat-core-rust/pull/5780)).
+- Emit MsgsChanged if the number of unnoticed archived chats could decrease ([#5768](https://github.com/deltachat/deltachat-core-rust/pull/5768)).
+- Reject message with forged From even if no valid signatures are found.
+
+### Refactor
+
+- Move key transfer into its own submodule.
+- Move TempPathGuard into `tools` and use instead of `DeleteOnDrop`.
+- Return error from export_backup() without logging.
+- Reduce boilerplate for migration version increment.
+
+### Tests
+
+- Add test for `get_http_response` JSON-RPC call.
+
+### Build system
+
+- node: Pin node-gyp to version 10.1.
+
+### Miscellaneous Tasks
+
+- cargo: Update hashlink to remove allocator-api2 dependency.
+- cargo: Update openssl to v0.10.66.
+- deps: Bump openssl from 0.10.60 to 0.10.66 in /fuzz.
+- cargo: Update `image` crate to 0.25.2.
+
 ## [1.141.2] - 2024-07-09
 
 ### Features / Changes
@@ -24,7 +80,7 @@
 - Protect from reusing migration versions ([#5719](https://github.com/deltachat/deltachat-core-rust/pull/5719)).
 - Move `quota_needs_update` calculation to a separate function ([#5683](https://github.com/deltachat/deltachat-core-rust/pull/5683)).
 
-### Other
+### Documentation
 
 - Document vCards in the specification ([#5724](https://github.com/deltachat/deltachat-core-rust/pull/5724))
 
@@ -4538,3 +4594,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.141.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.2...v1.141.0
 [1.141.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.0...v1.141.1
 [1.141.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.1...v1.141.2
+[1.142.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.2...v1.142.0
