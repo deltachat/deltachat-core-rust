@@ -178,7 +178,7 @@ impl Smtp {
         port: u16,
         strict_tls: bool,
     ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let tcp_stream = connect_tcp(context, hostname, port, SMTP_TIMEOUT, false).await?;
+        let tcp_stream = connect_tcp(context, hostname, port, SMTP_TIMEOUT, strict_tls).await?;
         let tls_stream = wrap_tls(strict_tls, hostname, &["smtp"], tcp_stream).await?;
         let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
