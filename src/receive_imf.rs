@@ -1255,11 +1255,13 @@ async fn add_parts(
 
     let in_fresh = state == MessageState::InFresh;
     let sort_to_bottom = false;
+    let received = true;
     let sort_timestamp = chat_id
         .calc_sort_timestamp(
             context,
             mime_parser.timestamp_sent,
             sort_to_bottom,
+            received,
             mime_parser.incoming,
         )
         .await?;

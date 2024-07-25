@@ -4812,6 +4812,36 @@ async fn test_protected_group_add_remove_member_missing_key() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_older_message_from_2nd_device() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let chat_id = alice
+        .create_chat_with_contact("", "bob@example.net")
+        .await
+        .id;
+    alice.send_text(chat_id, "We share this account").await;
+    let received = receive_imf(
+        alice,
+        b"From: alice@example.org\n\
+          To: bob@example.net\n\
+          Message-ID: <1234-2-4@example.org>\n\
+          Date: Sat, 07 Dec 1970 19:00:26 +0000\n\
+          \n\
+          I'm Alice too\n",
+        true,
+    )
+    .await?
+    .unwrap();
+    alice
+        .golden_test_chat(
+            received.chat_id,
+            "receive_imf_older_message_from_2nd_device",
+        )
+        .await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dont_create_adhoc_group_on_member_removal() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let bob = &tcm.bob().await;
