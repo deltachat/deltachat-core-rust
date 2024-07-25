@@ -73,8 +73,9 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
             // Calculate the sort timestamp before checking the chat protection status so that if we
             // race with its change, we don't add our message below the protection message.
             let sort_to_bottom = true;
+            let (received, incoming) = (false, false);
             let ts_sort = chat_id
-                .calc_sort_timestamp(context, 0, sort_to_bottom, false)
+                .calc_sort_timestamp(context, 0, sort_to_bottom, received, incoming)
                 .await?;
             if chat_id.is_protected(context).await? == ProtectionStatus::Unprotected {
                 let ts_start = time();

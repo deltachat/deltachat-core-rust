@@ -616,8 +616,9 @@ impl ChatId {
         contact_id: Option<ContactId>,
     ) -> Result<()> {
         let sort_to_bottom = true;
+        let (received, incoming) = (false, false);
         let ts = self
-            .calc_sort_timestamp(context, timestamp_sent, sort_to_bottom, false)
+            .calc_sort_timestamp(context, timestamp_sent, sort_to_bottom, received, incoming)
             .await?
             // Always sort protection messages below `SystemMessage::SecurejoinWait{,Timeout}` ones
             // in case of race conditions.
@@ -1392,12 +1393,14 @@ impl ChatId {
     /// corresponding event in case of a system message (usually the current system time).
     /// `always_sort_to_bottom` makes this ajust the returned timestamp up so that the message goes
     /// to the chat bottom.
+    /// `received` -- whether the message is received. Otherwise being sent.
     /// `incoming` -- whether the message is incoming.
     pub(crate) async fn calc_sort_timestamp(
         self,
         context: &Context,
         message_timestamp: i64,
         always_sort_to_bottom: bool,
+        received: bool,
         incoming: bool,
     ) -> Result<i64> {
         let mut sort_timestamp = cmp::min(message_timestamp, smeared_time(context));
@@ -1418,25 +1421,38 @@ impl ChatId {
                     (self, MessageState::OutDraft),
                 )
                 .await?
-        } else if incoming {
-            // get newest non fresh message for this chat.
-
-            // If a user hasn't been online for some time, the Inbox is fetched first and then the
-            // Sentbox. In order for Inbox and Sent messages to be allowed to mingle, outgoing
-            // messages are purely sorted by their sent timestamp. NB: The Inbox must be fetched
-            // first otherwise Inbox messages would be always below old Sentbox messages. We could
-            // take in the query below only incoming messages, but then new incoming messages would
-            // mingle with just sent outgoing ones and apear somewhere in the middle of the chat.
+        } else if received {
+            // Received messages shouldn't mingle with just sent ones and appear somewhere in the
+            // middle of the chat, so we go after the newest non fresh message.
+            //
+            // But if a received outgoing message is older than some seen message, better sort the
+            // received message purely by timestamp. We could place it just before that seen
+            // message, but anyway the user may not notice it.
+            //
+            // NB: Received outgoing messages may break sorting of fresh incoming ones, but this
+            // shouldn't happen frequently. Seen incoming messages don't really break sorting of
+            // fresh ones, they rather mean that older incoming messages are actually seen as well.
             context
                 .sql
-                .query_get_value(
-                    "SELECT MAX(timestamp)
+                .query_row_optional(
+                    "SELECT MAX(timestamp), MAX(IIF(state=?,timestamp_sent,0))
                      FROM msgs
                      WHERE chat_id=? AND hidden=0 AND state>?
                      HAVING COUNT(*) > 0",
-                    (self, MessageState::InFresh),
+                    (MessageState::InSeen, self, MessageState::InFresh),
+                    |row| {
+                        let ts: i64 = row.get(0)?;
+                        let ts_sent_seen: i64 = row.get(1)?;
+                        Ok((ts, ts_sent_seen))
+                    },
                 )
                 .await?
+                .and_then(|(ts, ts_sent_seen)| {
+                    match incoming || ts_sent_seen <= message_timestamp {
+                        true => Some(ts),
+                        false => None,
+                    }
+                })
         } else {
             None
         };
