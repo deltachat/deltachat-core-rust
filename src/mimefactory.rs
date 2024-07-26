@@ -454,7 +454,7 @@ impl MimeFactory {
                 };
                 stock_str::subject_for_new_contact(context, self_name).await
             }
-            Loaded::Mdn { .. } => "Read Receipt".to_string(), // untranslated to no reveal sender's language
+            Loaded::Mdn { .. } => "Receipt Notification".to_string(), // untranslated to no reveal sender's language
         };
 
         Ok(subject)
