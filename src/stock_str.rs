@@ -80,9 +80,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Fingerprints"))]
     FingerPrints = 30,
 
-    #[strum(props(fallback = "Return receipt"))]
-    ReadRcpt = 31,
-
     #[strum(props(fallback = "End-to-end encryption preferred"))]
     E2ePreferred = 34,
 
@@ -440,9 +437,6 @@ pub enum StockMessage {
         fallback = "Could not yet establish guaranteed end-to-end encryption, but you may already send a message."
     ))]
     SecurejoinWaitTimeout = 191,
-
-    #[strum(props(fallback = "This message is a receipt notification."))]
-    ReadRcptMailBody = 192,
 }
 
 impl StockMessage {
@@ -793,16 +787,6 @@ pub(crate) async fn cant_decrypt_outgoing_msgs(context: &Context) -> String {
 /// Stock string: `Fingerprints`.
 pub(crate) async fn finger_prints(context: &Context) -> String {
     translated(context, StockMessage::FingerPrints).await
-}
-
-/// Stock string: `Return receipt`.
-pub(crate) async fn read_rcpt(context: &Context) -> String {
-    translated(context, StockMessage::ReadRcpt).await
-}
-
-/// Stock string: `This message is a receipt notification.`.
-pub(crate) async fn read_rcpt_mail_body(context: &Context) -> String {
-    translated(context, StockMessage::ReadRcptMailBody).await
 }
 
 /// Stock string: `Group image deleted.`.

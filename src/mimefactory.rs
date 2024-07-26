@@ -454,7 +454,7 @@ impl MimeFactory {
                 };
                 stock_str::subject_for_new_contact(context, self_name).await
             }
-            Loaded::Mdn { .. } => stock_str::read_rcpt(context).await,
+            Loaded::Mdn { .. } => "Receipt Notification".to_string(), // untranslated to no reveal sender's language
         };
 
         Ok(subject)
@@ -672,7 +672,7 @@ impl MimeFactory {
                         })
                 }
             }
-            Loaded::Mdn { .. } => self.render_mdn(context).await?,
+            Loaded::Mdn { .. } => self.render_mdn()?,
         };
 
         let get_content_type_directives_header = || {
@@ -1400,7 +1400,7 @@ impl MimeFactory {
     }
 
     /// Render an MDN
-    async fn render_mdn(&mut self, context: &Context) -> Result<PartBuilder> {
+    fn render_mdn(&mut self) -> Result<PartBuilder> {
         // RFC 6522, this also requires the `report-type` parameter which is equal
         // to the MIME subtype of the second body part of the multipart/report
         //
@@ -1426,16 +1426,15 @@ impl MimeFactory {
             "multipart/report; report-type=disposition-notification".to_string(),
         ));
 
-        // first body part: always human-readable, always REQUIRED by RFC 6522
-        let message_text = format!(
-            "{}\r\n",
-            format_flowed(&stock_str::read_rcpt_mail_body(context).await)
-        );
+        // first body part: always human-readable, always REQUIRED by RFC 6522.
+        // untranslated to no reveal sender's language.
+        // moreover, translations in unknown languages are confusing, and clients may not display them at all
         let text_part = PartBuilder::new().header((
             "Content-Type".to_string(),
             "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
         ));
-        let text_part = self.add_message_text(text_part, message_text);
+        let text_part =
+            self.add_message_text(text_part, "This is a receipt notification.\r\n".to_string());
         message = message.child(text_part.build());
 
         // second body part: machine-readable, always REQUIRED by RFC 6522
