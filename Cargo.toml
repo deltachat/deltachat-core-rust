@@ -190,3 +190,6 @@ vendored = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
   "reqwest/native-tls-vendored"
 ]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }

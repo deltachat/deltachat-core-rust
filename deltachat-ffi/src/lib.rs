@@ -4418,7 +4418,7 @@ trait ResultExt<T, E> {
     /// Like `log_err()`, but:
     /// - returns the default value instead of an Err value.
     /// - emits an error instead of a warning for an [Err] result. This means
-    /// that the error will be shown to the user in a small pop-up.
+    ///   that the error will be shown to the user in a small pop-up.
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
 }
 
