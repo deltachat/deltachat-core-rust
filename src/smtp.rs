@@ -19,9 +19,9 @@ use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
-use crate::net::connect_tcp;
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
+use crate::net::{connect_starttls_smtp, connect_tcp, connect_tls};
 use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::scheduler::connectivity::ConnectivityStore;
@@ -178,8 +178,8 @@ impl Smtp {
         port: u16,
         strict_tls: bool,
     ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let tcp_stream = connect_tcp(context, hostname, port, SMTP_TIMEOUT, strict_tls).await?;
-        let tls_stream = wrap_tls(strict_tls, hostname, &["smtp"], tcp_stream).await?;
+        let tls_stream =
+            connect_tls(context, hostname, port, SMTP_TIMEOUT, strict_tls, &["smtp"]).await?;
         let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
         let client = smtp::SmtpClient::new().smtp_utf8(true);
@@ -194,15 +194,9 @@ impl Smtp {
         port: u16,
         strict_tls: bool,
     ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let tcp_stream = connect_tcp(context, hostname, port, SMTP_TIMEOUT, strict_tls).await?;
+        let tls_stream =
+            connect_starttls_smtp(context, hostname, port, SMTP_TIMEOUT, strict_tls).await?;
 
-        // Run STARTTLS command and convert the client back into a stream.
-        let client = smtp::SmtpClient::new().smtp_utf8(true);
-        let transport = SmtpTransport::new(client, BufStream::new(tcp_stream)).await?;
-        let tcp_stream = transport.starttls().await?.into_inner();
-        let tls_stream = wrap_tls(strict_tls, hostname, &["smtp"], tcp_stream)
-            .await
-            .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
         let client = smtp::SmtpClient::new().smtp_utf8(true).without_greeting();

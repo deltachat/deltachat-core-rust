@@ -22,6 +22,42 @@ async fn lookup_host_with_timeout(
     Ok(res.collect())
 }
 
+// Updates timestamp of the cached entry
+// or inserts a new one if cached entry does not exist.
+//
+// This function should be called when a successful TLS
+// connection is established with strict TLS checks.
+//
+// This increases priority of existing cached entries
+// and copies fallback addresses from built-in cache
+// into database cache on successful use.
+//
+// Unlike built-in cache,
+// database cache is used even if DNS
+// resolver returns a non-empty
+// (but potentially incorrect and unusable) result.
+pub(crate) async fn update_connect_timestamp(
+    context: &Context,
+    host: &str,
+    address: &str,
+) -> Result<()> {
+    if host == address {
+        return Ok(());
+    }
+
+    context
+        .sql
+        .execute(
+            "INSERT INTO dns_cache (hostname, address, timestamp)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (hostname, address)
+                 DO UPDATE SET timestamp=excluded.timestamp",
+            (host, address, time()),
+        )
+        .await?;
+    Ok(())
+}
+
 /// Looks up hostname and port using DNS and updates the address resolution cache.
 ///
 /// If `load_cache` is true, appends cached results not older than 30 days to the end
@@ -39,7 +75,7 @@ pub(crate) async fn lookup_host_with_cache(
         Err(err) => {
             warn!(
                 context,
-                "DNS resolution for {}:{} failed: {:#}.", hostname, port, err
+                "DNS resolution for {hostname}:{port} failed: {err:#}."
             );
             Vec::new()
         }

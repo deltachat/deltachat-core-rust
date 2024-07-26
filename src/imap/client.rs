@@ -11,9 +11,9 @@ use tokio::io::BufWriter;
 use super::capabilities::Capabilities;
 use super::session::Session;
 use crate::context::Context;
-use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
+use crate::net::{connect_starttls_imap, connect_tcp, connect_tls};
 use crate::socks::Socks5Config;
 use fast_socks5::client::Socks5Stream;
 
@@ -104,8 +104,8 @@ impl Client {
         port: u16,
         strict_tls: bool,
     ) -> Result<Self> {
-        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
-        let tls_stream = wrap_tls(strict_tls, hostname, &["imap"], tcp_stream).await?;
+        let tls_stream =
+            connect_tls(context, hostname, port, IMAP_TIMEOUT, strict_tls, &["imap"]).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
@@ -134,25 +134,8 @@ impl Client {
         port: u16,
         strict_tls: bool,
     ) -> Result<Self> {
-        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
-
-        // Run STARTTLS command and convert the client back into a stream.
-        let buffered_tcp_stream = BufWriter::new(tcp_stream);
-        let mut client = ImapClient::new(buffered_tcp_stream);
-        let _greeting = client
-            .read_response()
-            .await
-            .context("failed to read greeting")??;
-        client
-            .run_command_and_check_ok("STARTTLS", None)
-            .await
-            .context("STARTTLS command failed")?;
-        let buffered_tcp_stream = client.into_inner();
-        let tcp_stream = buffered_tcp_stream.into_inner();
-
-        let tls_stream = wrap_tls(strict_tls, hostname, &["imap"], tcp_stream)
-            .await
-            .context("STARTTLS upgrade failed")?;
+        let tls_stream =
+            connect_starttls_imap(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
 
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
