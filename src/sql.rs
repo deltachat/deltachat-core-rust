@@ -350,12 +350,12 @@ impl Sql {
     ///
     /// 1. As mentioned above, SQLite's locking mechanism is non-async and sleeps in a loop.
     /// 2. If there are other write transactions, we block the db connection until
-    ///   upgraded. If some reader comes then, it has to get the next, less used connection with a
-    ///   worse per-connection page cache (SQLite allows one write and any number of reads in parallel).
+    ///    upgraded. If some reader comes then, it has to get the next, less used connection with a
+    ///    worse per-connection page cache (SQLite allows one write and any number of reads in parallel).
     /// 3. If a transaction is blocked for more than `busy_timeout`, it fails with SQLITE_BUSY.
     /// 4. If upon a successful upgrade to a write transaction the db has been modified,
-    ///   the transaction has to be rolled back and retried, which means extra work in terms of
-    ///   CPU/battery.
+    ///    the transaction has to be rolled back and retried, which means extra work in terms of
+    ///    CPU/battery.
     ///
     /// The only pro of making write transactions DEFERRED w/o the external locking would be some
     /// parallelism between them.

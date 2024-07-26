@@ -82,11 +82,13 @@ impl Chatlist {
     ///   not needed when DC_GCL_ARCHIVED_ONLY is already set)
     /// - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
     ///   is added as needed.
+    ///
     /// `query`: An optional query for filtering the list. Only chats matching this query
-    ///     are returned. When `is:unread` is contained in the query, the chatlist is
-    ///     filtered such that only chats with unread messages show up.
+    /// are returned. When `is:unread` is contained in the query, the chatlist is
+    /// filtered such that only chats with unread messages show up.
+    ///
     /// `query_contact_id`: An optional contact ID for filtering the list. Only chats including this contact ID
-    ///     are returned.
+    /// are returned.
     pub async fn try_load(
         context: &Context,
         listflags: usize,
