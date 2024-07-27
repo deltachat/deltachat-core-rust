@@ -73,7 +73,7 @@ pub(crate) async fn connect_tcp(
     timeout_val: Duration,
     load_cache: bool,
 ) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
-    let mut last_error = None;
+    let mut first_error = None;
 
     for resolved_addr in
         lookup_host_with_cache(context, host, port, timeout_val, load_cache).await?
@@ -87,12 +87,12 @@ pub(crate) async fn connect_tcp(
                     context,
                     "Failed to connect to {}: {:#}.", resolved_addr, err
                 );
-                last_error = Some(err);
+                first_error.get_or_insert(err);
             }
         }
     }
 
-    Err(last_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
 }
 
 pub(crate) async fn connect_tls(
@@ -103,7 +103,7 @@ pub(crate) async fn connect_tls(
     strict_tls: bool,
     alpns: &[&str],
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let mut last_error = None;
+    let mut first_error = None;
 
     for resolved_addr in
         lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
@@ -118,12 +118,12 @@ pub(crate) async fn connect_tls(
             }
             Err(err) => {
                 warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                last_error = Some(err);
+                first_error.get_or_insert(err);
             }
         }
     }
 
-    Err(last_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
 }
 
 async fn connect_starttls_imap_inner(
@@ -162,7 +162,7 @@ pub(crate) async fn connect_starttls_imap(
     timeout_val: Duration,
     strict_tls: bool,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let mut last_error = None;
+    let mut first_error = None;
 
     for resolved_addr in
         lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
@@ -177,12 +177,12 @@ pub(crate) async fn connect_starttls_imap(
             }
             Err(err) => {
                 warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                last_error = Some(err);
+                first_error.get_or_insert(err);
             }
         }
     }
 
-    Err(last_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
 }
 
 async fn connect_starttls_smtp_inner(
@@ -210,7 +210,7 @@ pub(crate) async fn connect_starttls_smtp(
     timeout_val: Duration,
     strict_tls: bool,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let mut last_error = None;
+    let mut first_error = None;
 
     for resolved_addr in
         lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
@@ -225,10 +225,10 @@ pub(crate) async fn connect_starttls_smtp(
             }
             Err(err) => {
                 warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                last_error = Some(err);
+                first_error.get_or_insert(err);
             }
         }
     }
 
-    Err(last_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
 }
