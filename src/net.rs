@@ -53,10 +53,10 @@ async fn connect_tls_inner(
     timeout_val: Duration,
     host: &str,
     strict_tls: bool,
-    alpns: &[&str],
+    alpn: &str,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
     let tcp_stream = connect_tcp_inner(addr, timeout_val).await?;
-    let tls_stream = wrap_tls(strict_tls, host, alpns, tcp_stream).await?;
+    let tls_stream = wrap_tls(strict_tls, host, alpn, tcp_stream).await?;
     Ok(tls_stream)
 }
 
@@ -101,14 +101,14 @@ pub(crate) async fn connect_tls(
     port: u16,
     timeout_val: Duration,
     strict_tls: bool,
-    alpns: &[&str],
+    alpn: &str,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
     let mut first_error = None;
 
     for resolved_addr in
         lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
     {
-        match connect_tls_inner(resolved_addr, timeout_val, host, strict_tls, alpns).await {
+        match connect_tls_inner(resolved_addr, timeout_val, host, strict_tls, alpn).await {
             Ok(tls_stream) => {
                 if strict_tls {
                     dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())
@@ -148,7 +148,7 @@ async fn connect_starttls_imap_inner(
     let buffered_tcp_stream = client.into_inner();
     let tcp_stream = buffered_tcp_stream.into_inner();
 
-    let tls_stream = wrap_tls(strict_tls, host, &["imap"], tcp_stream)
+    let tls_stream = wrap_tls(strict_tls, host, "imap", tcp_stream)
         .await
         .context("STARTTLS upgrade failed")?;
 
@@ -197,7 +197,7 @@ async fn connect_starttls_smtp_inner(
     let client = async_smtp::SmtpClient::new().smtp_utf8(true);
     let transport = async_smtp::SmtpTransport::new(client, BufStream::new(tcp_stream)).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
-    let tls_stream = wrap_tls(strict_tls, host, &["smtp"], tcp_stream)
+    let tls_stream = wrap_tls(strict_tls, host, "smtp", tcp_stream)
         .await
         .context("STARTTLS upgrade failed")?;
     Ok(tls_stream)
