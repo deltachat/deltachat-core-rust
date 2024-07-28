@@ -5,8 +5,6 @@ use std::time::Duration;
 
 use anyhow::{format_err, Context as _, Result};
 use async_native_tls::TlsStream;
-use tokio::io::BufStream;
-use tokio::io::BufWriter;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
@@ -32,7 +30,9 @@ pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
 ///
 /// `TCP_NODELAY` ensures writing to the stream always results in immediate sending of the packet
 /// to the network, which is important to reduce the latency of interactive protocols such as IMAP.
-async fn connect_tcp_inner(addr: SocketAddr) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
+pub(crate) async fn connect_tcp_inner(
+    addr: SocketAddr,
+) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
     let tcp_stream = timeout(TIMEOUT, TcpStream::connect(addr))
         .await
         .context("connection timeout")?
@@ -50,7 +50,7 @@ async fn connect_tcp_inner(addr: SocketAddr) -> Result<Pin<Box<TimeoutStream<Tcp
 
 /// Attempts to establish TLS connection
 /// given the result of the hostname to address resolution.
-async fn connect_tls_inner(
+pub(crate) async fn connect_tls_inner(
     addr: SocketAddr,
     host: &str,
     strict_tls: bool,
@@ -85,133 +85,6 @@ pub(crate) async fn connect_tcp(
                     context,
                     "Failed to connect to {}: {:#}.", resolved_addr, err
                 );
-                first_error.get_or_insert(err);
-            }
-        }
-    }
-
-    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
-}
-
-pub(crate) async fn connect_tls(
-    context: &Context,
-    host: &str,
-    port: u16,
-    strict_tls: bool,
-    alpn: &str,
-) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let mut first_error = None;
-
-    for resolved_addr in lookup_host_with_cache(context, host, port, strict_tls).await? {
-        match connect_tls_inner(resolved_addr, host, strict_tls, alpn).await {
-            Ok(tls_stream) => {
-                if strict_tls {
-                    dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())
-                        .await?;
-                }
-                return Ok(tls_stream);
-            }
-            Err(err) => {
-                warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                first_error.get_or_insert(err);
-            }
-        }
-    }
-
-    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
-}
-
-async fn connect_starttls_imap_inner(
-    addr: SocketAddr,
-    host: &str,
-    strict_tls: bool,
-) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let tcp_stream = connect_tcp_inner(addr).await?;
-
-    // Run STARTTLS command and convert the client back into a stream.
-    let buffered_tcp_stream = BufWriter::new(tcp_stream);
-    let mut client = async_imap::Client::new(buffered_tcp_stream);
-    let _greeting = client
-        .read_response()
-        .await
-        .context("failed to read greeting")??;
-    client
-        .run_command_and_check_ok("STARTTLS", None)
-        .await
-        .context("STARTTLS command failed")?;
-    let buffered_tcp_stream = client.into_inner();
-    let tcp_stream = buffered_tcp_stream.into_inner();
-
-    let tls_stream = wrap_tls(strict_tls, host, "imap", tcp_stream)
-        .await
-        .context("STARTTLS upgrade failed")?;
-
-    Ok(tls_stream)
-}
-
-pub(crate) async fn connect_starttls_imap(
-    context: &Context,
-    host: &str,
-    port: u16,
-    strict_tls: bool,
-) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let mut first_error = None;
-
-    for resolved_addr in lookup_host_with_cache(context, host, port, strict_tls).await? {
-        match connect_starttls_imap_inner(resolved_addr, host, strict_tls).await {
-            Ok(tls_stream) => {
-                if strict_tls {
-                    dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())
-                        .await?;
-                }
-                return Ok(tls_stream);
-            }
-            Err(err) => {
-                warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                first_error.get_or_insert(err);
-            }
-        }
-    }
-
-    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
-}
-
-async fn connect_starttls_smtp_inner(
-    addr: SocketAddr,
-    host: &str,
-    strict_tls: bool,
-) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let tcp_stream = connect_tcp_inner(addr).await?;
-
-    // Run STARTTLS command and convert the client back into a stream.
-    let client = async_smtp::SmtpClient::new().smtp_utf8(true);
-    let transport = async_smtp::SmtpTransport::new(client, BufStream::new(tcp_stream)).await?;
-    let tcp_stream = transport.starttls().await?.into_inner();
-    let tls_stream = wrap_tls(strict_tls, host, "smtp", tcp_stream)
-        .await
-        .context("STARTTLS upgrade failed")?;
-    Ok(tls_stream)
-}
-
-pub(crate) async fn connect_starttls_smtp(
-    context: &Context,
-    host: &str,
-    port: u16,
-    strict_tls: bool,
-) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let mut first_error = None;
-
-    for resolved_addr in lookup_host_with_cache(context, host, port, strict_tls).await? {
-        match connect_starttls_smtp_inner(resolved_addr, host, strict_tls).await {
-            Ok(tls_stream) => {
-                if strict_tls {
-                    dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())
-                        .await?;
-                }
-                return Ok(tls_stream);
-            }
-            Err(err) => {
-                warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
                 first_error.get_or_insert(err);
             }
         }

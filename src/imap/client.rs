@@ -1,6 +1,7 @@
+use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
 use tokio::io::BufWriter;
@@ -8,9 +9,10 @@ use tokio::io::BufWriter;
 use super::capabilities::Capabilities;
 use super::session::Session;
 use crate::context::Context;
+use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
-use crate::net::{connect_starttls_imap, connect_tcp, connect_tls};
+use crate::net::{connect_tcp_inner, connect_tls_inner};
 use crate::provider::Socket;
 use crate::socks::Socks5Config;
 use fast_socks5::client::Socks5Stream;
@@ -102,37 +104,54 @@ impl Client {
         security: Socket,
     ) -> Result<Self> {
         if let Some(socks5_config) = socks5_config {
-            match security {
+            let client = match security {
                 Socket::Automatic => bail!("IMAP port security is not configured"),
                 Socket::Ssl => {
                     Client::connect_secure_socks5(context, host, port, strict_tls, socks5_config)
-                        .await
+                        .await?
                 }
                 Socket::Starttls => {
                     Client::connect_starttls_socks5(context, host, port, socks5_config, strict_tls)
-                        .await
+                        .await?
                 }
                 Socket::Plain => {
-                    Client::connect_insecure_socks5(context, host, port, socks5_config).await
+                    Client::connect_insecure_socks5(context, host, port, socks5_config).await?
+                }
+            };
+            Ok(client)
+        } else {
+            let mut first_error = None;
+            let load_cache =
+                strict_tls && (security == Socket::Ssl || security == Socket::Starttls);
+            for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
+                let res = match security {
+                    Socket::Automatic => bail!("IMAP port security is not configured"),
+                    Socket::Ssl => Client::connect_secure(resolved_addr, host, strict_tls).await,
+                    Socket::Starttls => {
+                        Client::connect_starttls(resolved_addr, host, strict_tls).await
+                    }
+                    Socket::Plain => Client::connect_insecure(resolved_addr).await,
+                };
+                match res {
+                    Ok(client) => {
+                        let ip_addr = resolved_addr.ip().to_string();
+                        if load_cache {
+                            update_connect_timestamp(context, host, &ip_addr).await?;
+                        }
+                        return Ok(client);
+                    }
+                    Err(err) => {
+                        warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
+                        first_error.get_or_insert(err);
+                    }
                 }
             }
-        } else {
-            match security {
-                Socket::Automatic => bail!("IMAP port security is not configured"),
-                Socket::Ssl => Client::connect_secure(context, host, port, strict_tls).await,
-                Socket::Starttls => Client::connect_starttls(context, host, port, strict_tls).await,
-                Socket::Plain => Client::connect_insecure(context, host, port).await,
-            }
+            Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
         }
     }
 
-    async fn connect_secure(
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        strict_tls: bool,
-    ) -> Result<Self> {
-        let tls_stream = connect_tls(context, hostname, port, strict_tls, "imap").await?;
+    async fn connect_secure(addr: SocketAddr, hostname: &str, strict_tls: bool) -> Result<Self> {
+        let tls_stream = connect_tls_inner(addr, hostname, strict_tls, "imap").await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
@@ -143,8 +162,8 @@ impl Client {
         Ok(client)
     }
 
-    async fn connect_insecure(context: &Context, hostname: &str, port: u16) -> Result<Self> {
-        let tcp_stream = connect_tcp(context, hostname, port, false).await?;
+    async fn connect_insecure(addr: SocketAddr) -> Result<Self> {
+        let tcp_stream = connect_tcp_inner(addr).await?;
         let buffered_stream = BufWriter::new(tcp_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
@@ -155,13 +174,26 @@ impl Client {
         Ok(client)
     }
 
-    async fn connect_starttls(
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        strict_tls: bool,
-    ) -> Result<Self> {
-        let tls_stream = connect_starttls_imap(context, hostname, port, strict_tls).await?;
+    async fn connect_starttls(addr: SocketAddr, host: &str, strict_tls: bool) -> Result<Self> {
+        let tcp_stream = connect_tcp_inner(addr).await?;
+
+        // Run STARTTLS command and convert the client back into a stream.
+        let buffered_tcp_stream = BufWriter::new(tcp_stream);
+        let mut client = async_imap::Client::new(buffered_tcp_stream);
+        let _greeting = client
+            .read_response()
+            .await
+            .context("failed to read greeting")??;
+        client
+            .run_command_and_check_ok("STARTTLS", None)
+            .await
+            .context("STARTTLS command failed")?;
+        let buffered_tcp_stream = client.into_inner();
+        let tcp_stream = buffered_tcp_stream.into_inner();
+
+        let tls_stream = wrap_tls(strict_tls, host, "imap", tcp_stream)
+            .await
+            .context("STARTTLS upgrade failed")?;
 
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
