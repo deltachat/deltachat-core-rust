@@ -120,7 +120,7 @@ impl Smtp {
         let socks5_stream = socks5_config
             .connect(context, hostname, port, SMTP_TIMEOUT, strict_tls)
             .await?;
-        let tls_stream = wrap_tls(strict_tls, hostname, &["smtp"], socks5_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, hostname, "smtp", socks5_stream).await?;
         let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
         let client = smtp::SmtpClient::new().smtp_utf8(true);
@@ -144,7 +144,7 @@ impl Smtp {
         let client = smtp::SmtpClient::new().smtp_utf8(true);
         let transport = SmtpTransport::new(client, BufStream::new(socks5_stream)).await?;
         let tcp_stream = transport.starttls().await?.into_inner();
-        let tls_stream = wrap_tls(strict_tls, hostname, &["smtp"], tcp_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, "smtp", tcp_stream)
             .await
             .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufStream::new(tls_stream);
@@ -179,7 +179,7 @@ impl Smtp {
         strict_tls: bool,
     ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
         let tls_stream =
-            connect_tls(context, hostname, port, SMTP_TIMEOUT, strict_tls, &["smtp"]).await?;
+            connect_tls(context, hostname, port, SMTP_TIMEOUT, strict_tls, "smtp").await?;
         let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
         let client = smtp::SmtpClient::new().smtp_utf8(true);

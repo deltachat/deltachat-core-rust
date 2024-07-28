@@ -105,7 +105,7 @@ impl Client {
         strict_tls: bool,
     ) -> Result<Self> {
         let tls_stream =
-            connect_tls(context, hostname, port, IMAP_TIMEOUT, strict_tls, &["imap"]).await?;
+            connect_tls(context, hostname, port, IMAP_TIMEOUT, strict_tls, "imap").await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
@@ -153,7 +153,7 @@ impl Client {
         let socks5_stream = socks5_config
             .connect(context, domain, port, IMAP_TIMEOUT, strict_tls)
             .await?;
-        let tls_stream = wrap_tls(strict_tls, domain, &["imap"], socks5_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, domain, "imap", socks5_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
@@ -208,7 +208,7 @@ impl Client {
         let buffered_socks5_stream = client.into_inner();
         let socks5_stream: Socks5Stream<_> = buffered_socks5_stream.into_inner();
 
-        let tls_stream = wrap_tls(strict_tls, hostname, &["imap"], socks5_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, "imap", socks5_stream)
             .await
             .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufWriter::new(tls_stream);
