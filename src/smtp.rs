@@ -1,11 +1,11 @@
 //! # SMTP transport module.
 
+mod connect;
 pub mod send;
 
 use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::response::{Category, Code, Detail};
 use async_smtp::{self as smtp, EmailAddress, SmtpTransport};
-use tokio::io::BufStream;
 use tokio::task;
 
 use crate::chat::{add_info_msg_with_cmd, ChatId};
@@ -18,10 +18,7 @@ use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::net::session::SessionBufStream;
-use crate::net::tls::wrap_tls;
-use crate::net::{connect_starttls_smtp, connect_tcp, connect_tls};
 use crate::oauth2::get_oauth2_access_token;
-use crate::provider::Socket;
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
@@ -104,113 +101,6 @@ impl Smtp {
         .await
     }
 
-    async fn connect_secure_socks5(
-        &self,
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        strict_tls: bool,
-        socks5_config: Socks5Config,
-    ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let socks5_stream = socks5_config
-            .connect(context, hostname, port, strict_tls)
-            .await?;
-        let tls_stream = wrap_tls(strict_tls, hostname, "smtp", socks5_stream).await?;
-        let buffered_stream = BufStream::new(tls_stream);
-        let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
-        let client = smtp::SmtpClient::new().smtp_utf8(true);
-        let transport = SmtpTransport::new(client, session_stream).await?;
-        Ok(transport)
-    }
-
-    async fn connect_starttls_socks5(
-        &self,
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        strict_tls: bool,
-        socks5_config: Socks5Config,
-    ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let socks5_stream = socks5_config
-            .connect(context, hostname, port, strict_tls)
-            .await?;
-
-        // Run STARTTLS command and convert the client back into a stream.
-        let client = smtp::SmtpClient::new().smtp_utf8(true);
-        let transport = SmtpTransport::new(client, BufStream::new(socks5_stream)).await?;
-        let tcp_stream = transport.starttls().await?.into_inner();
-        let tls_stream = wrap_tls(strict_tls, hostname, "smtp", tcp_stream)
-            .await
-            .context("STARTTLS upgrade failed")?;
-        let buffered_stream = BufStream::new(tls_stream);
-        let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
-        let client = smtp::SmtpClient::new().smtp_utf8(true).without_greeting();
-        let transport = SmtpTransport::new(client, session_stream).await?;
-        Ok(transport)
-    }
-
-    async fn connect_insecure_socks5(
-        &self,
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        socks5_config: Socks5Config,
-    ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let socks5_stream = socks5_config
-            .connect(context, hostname, port, false)
-            .await?;
-        let buffered_stream = BufStream::new(socks5_stream);
-        let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
-        let client = smtp::SmtpClient::new().smtp_utf8(true);
-        let transport = SmtpTransport::new(client, session_stream).await?;
-        Ok(transport)
-    }
-
-    async fn connect_secure(
-        &self,
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        strict_tls: bool,
-    ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let tls_stream = connect_tls(context, hostname, port, strict_tls, "smtp").await?;
-        let buffered_stream = BufStream::new(tls_stream);
-        let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
-        let client = smtp::SmtpClient::new().smtp_utf8(true);
-        let transport = SmtpTransport::new(client, session_stream).await?;
-        Ok(transport)
-    }
-
-    async fn connect_starttls(
-        &self,
-        context: &Context,
-        hostname: &str,
-        port: u16,
-        strict_tls: bool,
-    ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let tls_stream = connect_starttls_smtp(context, hostname, port, strict_tls).await?;
-
-        let buffered_stream = BufStream::new(tls_stream);
-        let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
-        let client = smtp::SmtpClient::new().smtp_utf8(true).without_greeting();
-        let transport = SmtpTransport::new(client, session_stream).await?;
-        Ok(transport)
-    }
-
-    async fn connect_insecure(
-        &self,
-        context: &Context,
-        hostname: &str,
-        port: u16,
-    ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-        let tcp_stream = connect_tcp(context, hostname, port, false).await?;
-        let buffered_stream = BufStream::new(tcp_stream);
-        let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
-        let client = smtp::SmtpClient::new().smtp_utf8(true);
-        let transport = SmtpTransport::new(client, session_stream).await?;
-        Ok(transport)
-    }
-
     /// Connect using the provided login params.
     pub async fn connect(
         &mut self,
@@ -244,48 +134,17 @@ impl Smtp {
             | CertificateChecks::AcceptInvalidCertificates2 => false,
         };
 
-        let mut transport = if let Some(socks5_config) = socks5_config {
-            match lp.security {
-                Socket::Automatic => bail!("SMTP port security is not configured"),
-                Socket::Ssl => {
-                    self.connect_secure_socks5(
-                        context,
-                        domain,
-                        port,
-                        strict_tls,
-                        socks5_config.clone(),
-                    )
-                    .await?
-                }
-                Socket::Starttls => {
-                    self.connect_starttls_socks5(
-                        context,
-                        domain,
-                        port,
-                        strict_tls,
-                        socks5_config.clone(),
-                    )
-                    .await?
-                }
-                Socket::Plain => {
-                    self.connect_insecure_socks5(context, domain, port, socks5_config.clone())
-                        .await?
-                }
-            }
-        } else {
-            match lp.security {
-                Socket::Automatic => bail!("SMTP port security is not configured"),
-                Socket::Ssl => {
-                    self.connect_secure(context, domain, port, strict_tls)
-                        .await?
-                }
-                Socket::Starttls => {
-                    self.connect_starttls(context, domain, port, strict_tls)
-                        .await?
-                }
-                Socket::Plain => self.connect_insecure(context, domain, port).await?,
-            }
-        };
+        let session_stream = connect::connect_stream(
+            context,
+            domain,
+            port,
+            strict_tls,
+            socks5_config.clone(),
+            lp.security,
+        )
+        .await?;
+        let client = smtp::SmtpClient::new().smtp_utf8(true).without_greeting();
+        let mut transport = SmtpTransport::new(client, session_stream).await?;
 
         // Authenticate.
         {
