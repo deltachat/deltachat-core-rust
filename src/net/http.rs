@@ -1,7 +1,6 @@
 //! # HTTP module.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use mime::Mime;
@@ -10,8 +9,6 @@ use once_cell::sync::Lazy;
 use crate::context::Context;
 use crate::net::lookup_host_with_cache;
 use crate::socks::Socks5Config;
-
-const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
 
 static LETSENCRYPT_ROOT: Lazy<reqwest::tls::Certificate> = Lazy::new(|| {
     reqwest::tls::Certificate::from_der(include_bytes!(
@@ -122,8 +119,7 @@ impl reqwest::dns::Resolve for CustomResolver {
             let port = 443; // Actual port does not matter.
 
             let socket_addrs =
-                lookup_host_with_cache(&context, hostname.as_str(), port, HTTP_TIMEOUT, load_cache)
-                    .await;
+                lookup_host_with_cache(&context, hostname.as_str(), port, load_cache).await;
             match socket_addrs {
                 Ok(socket_addrs) => {
                     let addrs: reqwest::dns::Addrs = Box::new(socket_addrs.into_iter());
@@ -141,7 +137,7 @@ pub(crate) async fn get_client(context: &Context, load_cache: bool) -> Result<re
     let resolver = Arc::new(CustomResolver::new(context.clone(), load_cache));
 
     let builder = reqwest::ClientBuilder::new()
-        .timeout(HTTP_TIMEOUT)
+        .timeout(super::TIMEOUT)
         .add_root_certificate(LETSENCRYPT_ROOT.clone())
         .dns_resolver(resolver);
 
