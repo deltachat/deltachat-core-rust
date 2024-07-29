@@ -1411,18 +1411,19 @@ impl ChatId {
             // Received messages shouldn't mingle with just sent ones and appear somewhere in the
             // middle of the chat, so we go after the newest non fresh message.
             //
-            // But if a received outgoing message is older than some non fresh message, better sort
-            // the received message purely by timestamp. We could place it just before that non
-            // fresh message, but anyway the user may not notice it.
+            // But if a received outgoing message is older than some seen message, better sort the
+            // received message purely by timestamp. We could place it just before that seen
+            // message, but anyway the user may not notice it.
             //
-            // NB: received outgoing messages may break sorting of fresh incoming ones, but this
-            // shouldn't happen frequently.
+            // NB: Received outgoing messages may break sorting of fresh incoming ones, but this
+            // shouldn't happen frequently. Seen incoming messages don't really break sorting of
+            // fresh ones, they rather mean that older incoming messages are actually seen as well.
             context
                 .sql
                 .query_row_optional(
-                    "SELECT MAX(timestamp), MAX(IIF(state<?,timestamp_sent,0)) FROM msgs \
+                    "SELECT MAX(timestamp), MAX(IIF(state=?,timestamp_sent,0)) FROM msgs \
                     WHERE chat_id=? AND hidden=0 AND state>?",
-                    (MessageState::OutPreparing, self, MessageState::InFresh),
+                    (MessageState::InSeen, self, MessageState::InFresh),
                     |row| {
                         let ts: i64 = row.get(0)?;
                         let ts_sent_incoming: i64 = row.get(1)?;
