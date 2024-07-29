@@ -1,7 +1,6 @@
 //! # Account manager module.
 
 use std::collections::BTreeMap;
-use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, Context as _, Result};
@@ -171,7 +170,7 @@ impl Accounts {
         if let Some(cfg) = self.config.get_account(id) {
             let account_path = self.dir.join(cfg.dir);
 
-            try_many_times(|| fs::remove_dir_all(&account_path))
+            fs::remove_dir_all(&account_path)
                 .await
                 .context("failed to remove account data")?;
         }
@@ -207,10 +206,10 @@ impl Accounts {
             fs::create_dir_all(self.dir.join(&account_config.dir))
                 .await
                 .context("failed to create dir")?;
-            try_many_times(|| fs::rename(&dbfile, &new_dbfile))
+            fs::rename(&dbfile, &new_dbfile)
                 .await
                 .context("failed to rename dbfile")?;
-            try_many_times(|| fs::rename(&blobdir, &new_blobdir))
+            fs::rename(&blobdir, &new_blobdir)
                 .await
                 .context("failed to rename blobdir")?;
             if walfile.exists() {
@@ -235,7 +234,7 @@ impl Accounts {
             }
             Err(err) => {
                 let account_path = std::path::PathBuf::from(&account_config.dir);
-                try_many_times(|| fs::remove_dir_all(&account_path))
+                fs::remove_dir_all(&account_path)
                     .await
                     .context("failed to remove account data")?;
                 self.config.remove_account(account_config.id).await?;
@@ -618,37 +617,6 @@ impl Config {
         self.sync().await?;
         Ok(())
     }
-}
-
-/// Spend up to 1 minute trying to do the operation.
-///
-/// Even if Delta Chat itself does not hold the file lock,
-/// there may be other processes such as antivirus,
-/// or the filesystem may be network-mounted.
-///
-/// Without this workaround removing account may fail on Windows with an error
-/// "The process cannot access the file because it is being used by another process. (os error 32)".
-async fn try_many_times<F, Fut, T>(f: F) -> std::result::Result<(), T>
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = std::result::Result<(), T>>,
-{
-    let mut counter = 0;
-    loop {
-        counter += 1;
-
-        if let Err(err) = f().await {
-            if counter > 60 {
-                return Err(err);
-            }
-
-            // Wait 1 second and try again.
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-        } else {
-            break;
-        }
-    }
-    Ok(())
 }
 
 /// Configuration of a single account.
