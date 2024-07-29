@@ -9,7 +9,8 @@ use tokio::time::timeout;
 use super::session::Session;
 use super::Imap;
 use crate::context::Context;
-use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
+use crate::imap::FolderMeaning;
+use crate::net::TIMEOUT;
 use crate::tools::{self, time_elapsed};
 
 /// Timeout after which IDLE is finished
@@ -51,7 +52,7 @@ impl Session {
 
         // At this point IDLE command was sent and we received a "+ idling" response. We will now
         // read from the stream without getting any data for up to `IDLE_TIMEOUT`. If we don't
-        // disable read timeout, we would get a timeout after `IMAP_TIMEOUT`, which is a lot
+        // disable read timeout, we would get a timeout after `crate::net::TIMEOUT`, which is a lot
         // shorter than `IDLE_TIMEOUT`.
         handle.as_mut().set_read_timeout(None);
         let (idle_wait, interrupt) = handle.wait_with_timeout(IDLE_TIMEOUT);
@@ -93,7 +94,7 @@ impl Session {
             .await
             .with_context(|| format!("{folder}: IMAP IDLE protocol timed out"))?
             .with_context(|| format!("{folder}: IMAP IDLE failed"))?;
-        session.as_mut().set_read_timeout(Some(IMAP_TIMEOUT));
+        session.as_mut().set_read_timeout(Some(TIMEOUT));
         self.inner = session;
 
         // Fetch mail once we exit IDLE.

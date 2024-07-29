@@ -22,16 +22,18 @@ use dns::lookup_host_with_cache;
 pub use http::{read_url, read_url_blob, Response as HttpResponse};
 use tls::wrap_tls;
 
+/// Connection, write and read timeout.
+///
+/// This constant should be more than the largest expected RTT.
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
+
 /// Returns a TCP connection stream with read/write timeouts set
 /// and Nagle's algorithm disabled with `TCP_NODELAY`.
 ///
 /// `TCP_NODELAY` ensures writing to the stream always results in immediate sending of the packet
 /// to the network, which is important to reduce the latency of interactive protocols such as IMAP.
-async fn connect_tcp_inner(
-    addr: SocketAddr,
-    timeout_val: Duration,
-) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
-    let tcp_stream = timeout(timeout_val, TcpStream::connect(addr))
+async fn connect_tcp_inner(addr: SocketAddr) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
+    let tcp_stream = timeout(TIMEOUT, TcpStream::connect(addr))
         .await
         .context("connection timeout")?
         .context("connection failure")?;
@@ -40,8 +42,8 @@ async fn connect_tcp_inner(
     tcp_stream.set_nodelay(true)?;
 
     let mut timeout_stream = TimeoutStream::new(tcp_stream);
-    timeout_stream.set_write_timeout(Some(timeout_val));
-    timeout_stream.set_read_timeout(Some(timeout_val));
+    timeout_stream.set_write_timeout(Some(TIMEOUT));
+    timeout_stream.set_read_timeout(Some(TIMEOUT));
 
     Ok(Box::pin(timeout_stream))
 }
@@ -50,12 +52,11 @@ async fn connect_tcp_inner(
 /// given the result of the hostname to address resolution.
 async fn connect_tls_inner(
     addr: SocketAddr,
-    timeout_val: Duration,
     host: &str,
     strict_tls: bool,
     alpn: &str,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let tcp_stream = connect_tcp_inner(addr, timeout_val).await?;
+    let tcp_stream = connect_tcp_inner(addr).await?;
     let tls_stream = wrap_tls(strict_tls, host, alpn, tcp_stream).await?;
     Ok(tls_stream)
 }
@@ -70,15 +71,12 @@ pub(crate) async fn connect_tcp(
     context: &Context,
     host: &str,
     port: u16,
-    timeout_val: Duration,
     load_cache: bool,
 ) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
     let mut first_error = None;
 
-    for resolved_addr in
-        lookup_host_with_cache(context, host, port, timeout_val, load_cache).await?
-    {
-        match connect_tcp_inner(resolved_addr, timeout_val).await {
+    for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
+        match connect_tcp_inner(resolved_addr).await {
             Ok(stream) => {
                 return Ok(stream);
             }
@@ -99,16 +97,13 @@ pub(crate) async fn connect_tls(
     context: &Context,
     host: &str,
     port: u16,
-    timeout_val: Duration,
     strict_tls: bool,
     alpn: &str,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
     let mut first_error = None;
 
-    for resolved_addr in
-        lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
-    {
-        match connect_tls_inner(resolved_addr, timeout_val, host, strict_tls, alpn).await {
+    for resolved_addr in lookup_host_with_cache(context, host, port, strict_tls).await? {
+        match connect_tls_inner(resolved_addr, host, strict_tls, alpn).await {
             Ok(tls_stream) => {
                 if strict_tls {
                     dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())
@@ -129,10 +124,9 @@ pub(crate) async fn connect_tls(
 async fn connect_starttls_imap_inner(
     addr: SocketAddr,
     host: &str,
-    timeout_val: Duration,
     strict_tls: bool,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let tcp_stream = connect_tcp_inner(addr, timeout_val).await?;
+    let tcp_stream = connect_tcp_inner(addr).await?;
 
     // Run STARTTLS command and convert the client back into a stream.
     let buffered_tcp_stream = BufWriter::new(tcp_stream);
@@ -159,15 +153,12 @@ pub(crate) async fn connect_starttls_imap(
     context: &Context,
     host: &str,
     port: u16,
-    timeout_val: Duration,
     strict_tls: bool,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
     let mut first_error = None;
 
-    for resolved_addr in
-        lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
-    {
-        match connect_starttls_imap_inner(resolved_addr, host, timeout_val, strict_tls).await {
+    for resolved_addr in lookup_host_with_cache(context, host, port, strict_tls).await? {
+        match connect_starttls_imap_inner(resolved_addr, host, strict_tls).await {
             Ok(tls_stream) => {
                 if strict_tls {
                     dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())
@@ -188,10 +179,9 @@ pub(crate) async fn connect_starttls_imap(
 async fn connect_starttls_smtp_inner(
     addr: SocketAddr,
     host: &str,
-    timeout_val: Duration,
     strict_tls: bool,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-    let tcp_stream = connect_tcp_inner(addr, timeout_val).await?;
+    let tcp_stream = connect_tcp_inner(addr).await?;
 
     // Run STARTTLS command and convert the client back into a stream.
     let client = async_smtp::SmtpClient::new().smtp_utf8(true);
@@ -207,15 +197,12 @@ pub(crate) async fn connect_starttls_smtp(
     context: &Context,
     host: &str,
     port: u16,
-    timeout_val: Duration,
     strict_tls: bool,
 ) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
     let mut first_error = None;
 
-    for resolved_addr in
-        lookup_host_with_cache(context, host, port, timeout_val, strict_tls).await?
-    {
-        match connect_starttls_smtp_inner(resolved_addr, host, timeout_val, strict_tls).await {
+    for resolved_addr in lookup_host_with_cache(context, host, port, strict_tls).await? {
+        match connect_starttls_smtp_inner(resolved_addr, host, strict_tls).await {
             Ok(tls_stream) => {
                 if strict_tls {
                     dns::update_connect_timestamp(context, host, &resolved_addr.ip().to_string())

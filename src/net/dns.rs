@@ -3,19 +3,14 @@
 use anyhow::{Context as _, Result};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
-use std::time::Duration;
 use tokio::net::lookup_host;
 use tokio::time::timeout;
 
 use crate::context::Context;
 use crate::tools::time;
 
-async fn lookup_host_with_timeout(
-    hostname: &str,
-    port: u16,
-    timeout_val: Duration,
-) -> Result<Vec<SocketAddr>> {
-    let res = timeout(timeout_val, lookup_host((hostname, port)))
+async fn lookup_host_with_timeout(hostname: &str, port: u16) -> Result<Vec<SocketAddr>> {
+    let res = timeout(super::TIMEOUT, lookup_host((hostname, port)))
         .await
         .context("DNS lookup timeout")?
         .context("DNS lookup failure")?;
@@ -66,11 +61,10 @@ pub(crate) async fn lookup_host_with_cache(
     context: &Context,
     hostname: &str,
     port: u16,
-    timeout_val: Duration,
     load_cache: bool,
 ) -> Result<Vec<SocketAddr>> {
     let now = time();
-    let mut resolved_addrs = match lookup_host_with_timeout(hostname, port, timeout_val).await {
+    let mut resolved_addrs = match lookup_host_with_timeout(hostname, port).await {
         Ok(res) => res,
         Err(err) => {
             warn!(

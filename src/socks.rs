@@ -2,7 +2,6 @@
 
 use std::fmt;
 use std::pin::Pin;
-use std::time::Duration;
 
 use anyhow::Result;
 use fast_socks5::client::{Config, Socks5Stream};
@@ -76,11 +75,9 @@ impl Socks5Config {
         context: &Context,
         target_host: &str,
         target_port: u16,
-        timeout_val: Duration,
         load_dns_cache: bool,
     ) -> Result<Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-        let tcp_stream =
-            connect_tcp(context, &self.host, self.port, timeout_val, load_dns_cache).await?;
+        let tcp_stream = connect_tcp(context, &self.host, self.port, load_dns_cache).await?;
 
         let authentication_method = if let Some((username, password)) = self.user_password.as_ref()
         {
