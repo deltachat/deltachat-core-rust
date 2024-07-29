@@ -165,6 +165,7 @@ impl Accounts {
             .remove(&id)
             .with_context(|| format!("no account with id {id}"))?;
         ctx.stop_io().await;
+        ctx.sql.close().await;
         drop(ctx);
 
         if let Some(cfg) = self.config.get_account(id) {
