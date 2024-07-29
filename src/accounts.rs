@@ -166,6 +166,14 @@ impl Accounts {
             .remove(&id)
             .with_context(|| format!("no account with id {id}"))?;
         ctx.stop_io().await;
+
+        // Explicitly close the database.
+        //
+        // Stopping I/O aborts the tasks that keep `Context` clones,
+        // but aborting the task does not immediately drops the future.
+        // To make sure the database file is closed
+        // and can be removed on Windows, we drop all the connections manually.
+        ctx.sql.close().await;
         drop(ctx);
 
         if let Some(cfg) = self.config.get_account(id) {

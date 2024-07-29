@@ -126,7 +126,7 @@ impl Sql {
     }
 
     /// Closes all underlying Sqlite connections.
-    async fn close(&self) {
+    pub(crate) async fn close(&self) {
         let _ = self.pool.write().await.take();
         // drop closes the connection
     }
