@@ -19,7 +19,7 @@ Authorization                    | OAuth2 ([RFC 6749][])
 End-to-end encryption            | [Autocrypt Level 1][], OpenPGP ([RFC 4880][]), Security Multiparts for MIME ([RFC 1847][]) and [“Mixed Up” Encryption repairing](https://tools.ietf.org/id/draft-dkg-openpgp-pgpmime-message-mangling-00.html)
 Detect/prevent active attacks    | [securejoin][] protocols
 Compare public keys              | [openpgp4fpr][] URI Scheme
-Header encryption                | [Protected Headers for Cryptographic E-mail](https://datatracker.ietf.org/doc/draft-autocrypt-lamps-protected-headers/)
+Header encryption                | [Header Protection for Cryptographically Protected E-mail](https://datatracker.ietf.org/doc/draft-ietf-lamps-header-protection/)
 Configuration assistance         | [Autoconfigure](https://web.archive.org/web/20210402044801/https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover][]
 Messenger functions              | [Chat-over-Email](https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#chat-mail-specification)
 Detect mailing list              | List-Id ([RFC 2919][]) and Precedence ([RFC 3834][])
