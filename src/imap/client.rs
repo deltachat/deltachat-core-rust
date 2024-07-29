@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use anyhow::{Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
 use tokio::io::BufWriter;
@@ -11,6 +11,7 @@ use crate::context::Context;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
 use crate::net::{connect_starttls_imap, connect_tcp, connect_tls};
+use crate::provider::Socket;
 use crate::socks::Socks5Config;
 use fast_socks5::client::Socks5Stream;
 
@@ -92,7 +93,40 @@ impl Client {
         Ok(Session::new(session, capabilities))
     }
 
-    pub async fn connect_secure(
+    pub async fn connect(
+        context: &Context,
+        host: &str,
+        port: u16,
+        strict_tls: bool,
+        socks5_config: Option<Socks5Config>,
+        security: Socket,
+    ) -> Result<Self> {
+        if let Some(socks5_config) = socks5_config {
+            match security {
+                Socket::Automatic => bail!("IMAP port security is not configured"),
+                Socket::Ssl => {
+                    Client::connect_secure_socks5(context, host, port, strict_tls, socks5_config)
+                        .await
+                }
+                Socket::Starttls => {
+                    Client::connect_starttls_socks5(context, host, port, socks5_config, strict_tls)
+                        .await
+                }
+                Socket::Plain => {
+                    Client::connect_insecure_socks5(context, host, port, socks5_config).await
+                }
+            }
+        } else {
+            match security {
+                Socket::Automatic => bail!("IMAP port security is not configured"),
+                Socket::Ssl => Client::connect_secure(context, host, port, strict_tls).await,
+                Socket::Starttls => Client::connect_starttls(context, host, port, strict_tls).await,
+                Socket::Plain => Client::connect_insecure(context, host, port).await,
+            }
+        }
+    }
+
+    async fn connect_secure(
         context: &Context,
         hostname: &str,
         port: u16,
@@ -109,7 +143,7 @@ impl Client {
         Ok(client)
     }
 
-    pub async fn connect_insecure(context: &Context, hostname: &str, port: u16) -> Result<Self> {
+    async fn connect_insecure(context: &Context, hostname: &str, port: u16) -> Result<Self> {
         let tcp_stream = connect_tcp(context, hostname, port, false).await?;
         let buffered_stream = BufWriter::new(tcp_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
@@ -121,7 +155,7 @@ impl Client {
         Ok(client)
     }
 
-    pub async fn connect_starttls(
+    async fn connect_starttls(
         context: &Context,
         hostname: &str,
         port: u16,
@@ -135,7 +169,7 @@ impl Client {
         Ok(client)
     }
 
-    pub async fn connect_secure_socks5(
+    async fn connect_secure_socks5(
         context: &Context,
         domain: &str,
         port: u16,
@@ -156,7 +190,7 @@ impl Client {
         Ok(client)
     }
 
-    pub async fn connect_insecure_socks5(
+    async fn connect_insecure_socks5(
         context: &Context,
         domain: &str,
         port: u16,
@@ -173,7 +207,7 @@ impl Client {
         Ok(client)
     }
 
-    pub async fn connect_starttls_socks5(
+    async fn connect_starttls_socks5(
         context: &Context,
         hostname: &str,
         port: u16,

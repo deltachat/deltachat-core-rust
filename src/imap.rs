@@ -36,7 +36,6 @@ use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::get_oauth2_access_token;
-use crate::provider::Socket;
 use crate::receive_imf::{
     from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
 };
@@ -342,52 +341,16 @@ impl Imap {
         );
         self.conn_backoff_ms = max(BACKOFF_MIN_MS, self.conn_backoff_ms);
 
-        let connection_res: Result<Client> =
-            if self.lp.security == Socket::Starttls || self.lp.security == Socket::Plain {
-                let imap_server: &str = self.lp.server.as_ref();
-                let imap_port = self.lp.port;
+        let connection_res = Client::connect(
+            context,
+            self.lp.server.as_ref(),
+            self.lp.port,
+            self.strict_tls,
+            self.socks5_config.clone(),
+            self.lp.security,
+        )
+        .await;
 
-                if let Some(socks5_config) = &self.socks5_config {
-                    if self.lp.security == Socket::Starttls {
-                        Client::connect_starttls_socks5(
-                            context,
-                            imap_server,
-                            imap_port,
-                            socks5_config.clone(),
-                            self.strict_tls,
-                        )
-                        .await
-                    } else {
-                        Client::connect_insecure_socks5(
-                            context,
-                            imap_server,
-                            imap_port,
-                            socks5_config.clone(),
-                        )
-                        .await
-                    }
-                } else if self.lp.security == Socket::Starttls {
-                    Client::connect_starttls(context, imap_server, imap_port, self.strict_tls).await
-                } else {
-                    Client::connect_insecure(context, imap_server, imap_port).await
-                }
-            } else {
-                let imap_server: &str = self.lp.server.as_ref();
-                let imap_port = self.lp.port;
-
-                if let Some(socks5_config) = &self.socks5_config {
-                    Client::connect_secure_socks5(
-                        context,
-                        imap_server,
-                        imap_port,
-                        self.strict_tls,
-                        socks5_config.clone(),
-                    )
-                    .await
-                } else {
-                    Client::connect_secure(context, imap_server, imap_port, self.strict_tls).await
-                }
-            };
         let client = connection_res?;
         self.conn_backoff_ms = BACKOFF_MIN_MS;
         self.ratelimit.send();
