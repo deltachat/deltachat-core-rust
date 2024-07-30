@@ -955,6 +955,22 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 117)?;
+    if dbversion < migration_version {
+        sql.execute_migration(
+            "CREATE TABLE connection_history (
+                host TEXT NOT NULL, -- server hostname
+                port INTEGER NOT NULL, -- server port
+                alpn TEXT NOT NULL, -- ALPN such as smtp or imap
+                addr TEXT NOT NULL, -- IP address
+                timestamp INTEGER NOT NULL, -- timestamp of the most recent successful connection
+                UNIQUE (host, port, alpn, addr)
+            ) STRICT",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

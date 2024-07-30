@@ -10,9 +10,11 @@ use crate::context::Context;
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
+use crate::net::update_connection_history;
 use crate::net::{connect_tcp_inner, connect_tls_inner};
 use crate::provider::Socket;
 use crate::socks::Socks5Config;
+use crate::tools::time;
 
 /// Returns TLS, STARTTLS or plaintext connection
 /// using SOCKS5 or direct connection depending on the given configuration.
@@ -50,7 +52,8 @@ pub(crate) async fn connect_stream(
         let mut first_error = None;
         let load_cache = strict_tls && (security == Socket::Ssl || security == Socket::Starttls);
 
-        for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
+        for resolved_addr in lookup_host_with_cache(context, host, port, "smtp", load_cache).await?
+        {
             let res = match security {
                 Socket::Automatic => bail!("SMTP port security is not configured"),
                 Socket::Ssl => connect_secure(resolved_addr, host, strict_tls).await,
@@ -63,6 +66,8 @@ pub(crate) async fn connect_stream(
                     if load_cache {
                         update_connect_timestamp(context, host, &ip_addr).await?;
                     }
+                    update_connection_history(context, "smtp", host, port, &ip_addr, time())
+                        .await?;
                     return Ok(stream);
                 }
                 Err(err) => {

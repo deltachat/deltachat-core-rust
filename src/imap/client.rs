@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use anyhow::{bail, format_err, Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
+use fast_socks5::client::Socks5Stream;
 use tokio::io::BufWriter;
 
 use super::capabilities::Capabilities;
@@ -12,10 +13,11 @@ use crate::context::Context;
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
+use crate::net::update_connection_history;
 use crate::net::{connect_tcp_inner, connect_tls_inner};
 use crate::provider::Socket;
 use crate::socks::Socks5Config;
-use fast_socks5::client::Socks5Stream;
+use crate::tools::time;
 
 #[derive(Debug)]
 pub(crate) struct Client {
@@ -123,7 +125,9 @@ impl Client {
             let mut first_error = None;
             let load_cache =
                 strict_tls && (security == Socket::Ssl || security == Socket::Starttls);
-            for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
+            for resolved_addr in
+                lookup_host_with_cache(context, host, port, "imap", load_cache).await?
+            {
                 let res = match security {
                     Socket::Automatic => bail!("IMAP port security is not configured"),
                     Socket::Ssl => Client::connect_secure(resolved_addr, host, strict_tls).await,
@@ -138,6 +142,8 @@ impl Client {
                         if load_cache {
                             update_connect_timestamp(context, host, &ip_addr).await?;
                         }
+                        update_connection_history(context, "imap", host, port, &ip_addr, time())
+                            .await?;
                         return Ok(client);
                     }
                     Err(err) => {
