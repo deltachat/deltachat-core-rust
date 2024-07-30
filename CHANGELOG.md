@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.142.1] - 2024-07-30
+
+### Features / Changes
+
+- Do not reveal sender's language in read receipts ([#5802](https://github.com/deltachat/deltachat-core-rust/pull/5802)).
+- Try next DNS resolution result if TLS setup fails.
+- Report first error instead of the last on connection failure.
+
+### Fixes
+
+- smtp: Use DNS cache for implicit TLS connections.
+- Imex::import_backup: Unpack all blobs before importing a db ([#4307](https://github.com/deltachat/deltachat-core-rust/pull/4307)).
+- Import_backup_stream: Fix progress stucking at 0.
+- Sql::import: Detach backup db if any step of the import fails.
+- Imex::import_backup: Ignore errors from delete_and_reset_all_device_msgs().
+- Explicitly close the database on account removal.
+
+### Miscellaneous Tasks
+
+- cargo: Update time from 0.3.34 to 0.3.36.
+- cargo: Update iroh from 0.20.0 to 0.21.0.
+
+### Refactor
+
+- Add net/dns submodule.
+- Pass single ALPN around instead of ALPN list.
+- Replace {IMAP,SMTP,HTTP}_TIMEOUT with a single constant.
+- smtp: Unify SMTP connection setup between TLS and STARTTLS.
+- imap: Unify IMAP connection setup in Client::connect().
+- Move DNS resolution into IMAP and SMTP connect code.
+
+### CI
+
+- Update Rust to 1.80.0.
+
 ## [1.142.0] - 2024-07-23
 
 ### API-Changes
@@ -4595,3 +4630,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.141.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.0...v1.141.1
 [1.141.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.1...v1.141.2
 [1.142.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.2...v1.142.0
+[1.142.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.0...v1.142.1
