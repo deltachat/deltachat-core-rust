@@ -113,10 +113,6 @@ impl Context {
         let mut param = LoginParam::load_candidate_params(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
 
-        // Reset our knowledge about whether the server is a chatmail server.
-        // We will update it when we connect to IMAP.
-        self.set_config_internal(Config::IsChatmail, None).await?;
-
         let success = configure(self, &mut param).await;
         self.set_config_internal(Config::NotifyAboutWrongPw, None)
             .await?;
@@ -465,6 +461,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         ctx.set_config(Config::OnlyFetchMvbox, None).await?;
         ctx.set_config(Config::ShowEmails, None).await?;
         ctx.set_config(Config::E2eeEnabled, Some("1")).await?;
+    } else {
+        ctx.set_config(Config::IsChatmail, Some("0")).await?;
     }
 
     let create_mvbox = ctx.should_watch_mvbox().await?;
