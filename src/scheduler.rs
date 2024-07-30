@@ -110,13 +110,14 @@ impl SchedulerState {
         // to allow for clean shutdown.
         context.new_msgs_notify.notify_one();
 
-        if let Some(debug_logging) = context
+        let debug_logging = context
             .debug_logging
-            .read()
+            .write()
             .expect("RwLock is poisoned")
-            .as_ref()
-        {
+            .take();
+        if let Some(debug_logging) = debug_logging {
             debug_logging.loop_handle.abort();
+            debug_logging.loop_handle.await.ok();
         }
         let prev_state = std::mem::replace(&mut *inner, new_state);
         context.emit_event(EventType::ConnectivityChanged);
@@ -974,9 +975,16 @@ impl Scheduler {
             .await
             .log_err(context)
             .ok();
+
+        // Abort tasks, then await them to ensure the `Future` is dropped.
+        // Just aborting the task may keep resources such as `Context` clone
+        // moved into it indefinitely, resulting in database not being
+        // closed etc.
         self.ephemeral_handle.abort();
+        self.ephemeral_handle.await.ok();
         self.location_handle.abort();
-        self.recently_seen_loop.abort();
+        self.location_handle.await.ok();
+        self.recently_seen_loop.abort().await;
     }
 }
 

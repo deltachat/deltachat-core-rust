@@ -167,12 +167,17 @@ impl Accounts {
             .with_context(|| format!("no account with id {id}"))?;
         ctx.stop_io().await;
 
-        // Explicitly close the database.
+        // Explicitly close the database
+        // to make sure the database file is closed
+        // and can be removed on Windows.
+        // If some spawned task tries to use the database afterwards,
+        // it will fail.
         //
-        // Stopping I/O aborts the tasks that keep `Context` clones,
-        // but aborting the task does not immediately drops the future.
-        // To make sure the database file is closed
-        // and can be removed on Windows, we drop all the connections manually.
+        // Previously `stop_io()` aborted the tasks without awaiting them
+        // and this resulted in keeping `Context` clones inside
+        // `Future`s that were not dropped. This bug is fixed now,
+        // but explicitly closing the database ensures that file is freed
+        // even if not all `Context` references are dropped.
         ctx.sql.close().await;
         drop(ctx);
 
