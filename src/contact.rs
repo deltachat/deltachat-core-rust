@@ -1913,8 +1913,13 @@ impl RecentlySeenLoop {
             .unwrap();
     }
 
-    pub(crate) fn abort(self) {
+    pub(crate) async fn abort(self) {
         self.handle.abort();
+
+        // Await aborted task to ensure the `Future` is dropped
+        // with all resources moved inside such as the `Context`
+        // reference to `InnerContext`.
+        self.handle.await.ok();
     }
 }
 
