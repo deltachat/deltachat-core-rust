@@ -10,8 +10,8 @@ keywords = ["deltachat", "chat", "openpgp", "email", "encryption"]
 categories = ["cryptography", "std", "email"]
 
 [dependencies]
-deltachat-jsonrpc = { path = "../deltachat-jsonrpc", default-features = false }
-deltachat = { path = "..", default-features = false }
+deltachat-jsonrpc = { workspace = true, default-features = false }
+deltachat = { workspace = true, default-features = false }
 
 anyhow = { workspace = true }
 futures-lite = { workspace = true }

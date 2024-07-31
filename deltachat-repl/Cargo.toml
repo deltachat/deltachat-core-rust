@@ -8,7 +8,7 @@ repository = "https://github.com/deltachat/deltachat-core-rust"
 [dependencies]
 ansi_term = { workspace = true }
 anyhow = { workspace = true }
-deltachat = { path = "..", features = ["internals"]}
+deltachat = { workspace = true, features = ["internals"]}
 dirs = "5"
 log = { workspace = true }
 rusqlite = { workspace = true }
