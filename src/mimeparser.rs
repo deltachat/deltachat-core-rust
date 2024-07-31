@@ -28,10 +28,7 @@ use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{self, load_self_secret_keyring, DcKey, Fingerprint, SignedPublicKey};
-use crate::message::{
-    self, get_vcard_summary, set_msg_failed, update_msg_state, Message, MessageState, MsgId,
-    Viewtype,
-};
+use crate::message::{self, get_vcard_summary, set_msg_failed, Message, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
@@ -2157,24 +2154,32 @@ async fn handle_mdn(
         return Ok(());
     }
 
-    let Some((msg_id, chat_id, msg_state)) = context
+    let Some((msg_id, chat_id, has_mdns, is_dup)) = context
         .sql
         .query_row_optional(
             concat!(
                 "SELECT",
                 "    m.id AS msg_id,",
                 "    c.id AS chat_id,",
-                "    m.state AS state",
-                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
+                "    mdns.contact_id AS mdn_contact",
+                " FROM msgs m ",
+                " LEFT JOIN chats c ON m.chat_id=c.id",
+                " LEFT JOIN msgs_mdns mdns ON mdns.msg_id=m.id",
                 " WHERE rfc724_mid=? AND from_id=1",
-                " ORDER BY m.id"
+                " ORDER BY msg_id DESC, mdn_contact=? DESC",
+                " LIMIT 1",
             ),
-            (&rfc724_mid,),
+            (&rfc724_mid, from_id),
             |row| {
                 let msg_id: MsgId = row.get("msg_id")?;
                 let chat_id: ChatId = row.get("chat_id")?;
-                let msg_state: MessageState = row.get("state")?;
-                Ok((msg_id, chat_id, msg_state))
+                let mdn_contact: Option<ContactId> = row.get("mdn_contact")?;
+                Ok((
+                    msg_id,
+                    chat_id,
+                    mdn_contact.is_some(),
+                    mdn_contact == Some(from_id),
+                ))
             },
         )
         .await?
@@ -2186,28 +2191,17 @@ async fn handle_mdn(
         return Ok(());
     };
 
-    if !context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?",
-            (msg_id, from_id),
-        )
-        .await?
-    {
-        context
-            .sql
-            .execute(
-                "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?)",
-                (msg_id, from_id, timestamp_sent),
-            )
-            .await?;
+    if is_dup {
+        return Ok(());
     }
-
-    if msg_state == MessageState::OutPreparing
-        || msg_state == MessageState::OutPending
-        || msg_state == MessageState::OutDelivered
-    {
-        update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await?;
+    context
+        .sql
+        .execute(
+            "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?)",
+            (msg_id, from_id, timestamp_sent),
+        )
+        .await?;
+    if !has_mdns {
         context.emit_event(EventType::MsgRead { chat_id, msg_id });
         // note(treefit): only matters if it is the last message in chat (but probably too expensive to check, debounce also solves it)
         chatlist_events::emit_chatlist_item_changed(context, chat_id);
@@ -2315,7 +2309,7 @@ mod tests {
         chat,
         chatlist::Chatlist,
         constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
-        message::MessengerMessage,
+        message::{MessageState, MessengerMessage},
         receive_imf::receive_imf,
         test_utils::{TestContext, TestContextManager},
         tools::time,
