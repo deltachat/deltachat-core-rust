@@ -17,11 +17,24 @@ async fn update_cache(context: &Context, host: &str, addr: &str, now: i64) -> Re
         .sql
         .execute(
             "INSERT INTO dns_cache
-                 (hostname, address, timestamp)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT (hostname, address)
-                 DO UPDATE SET timestamp=excluded.timestamp",
+             (hostname, address, timestamp)
+             VALUES (?, ?, ?)
+             ON CONFLICT (hostname, address)
+             DO UPDATE SET timestamp=excluded.timestamp",
             (host, addr, now),
+        )
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn prune_dns_cache(context: &Context) -> Result<()> {
+    let now = time();
+    context
+        .sql
+        .execute(
+            "DELETE FROM dns_cache
+             WHERE ? > timestamp + 30 * 24 * 60 * 60",
+            (now,),
         )
         .await?;
     Ok(())

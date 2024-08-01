@@ -10,6 +10,7 @@ use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
+use crate::tools::time;
 
 pub(crate) mod dns;
 pub(crate) mod http;
@@ -24,6 +25,20 @@ use tls::wrap_tls;
 ///
 /// This constant should be more than the largest expected RTT.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Removes connection history entries after 30 days.
+pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {
+    let now = time();
+    context
+        .sql
+        .execute(
+            "DELETE FROM connection_history
+             WHERE ? > timestamp + 30 * 24 * 60 * 60",
+            (now,),
+        )
+        .await?;
+    Ok(())
+}
 
 pub(crate) async fn update_connection_history(
     context: &Context,
