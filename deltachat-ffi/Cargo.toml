@@ -29,6 +29,6 @@ yerpc = { workspace = true, features = ["anyhow_expose"] }
 
 [features]
 default = ["vendored"]
-vendored = ["deltachat/vendored"]
+vendored = ["deltachat/vendored", "deltachat-jsonrpc/vendored"]
 jsonrpc = ["dep:deltachat-jsonrpc"]
 
