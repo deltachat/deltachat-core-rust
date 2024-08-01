@@ -77,7 +77,7 @@ percent-encoding = "2.3"
 parking_lot = "0.12"
 pgp = { version = "0.13", default-features = false }
 qrcodegen = "1.7.0"
-quick-xml = "0.35"
+quick-xml = "0.36"
 quoted_printable = "0.5"
 rand = { workspace = true }
 regex = { workspace = true }
