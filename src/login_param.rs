@@ -259,10 +259,9 @@ impl LoginParam {
         };
         sql.set_raw_config_int(key, server_flags).await?;
 
-        if let Some(provider) = self.provider {
-            let key = &format!("{prefix}provider");
-            sql.set_raw_config(key, Some(provider.id)).await?;
-        }
+        let key = &format!("{prefix}provider");
+        sql.set_raw_config(key, self.provider.map(|provider| provider.id))
+            .await?;
 
         Ok(())
     }
@@ -365,7 +364,15 @@ mod tests {
 
         param.save_as_configured_params(&t).await?;
         let loaded = LoginParam::load_configured_params(&t).await?;
+        assert_eq!(param, loaded);
 
+        // Remove provider.
+        let param = LoginParam {
+            provider: None,
+            ..param
+        };
+        param.save_as_configured_params(&t).await?;
+        let loaded = LoginParam::load_configured_params(&t).await?;
         assert_eq!(param, loaded);
         Ok(())
     }
