@@ -29,24 +29,14 @@ pub(crate) struct ServerParams {
 
 impl ServerParams {
     fn expand_usernames(self, addr: &str) -> Vec<ServerParams> {
-        let mut res = Vec::new();
-
         if self.username.is_empty() {
-            res.push(Self {
+            vec![Self {
                 username: addr.to_string(),
                 ..self.clone()
-            });
-
-            if let Some(at) = addr.find('@') {
-                res.push(Self {
-                    username: addr.split_at(at).0.to_string(),
-                    ..self
-                });
-            }
+            }]
         } else {
-            res.push(self)
+            vec![self]
         }
-        res
     }
 
     fn expand_hostnames(self, param_domain: &str) -> Vec<ServerParams> {
@@ -155,8 +145,7 @@ pub(crate) fn expand_param_vector(
     v.into_iter()
         // The order of expansion is important.
         //
-        // Ports are expanded the last, so they are changed the first.  Username is only changed if
-        // default value (address with domain) didn't work for all available hosts and ports.
+        // Ports are expanded the last, so they are changed the first.
         .flat_map(|params| params.expand_strict_tls().into_iter())
         .flat_map(|params| params.expand_usernames(addr).into_iter())
         .flat_map(|params| params.expand_hostnames(domain).into_iter())
@@ -329,6 +318,48 @@ mod tests {
                     port: 587,
                     socket: Socket::Starttls,
                     username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                },
+            ],
+        );
+
+        // Test that email address is used as the default username.
+        // We do not try other usernames
+        // such as the local part of the address
+        // as this is very uncommon configuration
+        // and not worth doubling the number of candidates to try.
+        // If such configuration is used, email provider
+        // should provide XML autoconfig or
+        // be added to the provider database as an exception.
+        let v = expand_param_vector(
+            vec![ServerParams {
+                protocol: Protocol::Imap,
+                hostname: "example.net".to_string(),
+                port: 0,
+                socket: Socket::Automatic,
+                username: "".to_string(),
+                strict_tls: Some(true),
+            }],
+            "foobar@example.net",
+            "example.net",
+        );
+        assert_eq!(
+            v,
+            vec![
+                ServerParams {
+                    protocol: Protocol::Imap,
+                    hostname: "example.net".to_string(),
+                    port: 993,
+                    socket: Socket::Ssl,
+                    username: "foobar@example.net".to_string(),
+                    strict_tls: Some(true)
+                },
+                ServerParams {
+                    protocol: Protocol::Imap,
+                    hostname: "example.net".to_string(),
+                    port: 143,
+                    socket: Socket::Starttls,
+                    username: "foobar@example.net".to_string(),
                     strict_tls: Some(true)
                 },
             ],
