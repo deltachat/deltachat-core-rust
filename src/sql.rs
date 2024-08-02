@@ -18,6 +18,8 @@ use crate::imex::BLOBS_BACKUP_NAME;
 use crate::location::delete_orphaned_poi_locations;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
+use crate::net::dns::prune_dns_cache;
+use crate::net::prune_connection_history;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::stock_str;
@@ -784,6 +786,17 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         )
         .await
         .context("failed to remove old webxdc status updates")
+        .log_err(context)
+        .ok();
+
+    prune_connection_history(context)
+        .await
+        .context("Failed to prune connection history")
+        .log_err(context)
+        .ok();
+    prune_dns_cache(context)
+        .await
+        .context("Failed to prune DNS cache")
         .log_err(context)
         .ok();
 

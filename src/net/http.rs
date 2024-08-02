@@ -119,7 +119,7 @@ impl reqwest::dns::Resolve for CustomResolver {
             let port = 443; // Actual port does not matter.
 
             let socket_addrs =
-                lookup_host_with_cache(&context, hostname.as_str(), port, load_cache).await;
+                lookup_host_with_cache(&context, hostname.as_str(), port, "", load_cache).await;
             match socket_addrs {
                 Ok(socket_addrs) => {
                     let addrs: reqwest::dns::Addrs = Box::new(socket_addrs.into_iter());

@@ -10,6 +10,7 @@ use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
+use crate::tools::time;
 
 pub(crate) mod dns;
 pub(crate) mod http;
@@ -24,6 +25,65 @@ use tls::wrap_tls;
 ///
 /// This constant should be more than the largest expected RTT.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// TTL for caches in seconds.
+pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
+
+/// Removes connection history entries after `CACHE_TTL`.
+pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {
+    let now = time();
+    context
+        .sql
+        .execute(
+            "DELETE FROM connection_history
+             WHERE ? > timestamp + ?",
+            (now, CACHE_TTL),
+        )
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn update_connection_history(
+    context: &Context,
+    alpn: &str,
+    host: &str,
+    port: u16,
+    addr: &str,
+    now: i64,
+) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "INSERT INTO connection_history (host, port, alpn, addr, timestamp)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (host, port, alpn, addr)
+             DO UPDATE SET timestamp=excluded.timestamp",
+            (host, port, alpn, addr, now),
+        )
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn load_connection_timestamp(
+    context: &Context,
+    alpn: &str,
+    host: &str,
+    port: u16,
+    addr: &str,
+) -> Result<Option<i64>> {
+    let timestamp = context
+        .sql
+        .query_get_value(
+            "SELECT timestamp FROM connection_history
+             WHERE host = ?
+               AND port = ?
+               AND alpn = ?
+               AND addr = ?",
+            (host, port, alpn, addr),
+        )
+        .await?;
+    Ok(timestamp)
+}
 
 /// Returns a TCP connection stream with read/write timeouts set
 /// and Nagle's algorithm disabled with `TCP_NODELAY`.
@@ -75,7 +135,7 @@ pub(crate) async fn connect_tcp(
 ) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
     let mut first_error = None;
 
-    for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
+    for resolved_addr in lookup_host_with_cache(context, host, port, "", load_cache).await? {
         match connect_tcp_inner(resolved_addr).await {
             Ok(stream) => {
                 return Ok(stream);
