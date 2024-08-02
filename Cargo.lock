@@ -1417,7 +1417,6 @@ dependencies = [
  "async-native-tls",
  "async-smtp",
  "async_zip",
- "backtrace",
  "base64 0.22.1",
  "brotli",
  "chrono",
