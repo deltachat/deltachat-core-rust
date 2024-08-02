@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.142.2] - 2024-08-02
+
+### Features / Changes
+
+- Try only the full email address if username is unspecified.
+- Sort DNS results by successful connection timestamp ([#5818](https://github.com/deltachat/deltachat-core-rust/pull/5818)).
+
+### Fixes
+
+- Await the tasks after aborting them.
+- Do not reset is_chatmail config on failed reconfiguration.
+- Fix compilation on iOS.
+- Reset configured_provider on reconfiguration.
+
+### Refactor
+
+- Don't update message state to `OutMdnRcvd` anymore.
+
+### Build system
+
+- Use workspace dependencies to make cargo-deny 0.15.1 happy.
+- cargo: Update bytemuck from 0.14.3 to 0.16.3.
+- cargo: Bump toml from 0.8.14 to 0.8.15.
+- cargo: Bump serde_json from 1.0.120 to 1.0.122.
+- cargo: Bump human-panic from 2.0.0 to 2.0.1.
+- cargo: Bump thiserror from 1.0.61 to 1.0.63.
+- cargo: Bump syn from 2.0.68 to 2.0.72.
+- cargo: Bump quoted_printable from 0.5.0 to 0.5.1.
+- cargo: Bump serde from 1.0.203 to 1.0.204.
+
 ## [1.142.1] - 2024-07-30
 
 ### Features / Changes
@@ -4631,3 +4661,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.141.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.1...v1.141.2
 [1.142.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.2...v1.142.0
 [1.142.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.0...v1.142.1
+[1.142.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.1...v1.142.2
