@@ -1489,7 +1489,7 @@ impl Session {
         } else if !context.push_subscriber.heartbeat_subscribed().await {
             let context = context.clone();
             // Subscribe for heartbeat notifications.
-            tokio::spawn(async move { context.push_subscriber.subscribe().await });
+            tokio::spawn(async move { context.push_subscriber.subscribe(&context).await });
         }
 
         Ok(())

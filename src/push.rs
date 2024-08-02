@@ -48,7 +48,7 @@ impl PushSubscriber {
 
     /// Subscribes for heartbeat notifications with previously set device token.
     #[cfg(target_os = "ios")]
-    pub(crate) async fn subscribe(&self) -> Result<()> {
+    pub(crate) async fn subscribe(&self, context: &Context) -> Result<()> {
         use crate::net::http;
 
         let mut state = self.inner.write().await;
@@ -61,8 +61,9 @@ impl PushSubscriber {
             return Ok(());
         };
 
-        let socks5_config = None;
-        let response = http::get_client(socks5_config)?
+        let load_cache = true;
+        let response = http::get_client(context, load_cache)
+            .await?
             .post("https://notifications.delta.chat/register")
             .body(format!("{{\"token\":\"{token}\"}}"))
             .send()
@@ -77,7 +78,7 @@ impl PushSubscriber {
 
     /// Placeholder to skip subscribing to heartbeat notifications outside iOS.
     #[cfg(not(target_os = "ios"))]
-    pub(crate) async fn subscribe(&self) -> Result<()> {
+    pub(crate) async fn subscribe(&self, _context: &Context) -> Result<()> {
         let mut state = self.inner.write().await;
         state.heartbeat_subscribed = true;
         Ok(())
