@@ -174,12 +174,12 @@ pub enum Config {
     /// Timer in seconds after which the message is deleted from the
     /// server.
     ///
-    /// Equals to 0 by default, which means the message is never
-    /// deleted.
+    /// 0 means messages are never deleted by Delta Chat.
     ///
     /// Value 1 is treated as "delete at once": messages are deleted
     /// immediately, without moving to DeltaChat folder.
-    #[strum(props(default = "0"))]
+    ///
+    /// Default is 1 for chatmail accounts before a backup export, 0 otherwise.
     DeleteServerAfter,
 
     /// Timer in seconds after which the message is deleted from the
@@ -555,11 +555,19 @@ impl Context {
     /// `None` means never delete the message, `Some(0)` means delete
     /// at once, `Some(x)` means delete after `x` seconds.
     pub async fn get_config_delete_server_after(&self) -> Result<Option<i64>> {
-        match self.get_config_int(Config::DeleteServerAfter).await? {
-            0 => Ok(None),
-            1 => Ok(Some(0)),
-            x => Ok(Some(i64::from(x))),
-        }
+        let val = match self
+            .get_config_parsed::<i64>(Config::DeleteServerAfter)
+            .await?
+        {
+            None => match self.is_chatmail().await? {
+                false => None,
+                true => Some(0),
+            },
+            Some(0) => None,
+            Some(1) => Some(0),
+            Some(x) => Some(x),
+        };
+        Ok(val)
     }
 
     /// Gets the configured provider, as saved in the `configured_provider` value.
