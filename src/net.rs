@@ -26,15 +26,18 @@ use tls::wrap_tls;
 /// This constant should be more than the largest expected RTT.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Removes connection history entries after 30 days.
+/// TTL for caches in seconds.
+pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
+
+/// Removes connection history entries after `CACHE_TTL`.
 pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {
     let now = time();
     context
         .sql
         .execute(
             "DELETE FROM connection_history
-             WHERE ? > timestamp + 30 * 24 * 60 * 60",
-            (now,),
+             WHERE ? > timestamp + ?",
+            (now, CACHE_TTL),
         )
         .await?;
     Ok(())

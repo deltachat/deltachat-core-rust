@@ -33,8 +33,8 @@ pub(crate) async fn prune_dns_cache(context: &Context) -> Result<()> {
         .sql
         .execute(
             "DELETE FROM dns_cache
-             WHERE ? > timestamp + 30 * 24 * 60 * 60",
-            (now,),
+             WHERE ? > timestamp + ?",
+            (now, super::CACHE_TTL),
         )
         .await?;
     Ok(())
@@ -191,10 +191,10 @@ async fn lookup_cache(
                AND connection_history.port = ?
                AND connection_history.alpn = ?
              WHERE dns_cache.hostname = ?
-             AND ? < dns_cache.timestamp + 30 * 24 * 3600
+             AND ? < dns_cache.timestamp + ?
              ORDER BY IFNULL(connection_history.timestamp, dns_cache.timestamp) DESC
              LIMIT 50",
-            (port, alpn, host, now),
+            (port, alpn, host, now, super::CACHE_TTL),
             |row| {
                 let address: String = row.get(0)?;
                 Ok(address)
