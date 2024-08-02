@@ -45,7 +45,6 @@ async-imap = { version = "0.9.7", default-features = false, features = ["runtime
 async-native-tls = { version = "0.5", default-features = false, features = ["runtime-tokio"] }
 async-smtp = { version = "0.9", default-features = false, features = ["runtime-tokio"] }
 async_zip = { version = "0.0.12", default-features = false, features = ["deflate", "fs"] }
-backtrace = "0.3"
 base64 = { workspace = true }
 brotli = { version = "6", default-features=false, features = ["std"] }
 chrono = { workspace = true, features = ["alloc", "clock", "std"] }
