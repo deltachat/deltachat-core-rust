@@ -525,6 +525,7 @@ class ACFactory:
         configdict.setdefault("mvbox_move", False)
         configdict.setdefault("sentbox_watch", False)
         configdict.setdefault("sync_msgs", False)
+        configdict.setdefault("delete_server_after", 0)
         ac.update_config(configdict)
         self._acsetup._account2config[ac] = configdict
         self._preconfigure_key(ac, configdict["addr"])

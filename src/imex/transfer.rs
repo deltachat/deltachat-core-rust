@@ -50,7 +50,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
 use crate::context::Context;
-use crate::imex::BlobDirContents;
+use crate::imex::{self, BlobDirContents};
 use crate::message::{Message, Viewtype};
 use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
@@ -475,14 +475,15 @@ async fn on_blob(
         let token = ticket.token().to_string();
         jobs.lock().await.spawn(async move {
             if let Err(err) = context.sql.import(&path, token).await {
-                error!(context, "cannot import database: {:#?}", err);
+                error!(context, "cannot import database: {err:#}");
+            } else if let Err(err) = imex::adjust_delete_server_after(&context).await {
+                error!(context, "cannot adjust delete_server_after: {err:#}");
             }
             if let Err(err) = fs::remove_file(&path).await {
                 error!(
                     context,
-                    "failed to delete database import file '{}': {:#?}",
+                    "failed to delete database import file '{}': {err:#}",
                     path.display(),
-                    err,
                 );
             }
         });
