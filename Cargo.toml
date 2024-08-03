@@ -62,7 +62,6 @@ image = { version = "0.25.1", default-features=false, features = ["gif", "jpeg",
 iroh_old = { version = "0.4.2", default-features = false, package = "iroh"}
 iroh-net = { version = "0.21.0", default-features = false }
 iroh-gossip = { version = "0.21.0", default-features = false, features = ["net"] }
-quinn = "0.10.0"
 kamadak-exif = "0.5.3"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = { workspace = true }

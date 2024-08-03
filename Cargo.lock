@@ -1456,7 +1456,6 @@ dependencies = [
  "proptest",
  "qrcodegen",
  "quick-xml",
- "quinn 0.10.2",
  "quoted_printable",
  "rand 0.8.5",
  "ratelimit",
