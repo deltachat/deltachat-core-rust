@@ -105,9 +105,11 @@ impl Sql {
 
         // Test that the key is correct using a single connection.
         let connection = Connection::open(&self.dbfile)?;
-        connection
-            .pragma_update(None, "key", &passphrase)
-            .context("failed to set PRAGMA key")?;
+        if !passphrase.is_empty() {
+            connection
+                .pragma_update(None, "key", &passphrase)
+                .context("Failed to set PRAGMA key")?;
+        }
         let key_is_correct = connection
             .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
             .is_ok();
@@ -324,8 +326,10 @@ impl Sql {
 
         let pool = lock.take().context("SQL connection pool is not open")?;
         let conn = pool.get().await?;
-        conn.pragma_update(None, "rekey", passphrase.clone())
-            .context("failed to set PRAGMA rekey")?;
+        if !passphrase.is_empty() {
+            conn.pragma_update(None, "rekey", passphrase.clone())
+                .context("Failed to set PRAGMA rekey")?;
+        }
         drop(pool);
 
         *lock = Some(Self::new_pool(&self.dbfile, passphrase.to_string())?);
@@ -697,7 +701,9 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
         conn.pragma_update(None, "temp_store", "memory")?;
     }
 
-    conn.pragma_update(None, "key", passphrase)?;
+    if !passphrase.is_empty() {
+        conn.pragma_update(None, "key", passphrase)?;
+    }
     // Try to enable auto_vacuum. This will only be
     // applied if the database is new or after successful
     // VACUUM, which usually happens before backup export.
