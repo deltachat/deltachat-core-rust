@@ -1193,6 +1193,12 @@ impl MimeFactory {
                     if let Some(id) = msg.param.get(Param::Arg4) {
                         headers.push(Header::new("Secure-Join-Group".into(), id.into()));
                     };
+                    if step != "vg-request" && step != "vc-request" {
+                        headers.push(Header::new(
+                            "Auto-Submitted".to_string(),
+                            "auto-replied".to_string(),
+                        ));
+                    }
                 }
             }
             SystemMessage::ChatProtectionEnabled => {
