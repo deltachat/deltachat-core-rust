@@ -1715,18 +1715,18 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7abbfc297053be59290e3152f8cbcd52c8642e0728b69ee187d991d4c1af08d"
+checksum = "3249c0372e72f5f93b5c0ca54c0ab76bbf6216b6f718925476fd9bc4ffabb4fe"
 dependencies = [
  "derive_more-impl",
 ]
 
 [[package]]
 name = "derive_more-impl"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bba3e9872d7c58ce7ef0fcf1844fcc3e23ef2a58377b50df35dd98e42a5726e"
+checksum = "27d919ced7590fc17b5d5a3c63b662e8a7d2324212c4e4dbbed975cafd22d16d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3398,7 +3398,7 @@ dependencies = [
  "anyhow",
  "crypto_box",
  "data-encoding",
- "derive_more 1.0.0-beta.6",
+ "derive_more 1.0.0-beta.7",
  "ed25519-dalek 2.1.1",
  "getrandom 0.2.12",
  "hex",
@@ -3437,7 +3437,7 @@ checksum = "60a25bef4066809009d90cb5ff885c0d1adf77690805431f45577e624af0b4c6"
 dependencies = [
  "anyhow",
  "bytes",
- "derive_more 1.0.0-beta.6",
+ "derive_more 1.0.0-beta.7",
  "ed25519-dalek 2.1.1",
  "futures-lite 2.3.0",
  "genawaiter",
@@ -3489,7 +3489,7 @@ dependencies = [
  "bytes",
  "clap",
  "der 0.7.8",
- "derive_more 1.0.0-beta.6",
+ "derive_more 1.0.0-beta.7",
  "duct",
  "flume",
  "futures-buffered",
