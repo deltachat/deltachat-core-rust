@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.142.3] - 2024-08-04
+
+### Build system
+
+- cargo: Update rusqlite and libsqlite3-sys.
+- Fix cargo warnings about default-features
+- Do not disable "vendored" feature in the workspace.
+- cargo: Bump quick-xml from 0.35.0 to 0.36.1.
+- cargo: Bump uuid from 1.9.1 to 1.10.0.
+- cargo: Bump tokio from 1.38.0 to 1.39.2.
+- cargo: Bump env_logger from 0.11.3 to 0.11.5.
+- Remove sha2 dependency.
+- Remove `backtrace` dependency.
+- Remove direct "quinn" dependency.
+
 ## [1.142.2] - 2024-08-02
 
 ### Features / Changes
@@ -4662,3 +4677,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.2...v1.142.0
 [1.142.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.0...v1.142.1
 [1.142.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.1...v1.142.2
+[1.142.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.2...v1.142.3
