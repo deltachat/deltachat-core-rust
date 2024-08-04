@@ -30,7 +30,6 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{load_self_public_key, DcKey, SignedPublicKey};
 use crate::log::LogExt;
-use crate::login_param::LoginParam;
 use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
@@ -1191,7 +1190,10 @@ impl Contact {
         );
 
         let contact = Contact::get_by_id(context, contact_id).await?;
-        let loginparam = LoginParam::load_configured_params(context).await?;
+        let addr = context
+            .get_config(Config::ConfiguredAddr)
+            .await?
+            .unwrap_or_default();
         let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
         let Some(peerstate) = peerstate.filter(|peerstate| peerstate.peek_key(false).is_some())
@@ -1220,8 +1222,8 @@ impl Contact {
             .peek_key(false)
             .map(|k| k.fingerprint().to_string())
             .unwrap_or_default();
-        if loginparam.addr < peerstate.addr {
-            cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
+        if addr < peerstate.addr {
+            cat_fingerprint(&mut ret, &addr, &fingerprint_self, "");
             cat_fingerprint(
                 &mut ret,
                 &peerstate.addr,
@@ -1235,7 +1237,7 @@ impl Contact {
                 &fingerprint_other_verified,
                 &fingerprint_other_unverified,
             );
-            cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
+            cat_fingerprint(&mut ret, &addr, &fingerprint_self, "");
         }
 
         Ok(ret)

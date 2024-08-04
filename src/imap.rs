@@ -32,7 +32,7 @@ use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::login_param::{LoginParam, ServerLoginParam};
+use crate::login_param::{ConfiguredLoginParam, ConfiguredServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::get_oauth2_access_token;
@@ -73,11 +73,13 @@ pub(crate) struct Imap {
     addr: String,
 
     /// Login parameters.
-    lp: ServerLoginParam,
+    lp: ConfiguredServerLoginParam,
 
     /// SOCKS 5 configuration.
     socks5_config: Option<Socks5Config>,
     strict_tls: bool,
+
+    oauth2: bool,
 
     login_failed_once: bool,
 
@@ -228,15 +230,15 @@ impl Imap {
     ///
     /// `addr` is used to renew token if OAuth2 authentication is used.
     pub fn new(
-        lp: &ServerLoginParam,
+        lp: &[ConfiguredServerLoginParam],
         socks5_config: Option<Socks5Config>,
         addr: &str,
         strict_tls: bool,
+        oauth2: bool,
         idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
-        if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
-            bail!("Incomplete IMAP connection parameters");
-        }
+        // TODO use other connection parameters, not only the first one
+        let lp = lp.first().context("No connection params for IMAP")?;
 
         let imap = Imap {
             idle_interrupt_receiver,
@@ -244,6 +246,7 @@ impl Imap {
             lp: lp.clone(),
             socks5_config,
             strict_tls,
+            oauth2,
             login_failed_once: false,
             connectivity: Default::default(),
             conn_last_try: UNIX_EPOCH,
@@ -260,16 +263,15 @@ impl Imap {
         context: &Context,
         idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
-        if !context.is_configured().await? {
-            bail!("IMAP Connect without configured params");
-        }
-
-        let param = LoginParam::load_configured_params(context).await?;
+        let param = ConfiguredLoginParam::load(context)
+            .await?
+            .context("Not configured")?;
         let imap = Self::new(
             &param.imap,
             param.socks5_config.clone(),
             &param.addr,
             param.strict_tls(),
+            param.oauth2,
             idle_interrupt_receiver,
         )?;
         Ok(imap)
@@ -283,10 +285,6 @@ impl Imap {
     /// instead if you are going to actually use connection rather than trying connection
     /// parameters.
     pub(crate) async fn connect(&mut self, context: &Context) -> Result<Session> {
-        if self.lp.server.is_empty() {
-            bail!("IMAP operation attempted while it is torn down");
-        }
-
         let now = tools::Time::now();
         let until_can_send = max(
             min(self.conn_last_try, now)
@@ -328,25 +326,22 @@ impl Imap {
         );
         self.conn_backoff_ms = max(BACKOFF_MIN_MS, self.conn_backoff_ms);
 
-        let connection_res = Client::connect(
+        let connection_candidate = self.lp.connection.clone();
+        let client = Client::connect(
             context,
-            self.lp.server.as_ref(),
-            self.lp.port,
-            self.strict_tls,
             self.socks5_config.clone(),
-            self.lp.security,
+            self.strict_tls,
+            connection_candidate,
         )
-        .await;
+        .await?;
 
-        let client = connection_res?;
         self.conn_backoff_ms = BACKOFF_MIN_MS;
         self.ratelimit.send();
 
         let imap_user: &str = self.lp.user.as_ref();
         let imap_pw: &str = self.lp.password.as_ref();
-        let oauth2 = self.lp.oauth2;
 
-        let login_res = if oauth2 {
+        let login_res = if self.oauth2 {
             info!(context, "Logging into IMAP server with OAuth 2");
             let addr: &str = self.addr.as_ref();
 
