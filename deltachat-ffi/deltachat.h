@@ -409,7 +409,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `socks5_user` = SOCKS5 proxy username
  * - `socks5_password` = SOCKS5 proxy password
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
- * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
+ * - `smtp_certificate_checks` = deprecated option, should be set to the same value as `imap_certificate_checks` but ignored by the new core
  * - `displayname`  = Own name to use when sending messages. MUAs are allowed to spread this way e.g. using CC, defaults to empty
  * - `selfstatus`   = Own status to display, e.g. in e-mail footers, defaults to empty
  * - `selfavatar`   = File containing avatar. Will immediately be copied to the 

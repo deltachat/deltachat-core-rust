@@ -22,9 +22,6 @@ pub(crate) struct ServerParams {
 
     /// Username, empty if unknown.
     pub username: String,
-
-    /// Whether TLS certificates should be strictly checked or not, `None` for automatic.
-    pub strict_tls: Option<bool>,
 }
 
 impl ServerParams {
@@ -125,14 +122,6 @@ impl ServerParams {
             vec![self]
         }
     }
-
-    fn expand_strict_tls(self) -> Vec<ServerParams> {
-        vec![Self {
-            // Strict if not set by the user or provider database.
-            strict_tls: Some(self.strict_tls.unwrap_or(true)),
-            ..self
-        }]
-    }
 }
 
 /// Expands vector of `ServerParams`, replacing placeholders with
@@ -146,7 +135,6 @@ pub(crate) fn expand_param_vector(
         // The order of expansion is important.
         //
         // Ports are expanded the last, so they are changed the first.
-        .flat_map(|params| params.expand_strict_tls().into_iter())
         .flat_map(|params| params.expand_usernames(addr).into_iter())
         .flat_map(|params| params.expand_hostnames(domain).into_iter())
         .flat_map(|params| params.expand_ports().into_iter())
@@ -166,7 +154,6 @@ mod tests {
                 port: 0,
                 socket: Socket::Ssl,
                 username: "foobar".to_string(),
-                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",
@@ -180,7 +167,6 @@ mod tests {
                 port: 993,
                 socket: Socket::Ssl,
                 username: "foobar".to_string(),
-                strict_tls: Some(true)
             }],
         );
 
@@ -191,7 +177,6 @@ mod tests {
                 port: 123,
                 socket: Socket::Automatic,
                 username: "foobar".to_string(),
-                strict_tls: None,
             }],
             "foobar@example.net",
             "example.net",
@@ -206,7 +191,6 @@ mod tests {
                     port: 123,
                     socket: Socket::Ssl,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true),
                 },
                 ServerParams {
                     protocol: Protocol::Smtp,
@@ -214,12 +198,10 @@ mod tests {
                     port: 123,
                     socket: Socket::Starttls,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true)
                 },
             ],
         );
 
-        // Test that strict_tls is not expanded for plaintext connections.
         let v = expand_param_vector(
             vec![ServerParams {
                 protocol: Protocol::Smtp,
@@ -227,7 +209,6 @@ mod tests {
                 port: 123,
                 socket: Socket::Plain,
                 username: "foobar".to_string(),
-                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",
@@ -240,7 +221,6 @@ mod tests {
                 port: 123,
                 socket: Socket::Plain,
                 username: "foobar".to_string(),
-                strict_tls: Some(true)
             }],
         );
 
@@ -252,7 +232,6 @@ mod tests {
                 port: 10480,
                 socket: Socket::Ssl,
                 username: "foobar".to_string(),
-                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",
@@ -266,7 +245,6 @@ mod tests {
                     port: 10480,
                     socket: Socket::Ssl,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true)
                 },
                 ServerParams {
                     protocol: Protocol::Imap,
@@ -274,7 +252,6 @@ mod tests {
                     port: 10480,
                     socket: Socket::Ssl,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true)
                 },
                 ServerParams {
                     protocol: Protocol::Imap,
@@ -282,7 +259,6 @@ mod tests {
                     port: 10480,
                     socket: Socket::Ssl,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true)
                 }
             ],
         );
@@ -296,7 +272,6 @@ mod tests {
                 port: 0,
                 socket: Socket::Automatic,
                 username: "foobar".to_string(),
-                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",
@@ -310,7 +285,6 @@ mod tests {
                     port: 465,
                     socket: Socket::Ssl,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true)
                 },
                 ServerParams {
                     protocol: Protocol::Smtp,
@@ -318,7 +292,6 @@ mod tests {
                     port: 587,
                     socket: Socket::Starttls,
                     username: "foobar".to_string(),
-                    strict_tls: Some(true)
                 },
             ],
         );
@@ -338,7 +311,6 @@ mod tests {
                 port: 0,
                 socket: Socket::Automatic,
                 username: "".to_string(),
-                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",
@@ -352,7 +324,6 @@ mod tests {
                     port: 993,
                     socket: Socket::Ssl,
                     username: "foobar@example.net".to_string(),
-                    strict_tls: Some(true)
                 },
                 ServerParams {
                     protocol: Protocol::Imap,
@@ -360,7 +331,6 @@ mod tests {
                     port: 143,
                     socket: Socket::Starttls,
                     username: "foobar@example.net".to_string(),
-                    strict_tls: Some(true)
                 },
             ],
         );

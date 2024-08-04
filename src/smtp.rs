@@ -89,16 +89,19 @@ impl Smtp {
 
         self.connectivity.set_connecting(context).await;
         let lp = LoginParam::load_configured_params(context).await?;
-        self.connect(
-            context,
-            &lp.smtp,
-            &lp.socks5_config,
-            &lp.addr,
-            lp.provider.map_or(lp.socks5_config.is_some(), |provider| {
-                provider.opt.strict_tls
-            }),
-        )
-        .await
+        let user_strict_tls = match lp.certificate_checks {
+            CertificateChecks::Automatic => None,
+            CertificateChecks::Strict => Some(true),
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
+        };
+        let provider_strict_tls = lp.provider.map(|provider| provider.opt.strict_tls);
+        let strict_tls = user_strict_tls
+            .or(provider_strict_tls)
+            .unwrap_or(lp.socks5_config.is_some());
+
+        self.connect(context, &lp.smtp, &lp.socks5_config, &lp.addr, strict_tls)
+            .await
     }
 
     /// Connect using the provided login params.
@@ -108,7 +111,7 @@ impl Smtp {
         lp: &ServerLoginParam,
         socks5_config: &Option<Socks5Config>,
         addr: &str,
-        provider_strict_tls: bool,
+        strict_tls: bool,
     ) -> Result<()> {
         if self.is_connected() {
             warn!(context, "SMTP already connected.");
@@ -126,13 +129,6 @@ impl Smtp {
 
         let domain = &lp.server;
         let port = lp.port;
-
-        let strict_tls = match lp.certificate_checks {
-            CertificateChecks::Automatic => provider_strict_tls,
-            CertificateChecks::Strict => true,
-            CertificateChecks::AcceptInvalidCertificates
-            | CertificateChecks::AcceptInvalidCertificates2 => false,
-        };
 
         let session_stream = connect::connect_stream(
             context,

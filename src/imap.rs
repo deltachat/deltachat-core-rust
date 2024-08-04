@@ -231,19 +231,12 @@ impl Imap {
         lp: &ServerLoginParam,
         socks5_config: Option<Socks5Config>,
         addr: &str,
-        provider_strict_tls: bool,
+        strict_tls: bool,
         idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
         if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
             bail!("Incomplete IMAP connection parameters");
         }
-
-        let strict_tls = match lp.certificate_checks {
-            CertificateChecks::Automatic => provider_strict_tls,
-            CertificateChecks::Strict => true,
-            CertificateChecks::AcceptInvalidCertificates
-            | CertificateChecks::AcceptInvalidCertificates2 => false,
-        };
 
         let imap = Imap {
             idle_interrupt_receiver,
@@ -272,17 +265,23 @@ impl Imap {
         }
 
         let param = LoginParam::load_configured_params(context).await?;
-        // the trailing underscore is correct
+
+        let user_strict_tls = match param.certificate_checks {
+            CertificateChecks::Automatic => None,
+            CertificateChecks::Strict => Some(true),
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
+        };
+        let provider_strict_tls = param.provider.map(|provider| provider.opt.strict_tls);
+        let strict_tls = user_strict_tls
+            .or(provider_strict_tls)
+            .unwrap_or(param.socks5_config.is_some());
 
         let imap = Self::new(
             &param.imap,
             param.socks5_config.clone(),
             &param.addr,
-            param
-                .provider
-                .map_or(param.socks5_config.is_some(), |provider| {
-                    provider.opt.strict_tls
-                }),
+            strict_tls,
             idle_interrupt_receiver,
         )?;
         Ok(imap)
