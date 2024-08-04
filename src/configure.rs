@@ -212,7 +212,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     let parsed = EmailAddress::new(&param.addr).context("Bad email-address")?;
     let param_domain = parsed.domain;
-    let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
     // Step 2: Autoconfig
     progress!(ctx, 200);
@@ -283,7 +282,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 info!(ctx, "socks5 enabled, skipping autoconfig");
                 None
             } else {
-                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await
+                get_autoconfig(ctx, param, &param_domain).await
             }
         }
     } else {
@@ -500,8 +499,9 @@ async fn get_autoconfig(
     ctx: &Context,
     param: &LoginParam,
     param_domain: &str,
-    param_addr_urlencoded: &str,
 ) -> Option<Vec<ServerParams>> {
+    let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
+
     if let Ok(res) = moz_autoconfigure(
         ctx,
         &format!(
