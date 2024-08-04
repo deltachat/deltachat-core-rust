@@ -25,14 +25,16 @@ use tokio::task;
 
 use crate::config::{self, Config};
 use crate::context::Context;
-use crate::imap::{session::Session as ImapSession, Imap};
+use crate::imap::Imap;
 use crate::log::LogExt;
-use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{
+    ConfiguredCertificateChecks, ConfiguredLoginParam, ConfiguredServerLoginParam,
+    ConnectionCandidate, EnteredCertificateChecks, EnteredLoginParam,
+};
 use crate::message::{Message, Viewtype};
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
-use crate::socks::Socks5Config;
 use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::time;
@@ -110,16 +112,15 @@ impl Context {
     async fn inner_configure(&self) -> Result<()> {
         info!(self, "Configure ...");
 
-        let mut param = LoginParam::load_candidate_params(self).await?;
+        let param = EnteredLoginParam::load(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
 
-        let success = configure(self, &mut param).await;
+        let configured_param_res = configure(self, &param).await;
         self.set_config_internal(Config::NotifyAboutWrongPw, None)
             .await?;
 
-        on_configure_completed(self, param, old_addr).await?;
+        on_configure_completed(self, configured_param_res?, old_addr).await?;
 
-        success?;
         self.set_config_internal(Config::NotifyAboutWrongPw, Some("1"))
             .await?;
         Ok(())
@@ -128,7 +129,7 @@ impl Context {
 
 async fn on_configure_completed(
     context: &Context,
-    param: LoginParam,
+    param: ConfiguredLoginParam,
     old_addr: Option<String>,
 ) -> Result<()> {
     if let Some(provider) = param.provider {
@@ -178,19 +179,28 @@ async fn on_configure_completed(
     Ok(())
 }
 
-async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
-    progress!(ctx, 1);
+/// Retrieves data from autoconfig and provider database
+/// to transform user-entered login parameters into complete configuration.
+async fn get_configured_param(
+    ctx: &Context,
+    param: &EnteredLoginParam,
+) -> Result<ConfiguredLoginParam> {
+    ensure!(!param.addr.is_empty(), "Missing email address.");
+
+    ensure!(!param.imap.password.is_empty(), "Missing (IMAP) password.");
+
+    // SMTP password is an "advanced" setting. If unset, use the same password as for IMAP.
+    let smtp_password = if param.smtp.password.is_empty() {
+        param.imap.password.clone()
+    } else {
+        param.smtp.password.clone()
+    };
 
     let socks5_config = param.socks5_config.clone();
     let socks5_enabled = socks5_config.is_some();
 
-    let ctx2 = ctx.clone();
-    let update_device_chats_handle = task::spawn(async move { ctx2.update_device_chats().await });
-
-    // Step 1: Load the parameters and check email-address and password
-
-    // OAuth is always set either for both IMAP and SMTP or not at all.
-    if param.imap.oauth2 {
+    let mut addr = param.addr.clone();
+    if param.oauth2 {
         // the used oauth2 addr may differ, check this.
         // if get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
@@ -199,7 +209,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             .and_then(|e| e.parse().ok())
         {
             info!(ctx, "Authorized address is {}", oauth2_addr);
-            param.addr = oauth2_addr;
+            addr = oauth2_addr;
             ctx.sql
                 .set_raw_config("addr", Some(param.addr.as_str()))
                 .await?;
@@ -211,9 +221,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let parsed = EmailAddress::new(&param.addr).context("Bad email-address")?;
     let param_domain = parsed.domain;
 
-    // Step 2: Autoconfig
     progress!(ctx, 200);
 
+    let provider;
     let param_autoconfig;
     if param.imap.server.is_empty()
         && param.imap.port == 0
@@ -225,76 +235,50 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         && param.smtp.user.is_empty()
     {
         // no advanced parameters entered by the user: query provider-database or do Autoconfig
-
         info!(
             ctx,
             "checking internal provider-info for offline autoconfig"
         );
 
-        if let Some(provider) =
-            provider::get_provider_info(ctx, &param_domain, socks5_enabled).await
-        {
-            param.provider = Some(provider);
-            match provider.status {
-                provider::Status::Ok | provider::Status::Preparation => {
-                    if provider.server.is_empty() {
-                        info!(ctx, "offline autoconfig found, but no servers defined");
-                        param_autoconfig = None;
-                    } else {
-                        info!(ctx, "offline autoconfig found");
-                        let servers = provider
-                            .server
-                            .iter()
-                            .map(|s| ServerParams {
-                                protocol: s.protocol,
-                                socket: s.socket,
-                                hostname: s.hostname.to_string(),
-                                port: s.port,
-                                username: match s.username_pattern {
-                                    UsernamePattern::Email => param.addr.to_string(),
-                                    UsernamePattern::Emaillocalpart => {
-                                        if let Some(at) = param.addr.find('@') {
-                                            param.addr.split_at(at).0.to_string()
-                                        } else {
-                                            param.addr.to_string()
-                                        }
-                                    }
-                                },
-                            })
-                            .collect();
+        provider = provider::get_provider_info(ctx, &param_domain, socks5_enabled).await;
+        if let Some(provider) = provider {
+            if provider.server.is_empty() {
+                info!(ctx, "Offline autoconfig found, but no servers defined.");
+                param_autoconfig = None;
+            } else {
+                info!(ctx, "Offline autoconfig found.");
+                let servers = provider
+                    .server
+                    .iter()
+                    .map(|s| ServerParams {
+                        protocol: s.protocol,
+                        socket: s.socket,
+                        hostname: s.hostname.to_string(),
+                        port: s.port,
+                        username: match s.username_pattern {
+                            UsernamePattern::Email => param.addr.to_string(),
+                            UsernamePattern::Emaillocalpart => {
+                                if let Some(at) = param.addr.find('@') {
+                                    param.addr.split_at(at).0.to_string()
+                                } else {
+                                    param.addr.to_string()
+                                }
+                            }
+                        },
+                    })
+                    .collect();
 
-                        param_autoconfig = Some(servers)
-                    }
-                }
-                provider::Status::Broken => {
-                    info!(ctx, "offline autoconfig found, provider is broken");
-                    param_autoconfig = None;
-                }
+                param_autoconfig = Some(servers)
             }
         } else {
             // Try receiving autoconfig
-            info!(ctx, "no offline autoconfig found");
+            info!(ctx, "No offline autoconfig found.");
             param_autoconfig = get_autoconfig(ctx, param, &param_domain).await;
         }
     } else {
+        provider = None;
         param_autoconfig = None;
     }
-
-    let user_strict_tls = match param.certificate_checks {
-        CertificateChecks::Automatic => None,
-        CertificateChecks::Strict => Some(true),
-        CertificateChecks::AcceptInvalidCertificates
-        | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
-    };
-    let provider_strict_tls = param.provider.map(|provider| provider.opt.strict_tls);
-    let strict_tls = user_strict_tls.or(provider_strict_tls).unwrap_or(true);
-
-    // Do not save `CertificateChecks::Automatic` into `configured_imap_certificate_checks`.
-    param.certificate_checks = if strict_tls {
-        CertificateChecks::Strict
-    } else {
-        CertificateChecks::AcceptInvalidCertificates
-    };
 
     progress!(ctx, 500);
 
@@ -326,107 +310,123 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     let servers = expand_param_vector(servers, &param.addr, &param_domain);
 
+    let configured_login_param = ConfiguredLoginParam {
+        addr,
+        imap: servers
+            .iter()
+            .filter_map(|params| {
+                let Ok(security) = params.socket.try_into() else {
+                    return None;
+                };
+                if params.protocol == Protocol::Imap {
+                    Some(ConfiguredServerLoginParam {
+                        connection: ConnectionCandidate {
+                            host: params.hostname.clone(),
+                            port: params.port,
+                            security,
+                        },
+                        user: params.username.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        imap_password: param.imap.password.clone(),
+        smtp: servers
+            .iter()
+            .filter_map(|params| {
+                let Ok(security) = params.socket.try_into() else {
+                    return None;
+                };
+                if params.protocol == Protocol::Smtp {
+                    Some(ConfiguredServerLoginParam {
+                        connection: ConnectionCandidate {
+                            host: params.hostname.clone(),
+                            port: params.port,
+                            security,
+                        },
+                        user: params.username.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        smtp_password,
+        socks5_config: param.socks5_config.clone(),
+        provider,
+        certificate_checks: match param.certificate_checks {
+            EnteredCertificateChecks::Automatic => ConfiguredCertificateChecks::Automatic,
+            EnteredCertificateChecks::Strict => ConfiguredCertificateChecks::Strict,
+            EnteredCertificateChecks::AcceptInvalidCertificates
+            | EnteredCertificateChecks::AcceptInvalidCertificates2 => {
+                ConfiguredCertificateChecks::AcceptInvalidCertificates
+            }
+        },
+        oauth2: param.oauth2,
+    };
+    Ok(configured_login_param)
+}
+
+async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<ConfiguredLoginParam> {
+    progress!(ctx, 1);
+
+    let ctx2 = ctx.clone();
+    let update_device_chats_handle = task::spawn(async move { ctx2.update_device_chats().await });
+
+    let configured_param = get_configured_param(ctx, param).await?;
+    let strict_tls = configured_param.strict_tls();
+
     progress!(ctx, 550);
 
     // Spawn SMTP configuration task
-    let mut smtp = Smtp::new();
-
+    // to try SMTP while connecting to IMAP.
     let context_smtp = ctx.clone();
-    let mut smtp_param = param.smtp.clone();
-    let smtp_addr = param.addr.clone();
-    let smtp_servers: Vec<ServerParams> = servers
-        .iter()
-        .filter(|params| params.protocol == Protocol::Smtp)
-        .cloned()
-        .collect();
+    let smtp_param = configured_param.smtp.clone();
+    let smtp_password = configured_param.smtp_password.clone();
+    let smtp_addr = configured_param.addr.clone();
+    let smtp_socks5 = configured_param.socks5_config.clone();
 
     let smtp_config_task = task::spawn(async move {
-        let mut smtp_configured = false;
-        let mut errors = Vec::new();
-        for smtp_server in smtp_servers {
-            smtp_param.user.clone_from(&smtp_server.username);
-            smtp_param.server.clone_from(&smtp_server.hostname);
-            smtp_param.port = smtp_server.port;
-            smtp_param.security = smtp_server.socket;
+        let mut smtp = Smtp::new();
+        smtp.connect(
+            &context_smtp,
+            &smtp_param,
+            &smtp_password,
+            &smtp_socks5,
+            &smtp_addr,
+            strict_tls,
+            configured_param.oauth2,
+        )
+        .await?;
 
-            match try_smtp_one_param(
-                &context_smtp,
-                &smtp_param,
-                &socks5_config,
-                &smtp_addr,
-                strict_tls,
-                &mut smtp,
-            )
-            .await
-            {
-                Ok(_) => {
-                    smtp_configured = true;
-                    break;
-                }
-                Err(e) => errors.push(e),
-            }
-        }
-
-        if smtp_configured {
-            Ok(smtp_param)
-        } else {
-            Err(errors)
-        }
+        Ok::<(), anyhow::Error>(())
     });
 
     progress!(ctx, 600);
 
     // Configure IMAP
 
-    let mut imap: Option<(Imap, ImapSession)> = None;
-    let imap_servers: Vec<&ServerParams> = servers
-        .iter()
-        .filter(|params| params.protocol == Protocol::Imap)
-        .collect();
-    let imap_servers_count = imap_servers.len();
-    let mut errors = Vec::new();
-    for (imap_server_index, imap_server) in imap_servers.into_iter().enumerate() {
-        param.imap.user.clone_from(&imap_server.username);
-        param.imap.server.clone_from(&imap_server.hostname);
-        param.imap.port = imap_server.port;
-        param.imap.security = imap_server.socket;
-
-        match try_imap_one_param(
-            ctx,
-            &param.imap,
-            &param.socks5_config,
-            &param.addr,
-            strict_tls,
-        )
-        .await
-        {
-            Ok(configured_imap) => {
-                imap = Some(configured_imap);
-                break;
-            }
-            Err(e) => errors.push(e),
-        }
-        progress!(
-            ctx,
-            600 + (800 - 600) * (1 + imap_server_index) / imap_servers_count
-        );
-    }
-    let (mut imap, mut imap_session) = match imap {
-        Some(imap) => imap,
-        None => bail!(nicer_configuration_error(ctx, errors).await),
+    let (_s, r) = async_channel::bounded(1);
+    let mut imap = Imap::new(
+        configured_param.imap.clone(),
+        configured_param.imap_password.clone(),
+        configured_param.socks5_config.clone(),
+        &configured_param.addr,
+        strict_tls,
+        configured_param.oauth2,
+        r,
+    );
+    let mut imap_session = match imap.connect(ctx).await {
+        Ok(session) => session,
+        Err(err) => bail!("{}", nicer_configuration_error(ctx, err.to_string()).await),
     };
 
     progress!(ctx, 850);
 
     // Wait for SMTP configuration
-    match smtp_config_task.await.unwrap() {
-        Ok(smtp_param) => {
-            param.smtp = smtp_param;
-        }
-        Err(errors) => {
-            bail!(nicer_configuration_error(ctx, errors).await);
-        }
-    }
+    smtp_config_task.await.unwrap()?;
 
     progress!(ctx, 900);
 
@@ -474,8 +474,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         }
     }
 
-    // the trailing underscore is correct
-    param.save_as_configured_params(ctx).await?;
+    configured_param.save_as_configured_params(ctx).await?;
     ctx.set_config_internal(Config::ConfiguredTimestamp, Some(&time().to_string()))
         .await?;
 
@@ -493,7 +492,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     ctx.sql.set_raw_config_bool("configured", true).await?;
 
-    Ok(())
+    Ok(configured_param)
 }
 
 /// Retrieve available autoconfigurations.
@@ -502,7 +501,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 /// B. If we have no configuration yet, search configuration in Thunderbird's central database
 async fn get_autoconfig(
     ctx: &Context,
-    param: &LoginParam,
+    param: &EnteredLoginParam,
     param_domain: &str,
 ) -> Option<Vec<ServerParams>> {
     let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
@@ -573,140 +572,19 @@ async fn get_autoconfig(
     None
 }
 
-async fn try_imap_one_param(
-    context: &Context,
-    param: &ServerLoginParam,
-    socks5_config: &Option<Socks5Config>,
-    addr: &str,
-    strict_tls: bool,
-) -> Result<(Imap, ImapSession), ConfigurationError> {
-    let inf = format!(
-        "imap: {}@{}:{} security={} strict_tls={} oauth2={} socks5_config={}",
-        param.user,
-        param.server,
-        param.port,
-        param.security,
-        strict_tls,
-        param.oauth2,
-        if let Some(socks5_config) = socks5_config {
-            socks5_config.to_string()
-        } else {
-            "None".to_string()
-        }
-    );
-    info!(context, "Trying: {}", inf);
-
-    let (_s, r) = async_channel::bounded(1);
-
-    let mut imap = match Imap::new(param, socks5_config.clone(), addr, strict_tls, r) {
-        Err(err) => {
-            info!(context, "failure: {:#}", err);
-            return Err(ConfigurationError {
-                config: inf,
-                msg: format!("{err:#}"),
-            });
-        }
-        Ok(imap) => imap,
-    };
-
-    match imap.connect(context).await {
-        Err(err) => {
-            info!(context, "IMAP failure: {err:#}.");
-            Err(ConfigurationError {
-                config: inf,
-                msg: format!("{err:#}"),
-            })
-        }
-        Ok(session) => {
-            info!(context, "IMAP success: {inf}.");
-            Ok((imap, session))
-        }
-    }
-}
-
-async fn try_smtp_one_param(
-    context: &Context,
-    param: &ServerLoginParam,
-    socks5_config: &Option<Socks5Config>,
-    addr: &str,
-    strict_tls: bool,
-    smtp: &mut Smtp,
-) -> Result<(), ConfigurationError> {
-    let inf = format!(
-        "smtp: {}@{}:{} security={} strict_tls={} oauth2={} socks5_config={}",
-        param.user,
-        param.server,
-        param.port,
-        param.security,
-        strict_tls,
-        param.oauth2,
-        if let Some(socks5_config) = socks5_config {
-            socks5_config.to_string()
-        } else {
-            "None".to_string()
-        }
-    );
-    info!(context, "Trying: {}", inf);
-
-    if let Err(err) = smtp
-        .connect(context, param, socks5_config, addr, strict_tls)
-        .await
+async fn nicer_configuration_error(context: &Context, e: String) -> String {
+    if e.to_lowercase().contains("could not resolve")
+        || e.to_lowercase().contains("no dns resolution results")
+        || e.to_lowercase()
+            .contains("temporary failure in name resolution")
+        || e.to_lowercase().contains("name or service not known")
+        || e.to_lowercase()
+            .contains("failed to lookup address information")
     {
-        info!(context, "SMTP failure: {err:#}.");
-        Err(ConfigurationError {
-            config: inf,
-            msg: format!("{err:#}"),
-        })
-    } else {
-        info!(context, "SMTP success: {inf}.");
-        smtp.disconnect();
-        Ok(())
-    }
-}
-
-/// Failure to connect and login with email client configuration.
-#[derive(Debug, thiserror::Error)]
-#[error("Trying {config}…\nError: {msg}")]
-pub struct ConfigurationError {
-    /// Tried configuration description.
-    config: String,
-
-    /// Error message.
-    msg: String,
-}
-
-async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationError>) -> String {
-    let first_err = if let Some(f) = errors.first() {
-        f
-    } else {
-        // This means configuration failed but no errors have been captured. This should never
-        // happen, but if it does, the user will see classic "Error: no error".
-        return "no error".to_string();
-    };
-
-    if errors.iter().all(|e| {
-        e.msg.to_lowercase().contains("could not resolve")
-            || e.msg.to_lowercase().contains("no dns resolution results")
-            || e.msg
-                .to_lowercase()
-                .contains("temporary failure in name resolution")
-            || e.msg.to_lowercase().contains("name or service not known")
-            || e.msg
-                .to_lowercase()
-                .contains("failed to lookup address information")
-    }) {
         return stock_str::error_no_network(context).await;
     }
 
-    if errors.iter().all(|e| e.msg == first_err.msg) {
-        return first_err.msg.to_string();
-    }
-
-    errors
-        .iter()
-        .map(|e| e.to_string())
-        .collect::<Vec<String>>()
-        .join("\n\n")
+    e
 }
 
 #[derive(Debug, thiserror::Error)]

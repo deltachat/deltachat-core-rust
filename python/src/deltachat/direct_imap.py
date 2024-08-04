@@ -8,19 +8,19 @@ import io
 import pathlib
 import ssl
 from contextlib import contextmanager
-from typing import List
+from typing import List, TYPE_CHECKING
 
 from imap_tools import (
     AND,
     Header,
     MailBox,
-    MailBoxTls,
     MailMessage,
     MailMessageFlags,
     errors,
 )
 
-from deltachat import Account, const
+if TYPE_CHECKING:
+    from deltachat import Account
 
 FLAGS = b"FLAGS"
 FETCH = b"FETCH"
@@ -28,7 +28,7 @@ ALL = "1:*"
 
 
 class DirectImap:
-    def __init__(self, account: Account) -> None:
+    def __init__(self, account: "Account") -> None:
         self.account = account
         self.logid = account.get_config("displayname") or id(account)
         self._idling = False
@@ -36,27 +36,13 @@ class DirectImap:
 
     def connect(self):
         host = self.account.get_config("configured_mail_server")
-        port = int(self.account.get_config("configured_mail_port"))
-        security = int(self.account.get_config("configured_mail_security"))
+        port = 993
 
         user = self.account.get_config("addr")
+        host = user.rsplit("@")[-1]
         pw = self.account.get_config("mail_pw")
 
-        if security == const.DC_SOCKET_PLAIN:
-            ssl_context = None
-        else:
-            ssl_context = ssl.create_default_context()
-
-            # don't check if certificate hostname doesn't match target hostname
-            ssl_context.check_hostname = False
-
-            # don't check if the certificate is trusted by a certificate authority
-            ssl_context.verify_mode = ssl.CERT_NONE
-
-        if security == const.DC_SOCKET_STARTTLS:
-            self.conn = MailBoxTls(host, port, ssl_context=ssl_context)
-        elif security == const.DC_SOCKET_PLAIN or security == const.DC_SOCKET_SSL:
-            self.conn = MailBox(host, port, ssl_context=ssl_context)
+        self.conn = MailBox(host, port, ssl_context=ssl.create_default_context())
         self.conn.login(user, pw)
 
         self.select_folder("INBOX")

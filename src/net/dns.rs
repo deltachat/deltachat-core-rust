@@ -230,11 +230,16 @@ async fn sort_by_connection_timestamp(
     alpn: &str,
     host: &str,
 ) -> Result<Vec<SocketAddr>> {
-    let mut res: Vec<(Option<i64>, SocketAddr)> = Vec::new();
+    let mut res: Vec<(Option<i64>, SocketAddr)> = Vec::with_capacity(input.len());
     for addr in input {
-        let timestamp =
-            load_connection_timestamp(context, alpn, host, addr.port(), &addr.ip().to_string())
-                .await?;
+        let timestamp = load_connection_timestamp(
+            &context.sql,
+            alpn,
+            host,
+            addr.port(),
+            Some(&addr.ip().to_string()),
+        )
+        .await?;
         res.push((timestamp, addr));
     }
     res.sort_by_key(|(ts, _addr)| std::cmp::Reverse(*ts));

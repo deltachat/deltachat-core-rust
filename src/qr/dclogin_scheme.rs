@@ -8,7 +8,7 @@ use num_traits::cast::ToPrimitive;
 use super::{Qr, DCLOGIN_SCHEME};
 use crate::config::Config;
 use crate::context::Context;
-use crate::login_param::CertificateChecks;
+use crate::login_param::EnteredCertificateChecks;
 use crate::provider::Socket;
 
 /// Options for `dclogin:` scheme.
@@ -55,7 +55,7 @@ pub enum LoginOptions {
         smtp_security: Option<Socket>,
 
         /// Certificate checks.
-        certificate_checks: Option<CertificateChecks>,
+        certificate_checks: Option<EnteredCertificateChecks>,
     },
 }
 
@@ -146,11 +146,12 @@ fn parse_socket_security(security: Option<&String>) -> Result<Option<Socket>> {
 
 fn parse_certificate_checks(
     certificate_checks: Option<&String>,
-) -> Result<Option<CertificateChecks>> {
+) -> Result<Option<EnteredCertificateChecks>> {
     Ok(match certificate_checks.map(|s| s.as_str()) {
-        Some("0") => Some(CertificateChecks::Automatic),
-        Some("1") => Some(CertificateChecks::Strict),
-        Some("3") => Some(CertificateChecks::AcceptInvalidCertificates),
+        Some("0") => Some(EnteredCertificateChecks::Automatic),
+        Some("1") => Some(EnteredCertificateChecks::Strict),
+        Some("2") => Some(EnteredCertificateChecks::AcceptInvalidCertificates),
+        Some("3") => Some(EnteredCertificateChecks::AcceptInvalidCertificates2),
         Some(other) => bail!("Unknown certificatecheck level: {}", other),
         None => None,
     })
@@ -263,7 +264,7 @@ mod test {
     use anyhow::bail;
 
     use super::{decode_login, LoginOptions};
-    use crate::{login_param::CertificateChecks, provider::Socket, qr::Qr};
+    use crate::{login_param::EnteredCertificateChecks, provider::Socket, qr::Qr};
 
     macro_rules! login_options_just_pw {
         ($pw: expr) => {
@@ -386,7 +387,7 @@ mod test {
                     smtp_username: Some("max@host.tld".to_owned()),
                     smtp_password: Some("3242HS".to_owned()),
                     smtp_security: Some(Socket::Plain),
-                    certificate_checks: Some(CertificateChecks::Strict),
+                    certificate_checks: Some(EnteredCertificateChecks::Strict),
                 }
             );
         } else {

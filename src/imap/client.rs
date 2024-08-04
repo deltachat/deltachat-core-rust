@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{format_err, Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
 use fast_socks5::client::Socks5Stream;
@@ -10,12 +10,11 @@ use tokio::io::BufWriter;
 use super::capabilities::Capabilities;
 use super::session::Session;
 use crate::context::Context;
+use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
-use crate::net::update_connection_history;
-use crate::net::{connect_tcp_inner, connect_tls_inner};
-use crate::provider::Socket;
+use crate::net::{connect_tcp_inner, connect_tls_inner, update_connection_history};
 use crate::socks::Socks5Config;
 use crate::tools::time;
 
@@ -109,42 +108,45 @@ impl Client {
 
     pub async fn connect(
         context: &Context,
-        host: &str,
-        port: u16,
-        strict_tls: bool,
         socks5_config: Option<Socks5Config>,
-        security: Socket,
+        strict_tls: bool,
+        candidate: ConnectionCandidate,
     ) -> Result<Self> {
+        let host = &candidate.host;
+        let port = candidate.port;
+        let security = candidate.security;
         if let Some(socks5_config) = socks5_config {
             let client = match security {
-                Socket::Automatic => bail!("IMAP port security is not configured"),
-                Socket::Ssl => {
+                ConnectionSecurity::Tls => {
                     Client::connect_secure_socks5(context, host, port, strict_tls, socks5_config)
                         .await?
                 }
-                Socket::Starttls => {
+                ConnectionSecurity::Starttls => {
                     Client::connect_starttls_socks5(context, host, port, socks5_config, strict_tls)
                         .await?
                 }
-                Socket::Plain => {
+                ConnectionSecurity::Plain => {
                     Client::connect_insecure_socks5(context, host, port, socks5_config).await?
                 }
             };
             Ok(client)
         } else {
             let mut first_error = None;
-            let load_cache =
-                strict_tls && (security == Socket::Ssl || security == Socket::Starttls);
+            let load_cache = match security {
+                ConnectionSecurity::Tls | ConnectionSecurity::Starttls => strict_tls,
+                ConnectionSecurity::Plain => false,
+            };
             for resolved_addr in
                 lookup_host_with_cache(context, host, port, "imap", load_cache).await?
             {
                 let res = match security {
-                    Socket::Automatic => bail!("IMAP port security is not configured"),
-                    Socket::Ssl => Client::connect_secure(resolved_addr, host, strict_tls).await,
-                    Socket::Starttls => {
+                    ConnectionSecurity::Tls => {
+                        Client::connect_secure(resolved_addr, host, strict_tls).await
+                    }
+                    ConnectionSecurity::Starttls => {
                         Client::connect_starttls(resolved_addr, host, strict_tls).await
                     }
-                    Socket::Plain => Client::connect_insecure(resolved_addr).await,
+                    ConnectionSecurity::Plain => Client::connect_insecure(resolved_addr).await,
                 };
                 match res {
                     Ok(client) => {

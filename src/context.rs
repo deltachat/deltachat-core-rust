@@ -27,7 +27,7 @@ use crate::download::DownloadState;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
-use crate::login_param::LoginParam;
+use crate::login_param::{ConfiguredLoginParam, EnteredLoginParam};
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peer_channels::Iroh;
@@ -715,8 +715,10 @@ impl Context {
     /// Returns information about the context as key-value pairs.
     pub async fn get_info(&self) -> Result<BTreeMap<&'static str, String>> {
         let unset = "0";
-        let l = LoginParam::load_candidate_params_unchecked(self).await?;
-        let l2 = LoginParam::load_configured_params(self).await?;
+        let l = EnteredLoginParam::load(self).await?;
+        let l2 = ConfiguredLoginParam::load(self)
+            .await?
+            .map_or_else(|| "Not configured".to_string(), |param| param.to_string());
         let secondary_addrs = self.get_secondary_self_addrs().await?.join(", ");
         let displayname = self.get_config(Config::Displayname).await?;
         let chats = get_chat_cnt(self).await?;
@@ -807,7 +809,7 @@ impl Context {
         res.insert("is_configured", is_configured.to_string());
         res.insert("socks5_enabled", socks5_enabled.to_string());
         res.insert("entered_account_settings", l.to_string());
-        res.insert("used_account_settings", l2.to_string());
+        res.insert("used_account_settings", l2);
 
         if let Some(server_id) = &*self.server_id.read().await {
             res.insert("imap_server_id", format!("{server_id:?}"));

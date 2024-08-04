@@ -5,7 +5,7 @@ pub mod send;
 
 use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::response::{Category, Code, Detail};
-use async_smtp::{self as smtp, EmailAddress, SmtpTransport};
+use async_smtp::{EmailAddress, SmtpTransport};
 use tokio::task;
 
 use crate::chat::{add_info_msg_with_cmd, ChatId};
@@ -13,12 +13,12 @@ use crate::config::Config;
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::events::EventType;
-use crate::login_param::{LoginParam, ServerLoginParam};
+use crate::login_param::prioritize_server_login_params;
+use crate::login_param::{ConfiguredLoginParam, ConfiguredServerLoginParam};
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::net::session::SessionBufStream;
-use crate::oauth2::get_oauth2_access_token;
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
@@ -88,96 +88,76 @@ impl Smtp {
         }
 
         self.connectivity.set_connecting(context).await;
-        let lp = LoginParam::load_configured_params(context).await?;
+        let lp = ConfiguredLoginParam::load(context)
+            .await?
+            .context("Not configured")?;
         self.connect(
             context,
             &lp.smtp,
+            &lp.smtp_password,
             &lp.socks5_config,
             &lp.addr,
             lp.strict_tls(),
+            lp.oauth2,
         )
         .await
     }
 
     /// Connect using the provided login params.
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect(
         &mut self,
         context: &Context,
-        lp: &ServerLoginParam,
+        login_params: &[ConfiguredServerLoginParam],
+        password: &str,
         socks5_config: &Option<Socks5Config>,
         addr: &str,
         strict_tls: bool,
+        oauth2: bool,
     ) -> Result<()> {
         if self.is_connected() {
             warn!(context, "SMTP already connected.");
             return Ok(());
         }
 
-        if lp.server.is_empty() || lp.port == 0 {
-            bail!("bad connection parameters");
-        }
-
         let from = EmailAddress::new(addr.to_string())
-            .with_context(|| format!("invalid login address {addr}"))?;
-
+            .with_context(|| format!("Invalid address {addr:?}"))?;
         self.from = Some(from);
 
-        let domain = &lp.server;
-        let port = lp.port;
-
-        let session_stream = connect::connect_stream(
-            context,
-            domain,
-            port,
-            strict_tls,
-            socks5_config.clone(),
-            lp.security,
-        )
-        .await?;
-        let client = smtp::SmtpClient::new().smtp_utf8(true).without_greeting();
-        let mut transport = SmtpTransport::new(client, session_stream).await?;
-
-        // Authenticate.
-        {
-            let (creds, mechanism) = if lp.oauth2 {
-                // oauth2
-                let send_pw = &lp.password;
-                let access_token = get_oauth2_access_token(context, addr, send_pw, false).await?;
-                if access_token.is_none() {
-                    bail!("SMTP OAuth 2 error {}", addr);
+        let login_params =
+            prioritize_server_login_params(&context.sql, login_params, "smtp").await?;
+        for lp in login_params {
+            info!(context, "SMTP trying to connect to {}.", &lp.connection);
+            let transport = match connect::connect_and_auth(
+                context,
+                socks5_config,
+                strict_tls,
+                lp.connection.clone(),
+                oauth2,
+                addr,
+                &lp.user,
+                password,
+            )
+            .await
+            {
+                Ok(transport) => transport,
+                Err(err) => {
+                    warn!(context, "SMTP failed to connect: {err:#}.");
+                    continue;
                 }
-                let user = &lp.user;
-                (
-                    smtp::authentication::Credentials::new(
-                        user.to_string(),
-                        access_token.unwrap_or_default(),
-                    ),
-                    vec![smtp::authentication::Mechanism::Xoauth2],
-                )
-            } else {
-                // plain
-                let user = lp.user.clone();
-                let pw = lp.password.clone();
-                (
-                    smtp::authentication::Credentials::new(user, pw),
-                    vec![
-                        smtp::authentication::Mechanism::Plain,
-                        smtp::authentication::Mechanism::Login,
-                    ],
-                )
             };
-            transport.try_login(&creds, &mechanism).await?;
+
+            self.transport = Some(transport);
+            self.last_success = Some(tools::Time::now());
+
+            context.emit_event(EventType::SmtpConnected(format!(
+                "SMTP-LOGIN as {} ok",
+                lp.user,
+            )));
+            return Ok(());
         }
 
-        self.transport = Some(transport);
-        self.last_success = Some(tools::Time::now());
-
-        context.emit_event(EventType::SmtpConnected(format!(
-            "SMTP-LOGIN as {} ok",
-            lp.user,
-        )));
-
-        Ok(())
+        Err(format_err!("SMTP failed to connect"))
     }
 }
 

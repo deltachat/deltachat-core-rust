@@ -9,18 +9,19 @@ import io
 import pathlib
 import ssl
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 from imap_tools import (
     AND,
     Header,
     MailBox,
-    MailBoxTls,
     MailMessage,
     MailMessageFlags,
     errors,
 )
 
-from . import Account, const
+if TYPE_CHECKING:
+    from . import Account
 
 FLAGS = b"FLAGS"
 FETCH = b"FETCH"
@@ -35,28 +36,15 @@ class DirectImap:
         self.connect()
 
     def connect(self):
+        # Assume the testing server supports TLS on port 993.
         host = self.account.get_config("configured_mail_server")
-        port = int(self.account.get_config("configured_mail_port"))
-        security = int(self.account.get_config("configured_mail_security"))
+        port = 993
 
         user = self.account.get_config("addr")
+        host = user.rsplit("@")[-1]
         pw = self.account.get_config("mail_pw")
 
-        if security == const.SocketSecurity.PLAIN:
-            ssl_context = None
-        else:
-            ssl_context = ssl.create_default_context()
-
-            # don't check if certificate hostname doesn't match target hostname
-            ssl_context.check_hostname = False
-
-            # don't check if the certificate is trusted by a certificate authority
-            ssl_context.verify_mode = ssl.CERT_NONE
-
-        if security == const.SocketSecurity.STARTTLS:
-            self.conn = MailBoxTls(host, port, ssl_context=ssl_context)
-        elif security == const.SocketSecurity.PLAIN or security == const.SocketSecurity.SSL:
-            self.conn = MailBox(host, port, ssl_context=ssl_context)
+        self.conn = MailBox(host, port, ssl_context=ssl.create_default_context())
         self.conn.login(user, pw)
 
         self.select_folder("INBOX")

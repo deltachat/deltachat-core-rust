@@ -7,12 +7,12 @@ use async_smtp::{SmtpClient, SmtpTransport};
 use tokio::io::BufStream;
 
 use crate::context::Context;
+use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
-use crate::net::update_connection_history;
-use crate::net::{connect_tcp_inner, connect_tls_inner};
-use crate::provider::Socket;
+use crate::net::{connect_tcp_inner, connect_tls_inner, update_connection_history};
+use crate::oauth2::get_oauth2_access_token;
 use crate::socks::Socks5Config;
 use crate::tools::time;
 
@@ -26,6 +26,52 @@ fn alpn(port: u16) -> &'static [&'static str] {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn connect_and_auth(
+    context: &Context,
+    socks5_config: &Option<Socks5Config>,
+    strict_tls: bool,
+    candidate: ConnectionCandidate,
+    oauth2: bool,
+    addr: &str,
+    user: &str,
+    password: &str,
+) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
+    let session_stream =
+        connect_stream(context, socks5_config.clone(), strict_tls, candidate).await?;
+    let client = async_smtp::SmtpClient::new()
+        .smtp_utf8(true)
+        .without_greeting();
+    let mut transport = SmtpTransport::new(client, session_stream).await?;
+
+    // Authenticate.
+    let (creds, mechanism) = if oauth2 {
+        // oauth2
+        let access_token = get_oauth2_access_token(context, addr, password, false).await?;
+        if access_token.is_none() {
+            bail!("SMTP OAuth 2 error {}", addr);
+        }
+        (
+            async_smtp::authentication::Credentials::new(
+                user.to_string(),
+                access_token.unwrap_or_default(),
+            ),
+            vec![async_smtp::authentication::Mechanism::Xoauth2],
+        )
+    } else {
+        // plain
+        (
+            async_smtp::authentication::Credentials::new(user.to_string(), password.to_string()),
+            vec![
+                async_smtp::authentication::Mechanism::Plain,
+                async_smtp::authentication::Mechanism::Login,
+            ],
+        )
+    };
+    transport.try_login(&creds, &mechanism).await?;
+    Ok(transport)
+}
+
 /// Returns TLS, STARTTLS or plaintext connection
 /// using SOCKS5 or direct connection depending on the given configuration.
 ///
@@ -34,41 +80,46 @@ fn alpn(port: u16) -> &'static [&'static str] {
 /// does not send welcome message over TLS connection
 /// after establishing it, welcome message is always ignored
 /// to unify the result regardless of whether TLS or STARTTLS is used.
-pub(crate) async fn connect_stream(
+async fn connect_stream(
     context: &Context,
-    host: &str,
-    port: u16,
-    strict_tls: bool,
     socks5_config: Option<Socks5Config>,
-    security: Socket,
+    strict_tls: bool,
+    candidate: ConnectionCandidate,
 ) -> Result<Box<dyn SessionBufStream>> {
+    let host = &candidate.host;
+    let port = candidate.port;
+    let security = candidate.security;
+
     if let Some(socks5_config) = socks5_config {
         let stream = match security {
-            Socket::Automatic => bail!("SMTP port security is not configured"),
-            Socket::Ssl => {
+            ConnectionSecurity::Tls => {
                 connect_secure_socks5(context, host, port, strict_tls, socks5_config.clone())
                     .await?
             }
-            Socket::Starttls => {
+            ConnectionSecurity::Starttls => {
                 connect_starttls_socks5(context, host, port, strict_tls, socks5_config.clone())
                     .await?
             }
-            Socket::Plain => {
+            ConnectionSecurity::Plain => {
                 connect_insecure_socks5(context, host, port, socks5_config.clone()).await?
             }
         };
         Ok(stream)
     } else {
         let mut first_error = None;
-        let load_cache = strict_tls && (security == Socket::Ssl || security == Socket::Starttls);
+        let load_cache = match security {
+            ConnectionSecurity::Tls | ConnectionSecurity::Starttls => strict_tls,
+            ConnectionSecurity::Plain => false,
+        };
 
         for resolved_addr in lookup_host_with_cache(context, host, port, "smtp", load_cache).await?
         {
             let res = match security {
-                Socket::Automatic => bail!("SMTP port security is not configured"),
-                Socket::Ssl => connect_secure(resolved_addr, host, strict_tls).await,
-                Socket::Starttls => connect_starttls(resolved_addr, host, strict_tls).await,
-                Socket::Plain => connect_insecure(resolved_addr).await,
+                ConnectionSecurity::Tls => connect_secure(resolved_addr, host, strict_tls).await,
+                ConnectionSecurity::Starttls => {
+                    connect_starttls(resolved_addr, host, strict_tls).await
+                }
+                ConnectionSecurity::Plain => connect_insecure(resolved_addr).await,
             };
             match res {
                 Ok(stream) => {

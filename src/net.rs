@@ -10,6 +10,7 @@ use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
+use crate::sql::Sql;
 use crate::tools::time;
 
 pub(crate) mod dns;
@@ -64,21 +65,22 @@ pub(crate) async fn update_connection_history(
     Ok(())
 }
 
+/// Returns timestamp of the most recent successful connection
+/// to the host and port for given protocol.
 pub(crate) async fn load_connection_timestamp(
-    context: &Context,
+    sql: &Sql,
     alpn: &str,
     host: &str,
     port: u16,
-    addr: &str,
+    addr: Option<&str>,
 ) -> Result<Option<i64>> {
-    let timestamp = context
-        .sql
+    let timestamp = sql
         .query_get_value(
             "SELECT timestamp FROM connection_history
              WHERE host = ?
                AND port = ?
                AND alpn = ?
-               AND addr = ?",
+               AND addr = IFNULL(?, addr)",
             (host, port, alpn, addr),
         )
         .await?;

@@ -199,20 +199,31 @@ pub enum Config {
     /// The primary email address. Also see `SecondaryAddrs`.
     ConfiguredAddr,
 
+    /// List of configured IMAP servers as a JSON array.
+    ConfiguredImapServers,
+
     /// Configured IMAP server hostname.
+    ///
+    /// This is replaced by `configured_imap_servers` for new configurations.
     ConfiguredMailServer,
 
+    /// Configured IMAP server port.
+    ///
+    /// This is replaced by `configured_imap_servers` for new configurations.
+    ConfiguredMailPort,
+
+    /// Configured IMAP server security (e.g. TLS, STARTTLS).
+    ///
+    /// This is replaced by `configured_imap_servers` for new configurations.
+    ConfiguredMailSecurity,
+
     /// Configured IMAP server username.
+    ///
+    /// This is replaced by `configured_imap_servers` for new configurations.
     ConfiguredMailUser,
 
     /// Configured IMAP server password.
     ConfiguredMailPw,
-
-    /// Configured IMAP server port.
-    ConfiguredMailPort,
-
-    /// Configured IMAP server security (e.g. TLS, STARTTLS).
-    ConfiguredMailSecurity,
 
     /// Configured TLS certificate checks.
     /// This option is saved on successful configuration
@@ -222,17 +233,31 @@ pub enum Config {
     /// but has "IMAP" in the name for backwards compatibility.
     ConfiguredImapCertificateChecks,
 
+    /// List of configured SMTP servers as a JSON array.
+    ConfiguredSmtpServers,
+
     /// Configured SMTP server hostname.
+    ///
+    /// This is replaced by `configured_smtp_servers` for new configurations.
     ConfiguredSendServer,
 
+    /// Configured SMTP server port.
+    ///
+    /// This is replaced by `configured_smtp_servers` for new configurations.
+    ConfiguredSendPort,
+
+    /// Configured SMTP server security (e.g. TLS, STARTTLS).
+    ///
+    /// This is replaced by `configured_smtp_servers` for new configurations.
+    ConfiguredSendSecurity,
+
     /// Configured SMTP server username.
+    ///
+    /// This is replaced by `configured_smtp_servers` for new configurations.
     ConfiguredSendUser,
 
     /// Configured SMTP server password.
     ConfiguredSendPw,
-
-    /// Configured SMTP server port.
-    ConfiguredSendPort,
 
     /// Deprecated, stored for backwards compatibility.
     ///
@@ -241,9 +266,6 @@ pub enum Config {
 
     /// Whether OAuth 2 is used with configured provider.
     ConfiguredServerFlags,
-
-    /// Configured SMTP server security (e.g. TLS, STARTTLS).
-    ConfiguredSendSecurity,
 
     /// Configured folder for incoming messages.
     ConfiguredInboxFolder,
