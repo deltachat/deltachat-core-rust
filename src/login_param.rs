@@ -10,7 +10,7 @@ use crate::provider::Socket;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::socks::Socks5Config;
 
-#[derive(Copy, Clone, Debug, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
@@ -30,6 +30,7 @@ pub enum CertificateChecks {
     /// means that provider database setting should be taken.
     /// If there is no provider database setting for certificate checks,
     /// `Automatic` is the same as `Strict`.
+    #[default]
     Automatic = 0,
 
     Strict = 1,
@@ -39,12 +40,6 @@ pub enum CertificateChecks {
     AcceptInvalidCertificates2 = 2,
 
     AcceptInvalidCertificates = 3,
-}
-
-impl Default for CertificateChecks {
-    fn default() -> Self {
-        Self::Automatic
-    }
 }
 
 /// Login parameters for a single server, either IMAP or SMTP
