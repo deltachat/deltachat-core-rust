@@ -1769,19 +1769,17 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             if curr_blocked == Blocked::Not
                 && curr_param.get_bool(Param::WantsMdn).unwrap_or_default()
                 && curr_param.get_cmd() == SystemMessage::Unknown
+                && context.mdns_enabled().await?
             {
-                let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
-                if mdns_enabled {
-                    context
-                        .sql
-                        .execute(
-                            "INSERT INTO smtp_mdns (msg_id, from_id, rfc724_mid) VALUES(?, ?, ?)",
-                            (id, curr_from_id, curr_rfc724_mid),
-                        )
-                        .await
-                        .context("failed to insert into smtp_mdns")?;
-                    context.scheduler.interrupt_smtp().await;
-                }
+                context
+                    .sql
+                    .execute(
+                        "INSERT INTO smtp_mdns (msg_id, from_id, rfc724_mid) VALUES(?, ?, ?)",
+                        (id, curr_from_id, curr_rfc724_mid),
+                    )
+                    .await
+                    .context("failed to insert into smtp_mdns")?;
+                context.scheduler.interrupt_smtp().await;
             }
             updated_chat_ids.insert(curr_chat_id);
         }

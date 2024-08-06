@@ -631,9 +631,7 @@ async fn send_mdn_rfc724_mid(
 
 /// Tries to send a single MDN. Returns true if more MDNs should be sent.
 async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
-    let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
-    if !mdns_enabled {
-        // User has disabled MDNs.
+    if !context.mdns_enabled().await? {
         context.sql.execute("DELETE FROM smtp_mdns", []).await?;
         return Ok(false);
     }
