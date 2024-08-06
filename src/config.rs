@@ -129,7 +129,6 @@ pub enum Config {
 
     /// True if Message Delivery Notifications (read receipts) should
     /// be sent and requested.
-    #[strum(props(default = "1"))]
     MdnsEnabled,
 
     /// True if "Sent" folder should be watched for changes.
@@ -513,6 +512,14 @@ impl Context {
         Ok(self.get_config_bool(Config::SyncMsgs).await?
             && self.get_config_bool(Config::BccSelf).await?
             && !self.get_config_bool(Config::Bot).await?)
+    }
+
+    /// Returns whether MDNs should be requested and sent.
+    pub(crate) async fn mdns_enabled(&self) -> Result<bool> {
+        match self.get_config_bool_opt(Config::MdnsEnabled).await? {
+            Some(val) => Ok(val),
+            None => Ok(!self.get_config_bool(Config::Bot).await?),
+        }
     }
 
     /// Gets configured "delete_server_after" value.
@@ -965,6 +972,15 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mdns_enabled() -> Result<()> {
+        let t = &TestContext::new_alice().await;
+        assert!(t.mdns_enabled().await?);
+        t.set_config_bool(Config::Bot, true).await?;
+        assert!(!t.mdns_enabled().await?);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sync() -> Result<()> {
         let alice0 = TestContext::new_alice().await;
         let alice1 = TestContext::new_alice().await;
@@ -990,7 +1006,6 @@ mod tests {
         // Reset to default. Test that it's not synced because defaults may differ across client
         // versions.
         alice0.set_config(Config::MdnsEnabled, None).await?;
-        assert_eq!(alice0.get_config_bool(Config::MdnsEnabled).await?, true);
         alice0.set_config_bool(Config::MdnsEnabled, false).await?;
         sync(&alice0, &alice1).await;
         assert_eq!(alice1.get_config_bool(Config::MdnsEnabled).await?, false);
