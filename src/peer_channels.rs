@@ -540,10 +540,10 @@ mod tests {
         assert_eq!(alice_webxdc.get_viewtype(), Viewtype::Webxdc);
 
         let webxdc = alice.pop_sent_msg().await;
-        let bob_webdxc = bob.recv_msg(&webxdc).await;
-        assert_eq!(bob_webdxc.get_viewtype(), Viewtype::Webxdc);
+        let bob_webxdc = bob.recv_msg(&webxdc).await;
+        assert_eq!(bob_webxdc.get_viewtype(), Viewtype::Webxdc);
 
-        bob_webdxc.chat_id.accept(bob).await.unwrap();
+        bob_webxdc.chat_id.accept(bob).await.unwrap();
 
         // Alice advertises herself.
         send_webxdc_realtime_advertisement(alice, alice_webxdc.id)
@@ -554,7 +554,7 @@ mod tests {
         let bob_iroh = bob.get_or_try_init_peer_channel().await.unwrap();
 
         // Bob adds alice to gossip peers.
-        let members = get_iroh_gossip_peers(bob, bob_webdxc.id)
+        let members = get_iroh_gossip_peers(bob, bob_webxdc.id)
             .await
             .unwrap()
             .into_iter()
@@ -568,7 +568,7 @@ mod tests {
         );
 
         bob_iroh
-            .join_and_subscribe_gossip(bob, bob_webdxc.id)
+            .join_and_subscribe_gossip(bob, bob_webxdc.id)
             .await
             .unwrap()
             .unwrap()
@@ -596,7 +596,7 @@ mod tests {
         }
         // Bob sends ephemeral message
         bob_iroh
-            .send_webxdc_realtime_data(bob, bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
+            .send_webxdc_realtime_data(bob, bob_webxdc.id, "bob -> alice".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -628,7 +628,7 @@ mod tests {
         );
 
         bob_iroh
-            .send_webxdc_realtime_data(bob, bob_webdxc.id, "bob -> alice 2".as_bytes().to_vec())
+            .send_webxdc_realtime_data(bob, bob_webxdc.id, "bob -> alice 2".as_bytes().to_vec())
             .await
             .unwrap();
 
@@ -686,10 +686,10 @@ mod tests {
         assert_eq!(alice_webxdc.get_viewtype(), Viewtype::Webxdc);
 
         let webxdc = alice.pop_sent_msg().await;
-        let bob_webdxc = bob.recv_msg(&webxdc).await;
-        assert_eq!(bob_webdxc.get_viewtype(), Viewtype::Webxdc);
+        let bob_webxdc = bob.recv_msg(&webxdc).await;
+        assert_eq!(bob_webxdc.get_viewtype(), Viewtype::Webxdc);
 
-        bob_webdxc.chat_id.accept(bob).await.unwrap();
+        bob_webxdc.chat_id.accept(bob).await.unwrap();
 
         // Alice advertises herself.
         send_webxdc_realtime_advertisement(alice, alice_webxdc.id)
@@ -700,7 +700,7 @@ mod tests {
         let bob_iroh = bob.get_or_try_init_peer_channel().await.unwrap();
 
         // Bob adds alice to gossip peers.
-        let members = get_iroh_gossip_peers(bob, bob_webdxc.id)
+        let members = get_iroh_gossip_peers(bob, bob_webxdc.id)
             .await
             .unwrap()
             .into_iter()
@@ -714,7 +714,7 @@ mod tests {
         );
 
         bob_iroh
-            .join_and_subscribe_gossip(bob, bob_webdxc.id)
+            .join_and_subscribe_gossip(bob, bob_webxdc.id)
             .await
             .unwrap()
             .unwrap()
@@ -742,10 +742,10 @@ mod tests {
         }
 
         // TODO: check that seq number is persisted
-        leave_webxdc_realtime(bob, bob_webdxc.id).await.unwrap();
+        leave_webxdc_realtime(bob, bob_webxdc.id).await.unwrap();
 
         bob_iroh
-            .join_and_subscribe_gossip(bob, bob_webdxc.id)
+            .join_and_subscribe_gossip(bob, bob_webxdc.id)
             .await
             .unwrap()
             .unwrap()
@@ -753,7 +753,7 @@ mod tests {
             .unwrap();
 
         bob_iroh
-            .send_webxdc_realtime_data(bob, bob_webdxc.id, "bob -> alice".as_bytes().to_vec())
+            .send_webxdc_realtime_data(bob, bob_webxdc.id, "bob -> alice".as_bytes().to_vec())
             .await
             .unwrap();
 
