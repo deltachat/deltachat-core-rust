@@ -328,7 +328,12 @@ impl MsgId {
 
         if let Some(path) = msg.get_file(context) {
             let bytes = get_filebytes(context, &path).await?;
-            ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
+            ret += &format!(
+                "\nFile: {}, name: {}, {} bytes\n",
+                path.display(),
+                msg.get_filename().unwrap_or_default(),
+                bytes
+            );
         }
 
         if msg.viewtype != Viewtype::Text {
@@ -632,6 +637,9 @@ impl Message {
     }
 
     /// Returns the full path to the file associated with a message.
+    ///
+    /// The filename is mangled -- a random suffix is added before the extension. This suffix is
+    /// preserved across calls.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }

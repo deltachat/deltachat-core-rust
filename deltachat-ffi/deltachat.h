@@ -4106,7 +4106,8 @@ char*           dc_msg_get_subject            (const dc_msg_t* msg);
  *
  * Typically files are associated with images, videos, audios, documents.
  * Plain text messages do not have a file.
- * File name may be mangled. To obtain the original attachment filename use dc_msg_get_filename().
+ * The file name is mangled -- a random suffix is added before the extension. This suffix is
+ * preserved across calls. To obtain the original attachment filename use dc_msg_get_filename().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
