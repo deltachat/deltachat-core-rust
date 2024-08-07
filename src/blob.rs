@@ -1,6 +1,6 @@
 //! # Blob directory management.
 
-use core::cmp::max;
+use std::cmp::{max, min};
 use std::ffi::OsStr;
 use std::fmt;
 use std::io::{Cursor, Seek};
@@ -14,13 +14,10 @@ use futures::StreamExt;
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageReader;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageFormat, Pixel, Rgba};
-use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
-use crate::config::Config;
-use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -353,28 +350,33 @@ impl<'a> BlobObject<'a> {
         Ok(blob.as_name().to_string())
     }
 
-    pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
+    /// Recodes an avatar pointed by a [BlobObject] so that it fits into limits on the image width,
+    /// height and file size specified by the config.
+    ///
+    /// * `protected`: Whether the resulting avatar is going to be used in a protected context,
+    ///   i.e. in a protected chat or stored locally, and therefore may be larger.
+    pub async fn recode_to_avatar_size(
+        &mut self,
+        context: &Context,
+        protected: bool,
+    ) -> Result<()> {
         let blob_abs = self.to_abs_path();
-
-        let img_wh =
-            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
-                .unwrap_or_default()
-            {
-                MediaQuality::Balanced => constants::BALANCED_AVATAR_SIZE,
-                MediaQuality::Worse => constants::WORSE_AVATAR_SIZE,
-            };
-
-        let maybe_sticker = &mut false;
-        let strict_limits = true;
+        let (img_wh, max_bytes) = context.max_image_wh_and_size().await?;
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
+        let max_bytes = match protected {
+            false => min(max_bytes, 20_000),
+            true => max_bytes,
+        };
+        let maybe_sticker = &mut false;
+        let is_avatar = true;
         if let Some(new_name) = self.recode_to_size(
             context,
             blob_abs,
             maybe_sticker,
             img_wh,
-            20_000,
-            strict_limits,
+            max_bytes,
+            is_avatar,
         )? {
             self.name = new_name;
         }
@@ -394,32 +396,21 @@ impl<'a> BlobObject<'a> {
         maybe_sticker: &mut bool,
     ) -> Result<()> {
         let blob_abs = self.to_abs_path();
-        let (img_wh, max_bytes) =
-            match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
-                .unwrap_or_default()
-            {
-                MediaQuality::Balanced => (
-                    constants::BALANCED_IMAGE_SIZE,
-                    constants::BALANCED_IMAGE_BYTES,
-                ),
-                MediaQuality::Worse => (constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES),
-            };
-        let strict_limits = false;
+        let (img_wh, max_bytes) = context.max_image_wh_and_size().await?;
+        let is_avatar = false;
         if let Some(new_name) = self.recode_to_size(
             context,
             blob_abs,
             maybe_sticker,
             img_wh,
             max_bytes,
-            strict_limits,
+            is_avatar,
         )? {
             self.name = new_name;
         }
         Ok(())
     }
 
-    /// If `!strict_limits`, then if `max_bytes` is exceeded, reduce the image to `img_wh` and just
-    /// proceed with the result.
     fn recode_to_size(
         &mut self,
         context: &Context,
@@ -427,10 +418,10 @@ impl<'a> BlobObject<'a> {
         maybe_sticker: &mut bool,
         mut img_wh: u32,
         max_bytes: usize,
-        strict_limits: bool,
+        is_avatar: bool,
     ) -> Result<Option<String>> {
         // Add white background only to avatars to spare the CPU.
-        let mut add_white_bg = img_wh <= constants::BALANCED_AVATAR_SIZE;
+        let mut add_white_bg = is_avatar;
         let mut no_exif = false;
         let no_exif_ref = &mut no_exif;
         let res = tokio::task::block_in_place(move || {
@@ -500,7 +491,7 @@ impl<'a> BlobObject<'a> {
             // also `Viewtype::Gif` (maybe renamed to `Animation`) should be used for animated
             // images.
             let do_scale = exceeds_max_bytes
-                || strict_limits
+                || is_avatar
                     && (exceeds_wh
                         || exif.is_some() && {
                             if mem::take(&mut add_white_bg) {
@@ -537,7 +528,7 @@ impl<'a> BlobObject<'a> {
                         ofmt.clone(),
                         max_bytes,
                         &mut encoded,
-                    )? && strict_limits
+                    )? && is_avatar
                     {
                         if img_wh < 20 {
                             return Err(format_err!(
@@ -586,7 +577,7 @@ impl<'a> BlobObject<'a> {
         match res {
             Ok(_) => res,
             Err(err) => {
-                if !strict_limits && no_exif {
+                if !is_avatar && no_exif {
                     warn!(
                         context,
                         "Cannot recode image, using original data: {err:#}.",
@@ -763,6 +754,8 @@ mod tests {
     use fs::File;
 
     use super::*;
+    use crate::config::Config;
+    use crate::constants::{self, MediaQuality};
     use crate::message::{Message, Viewtype};
     use crate::test_utils::{self, TestContext};
 
@@ -999,14 +992,14 @@ mod tests {
             let mut blob = BlobObject::new_from_path(&t, &avatar_src).await.unwrap();
             let img_wh = 128;
             let maybe_sticker = &mut false;
-            let strict_limits = true;
+            let is_avatar = true;
             blob.recode_to_size(
                 &t,
                 blob.to_abs_path(),
                 maybe_sticker,
                 img_wh,
                 20_000,
-                strict_limits,
+                is_avatar,
             )
             .unwrap();
             tokio::task::block_in_place(move || {
@@ -1030,16 +1023,18 @@ mod tests {
             .await
             .unwrap();
         assert!(avatar_blob.exists());
-        assert!(fs::metadata(&avatar_blob).await.unwrap().len() < avatar_bytes.len() as u64);
+        {
+            let avatar_blob = &avatar_blob;
+            tokio::task::block_in_place(move || {
+                let (_, exif) = image_metadata(&std::fs::File::open(avatar_blob).unwrap()).unwrap();
+                assert!(exif.is_none());
+            });
+        }
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
         check_image_size(avatar_src, 1000, 1000);
-        check_image_size(
-            &avatar_blob,
-            constants::BALANCED_AVATAR_SIZE,
-            constants::BALANCED_AVATAR_SIZE,
-        );
+        check_image_size(&avatar_blob, 1000, 1000);
 
         async fn file_size(path_buf: &Path) -> u64 {
             let file = File::open(path_buf).await.unwrap();
@@ -1048,16 +1043,9 @@ mod tests {
 
         let mut blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
         let maybe_sticker = &mut false;
-        let strict_limits = true;
-        blob.recode_to_size(
-            &t,
-            blob.to_abs_path(),
-            maybe_sticker,
-            1000,
-            3000,
-            strict_limits,
-        )
-        .unwrap();
+        let is_avatar = true;
+        blob.recode_to_size(&t, blob.to_abs_path(), maybe_sticker, 1000, 3000, is_avatar)
+            .unwrap();
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
         tokio::task::block_in_place(move || {
@@ -1086,11 +1074,7 @@ mod tests {
             avatar_src.with_extension("png").to_str().unwrap()
         );
 
-        check_image_size(
-            avatar_cfg,
-            constants::BALANCED_AVATAR_SIZE,
-            constants::BALANCED_AVATAR_SIZE,
-        );
+        check_image_size(avatar_cfg, 900, 900);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -258,7 +258,8 @@ impl Sql {
         if recode_avatar {
             if let Some(avatar) = context.get_config(Config::Selfavatar).await? {
                 let mut blob = BlobObject::new_from_path(context, avatar.as_ref()).await?;
-                match blob.recode_to_avatar_size(context).await {
+                let protected = true;
+                match blob.recode_to_avatar_size(context, protected).await {
                     Ok(()) => {
                         context
                             .set_config_internal(Config::Selfavatar, Some(&avatar))
