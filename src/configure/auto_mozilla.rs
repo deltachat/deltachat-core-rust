@@ -9,7 +9,6 @@ use quick_xml::events::{BytesStart, Event};
 
 use super::{Error, ServerParams};
 use crate::context::Context;
-use crate::login_param::LoginParam;
 use crate::net::read_url;
 use crate::provider::{Protocol, Socket};
 
@@ -257,11 +256,11 @@ fn parse_serverparams(in_emailaddr: &str, xml_raw: &str) -> Result<Vec<ServerPar
 pub(crate) async fn moz_autoconfigure(
     context: &Context,
     url: &str,
-    param_in: &LoginParam,
+    addr: &str,
 ) -> Result<Vec<ServerParams>, Error> {
     let xml_raw = read_url(context, url).await?;
 
-    let res = parse_serverparams(&param_in.addr, &xml_raw);
+    let res = parse_serverparams(addr, &xml_raw);
     if let Err(err) = &res {
         warn!(
             context,
