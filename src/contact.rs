@@ -1402,6 +1402,17 @@ impl Contact {
         self.status.as_str()
     }
 
+    /// Returns whether end-to-end encryption to the contact is available.
+    pub async fn e2ee_avail(&self, context: &Context) -> Result<bool> {
+        if self.id == ContactId::SELF {
+            return Ok(true);
+        }
+        let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? else {
+            return Ok(false);
+        };
+        Ok(peerstate.peek_key(false).is_some())
+    }
+
     /// Returns true if the contact
     /// can be added to verified chats,
     /// i.e. has a verified key
@@ -2673,6 +2684,8 @@ mod tests {
 
         let encrinfo = Contact::get_encrinfo(&alice, contact_bob_id).await?;
         assert_eq!(encrinfo, "No encryption");
+        let contact = Contact::get_by_id(&alice, contact_bob_id).await?;
+        assert!(!contact.e2ee_avail(&alice).await?);
 
         let bob = TestContext::new_bob().await;
         let chat_alice = bob
@@ -2696,6 +2709,8 @@ bob@example.net:
 CCCB 5AA9 F6E1 141C 9431
 65F1 DB18 B18C BCF7 0487"
         );
+        let contact = Contact::get_by_id(&alice, contact_bob_id).await?;
+        assert!(contact.e2ee_avail(&alice).await?);
         Ok(())
     }
 

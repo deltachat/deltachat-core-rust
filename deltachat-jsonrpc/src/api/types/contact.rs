@@ -19,6 +19,7 @@ pub struct ContactObject {
     profile_image: Option<String>, // BLOBS
     name_and_addr: String,
     is_blocked: bool,
+    e2ee_avail: bool,
 
     /// True if the contact can be added to verified groups.
     ///
@@ -79,6 +80,7 @@ impl ContactObject {
             profile_image, //BLOBS
             name_and_addr: contact.get_name_n_addr(),
             is_blocked: contact.is_blocked(),
+            e2ee_avail: contact.e2ee_avail(context).await?,
             is_verified,
             is_profile_verified,
             verifier_id,
