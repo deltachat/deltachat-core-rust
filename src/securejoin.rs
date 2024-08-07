@@ -848,6 +848,7 @@ mod tests {
         assert!(!msg.was_encrypted());
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vc-request");
         assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
+        assert!(msg.get_header(HeaderDef::AutoSubmitted).is_none());
 
         // Step 3: Alice receives vc-request, sends vc-auth-required
         alice.recv_msg_trash(&sent).await;
@@ -860,6 +861,7 @@ mod tests {
         );
 
         let sent = alice.pop_sent_msg().await;
+        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
@@ -905,6 +907,7 @@ mod tests {
 
         // Check Bob sent the right message.
         let sent = bob.pop_sent_msg().await;
+        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
         assert!(!sent.payload.contains("Bob Examplenet"));
         let mut msg = alice.parse_msg(&sent).await;
         let vc_request_with_auth_ts_sent = msg
@@ -1009,6 +1012,7 @@ mod tests {
 
         // Check Alice sent the right message to Bob.
         let sent = alice.pop_sent_msg().await;
+        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
         assert!(!sent.payload.contains("Alice Exampleorg"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -1241,6 +1245,7 @@ mod tests {
         assert!(!msg.was_encrypted());
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
         assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
+        assert!(msg.get_header(HeaderDef::AutoSubmitted).is_none());
 
         // Old Delta Chat core sent `Secure-Join-Group` header in `vg-request`,
         // but it was only used by Alice in `vg-request-with-auth`.
@@ -1254,6 +1259,7 @@ mod tests {
         alice.recv_msg_trash(&sent).await;
 
         let sent = alice.pop_sent_msg().await;
+        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
@@ -1287,6 +1293,7 @@ mod tests {
         }
 
         // Check Bob sent the right handshake message.
+        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
         let msg = alice.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(
@@ -1319,6 +1326,10 @@ mod tests {
             msg.get_header(HeaderDef::SecureJoin).unwrap(),
             "vg-member-added"
         );
+        // Formally this message is auto-submitted, but as the member addition is a result of an
+        // explicit user action, the Auto-Submitted header shouldn't be present. Otherwise it would
+        // be strange to have it in "member-added" messages of verified groups only.
+        assert!(msg.get_header(HeaderDef::AutoSubmitted).is_none());
 
         {
             // Now Alice's chat with Bob should still be hidden, the verified message should
