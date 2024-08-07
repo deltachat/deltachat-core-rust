@@ -807,7 +807,7 @@ async fn add_parts(
                         // 1:1 chat is blocked, but the contact is not.
                         // This happens when 1:1 chat is hidden
                         // during scanning of a group invitation code.
-                        Blocked::Request
+                        create_blocked_default
                     }
                 }
             }
