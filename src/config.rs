@@ -59,7 +59,10 @@ pub enum Config {
     /// IMAP server security (e.g. TLS, STARTTLS).
     MailSecurity,
 
-    /// How to check IMAP server TLS certificates.
+    /// How to check TLS certificates.
+    ///
+    /// "IMAP" in the name is for compatibility,
+    /// this actually applies to both IMAP and SMTP connections.
     ImapCertificateChecks,
 
     /// SMTP server hostname.
@@ -77,7 +80,9 @@ pub enum Config {
     /// SMTP server security (e.g. TLS, STARTTLS).
     SendSecurity,
 
-    /// How to check SMTP server TLS certificates.
+    /// Deprecated option for backwards compatibilty.
+    ///
+    /// Certificate checks for SMTP are actually controlled by `imap_certificate_checks` config.
     SmtpCertificateChecks,
 
     /// Whether to use OAuth 2.
@@ -210,7 +215,12 @@ pub enum Config {
     /// Configured IMAP server security (e.g. TLS, STARTTLS).
     ConfiguredMailSecurity,
 
-    /// How to check IMAP server TLS certificates.
+    /// Configured TLS certificate checks.
+    /// This option is saved on successful configuration
+    /// and should not be modified manually.
+    ///
+    /// This actually applies to both IMAP and SMTP connections,
+    /// but has "IMAP" in the name for backwards compatibility.
     ConfiguredImapCertificateChecks,
 
     /// Configured SMTP server hostname.
@@ -225,7 +235,9 @@ pub enum Config {
     /// Configured SMTP server port.
     ConfiguredSendPort,
 
-    /// How to check SMTP server TLS certificates.
+    /// Deprecated, stored for backwards compatibility.
+    ///
+    /// ConfiguredImapCertificateChecks is actually used.
     ConfiguredSmtpCertificateChecks,
 
     /// Whether OAuth 2 is used with configured provider.

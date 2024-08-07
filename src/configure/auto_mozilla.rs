@@ -248,7 +248,6 @@ fn parse_serverparams(in_emailaddr: &str, xml_raw: &str) -> Result<Vec<ServerPar
                 hostname: server.hostname,
                 port: server.port,
                 username: server.username,
-                strict_tls: None,
             })
         })
         .collect();

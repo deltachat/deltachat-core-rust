@@ -51,10 +51,6 @@ pub struct ServerLoginParam {
     pub port: u16,
     pub security: Socket,
     pub oauth2: bool,
-
-    /// TLS options: whether to allow invalid certificates and/or
-    /// invalid hostnames
-    pub certificate_checks: CertificateChecks,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -64,6 +60,10 @@ pub struct LoginParam {
     pub smtp: ServerLoginParam,
     pub provider: Option<&'static Provider>,
     pub socks5_config: Option<Socks5Config>,
+
+    /// TLS options: whether to allow invalid certificates and/or
+    /// invalid hostnames
+    pub certificate_checks: CertificateChecks,
 }
 
 impl LoginParam {
@@ -125,8 +125,12 @@ impl LoginParam {
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
 
+        // The setting is named `imap_certificate_checks`
+        // for backwards compatibility,
+        // but now it is a global setting applied to all protocols,
+        // while `smtp_certificate_checks` is ignored.
         let key = &format!("{prefix}imap_certificate_checks");
-        let imap_certificate_checks =
+        let certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
                 num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
             } else {
@@ -152,14 +156,6 @@ impl LoginParam {
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
 
-        let key = &format!("{prefix}smtp_certificate_checks");
-        let smtp_certificate_checks =
-            if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
-            } else {
-                Default::default()
-            };
-
         let key = &format!("{prefix}server_flags");
         let server_flags = sql.get_raw_config_int(key).await?.unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
@@ -181,7 +177,6 @@ impl LoginParam {
                 port: mail_port as u16,
                 security: mail_security,
                 oauth2,
-                certificate_checks: imap_certificate_checks,
             },
             smtp: ServerLoginParam {
                 server: send_server,
@@ -190,8 +185,8 @@ impl LoginParam {
                 port: send_port as u16,
                 security: send_security,
                 oauth2,
-                certificate_checks: smtp_certificate_checks,
             },
+            certificate_checks,
             provider,
             socks5_config,
         })
@@ -222,7 +217,7 @@ impl LoginParam {
             .await?;
 
         let key = &format!("{prefix}imap_certificate_checks");
-        sql.set_raw_config_int(key, self.imap.certificate_checks as i32)
+        sql.set_raw_config_int(key, self.certificate_checks as i32)
             .await?;
 
         let key = &format!("{prefix}send_server");
@@ -242,8 +237,9 @@ impl LoginParam {
         sql.set_raw_config_int(key, self.smtp.security as i32)
             .await?;
 
+        // This is only saved for compatibility reasons, but never loaded.
         let key = &format!("{prefix}smtp_certificate_checks");
-        sql.set_raw_config_int(key, self.smtp.certificate_checks as i32)
+        sql.set_raw_config_int(key, self.certificate_checks as i32)
             .await?;
 
         // The OAuth2 flag is either set for both IMAP and SMTP or not at all.
@@ -260,6 +256,19 @@ impl LoginParam {
 
         Ok(())
     }
+
+    pub fn strict_tls(&self) -> bool {
+        let user_strict_tls = match self.certificate_checks {
+            CertificateChecks::Automatic => None,
+            CertificateChecks::Strict => Some(true),
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
+        };
+        let provider_strict_tls = self.provider.map(|provider| provider.opt.strict_tls);
+        user_strict_tls
+            .or(provider_strict_tls)
+            .unwrap_or(self.socks5_config.is_some())
+    }
 }
 
 impl fmt::Display for LoginParam {
@@ -269,7 +278,7 @@ impl fmt::Display for LoginParam {
 
         write!(
             f,
-            "{} imap:{}:{}:{}:{}:{}:cert_{}:{} smtp:{}:{}:{}:{}:{}:cert_{}:{}",
+            "{} imap:{}:{}:{}:{}:{}:{} smtp:{}:{}:{}:{}:{}:{} cert_{}",
             unset_empty(&self.addr),
             unset_empty(&self.imap.user),
             if !self.imap.password.is_empty() {
@@ -280,7 +289,6 @@ impl fmt::Display for LoginParam {
             unset_empty(&self.imap.server),
             self.imap.port,
             self.imap.security,
-            self.imap.certificate_checks,
             if self.imap.oauth2 {
                 "OAUTH2"
             } else {
@@ -295,12 +303,12 @@ impl fmt::Display for LoginParam {
             unset_empty(&self.smtp.server),
             self.smtp.port,
             self.smtp.security,
-            self.smtp.certificate_checks,
             if self.smtp.oauth2 {
                 "OAUTH2"
             } else {
                 "AUTH_NORMAL"
             },
+            self.certificate_checks
         )
     }
 }
@@ -341,7 +349,6 @@ mod tests {
                 port: 123,
                 security: Socket::Starttls,
                 oauth2: false,
-                certificate_checks: CertificateChecks::Strict,
             },
             smtp: ServerLoginParam {
                 server: "smtp.example.com".to_string(),
@@ -350,11 +357,11 @@ mod tests {
                 port: 456,
                 security: Socket::Ssl,
                 oauth2: false,
-                certificate_checks: CertificateChecks::AcceptInvalidCertificates,
             },
             provider: get_provider_by_id("example.com"),
             // socks5_config is not saved by `save_to_database`, using default value
             socks5_config: None,
+            certificate_checks: CertificateChecks::Strict,
         };
 
         param.save_as_configured_params(&t).await?;

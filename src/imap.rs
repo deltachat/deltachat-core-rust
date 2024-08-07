@@ -32,7 +32,7 @@ use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::get_oauth2_access_token;
@@ -231,19 +231,12 @@ impl Imap {
         lp: &ServerLoginParam,
         socks5_config: Option<Socks5Config>,
         addr: &str,
-        provider_strict_tls: bool,
+        strict_tls: bool,
         idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
         if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
             bail!("Incomplete IMAP connection parameters");
         }
-
-        let strict_tls = match lp.certificate_checks {
-            CertificateChecks::Automatic => provider_strict_tls,
-            CertificateChecks::Strict => true,
-            CertificateChecks::AcceptInvalidCertificates
-            | CertificateChecks::AcceptInvalidCertificates2 => false,
-        };
 
         let imap = Imap {
             idle_interrupt_receiver,
@@ -272,17 +265,11 @@ impl Imap {
         }
 
         let param = LoginParam::load_configured_params(context).await?;
-        // the trailing underscore is correct
-
         let imap = Self::new(
             &param.imap,
             param.socks5_config.clone(),
             &param.addr,
-            param
-                .provider
-                .map_or(param.socks5_config.is_some(), |provider| {
-                    provider.opt.strict_tls
-                }),
+            param.strict_tls(),
             idle_interrupt_receiver,
         )?;
         Ok(imap)

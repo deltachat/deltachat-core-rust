@@ -39,9 +39,6 @@ pub enum LoginOptions {
         /// IMAP socket security.
         imap_security: Option<Socket>,
 
-        /// IMAP certificate checks.
-        imap_certificate_checks: Option<CertificateChecks>,
-
         /// SMTP host.
         smtp_host: Option<String>,
 
@@ -57,8 +54,8 @@ pub enum LoginOptions {
         /// SMTP socket security.
         smtp_security: Option<Socket>,
 
-        /// SMTP certificate checks.
-        smtp_certificate_checks: Option<CertificateChecks>,
+        /// Certificate checks.
+        certificate_checks: Option<CertificateChecks>,
     },
 }
 
@@ -107,14 +104,13 @@ pub(super) fn decode_login(qr: &str) -> Result<Qr> {
                 imap_username: parameter_map.get("iu").map(|s| s.to_owned()),
                 imap_password: parameter_map.get("ipw").map(|s| s.to_owned()),
                 imap_security: parse_socket_security(parameter_map.get("is"))?,
-                imap_certificate_checks: parse_certificate_checks(parameter_map.get("ic"))?,
                 smtp_host: parameter_map.get("sh").map(|s| s.to_owned()),
                 smtp_port: parse_port(parameter_map.get("sp"))
                     .context("could not parse smtp port")?,
                 smtp_username: parameter_map.get("su").map(|s| s.to_owned()),
                 smtp_password: parameter_map.get("spw").map(|s| s.to_owned()),
                 smtp_security: parse_socket_security(parameter_map.get("ss"))?,
-                smtp_certificate_checks: parse_certificate_checks(parameter_map.get("sc"))?,
+                certificate_checks: parse_certificate_checks(parameter_map.get("ic"))?,
             },
             Some(Ok(v)) => LoginOptions::UnsuportedVersion(v),
             Some(Err(_)) => bail!("version could not be parsed as number E6"),
@@ -177,13 +173,12 @@ pub(crate) async fn configure_from_login_qr(
             imap_username,
             imap_password,
             imap_security,
-            imap_certificate_checks,
             smtp_host,
             smtp_port,
             smtp_username,
             smtp_password,
             smtp_security,
-            smtp_certificate_checks,
+            certificate_checks,
         } => {
             context
                 .set_config_internal(Config::MailPw, Some(&mail_pw))
@@ -216,14 +211,6 @@ pub(crate) async fn configure_from_login_qr(
                     .set_config_internal(Config::MailSecurity, Some(&code.to_string()))
                     .await?;
             }
-            if let Some(value) = imap_certificate_checks {
-                let code = value
-                    .to_u32()
-                    .context("could not convert imap certificate checks value to number")?;
-                context
-                    .set_config_internal(Config::ImapCertificateChecks, Some(&code.to_string()))
-                    .await?;
-            }
             if let Some(value) = smtp_host {
                 context
                     .set_config_internal(Config::SendServer, Some(&value))
@@ -252,10 +239,13 @@ pub(crate) async fn configure_from_login_qr(
                     .set_config_internal(Config::SendSecurity, Some(&code.to_string()))
                     .await?;
             }
-            if let Some(value) = smtp_certificate_checks {
+            if let Some(value) = certificate_checks {
                 let code = value
                     .to_u32()
-                    .context("could not convert smtp certificate checks value to number")?;
+                    .context("could not convert certificate checks value to number")?;
+                context
+                    .set_config_internal(Config::ImapCertificateChecks, Some(&code.to_string()))
+                    .await?;
                 context
                     .set_config_internal(Config::SmtpCertificateChecks, Some(&code.to_string()))
                     .await?;
@@ -284,13 +274,12 @@ mod test {
                 imap_username: None,
                 imap_password: None,
                 imap_security: None,
-                imap_certificate_checks: None,
                 smtp_host: None,
                 smtp_port: None,
                 smtp_username: None,
                 smtp_password: None,
                 smtp_security: None,
-                smtp_certificate_checks: None,
+                certificate_checks: None,
             }
         };
     }
@@ -392,13 +381,12 @@ mod test {
                     imap_username: Some("max".to_owned()),
                     imap_password: Some("87654".to_owned()),
                     imap_security: Some(Socket::Ssl),
-                    imap_certificate_checks: Some(CertificateChecks::Strict),
                     smtp_host: Some("mail.host.tld".to_owned()),
                     smtp_port: Some(3000),
                     smtp_username: Some("max@host.tld".to_owned()),
                     smtp_password: Some("3242HS".to_owned()),
                     smtp_security: Some(Socket::Plain),
-                    smtp_certificate_checks: Some(CertificateChecks::AcceptInvalidCertificates),
+                    certificate_checks: Some(CertificateChecks::Strict),
                 }
             );
         } else {
