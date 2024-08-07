@@ -27,7 +27,7 @@ use crate::config::{self, Config};
 use crate::context::Context;
 use crate::imap::{session::Session as ImapSession, Imap};
 use crate::log::LogExt;
-use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::{Message, Viewtype};
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
@@ -290,16 +290,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param_autoconfig = None;
     }
 
-    let user_strict_tls = match param.certificate_checks {
-        CertificateChecks::Automatic => None,
-        CertificateChecks::Strict => Some(true),
-        CertificateChecks::AcceptInvalidCertificates
-        | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
-    };
-    let provider_strict_tls = param.provider.map(|provider| provider.opt.strict_tls);
-    let strict_tls = user_strict_tls
-        .or(provider_strict_tls)
-        .unwrap_or(param.socks5_config.is_some());
+    let strict_tls = param.strict_tls();
 
     progress!(ctx, 500);
 

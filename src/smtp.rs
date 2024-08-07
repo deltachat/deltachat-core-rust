@@ -13,7 +13,7 @@ use crate::config::Config;
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::events::EventType;
-use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
@@ -89,19 +89,14 @@ impl Smtp {
 
         self.connectivity.set_connecting(context).await;
         let lp = LoginParam::load_configured_params(context).await?;
-        let user_strict_tls = match lp.certificate_checks {
-            CertificateChecks::Automatic => None,
-            CertificateChecks::Strict => Some(true),
-            CertificateChecks::AcceptInvalidCertificates
-            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
-        };
-        let provider_strict_tls = lp.provider.map(|provider| provider.opt.strict_tls);
-        let strict_tls = user_strict_tls
-            .or(provider_strict_tls)
-            .unwrap_or(lp.socks5_config.is_some());
-
-        self.connect(context, &lp.smtp, &lp.socks5_config, &lp.addr, strict_tls)
-            .await
+        self.connect(
+            context,
+            &lp.smtp,
+            &lp.socks5_config,
+            &lp.addr,
+            lp.strict_tls(),
+        )
+        .await
     }
 
     /// Connect using the provided login params.

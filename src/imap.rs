@@ -32,7 +32,7 @@ use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{LoginParam, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::get_oauth2_access_token;
@@ -265,23 +265,11 @@ impl Imap {
         }
 
         let param = LoginParam::load_configured_params(context).await?;
-
-        let user_strict_tls = match param.certificate_checks {
-            CertificateChecks::Automatic => None,
-            CertificateChecks::Strict => Some(true),
-            CertificateChecks::AcceptInvalidCertificates
-            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
-        };
-        let provider_strict_tls = param.provider.map(|provider| provider.opt.strict_tls);
-        let strict_tls = user_strict_tls
-            .or(provider_strict_tls)
-            .unwrap_or(param.socks5_config.is_some());
-
         let imap = Self::new(
             &param.imap,
             param.socks5_config.clone(),
             &param.addr,
-            strict_tls,
+            param.strict_tls(),
             idle_interrupt_receiver,
         )?;
         Ok(imap)

@@ -256,6 +256,19 @@ impl LoginParam {
 
         Ok(())
     }
+
+    pub fn strict_tls(&self) -> bool {
+        let user_strict_tls = match self.certificate_checks {
+            CertificateChecks::Automatic => None,
+            CertificateChecks::Strict => Some(true),
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
+        };
+        let provider_strict_tls = self.provider.map(|provider| provider.opt.strict_tls);
+        user_strict_tls
+            .or(provider_strict_tls)
+            .unwrap_or(self.socks5_config.is_some())
+    }
 }
 
 impl fmt::Display for LoginParam {
