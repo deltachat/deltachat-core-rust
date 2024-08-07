@@ -204,6 +204,41 @@ async fn test_adhoc_group_show_all() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_adhoc_groups_merge() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    receive_imf(
+        alice,
+        b"From: bob@example.net\n\
+        To: alice@example.org, claire@example.com\n\
+        Message-ID: <1111@example.net>\n\
+        Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+        Subject: New thread\n\
+        \n\
+        The first of us should create a thread as discussed\n",
+        false,
+    )
+    .await?;
+    receive_imf(
+        alice,
+        b"From: alice@example.org\n\
+        To: bob@example.net, claire@example.com\n\
+        Message-ID: <2222@example.net>\n\
+        Date: Sun, 22 Mar 2020 22:37:58 +0000\n\
+        Subject: New thread\n\
+        \n\
+        The first of us should create a thread as discussed\n",
+        false,
+    )
+    .await?;
+    let chats = Chatlist::try_load(alice, 0, None, None).await?;
+    assert_eq!(chats.len(), 1);
+    let chat_id = chats.get_chat_id(0)?;
+    assert_eq!(chat_id.get_msg_cnt(alice).await?, 2);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_read_receipt_and_unarchive() -> Result<()> {
     // create alice's account
     let t = TestContext::new_alice().await;
