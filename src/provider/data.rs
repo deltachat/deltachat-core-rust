@@ -1037,6 +1037,20 @@ static P_NINE_TESTRUN_ORG: Provider = Provider {
             port: 587,
             username_pattern: Email,
         },
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "nine.testrun.org",
+            port: 443,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "nine.testrun.org",
+            port: 443,
+            username_pattern: Email,
+        },
     ],
     opt: ProviderOptions::new(),
     config_defaults: Some(&[ConfigDefault {
@@ -1260,14 +1274,14 @@ static P_RISEUP_NET: Provider = Provider {
             socket: Ssl,
             hostname: "mail.riseup.net",
             port: 993,
-            username_pattern: Emaillocalpart,
+            username_pattern: Email,
         },
         Server {
             protocol: Smtp,
             socket: Ssl,
             hostname: "mail.riseup.net",
             port: 465,
-            username_pattern: Emaillocalpart,
+            username_pattern: Email,
         },
     ],
     opt: ProviderOptions::new(),
@@ -1297,6 +1311,37 @@ static P_SONIC: Provider = Provider {
     overview_page: "https://providers.delta.chat/sonic",
     server: &[],
     opt: ProviderOptions::new(),
+    config_defaults: None,
+    oauth2_authorizer: None,
+};
+
+// stinpriza.net.md: stinpriza.net, stinpriza.eu, el-hoyo.net
+static P_STINPRIZA_NET: Provider = Provider {
+    id: "stinpriza.net",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/stinpriza-net",
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Starttls,
+            hostname: "stinpriza.net",
+            port: 143,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Starttls,
+            hostname: "stinpriza.net",
+            port: 587,
+            username_pattern: Email,
+        },
+    ],
+    opt: ProviderOptions {
+        strict_tls: true,
+        ..ProviderOptions::new()
+    },
     config_defaults: None,
     oauth2_authorizer: None,
 };
@@ -1757,7 +1802,7 @@ static P_ZOHO: Provider = Provider {
     oauth2_authorizer: None,
 };
 
-pub(crate) static PROVIDER_DATA: [(&str, &Provider); 528] = [
+pub(crate) static PROVIDER_DATA: [(&str, &Provider); 531] = [
     ("163.com", &P_163),
     ("aktivix.org", &P_AKTIVIX_ORG),
     ("aliyun.com", &P_ALIYUN),
@@ -2212,6 +2257,9 @@ pub(crate) static PROVIDER_DATA: [(&str, &Provider); 528] = [
     ("riseup.net", &P_RISEUP_NET),
     ("rogers.com", &P_ROGERS_COM),
     ("sonic.net", &P_SONIC),
+    ("stinpriza.net", &P_STINPRIZA_NET),
+    ("stinpriza.eu", &P_STINPRIZA_NET),
+    ("el-hoyo.net", &P_STINPRIZA_NET),
     ("systemausfall.org", &P_SYSTEMAUSFALL_ORG),
     ("solidaris.me", &P_SYSTEMAUSFALL_ORG),
     ("systemli.org", &P_SYSTEMLI_ORG),
@@ -2343,6 +2391,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("riseup.net", &P_RISEUP_NET),
         ("rogers.com", &P_ROGERS_COM),
         ("sonic", &P_SONIC),
+        ("stinpriza.net", &P_STINPRIZA_NET),
         ("systemausfall.org", &P_SYSTEMAUSFALL_ORG),
         ("systemli.org", &P_SYSTEMLI_ORG),
         ("t-online", &P_T_ONLINE),
@@ -2366,4 +2415,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static _PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 6, 24).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 8, 1).unwrap());
