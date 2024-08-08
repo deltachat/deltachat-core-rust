@@ -32,6 +32,7 @@ use iroh_net::key::{PublicKey, SecretKey};
 use iroh_net::relay::{RelayMap, RelayUrl};
 use iroh_net::{relay::RelayMode, Endpoint};
 use iroh_net::{NodeAddr, NodeId};
+use parking_lot::Mutex;
 use std::collections::{BTreeSet, HashMap};
 use std::env;
 use tokio::sync::{oneshot, RwLock};
@@ -60,7 +61,7 @@ pub struct Iroh {
     pub(crate) gossip: Gossip,
 
     /// Sequence numbers for gossip channels.
-    pub(crate) sequence_numbers: RwLock<HashMap<TopicId, i32>>,
+    pub(crate) sequence_numbers: Mutex<HashMap<TopicId, i32>>,
 
     /// Topics for which an advertisement has already been sent.
     pub(crate) iroh_channels: RwLock<HashMap<TopicId, ChannelState>>,
@@ -161,7 +162,7 @@ impl Iroh {
             .with_context(|| format!("Message {msg_id} has no gossip topic"))?;
         self.join_and_subscribe_gossip(ctx, msg_id).await?;
 
-        let seq_num = self.get_and_incr(&topic).await;
+        let seq_num = self.get_and_incr(&topic);
 
         let mut iroh_channels = self.iroh_channels.write().await;
         let state = iroh_channels
@@ -179,8 +180,8 @@ impl Iroh {
         Ok(())
     }
 
-    async fn get_and_incr(&self, topic: &TopicId) -> i32 {
-        let mut sequence_numbers = self.sequence_numbers.write().await;
+    fn get_and_incr(&self, topic: &TopicId) -> i32 {
+        let mut sequence_numbers = self.sequence_numbers.lock();
         let entry = sequence_numbers.entry(*topic).or_default();
         *entry = entry.wrapping_add(1);
         *entry
@@ -269,7 +270,7 @@ impl Context {
         Ok(Iroh {
             endpoint,
             gossip,
-            sequence_numbers: RwLock::new(HashMap::new()),
+            sequence_numbers: Mutex::new(HashMap::new()),
             iroh_channels: RwLock::new(HashMap::new()),
             public_key,
         })
@@ -777,18 +778,18 @@ mod tests {
             .get()
             .unwrap()
             .sequence_numbers
-            .read()
-            .await
-            .get(&bob_topic);
+            .lock()
+            .get(&bob_topic)
+            .map(|x| *x);
         leave_webxdc_realtime(bob, bob_webxdc.id).await.unwrap();
         let bob_sequence_number_after = bob
             .iroh
             .get()
             .unwrap()
             .sequence_numbers
-            .read()
-            .await
-            .get(&bob_topic);
+            .lock()
+            .get(&bob_topic)
+            .map(|x| *x);
         // Check that sequence number is persisted when leaving the channel.
         assert_eq!(bob_sequence_number, bob_sequence_number_after);
 
