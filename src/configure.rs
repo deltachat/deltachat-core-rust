@@ -274,14 +274,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         } else {
             // Try receiving autoconfig
             info!(ctx, "no offline autoconfig found");
-            param_autoconfig = if socks5_enabled {
-                // Currently we can't do http requests through socks5, to not leak
-                // the ip, just don't do online autoconfig
-                info!(ctx, "socks5 enabled, skipping autoconfig");
-                None
-            } else {
-                get_autoconfig(ctx, param, &param_domain).await
-            }
+            param_autoconfig = get_autoconfig(ctx, param, &param_domain).await;
         }
     } else {
         param_autoconfig = None;
