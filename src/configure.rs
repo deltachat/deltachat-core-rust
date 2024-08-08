@@ -189,10 +189,8 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     // Step 1: Load the parameters and check email-address and password
 
-    // Do oauth2 only if socks5 is disabled. As soon as we have a http library that can do
-    // socks5 requests, this can work with socks5 too.  OAuth is always set either for both
-    // IMAP and SMTP or not at all.
-    if param.imap.oauth2 && !socks5_enabled {
+    // OAuth is always set either for both IMAP and SMTP or not at all.
+    if param.imap.oauth2 {
         // the used oauth2 addr may differ, check this.
         // if get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
