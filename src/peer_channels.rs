@@ -780,7 +780,7 @@ mod tests {
             .sequence_numbers
             .lock()
             .get(&bob_topic)
-            .map(|x| *x);
+            .copied();
         leave_webxdc_realtime(bob, bob_webxdc.id).await.unwrap();
         let bob_sequence_number_after = bob
             .iroh
@@ -789,7 +789,7 @@ mod tests {
             .sequence_numbers
             .lock()
             .get(&bob_topic)
-            .map(|x| *x);
+            .copied();
         // Check that sequence number is persisted when leaving the channel.
         assert_eq!(bob_sequence_number, bob_sequence_number_after);
 
