@@ -199,20 +199,31 @@ pub enum Config {
     /// The primary email address. Also see `SecondaryAddrs`.
     ConfiguredAddr,
 
+    /// List of configured servers as a JSON array.
+    ConfiguredMailServers,
+
     /// Configured IMAP server hostname.
+    ///
+    /// This is replaced by `configured_mail_servers` for new configurations.
     ConfiguredMailServer,
 
+    /// Configured IMAP server port.
+    ///
+    /// This is replaced by `configured_mail_servers` for new configurations.
+    ConfiguredMailPort,
+
+    /// Configured IMAP server security (e.g. TLS, STARTTLS).
+    ///
+    /// This is replaced by `configured_mail_servers` for new configurations.
+    ConfiguredMailSecurity,
+
     /// Configured IMAP server username.
+    ///
+    /// This is replaced by `configured_mail_servers` for new configurations.
     ConfiguredMailUser,
 
     /// Configured IMAP server password.
     ConfiguredMailPw,
-
-    /// Configured IMAP server port.
-    ConfiguredMailPort,
-
-    /// Configured IMAP server security (e.g. TLS, STARTTLS).
-    ConfiguredMailSecurity,
 
     /// Configured TLS certificate checks.
     /// This option is saved on successful configuration
@@ -222,17 +233,26 @@ pub enum Config {
     /// but has "IMAP" in the name for backwards compatibility.
     ConfiguredImapCertificateChecks,
 
+    /// List of configured servers as a JSON array.
+    ConfiguredSendServers,
+
     /// Configured SMTP server hostname.
+    ///
+    /// This is replaced by `configured_send_servers` for new configurations.
     ConfiguredSendServer,
 
+    /// Configured SMTP server port.
+    ///
+    /// This is replaced by `configured_send_servers` for new configurations.
+    ConfiguredSendPort,
+
     /// Configured SMTP server username.
+    ///
+    /// This is replaced by `configured_send_servers` for new configurations.
     ConfiguredSendUser,
 
     /// Configured SMTP server password.
     ConfiguredSendPw,
-
-    /// Configured SMTP server port.
-    ConfiguredSendPort,
 
     /// Deprecated, stored for backwards compatibility.
     ///

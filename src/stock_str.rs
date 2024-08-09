@@ -1095,11 +1095,6 @@ pub(crate) async fn update_reminder_msg_body(context: &Context) -> String {
     translated(context, StockMessage::UpdateReminderMsgBody).await
 }
 
-/// Stock string: `Could not find your mail server...`.
-pub(crate) async fn error_no_network(context: &Context) -> String {
-    translated(context, StockMessage::ErrorNoNetwork).await
-}
-
 /// Stock string: `Messages are guaranteed to be end-to-end encrypted from now on.`
 pub(crate) async fn chat_protection_enabled(context: &Context) -> String {
     translated(context, StockMessage::ChatProtectionEnabled).await

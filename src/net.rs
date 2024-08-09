@@ -5,11 +5,13 @@ use std::time::Duration;
 
 use anyhow::{format_err, Context as _, Result};
 use async_native_tls::TlsStream;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
+use crate::provider::Socket;
 use crate::tools::time;
 
 pub(crate) mod dns;
@@ -28,6 +30,43 @@ pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
 
 /// TTL for caches in seconds.
 pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct ConnectionCandidate {
+    /// Server hostname or IP address.
+    pub host: String,
+
+    /// Server port.
+    pub port: u16,
+
+    /// Transport layer security.
+    pub security: ConnectionSecurity,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ConnectionSecurity {
+    /// Implicit TLS.
+    Tls,
+
+    // STARTTLS.
+    Starttls,
+
+    /// Plaintext.
+    Plain,
+}
+
+impl TryFrom<Socket> for ConnectionSecurity {
+    type Error = anyhow::Error;
+
+    fn try_from(socket: Socket) -> Result<Self> {
+        match socket {
+            Socket::Automatic => Err(format_err!("Socket security is not configured")),
+            Socket::Ssl => Ok(Self::Tls),
+            Socket::Starttls => Ok(Self::Starttls),
+            Socket::Plain => Ok(Self::Plain),
+        }
+    }
+}
 
 /// Removes connection history entries after `CACHE_TTL`.
 pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {

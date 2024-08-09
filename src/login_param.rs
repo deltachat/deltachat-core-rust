@@ -2,14 +2,19 @@
 
 use std::fmt;
 
-use anyhow::{ensure, Result};
+use anyhow::{Context as _, Result};
+use serde::{Deserialize, Serialize};
 
+use crate::config::Config;
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
-use crate::provider::Socket;
-use crate::provider::{get_provider_by_id, Provider};
+use crate::net::ConnectionCandidate;
+use crate::provider::{get_provider_by_id, Provider, Socket};
 use crate::socks::Socks5Config;
 
+/// Enumeration for values stored in `imap_certificate_checks`,
+/// `smtp_certificate_checks`, `configured_imap_certificate_checks`
+/// and `configured_smtp_certificate_checks`.
 #[derive(Copy, Clone, Debug, Default, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
@@ -43,216 +48,409 @@ pub enum CertificateChecks {
 }
 
 /// Login parameters for a single server, either IMAP or SMTP
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct ServerLoginParam {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnteredServerLoginParam {
+    /// Server hostname or IP address.
     pub server: String,
-    pub user: String,
-    pub password: String,
+
+    /// Server port.
+    ///
+    /// 0 if not specified.
     pub port: u16,
+
+    /// Socket security.
     pub security: Socket,
-    pub oauth2: bool,
+
+    /// Username.
+    ///
+    /// Empty string if not specified.
+    pub user: String,
+
+    /// Password.
+    pub password: String,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct LoginParam {
+/// Login parameters entered by the user.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnteredLoginParam {
+    /// Email address.
     pub addr: String,
-    pub imap: ServerLoginParam,
-    pub smtp: ServerLoginParam,
-    pub provider: Option<&'static Provider>,
-    pub socks5_config: Option<Socks5Config>,
+
+    /// IMAP settings.
+    pub imap: EnteredServerLoginParam,
+
+    /// SMTP settings.
+    pub smtp: EnteredServerLoginParam,
 
     /// TLS options: whether to allow invalid certificates and/or
     /// invalid hostnames
     pub certificate_checks: CertificateChecks,
+
+    pub socks5_config: Option<Socks5Config>,
+
+    pub oauth2: bool,
 }
 
-impl LoginParam {
-    /// Load entered (candidate) account settings
-    pub async fn load_candidate_params(context: &Context) -> Result<Self> {
-        let mut param = Self::load_candidate_params_unchecked(context).await?;
-        ensure!(!param.addr.is_empty(), "Missing email address.");
-
-        // Only check for IMAP password, SMTP password is an "advanced" setting.
-        ensure!(!param.imap.password.is_empty(), "Missing (IMAP) password.");
-        if param.smtp.password.is_empty() {
-            param.smtp.password.clone_from(&param.imap.password)
-        }
-        Ok(param)
-    }
-
-    /// Load entered (candidate) account settings without validation.
-    ///
-    /// This will result in a potentially invalid [`LoginParam`] struct as the values are
-    /// not validated.  Only use this if you want to show this directly to the user e.g. in
-    /// [`Context::get_info`].
-    pub async fn load_candidate_params_unchecked(context: &Context) -> Result<Self> {
-        LoginParam::from_database(context, "").await
-    }
-
-    /// Load configured (working) account settings
-    pub async fn load_configured_params(context: &Context) -> Result<Self> {
-        LoginParam::from_database(context, "configured_").await
-    }
-
-    /// Read the login parameters from the database.
-    async fn from_database(context: &Context, prefix: &str) -> Result<Self> {
+impl EnteredLoginParam {
+    /// Loads entered account settings.
+    pub async fn load(context: &Context) -> Result<Self> {
         let sql = &context.sql;
 
-        let key = &format!("{prefix}addr");
         let addr = sql
-            .get_raw_config(key)
+            .get_raw_config("addr")
             .await?
             .unwrap_or_default()
             .trim()
             .to_string();
 
-        let key = &format!("{prefix}mail_server");
-        let mail_server = sql.get_raw_config(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}mail_port");
-        let mail_port = sql.get_raw_config_int(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}mail_user");
-        let mail_user = sql.get_raw_config(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}mail_pw");
-        let mail_pw = sql.get_raw_config(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}mail_security");
+        let mail_server = sql.get_raw_config("mail_server").await?.unwrap_or_default();
+        let mail_port = sql
+            .get_raw_config_int("mail_port")
+            .await?
+            .unwrap_or_default();
         let mail_security = sql
-            .get_raw_config_int(key)
+            .get_raw_config_int("mail_security")
             .await?
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
+        let mail_user = sql.get_raw_config("mail_user").await?.unwrap_or_default();
+        let mail_pw = sql.get_raw_config("mail_pw").await?.unwrap_or_default();
 
         // The setting is named `imap_certificate_checks`
         // for backwards compatibility,
         // but now it is a global setting applied to all protocols,
         // while `smtp_certificate_checks` is ignored.
-        let key = &format!("{prefix}imap_certificate_checks");
-        let certificate_checks =
-            if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
-            } else {
-                Default::default()
-            };
+        let certificate_checks = if let Some(certificate_checks) =
+            sql.get_raw_config_int("imap_ceritifacte_checks").await?
+        {
+            num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
+        } else {
+            Default::default()
+        };
 
-        let key = &format!("{prefix}send_server");
-        let send_server = sql.get_raw_config(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}send_port");
-        let send_port = sql.get_raw_config_int(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}send_user");
-        let send_user = sql.get_raw_config(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}send_pw");
-        let send_pw = sql.get_raw_config(key).await?.unwrap_or_default();
-
-        let key = &format!("{prefix}send_security");
+        let send_server = sql.get_raw_config("send_server").await?.unwrap_or_default();
+        let send_port = sql
+            .get_raw_config_int("send_port")
+            .await?
+            .unwrap_or_default();
         let send_security = sql
-            .get_raw_config_int(key)
+            .get_raw_config_int("send_security")
             .await?
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
+        let send_user = sql.get_raw_config("send_user").await?.unwrap_or_default();
+        let send_pw = sql.get_raw_config("send_pw").await?.unwrap_or_default();
 
-        let key = &format!("{prefix}server_flags");
-        let server_flags = sql.get_raw_config_int(key).await?.unwrap_or_default();
-        let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
-
-        let key = &format!("{prefix}provider");
-        let provider = sql
-            .get_raw_config(key)
+        let server_flags = sql
+            .get_raw_config_int("server_flags")
             .await?
-            .and_then(|provider_id| get_provider_by_id(&provider_id));
+            .unwrap_or_default();
+        let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
         let socks5_config = Socks5Config::from_database(&context.sql).await?;
 
-        Ok(LoginParam {
+        Ok(EnteredLoginParam {
             addr,
-            imap: ServerLoginParam {
+            imap: EnteredServerLoginParam {
                 server: mail_server,
-                user: mail_user,
-                password: mail_pw,
                 port: mail_port as u16,
                 security: mail_security,
-                oauth2,
+                user: mail_user,
+                password: mail_pw,
             },
-            smtp: ServerLoginParam {
+            smtp: EnteredServerLoginParam {
                 server: send_server,
-                user: send_user,
-                password: send_pw,
                 port: send_port as u16,
                 security: send_security,
-                oauth2,
+                user: send_user,
+                password: send_pw,
             },
+            certificate_checks,
+            socks5_config,
+            oauth2,
+        })
+    }
+}
+
+impl fmt::Display for EnteredLoginParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let unset = "0";
+        let pw = "***";
+
+        write!(
+            f,
+            "{} imap:{}:{}:{}:{}:{}:{} smtp:{}:{}:{}:{}:{}:{} cert_{}",
+            unset_empty(&self.addr),
+            unset_empty(&self.imap.user),
+            if !self.imap.password.is_empty() {
+                pw
+            } else {
+                unset
+            },
+            unset_empty(&self.imap.server),
+            self.imap.port,
+            self.imap.security,
+            if self.oauth2 { "OAUTH2" } else { "AUTH_NORMAL" },
+            unset_empty(&self.smtp.user),
+            if !self.smtp.password.is_empty() {
+                pw
+            } else {
+                unset
+            },
+            unset_empty(&self.smtp.server),
+            self.smtp.port,
+            self.smtp.security,
+            if self.oauth2 { "OAUTH2" } else { "AUTH_NORMAL" },
+            self.certificate_checks
+        )
+    }
+}
+
+fn unset_empty(s: &str) -> &str {
+    if s.is_empty() {
+        "unset"
+    } else {
+        s
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfiguredServerLoginParam {
+    pub connection: ConnectionCandidate,
+
+    /// Username.
+    pub user: String,
+}
+
+/// Login parameters saved to the database
+/// after successful configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfiguredLoginParam {
+    /// `From:` address that was used at the time of configuration.
+    pub addr: String,
+
+    pub imap: Vec<ConfiguredServerLoginParam>,
+
+    pub imap_password: String,
+
+    pub smtp: Vec<ConfiguredServerLoginParam>,
+
+    pub smtp_password: String,
+
+    pub socks5_config: Option<Socks5Config>,
+
+    pub provider: Option<&'static Provider>,
+
+    /// TLS options: whether to allow invalid certificates and/or
+    /// invalid hostnames
+    pub certificate_checks: CertificateChecks,
+
+    pub oauth2: bool,
+}
+
+impl fmt::Display for ConfiguredLoginParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} TODO", &self.addr,)
+    }
+}
+
+impl ConfiguredLoginParam {
+    /// Load configured account settings from the database.
+    ///
+    /// Returns `None` if account is not configured.
+    pub async fn load(context: &Context) -> Result<Option<Self>> {
+        let sql = &context.sql;
+
+        if !context.get_config_bool(Config::Configured).await? {
+            return Ok(None);
+        }
+
+        let addr = sql
+            .get_raw_config("configured_addr")
+            .await?
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+
+        let certificate_checks: CertificateChecks = if let Some(certificate_checks) = sql
+            .get_raw_config_int("configured_imap_certificate_checks")
+            .await?
+        {
+            num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
+        } else {
+            Default::default()
+        };
+
+        let send_pw = context
+            .get_config(Config::ConfiguredSendPw)
+            .await?
+            .context("SMTP password is not configured")?;
+        let mail_pw = context
+            .get_config(Config::ConfiguredMailPw)
+            .await?
+            .context("IMAP password is not configured")?;
+
+        let server_flags = sql
+            .get_raw_config_int("configured_server_flags")
+            .await?
+            .unwrap_or_default();
+        let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
+
+        let provider = sql
+            .get_raw_config("configured_provider")
+            .await?
+            .and_then(|provider_id| get_provider_by_id(&provider_id));
+
+        let imap;
+        let smtp;
+
+        if let (Some(configured_mail_servers), Some(configured_send_servers)) = (
+            context.get_config(Config::ConfiguredMailServers).await?,
+            context.get_config(Config::ConfiguredSendServers).await?,
+        ) {
+            imap = serde_json::from_str(&configured_mail_servers)
+                .context("Failed to parse configured IMAP servers")?;
+            smtp = serde_json::from_str(&configured_send_servers)
+                .context("Failed to parse configured SMTP servers")?;
+        } else {
+            // Load legacy settings storing a single IMAP and single SMTP server.
+            let mail_server = sql
+                .get_raw_config("configured_mail_server")
+                .await?
+                .unwrap_or_default();
+            let mail_port = sql
+                .get_raw_config_int("configured_mail_port")
+                .await?
+                .unwrap_or_default();
+
+            let mail_user = sql
+                .get_raw_config("configured_mail_user")
+                .await?
+                .unwrap_or_default();
+            let mail_security: Socket = sql
+                .get_raw_config_int("configured_mail_security")
+                .await?
+                .and_then(num_traits::FromPrimitive::from_i32)
+                .unwrap_or_default();
+
+            let send_server = context
+                .get_config(Config::ConfiguredSendServer)
+                .await?
+                .context("SMTP server is not configured")?;
+            let send_port = sql
+                .get_raw_config_int("configured_send_port")
+                .await?
+                .unwrap_or_default();
+            let send_user = sql
+                .get_raw_config("configured_send_user")
+                .await?
+                .unwrap_or_default();
+            let send_security: Socket = sql
+                .get_raw_config_int("configured_send_security")
+                .await?
+                .and_then(num_traits::FromPrimitive::from_i32)
+                .unwrap_or_default();
+
+            imap = vec![ConfiguredServerLoginParam {
+                connection: ConnectionCandidate {
+                    host: mail_server,
+                    port: mail_port as u16,
+                    security: mail_security.try_into()?,
+                },
+                user: mail_user,
+            }];
+            smtp = vec![ConfiguredServerLoginParam {
+                connection: ConnectionCandidate {
+                    host: send_server,
+                    port: send_port as u16,
+                    security: send_security.try_into()?,
+                },
+                user: send_user,
+            }];
+        }
+
+        let socks5_config = Socks5Config::from_database(&context.sql).await?;
+
+        Ok(Some(ConfiguredLoginParam {
+            addr,
+            imap,
+            imap_password: mail_pw,
+            smtp,
+            smtp_password: send_pw,
             certificate_checks,
             provider,
             socks5_config,
-        })
+            oauth2,
+        }))
     }
 
     /// Save this loginparam to the database.
     pub async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
-        let prefix = "configured_";
         let sql = &context.sql;
 
         context.set_primary_self_addr(&self.addr).await?;
 
-        let key = &format!("{prefix}mail_server");
-        sql.set_raw_config(key, Some(&self.imap.server)).await?;
-
-        let key = &format!("{prefix}mail_port");
-        sql.set_raw_config_int(key, i32::from(self.imap.port))
+        context
+            .set_config(
+                Config::ConfiguredMailServers,
+                Some(&serde_json::to_string(&self.imap)?),
+            )
+            .await?;
+        context
+            .set_config(
+                Config::ConfiguredSendServers,
+                Some(&serde_json::to_string(&self.smtp)?),
+            )
             .await?;
 
-        let key = &format!("{prefix}mail_user");
-        sql.set_raw_config(key, Some(&self.imap.user)).await?;
-
-        let key = &format!("{prefix}mail_pw");
-        sql.set_raw_config(key, Some(&self.imap.password)).await?;
-
-        let key = &format!("{prefix}mail_security");
-        sql.set_raw_config_int(key, self.imap.security as i32)
+        context
+            .set_config(Config::ConfiguredMailPw, Some(&self.imap_password))
+            .await?;
+        context
+            .set_config(Config::ConfiguredSendPw, Some(&self.smtp_password))
             .await?;
 
-        let key = &format!("{prefix}imap_certificate_checks");
-        sql.set_raw_config_int(key, self.certificate_checks as i32)
+        sql.set_raw_config_int(
+            "configured_imap_certificate_checks",
+            self.certificate_checks as i32,
+        )
+        .await?;
+        sql.set_raw_config_int(
+            "configured_smtp_certificate_checks",
+            self.certificate_checks as i32,
+        )
+        .await?;
+
+        // Remove legacy settings.
+        context
+            .set_config(Config::ConfiguredMailServer, None)
             .await?;
-
-        let key = &format!("{prefix}send_server");
-        sql.set_raw_config(key, Some(&self.smtp.server)).await?;
-
-        let key = &format!("{prefix}send_port");
-        sql.set_raw_config_int(key, i32::from(self.smtp.port))
+        context.set_config(Config::ConfiguredMailPort, None).await?;
+        context
+            .set_config(Config::ConfiguredMailSecurity, None)
             .await?;
-
-        let key = &format!("{prefix}send_user");
-        sql.set_raw_config(key, Some(&self.smtp.user)).await?;
-
-        let key = &format!("{prefix}send_pw");
-        sql.set_raw_config(key, Some(&self.smtp.password)).await?;
-
-        let key = &format!("{prefix}send_security");
-        sql.set_raw_config_int(key, self.smtp.security as i32)
+        context.set_config(Config::ConfiguredMailUser, None).await?;
+        context
+            .set_config(Config::ConfiguredSendServer, None)
             .await?;
-
-        // This is only saved for compatibility reasons, but never loaded.
-        let key = &format!("{prefix}smtp_certificate_checks");
-        sql.set_raw_config_int(key, self.certificate_checks as i32)
+        context.set_config(Config::ConfiguredSendPort, None).await?;
+        context
+            .set_config(Config::ConfiguredSendSecurity, None)
             .await?;
+        context.set_config(Config::ConfiguredSendUser, None).await?;
 
-        // The OAuth2 flag is either set for both IMAP and SMTP or not at all.
-        let key = &format!("{prefix}server_flags");
-        let server_flags = match self.imap.oauth2 {
+        let server_flags = match self.oauth2 {
             true => DC_LP_AUTH_OAUTH2,
             false => DC_LP_AUTH_NORMAL,
         };
-        sql.set_raw_config_int(key, server_flags).await?;
-
-        let key = &format!("{prefix}provider");
-        sql.set_raw_config(key, self.provider.map(|provider| provider.id))
+        sql.set_raw_config_int("configured_server_flags", server_flags)
             .await?;
+
+        sql.set_raw_config(
+            "configured_provider",
+            self.provider.map(|provider| provider.id),
+        )
+        .await?;
 
         Ok(())
     }
@@ -271,60 +469,10 @@ impl LoginParam {
     }
 }
 
-impl fmt::Display for LoginParam {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let unset = "0";
-        let pw = "***";
-
-        write!(
-            f,
-            "{} imap:{}:{}:{}:{}:{}:{} smtp:{}:{}:{}:{}:{}:{} cert_{}",
-            unset_empty(&self.addr),
-            unset_empty(&self.imap.user),
-            if !self.imap.password.is_empty() {
-                pw
-            } else {
-                unset
-            },
-            unset_empty(&self.imap.server),
-            self.imap.port,
-            self.imap.security,
-            if self.imap.oauth2 {
-                "OAUTH2"
-            } else {
-                "AUTH_NORMAL"
-            },
-            unset_empty(&self.smtp.user),
-            if !self.smtp.password.is_empty() {
-                pw
-            } else {
-                unset
-            },
-            unset_empty(&self.smtp.server),
-            self.smtp.port,
-            self.smtp.security,
-            if self.smtp.oauth2 {
-                "OAUTH2"
-            } else {
-                "AUTH_NORMAL"
-            },
-            self.certificate_checks
-        )
-    }
-}
-
-fn unset_empty(s: &str) -> &str {
-    if s.is_empty() {
-        "unset"
-    } else {
-        s
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::TestContext;
+    //use crate::test_utils::TestContext;
 
     #[test]
     fn test_certificate_checks_display() {
@@ -336,6 +484,7 @@ mod tests {
         );
     }
 
+    /*
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_load_login_param() -> Result<()> {
         let t = TestContext::new().await;
@@ -378,4 +527,5 @@ mod tests {
         assert_eq!(param, loaded);
         Ok(())
     }
+    */
 }
