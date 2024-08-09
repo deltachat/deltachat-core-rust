@@ -331,7 +331,8 @@ impl Imap {
                 self.strict_tls,
                 connection_candidate,
             )
-            .await {
+            .await
+            {
                 self.conn_backoff_ms = BACKOFF_MIN_MS;
                 self.ratelimit.send();
 
