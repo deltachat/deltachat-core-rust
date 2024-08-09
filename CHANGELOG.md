@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.142.4] - 2024-08-09
+
+### Build system
+
+- Downgrade Tokio to 1.38 to fix Android compilation.
+- Use `--locked` with `cargo install`.
+
+### Features / Changes
+
+- Add Config::FixIsChatmail.
+- Always move outgoing auto-generated messages to the mvbox.
+- Disable requesting MDNs for bots by default.
+- Allow using OAuth 2 with SOCKS5.
+- Allow autoconfig when SOCKS5 is enabled.
+- Update provider database.
+- cargo: Update iroh from 0.21 to 0.22 ([#5860](https://github.com/deltachat/deltachat-core-rust/pull/5860)).
+
+### CI
+
+- Update Rust to 1.80.1.
+- Update EmbarkStudios/cargo-deny-action.
+
+### Documentation
+
+- Point to active Header Protection draft
+
+### Refactor
+
+- Derive `Default` for `CertificateChecks`.
+- Merge imap_certificate_checks and smtp_certificate_checks.
+- Remove param_addr_urlencoded argument from get_autoconfig().
+- Pass address to moz_autoconfigure() instead of LoginParam.
+
 ## [1.142.3] - 2024-08-04
 
 ### Build system
@@ -4678,3 +4711,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.0...v1.142.1
 [1.142.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.1...v1.142.2
 [1.142.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.2...v1.142.3
+[1.142.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.3...v1.142.4
