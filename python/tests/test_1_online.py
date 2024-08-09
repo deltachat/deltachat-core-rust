@@ -2076,11 +2076,10 @@ def test_send_receive_locations(acfactory, lp):
 def test_immediate_autodelete(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account()
     ac2 = acfactory.new_online_configuring_account()
+    acfactory.bring_accounts_online()
 
     # "1" means delete immediately, while "0" means do not delete
     ac2.set_config("delete_server_after", "1")
-
-    acfactory.bring_accounts_online()
 
     lp.sec("ac1: create chat with ac2")
     chat1 = ac1.create_chat(ac2)
