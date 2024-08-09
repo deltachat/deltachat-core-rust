@@ -408,7 +408,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
 
     let (_s, r) = async_channel::bounded(1);
     let mut imap = Imap::new(
-        &configured_param.imap,
+        configured_param.imap.clone(),
         configured_param.socks5_config.clone(),
         &configured_param.addr,
         strict_tls,

@@ -73,7 +73,7 @@ pub(crate) struct Imap {
     addr: String,
 
     /// Login parameters.
-    lp: ConfiguredServerLoginParam,
+    lp: Vec<ConfiguredServerLoginParam>,
 
     /// SOCKS 5 configuration.
     socks5_config: Option<Socks5Config>,
@@ -230,20 +230,17 @@ impl Imap {
     ///
     /// `addr` is used to renew token if OAuth2 authentication is used.
     pub fn new(
-        lp: &[ConfiguredServerLoginParam],
+        lp: Vec<ConfiguredServerLoginParam>,
         socks5_config: Option<Socks5Config>,
         addr: &str,
         strict_tls: bool,
         oauth2: bool,
         idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
-        // TODO use other connection parameters, not only the first one
-        let lp = lp.first().context("No connection params for IMAP")?;
-
         let imap = Imap {
             idle_interrupt_receiver,
             addr: addr.to_string(),
-            lp: lp.clone(),
+            lp,
             socks5_config,
             strict_tls,
             oauth2,
@@ -267,7 +264,7 @@ impl Imap {
             .await?
             .context("Not configured")?;
         let imap = Self::new(
-            &param.imap,
+            param.imap.clone(),
             param.socks5_config.clone(),
             &param.addr,
             param.strict_tls(),
@@ -326,88 +323,94 @@ impl Imap {
         );
         self.conn_backoff_ms = max(BACKOFF_MIN_MS, self.conn_backoff_ms);
 
-        let connection_candidate = self.lp.connection.clone();
-        let client = Client::connect(
-            context,
-            self.socks5_config.clone(),
-            self.strict_tls,
-            connection_candidate,
-        )
-        .await?;
+        for lp in &self.lp {
+            let connection_candidate = lp.connection.clone();
+            let client = Client::connect(
+                context,
+                self.socks5_config.clone(),
+                self.strict_tls,
+                connection_candidate,
+            )
+            .await?;
 
-        self.conn_backoff_ms = BACKOFF_MIN_MS;
-        self.ratelimit.send();
+            self.conn_backoff_ms = BACKOFF_MIN_MS;
+            self.ratelimit.send();
 
-        let imap_user: &str = self.lp.user.as_ref();
-        let imap_pw: &str = self.lp.password.as_ref();
+            let imap_user: &str = lp.user.as_ref();
+            let imap_pw: &str = lp.password.as_ref();
 
-        let login_res = if self.oauth2 {
-            info!(context, "Logging into IMAP server with OAuth 2");
-            let addr: &str = self.addr.as_ref();
+            let login_res = if self.oauth2 {
+                info!(context, "Logging into IMAP server with OAuth 2");
+                let addr: &str = self.addr.as_ref();
 
-            let token = get_oauth2_access_token(context, addr, imap_pw, true)
-                .await?
-                .context("IMAP could not get OAUTH token")?;
-            let auth = OAuth2 {
-                user: imap_user.into(),
-                access_token: token,
+                let token = get_oauth2_access_token(context, addr, imap_pw, true)
+                    .await?
+                    .context("IMAP could not get OAUTH token")?;
+                let auth = OAuth2 {
+                    user: imap_user.into(),
+                    access_token: token,
+                };
+                client.authenticate("XOAUTH2", auth).await
+            } else {
+                info!(context, "Logging into IMAP server with LOGIN");
+                client.login(imap_user, imap_pw).await
             };
-            client.authenticate("XOAUTH2", auth).await
-        } else {
-            info!(context, "Logging into IMAP server with LOGIN");
-            client.login(imap_user, imap_pw).await
-        };
 
-        match login_res {
-            Ok(session) => {
-                // Store server ID in the context to display in account info.
-                let mut lock = context.server_id.write().await;
-                lock.clone_from(&session.capabilities.server_id);
+            match login_res {
+                Ok(session) => {
+                    // Store server ID in the context to display in account info.
+                    let mut lock = context.server_id.write().await;
+                    lock.clone_from(&session.capabilities.server_id);
 
-                self.login_failed_once = false;
-                context.emit_event(EventType::ImapConnected(format!(
-                    "IMAP-LOGIN as {}",
-                    self.lp.user
-                )));
-                self.connectivity.set_connected(context).await;
-                info!(context, "Successfully logged into IMAP server");
-                Ok(session)
-            }
-
-            Err(err) => {
-                let imap_user = self.lp.user.to_owned();
-                let message = stock_str::cannot_login(context, &imap_user).await;
-
-                warn!(context, "{} ({:#})", message, err);
-
-                let lock = context.wrong_pw_warning_mutex.lock().await;
-                if self.login_failed_once
-                    && err.to_string().to_lowercase().contains("authentication")
-                    && context.get_config_bool(Config::NotifyAboutWrongPw).await?
-                {
-                    if let Err(e) = context
-                        .set_config_internal(Config::NotifyAboutWrongPw, None)
-                        .await
-                    {
-                        warn!(context, "{:#}", e);
-                    }
-                    drop(lock);
-
-                    let mut msg = Message::new(Viewtype::Text);
-                    msg.text.clone_from(&message);
-                    if let Err(e) =
-                        chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
-                            .await
-                    {
-                        warn!(context, "{:#}", e);
-                    }
-                } else {
-                    self.login_failed_once = true;
+                    self.login_failed_once = false;
+                    context.emit_event(EventType::ImapConnected(format!(
+                        "IMAP-LOGIN as {}",
+                        lp.user
+                    )));
+                    self.connectivity.set_connected(context).await;
+                    info!(context, "Successfully logged into IMAP server");
+                    return Ok(session);
                 }
 
-                Err(format_err!("{}\n\n{:#}", message, err))
+                Err(err) => {
+                    let imap_user = lp.user.to_owned();
+                    let message = stock_str::cannot_login(context, &imap_user).await;
+
+                    warn!(context, "{message} ({err:#})");
+
+                    let lock = context.wrong_pw_warning_mutex.lock().await;
+                    if self.login_failed_once
+                        && err.to_string().to_lowercase().contains("authentication")
+                        && context.get_config_bool(Config::NotifyAboutWrongPw).await?
+                    {
+                        if let Err(e) = context
+                            .set_config_internal(Config::NotifyAboutWrongPw, None)
+                            .await
+                        {
+                            warn!(context, "{:#}", e);
+                        }
+                        drop(lock);
+
+                        let mut msg = Message::new(Viewtype::Text);
+                        msg.text.clone_from(&message);
+                        if let Err(e) = chat::add_device_msg_with_importance(
+                            context,
+                            None,
+                            Some(&mut msg),
+                            true,
+                        )
+                        .await
+                        {
+                            warn!(context, "{:#}", e);
+                        }
+                    } else {
+                        self.login_failed_once = true;
+                    }
+                }
             }
         }
+
+        Err(format_err!("Failed to connect IMAP"))
     }
 
     /// Prepare for IMAP operation.
