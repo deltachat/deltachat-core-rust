@@ -514,12 +514,20 @@ impl Context {
             && !self.get_config_bool(Config::Bot).await?)
     }
 
-    /// Returns whether MDNs should be requested and sent.
-    pub(crate) async fn mdns_enabled(&self) -> Result<bool> {
+    /// Returns whether MDNs should be requested.
+    pub(crate) async fn should_request_mdns(&self) -> Result<bool> {
         match self.get_config_bool_opt(Config::MdnsEnabled).await? {
             Some(val) => Ok(val),
             None => Ok(!self.get_config_bool(Config::Bot).await?),
         }
+    }
+
+    /// Returns whether MDNs should be sent.
+    pub(crate) async fn should_send_mdns(&self) -> Result<bool> {
+        Ok(self
+            .get_config_bool_opt(Config::MdnsEnabled)
+            .await?
+            .unwrap_or(true))
     }
 
     /// Gets configured "delete_server_after" value.
@@ -972,11 +980,13 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_mdns_enabled() -> Result<()> {
+    async fn test_mdns_default_behaviour() -> Result<()> {
         let t = &TestContext::new_alice().await;
-        assert!(t.mdns_enabled().await?);
+        assert!(t.should_request_mdns().await?);
+        assert!(t.should_send_mdns().await?);
         t.set_config_bool(Config::Bot, true).await?;
-        assert!(!t.mdns_enabled().await?);
+        assert!(!t.should_request_mdns().await?);
+        assert!(t.should_send_mdns().await?);
         Ok(())
     }
 
