@@ -1769,7 +1769,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             if curr_blocked == Blocked::Not
                 && curr_param.get_bool(Param::WantsMdn).unwrap_or_default()
                 && curr_param.get_cmd() == SystemMessage::Unknown
-                && context.mdns_enabled().await?
+                && context.should_send_mdns().await?
             {
                 context
                     .sql

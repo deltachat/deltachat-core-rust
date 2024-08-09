@@ -186,7 +186,7 @@ impl MimeFactory {
 
             if !msg.is_system_message()
                 && msg.param.get_int(Param::Reaction).unwrap_or_default() == 0
-                && context.mdns_enabled().await?
+                && context.should_request_mdns().await?
             {
                 req_mdn = true;
             }
