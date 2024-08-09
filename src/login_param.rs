@@ -304,13 +304,14 @@ impl ConfiguredLoginParam {
         let imap;
         let smtp;
 
-        if let (Some(configured_mail_servers), Some(configured_imap_servers)) = (
+        if let (Some(configured_mail_servers), Some(configured_send_servers)) = (
             context.get_config(Config::ConfiguredMailServers).await?,
             context.get_config(Config::ConfiguredSendServers).await?,
         ) {
-            // TODO
-            imap = vec![];
-            smtp = vec![];
+            imap = serde_json::from_str(&configured_mail_servers)
+                .context("Failed to parse configured IMAP servers")?;
+            smtp = serde_json::from_str(&configured_send_servers)
+                .context("Failed to parse configured SMTP servers")?;
         } else {
             // Load legacy settings storing a single IMAP and single SMTP server.
             let mail_server = sql
