@@ -75,6 +75,9 @@ pub(crate) struct Imap {
     /// Login parameters.
     lp: Vec<ConfiguredServerLoginParam>,
 
+    /// Password.
+    password: String,
+
     /// SOCKS 5 configuration.
     socks5_config: Option<Socks5Config>,
     strict_tls: bool,
@@ -231,6 +234,7 @@ impl Imap {
     /// `addr` is used to renew token if OAuth2 authentication is used.
     pub fn new(
         lp: Vec<ConfiguredServerLoginParam>,
+        password: String,
         socks5_config: Option<Socks5Config>,
         addr: &str,
         strict_tls: bool,
@@ -241,6 +245,7 @@ impl Imap {
             idle_interrupt_receiver,
             addr: addr.to_string(),
             lp,
+            password,
             socks5_config,
             strict_tls,
             oauth2,
@@ -265,6 +270,7 @@ impl Imap {
             .context("Not configured")?;
         let imap = Self::new(
             param.imap.clone(),
+            param.imap_password.clone(),
             param.socks5_config.clone(),
             &param.addr,
             param.strict_tls(),
@@ -337,7 +343,7 @@ impl Imap {
                 self.ratelimit.send();
 
                 let imap_user: &str = lp.user.as_ref();
-                let imap_pw: &str = lp.password.as_ref();
+                let imap_pw: &str = &self.password;
 
                 let login_res = if self.oauth2 {
                     info!(context, "Logging into IMAP server with OAuth 2");

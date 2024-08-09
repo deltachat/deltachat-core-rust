@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::{format_err, Context as _, Result};
 use async_native_tls::TlsStream;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
@@ -30,7 +31,7 @@ pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
 /// TTL for caches in seconds.
 pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ConnectionCandidate {
     /// Server hostname or IP address.
     pub host: String,
@@ -42,7 +43,7 @@ pub(crate) struct ConnectionCandidate {
     pub security: ConnectionSecurity,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum ConnectionSecurity {
     /// Implicit TLS.
     Tls,

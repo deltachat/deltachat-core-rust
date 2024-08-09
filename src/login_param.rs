@@ -3,6 +3,7 @@
 use std::fmt;
 
 use anyhow::{Context as _, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
@@ -213,15 +214,12 @@ fn unset_empty(s: &str) -> &str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConfiguredServerLoginParam {
     pub connection: ConnectionCandidate,
 
     /// Username.
     pub user: String,
-
-    /// Password.
-    pub password: String,
 }
 
 /// Login parameters saved to the database
@@ -233,7 +231,11 @@ pub struct ConfiguredLoginParam {
 
     pub imap: Vec<ConfiguredServerLoginParam>,
 
+    pub imap_password: String,
+
     pub smtp: Vec<ConfiguredServerLoginParam>,
+
+    pub smtp_password: String,
 
     pub socks5_config: Option<Socks5Config>,
 
@@ -254,6 +256,8 @@ impl fmt::Display for ConfiguredLoginParam {
 
 impl ConfiguredLoginParam {
     /// Load configured account settings from the database.
+    ///
+    /// Returns `None` if account is not configured.
     pub async fn load(context: &Context) -> Result<Option<Self>> {
         let sql = &context.sql;
 
@@ -268,28 +272,6 @@ impl ConfiguredLoginParam {
             .trim()
             .to_string();
 
-        let mail_server = sql
-            .get_raw_config("configured_mail_server")
-            .await?
-            .unwrap_or_default();
-        let mail_port = sql
-            .get_raw_config_int("configured_mail_port")
-            .await?
-            .unwrap_or_default();
-        let mail_user = sql
-            .get_raw_config("configured_mail_user")
-            .await?
-            .unwrap_or_default();
-        let mail_pw = sql
-            .get_raw_config("configured_mail_pw")
-            .await?
-            .unwrap_or_default();
-        let mail_security: Socket = sql
-            .get_raw_config_int("configured_mail_security")
-            .await?
-            .and_then(num_traits::FromPrimitive::from_i32)
-            .unwrap_or_default();
-
         let certificate_checks: CertificateChecks = if let Some(certificate_checks) = sql
             .get_raw_config_int("configured_imap_certificate_checks")
             .await?
@@ -299,27 +281,14 @@ impl ConfiguredLoginParam {
             Default::default()
         };
 
-        let send_server = sql
-            .get_raw_config("configured_send_server")
+        let send_pw = context
+            .get_config(Config::ConfiguredSendPw)
             .await?
-            .unwrap_or_default();
-        let send_port = sql
-            .get_raw_config_int("configured_send_port")
+            .context("SMTP password is not configured")?;
+        let mail_pw = context
+            .get_config(Config::ConfiguredMailPw)
             .await?
-            .unwrap_or_default();
-        let send_user = sql
-            .get_raw_config("configured_send_user")
-            .await?
-            .unwrap_or_default();
-        let send_pw = sql
-            .get_raw_config("configured_send_pw")
-            .await?
-            .unwrap_or_default();
-        let send_security: Socket = sql
-            .get_raw_config_int("configured_send_security")
-            .await?
-            .and_then(num_traits::FromPrimitive::from_i32)
-            .unwrap_or_default();
+            .context("IMAP password is not configured")?;
 
         let server_flags = sql
             .get_raw_config_int("configured_server_flags")
@@ -332,28 +301,81 @@ impl ConfiguredLoginParam {
             .await?
             .and_then(|provider_id| get_provider_by_id(&provider_id));
 
-        let socks5_config = Socks5Config::from_database(&context.sql).await?;
+        let imap;
+        let smtp;
 
-        Ok(Some(ConfiguredLoginParam {
-            addr,
-            imap: vec![ConfiguredServerLoginParam {
+        if let (Some(configured_mail_servers), Some(configured_imap_servers)) = (
+            context.get_config(Config::ConfiguredMailServers).await?,
+            context.get_config(Config::ConfiguredSendServers).await?,
+        ) {
+            // TODO
+            imap = vec![];
+            smtp = vec![];
+        } else {
+            // Load legacy settings storing a single IMAP and single SMTP server.
+            let mail_server = sql
+                .get_raw_config("configured_mail_server")
+                .await?
+                .unwrap_or_default();
+            let mail_port = sql
+                .get_raw_config_int("configured_mail_port")
+                .await?
+                .unwrap_or_default();
+
+            let mail_user = sql
+                .get_raw_config("configured_mail_user")
+                .await?
+                .unwrap_or_default();
+            let mail_security: Socket = sql
+                .get_raw_config_int("configured_mail_security")
+                .await?
+                .and_then(num_traits::FromPrimitive::from_i32)
+                .unwrap_or_default();
+
+            let send_server = context
+                .get_config(Config::ConfiguredSendServer)
+                .await?
+                .context("SMTP server is not configured")?;
+            let send_port = sql
+                .get_raw_config_int("configured_send_port")
+                .await?
+                .unwrap_or_default();
+            let send_user = sql
+                .get_raw_config("configured_send_user")
+                .await?
+                .unwrap_or_default();
+            let send_security: Socket = sql
+                .get_raw_config_int("configured_send_security")
+                .await?
+                .and_then(num_traits::FromPrimitive::from_i32)
+                .unwrap_or_default();
+
+            imap = vec![ConfiguredServerLoginParam {
                 connection: ConnectionCandidate {
                     host: mail_server,
                     port: mail_port as u16,
                     security: mail_security.try_into()?,
                 },
                 user: mail_user,
-                password: mail_pw,
-            }],
-            smtp: vec![ConfiguredServerLoginParam {
+            }];
+            smtp = vec![ConfiguredServerLoginParam {
                 connection: ConnectionCandidate {
                     host: send_server,
                     port: send_port as u16,
                     security: send_security.try_into()?,
                 },
                 user: send_user,
-                password: send_pw,
-            }],
+            }];
+        }
+
+        let socks5_config = Socks5Config::from_database(&context.sql).await?;
+
+        Ok(Some(ConfiguredLoginParam {
+            addr,
+            imap,
+            imap_password: mail_pw,
+            smtp,
+            smtp_password: send_pw,
             certificate_checks,
             provider,
             socks5_config,
@@ -376,7 +398,7 @@ impl ConfiguredLoginParam {
             .await?;
         sql.set_raw_config("configured_mail_user", Some(&imap.user))
             .await?;
-        sql.set_raw_config("configured_mail_pw", Some(&imap.password))
+        sql.set_raw_config("configured_mail_pw", Some(&self.imap_password))
             .await?;
 
         let imap_security = match imap.connection.security {
@@ -401,7 +423,7 @@ impl ConfiguredLoginParam {
             .await?;
         sql.set_raw_config("configured_send_user", Some(&smtp.user))
             .await?;
-        sql.set_raw_config("configured_send_pw", Some(&smtp.password))
+        sql.set_raw_config("configured_send_pw", Some(&self.smtp_password))
             .await?;
 
         let smtp_security = match smtp.connection.security {

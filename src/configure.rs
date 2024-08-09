@@ -333,13 +333,13 @@ async fn get_configured_param(
                             security,
                         },
                         user: params.username.clone(),
-                        password: param.imap.password.clone(),
                     })
                 } else {
                     None
                 }
             })
             .collect(),
+        imap_password: param.imap.password.clone(),
         smtp: servers
             .iter()
             .filter_map(|params| {
@@ -354,13 +354,13 @@ async fn get_configured_param(
                             security,
                         },
                         user: params.username.clone(),
-                        password: smtp_password.clone(),
                     })
                 } else {
                     None
                 }
             })
             .collect(),
+        smtp_password,
         socks5_config: param.socks5_config.clone(),
         provider,
         certificate_checks: param.certificate_checks,
@@ -384,6 +384,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     // to try SMTP while connecting to IMAP.
     let context_smtp = ctx.clone();
     let smtp_param = configured_param.smtp.clone();
+    let smtp_password = configured_param.smtp_password.clone();
     let smtp_addr = configured_param.addr.clone();
     let smtp_socks5 = configured_param.socks5_config.clone();
 
@@ -392,6 +393,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
         smtp.connect(
             &context_smtp,
             &smtp_param,
+            &smtp_password,
             &smtp_socks5,
             &smtp_addr,
             strict_tls,
@@ -409,6 +411,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     let (_s, r) = async_channel::bounded(1);
     let mut imap = Imap::new(
         configured_param.imap.clone(),
+        configured_param.imap_password.clone(),
         configured_param.socks5_config.clone(),
         &configured_param.addr,
         strict_tls,

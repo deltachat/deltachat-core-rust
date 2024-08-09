@@ -93,6 +93,7 @@ impl Smtp {
         self.connect(
             context,
             &lp.smtp,
+            &lp.smtp_password,
             &lp.socks5_config,
             &lp.addr,
             lp.strict_tls(),
@@ -106,6 +107,7 @@ impl Smtp {
         &mut self,
         context: &Context,
         login_params: &[ConfiguredServerLoginParam],
+        password: &str,
         socks5_config: &Option<Socks5Config>,
         addr: &str,
         strict_tls: bool,
@@ -129,7 +131,7 @@ impl Smtp {
                 oauth2,
                 addr,
                 &lp.user,
-                &lp.password,
+                password,
             )
             .await
             {
