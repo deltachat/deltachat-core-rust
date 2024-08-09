@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::Config;
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
-use crate::net::{ConnectionCandidate, ConnectionSecurity};
+use crate::net::ConnectionCandidate;
 use crate::provider::{get_provider_by_id, Provider, Socket};
 use crate::socks::Socks5Config;
 
@@ -390,55 +390,54 @@ impl ConfiguredLoginParam {
 
         context.set_primary_self_addr(&self.addr).await?;
 
-        // TODO save all IMAP configs instead of just the first one.
-        let imap = self.imap.first().context("No imap config")?;
+        context
+            .set_config(
+                Config::ConfiguredMailServers,
+                Some(&serde_json::to_string(&self.imap)?),
+            )
+            .await?;
+        context
+            .set_config(
+                Config::ConfiguredSendServers,
+                Some(&serde_json::to_string(&self.smtp)?),
+            )
+            .await?;
 
-        sql.set_raw_config("configured_mail_server", Some(&imap.connection.host))
+        context
+            .set_config(Config::ConfiguredMailPw, Some(&self.imap_password))
             .await?;
-        sql.set_raw_config_int("configured_mail_port", i32::from(imap.connection.port))
-            .await?;
-        sql.set_raw_config("configured_mail_user", Some(&imap.user))
-            .await?;
-        sql.set_raw_config("configured_mail_pw", Some(&self.imap_password))
+        context
+            .set_config(Config::ConfiguredSendPw, Some(&self.smtp_password))
             .await?;
 
-        let imap_security = match imap.connection.security {
-            ConnectionSecurity::Tls => Socket::Ssl,
-            ConnectionSecurity::Starttls => Socket::Starttls,
-            ConnectionSecurity::Plain => Socket::Plain,
-        };
-        sql.set_raw_config_int("configured_mail_security", imap_security as i32)
-            .await?;
         sql.set_raw_config_int(
             "configured_imap_certificate_checks",
             self.certificate_checks as i32,
         )
         .await?;
-
-        // TODO save all SMTP configs instead of just the first one.
-        let smtp = self.smtp.first().context("No smtp config")?;
-
-        sql.set_raw_config("configured_send_server", Some(&smtp.connection.host))
-            .await?;
-        sql.set_raw_config_int("configured_send_port", i32::from(smtp.connection.port))
-            .await?;
-        sql.set_raw_config("configured_send_user", Some(&smtp.user))
-            .await?;
-        sql.set_raw_config("configured_send_pw", Some(&self.smtp_password))
-            .await?;
-
-        let smtp_security = match smtp.connection.security {
-            ConnectionSecurity::Tls => Socket::Ssl,
-            ConnectionSecurity::Starttls => Socket::Starttls,
-            ConnectionSecurity::Plain => Socket::Plain,
-        };
-        sql.set_raw_config_int("configured_send_security", smtp_security as i32)
-            .await?;
         sql.set_raw_config_int(
             "configured_smtp_certificate_checks",
             self.certificate_checks as i32,
         )
         .await?;
+
+        // Remove legacy settings.
+        context
+            .set_config(Config::ConfiguredMailServer, None)
+            .await?;
+        context.set_config(Config::ConfiguredMailPort, None).await?;
+        context
+            .set_config(Config::ConfiguredMailSecurity, None)
+            .await?;
+        context.set_config(Config::ConfiguredMailUser, None).await?;
+        context
+            .set_config(Config::ConfiguredSendServer, None)
+            .await?;
+        context.set_config(Config::ConfiguredSendPort, None).await?;
+        context
+            .set_config(Config::ConfiguredSendSecurity, None)
+            .await?;
+        context.set_config(Config::ConfiguredSendUser, None).await?;
 
         let server_flags = match self.oauth2 {
             true => DC_LP_AUTH_OAUTH2,
