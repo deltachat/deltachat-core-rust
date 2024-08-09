@@ -4106,7 +4106,9 @@ pub async fn set_chat_profile_image(
         msg.text = stock_str::msg_grp_img_deleted(context, ContactId::SELF).await;
     } else {
         let mut image_blob = BlobObject::new_from_path(context, Path::new(new_image)).await?;
-        image_blob.recode_to_avatar_size(context).await?;
+        image_blob
+            .recode_to_avatar_size(context, chat.is_protected() || chat.is_self_talk())
+            .await?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
         msg.text = stock_str::msg_grp_img_changed(context, ContactId::SELF).await;
