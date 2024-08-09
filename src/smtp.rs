@@ -103,6 +103,7 @@ impl Smtp {
     }
 
     /// Connect using the provided login params.
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect(
         &mut self,
         context: &Context,
