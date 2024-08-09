@@ -126,7 +126,7 @@ impl Smtp {
         self.transport = Some(
             connect::connect_and_auth(
                 context,
-                &socks5_config,
+                socks5_config,
                 strict_tls,
                 lp.connection.clone(),
                 oauth2,
