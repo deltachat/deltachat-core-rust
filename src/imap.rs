@@ -325,86 +325,86 @@ impl Imap {
 
         for lp in &self.lp {
             let connection_candidate = lp.connection.clone();
-            let client = Client::connect(
+            if let Ok(client) = Client::connect(
                 context,
                 self.socks5_config.clone(),
                 self.strict_tls,
                 connection_candidate,
             )
-            .await?;
+            .await {
+                self.conn_backoff_ms = BACKOFF_MIN_MS;
+                self.ratelimit.send();
 
-            self.conn_backoff_ms = BACKOFF_MIN_MS;
-            self.ratelimit.send();
+                let imap_user: &str = lp.user.as_ref();
+                let imap_pw: &str = lp.password.as_ref();
 
-            let imap_user: &str = lp.user.as_ref();
-            let imap_pw: &str = lp.password.as_ref();
+                let login_res = if self.oauth2 {
+                    info!(context, "Logging into IMAP server with OAuth 2");
+                    let addr: &str = self.addr.as_ref();
 
-            let login_res = if self.oauth2 {
-                info!(context, "Logging into IMAP server with OAuth 2");
-                let addr: &str = self.addr.as_ref();
-
-                let token = get_oauth2_access_token(context, addr, imap_pw, true)
-                    .await?
-                    .context("IMAP could not get OAUTH token")?;
-                let auth = OAuth2 {
-                    user: imap_user.into(),
-                    access_token: token,
+                    let token = get_oauth2_access_token(context, addr, imap_pw, true)
+                        .await?
+                        .context("IMAP could not get OAUTH token")?;
+                    let auth = OAuth2 {
+                        user: imap_user.into(),
+                        access_token: token,
+                    };
+                    client.authenticate("XOAUTH2", auth).await
+                } else {
+                    info!(context, "Logging into IMAP server with LOGIN");
+                    client.login(imap_user, imap_pw).await
                 };
-                client.authenticate("XOAUTH2", auth).await
-            } else {
-                info!(context, "Logging into IMAP server with LOGIN");
-                client.login(imap_user, imap_pw).await
-            };
 
-            match login_res {
-                Ok(session) => {
-                    // Store server ID in the context to display in account info.
-                    let mut lock = context.server_id.write().await;
-                    lock.clone_from(&session.capabilities.server_id);
+                match login_res {
+                    Ok(session) => {
+                        // Store server ID in the context to display in account info.
+                        let mut lock = context.server_id.write().await;
+                        lock.clone_from(&session.capabilities.server_id);
 
-                    self.login_failed_once = false;
-                    context.emit_event(EventType::ImapConnected(format!(
-                        "IMAP-LOGIN as {}",
-                        lp.user
-                    )));
-                    self.connectivity.set_connected(context).await;
-                    info!(context, "Successfully logged into IMAP server");
-                    return Ok(session);
-                }
+                        self.login_failed_once = false;
+                        context.emit_event(EventType::ImapConnected(format!(
+                            "IMAP-LOGIN as {}",
+                            lp.user
+                        )));
+                        self.connectivity.set_connected(context).await;
+                        info!(context, "Successfully logged into IMAP server");
+                        return Ok(session);
+                    }
 
-                Err(err) => {
-                    let imap_user = lp.user.to_owned();
-                    let message = stock_str::cannot_login(context, &imap_user).await;
+                    Err(err) => {
+                        let imap_user = lp.user.to_owned();
+                        let message = stock_str::cannot_login(context, &imap_user).await;
 
-                    warn!(context, "{message} ({err:#})");
+                        warn!(context, "{message} ({err:#})");
 
-                    let lock = context.wrong_pw_warning_mutex.lock().await;
-                    if self.login_failed_once
-                        && err.to_string().to_lowercase().contains("authentication")
-                        && context.get_config_bool(Config::NotifyAboutWrongPw).await?
-                    {
-                        if let Err(e) = context
-                            .set_config_internal(Config::NotifyAboutWrongPw, None)
+                        let lock = context.wrong_pw_warning_mutex.lock().await;
+                        if self.login_failed_once
+                            && err.to_string().to_lowercase().contains("authentication")
+                            && context.get_config_bool(Config::NotifyAboutWrongPw).await?
+                        {
+                            if let Err(e) = context
+                                .set_config_internal(Config::NotifyAboutWrongPw, None)
+                                .await
+                            {
+                                warn!(context, "{:#}", e);
+                            }
+                            drop(lock);
+
+                            let mut msg = Message::new(Viewtype::Text);
+                            msg.text.clone_from(&message);
+                            if let Err(e) = chat::add_device_msg_with_importance(
+                                context,
+                                None,
+                                Some(&mut msg),
+                                true,
+                            )
                             .await
-                        {
-                            warn!(context, "{:#}", e);
+                            {
+                                warn!(context, "{:#}", e);
+                            }
+                        } else {
+                            self.login_failed_once = true;
                         }
-                        drop(lock);
-
-                        let mut msg = Message::new(Viewtype::Text);
-                        msg.text.clone_from(&message);
-                        if let Err(e) = chat::add_device_msg_with_importance(
-                            context,
-                            None,
-                            Some(&mut msg),
-                            true,
-                        )
-                        .await
-                        {
-                            warn!(context, "{:#}", e);
-                        }
-                    } else {
-                        self.login_failed_once = true;
                     }
                 }
             }
