@@ -105,7 +105,7 @@ impl Smtp {
     pub async fn connect(
         &mut self,
         context: &Context,
-        lp: &[ConfiguredServerLoginParam],
+        login_params: &[ConfiguredServerLoginParam],
         socks5_config: &Option<Socks5Config>,
         addr: &str,
         strict_tls: bool,
@@ -120,11 +120,8 @@ impl Smtp {
             .with_context(|| format!("Invalid address {addr:?}"))?;
         self.from = Some(from);
 
-        // TODO use other connection parameters, not only the first one
-        let lp = lp.first().context("No connection params for SMTP")?;
-
-        self.transport = Some(
-            connect::connect_and_auth(
+        for lp in login_params {
+            if let Ok(transport) = connect::connect_and_auth(
                 context,
                 socks5_config,
                 strict_tls,
@@ -134,16 +131,20 @@ impl Smtp {
                 &lp.user,
                 &lp.password,
             )
-            .await?,
-        );
-        self.last_success = Some(tools::Time::now());
+            .await
+            {
+                self.transport = Some(transport);
+                self.last_success = Some(tools::Time::now());
 
-        context.emit_event(EventType::SmtpConnected(format!(
-            "SMTP-LOGIN as {} ok",
-            lp.user,
-        )));
+                context.emit_event(EventType::SmtpConnected(format!(
+                    "SMTP-LOGIN as {} ok",
+                    lp.user,
+                )));
+                return Ok(());
+            }
+        }
 
-        Ok(())
+        Err(format_err!("SMTP failed to connect"))
     }
 }
 
