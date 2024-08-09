@@ -16,6 +16,7 @@ use crate::oauth2::get_oauth2_access_token;
 use crate::socks::Socks5Config;
 use crate::tools::time;
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn connect_and_auth(
     context: &Context,
     socks5_config: &Option<Socks5Config>,
