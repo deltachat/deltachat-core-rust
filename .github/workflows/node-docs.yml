@@ -31,7 +31,7 @@ jobs:
           mv docs js
 
       - name: Upload
-        uses: horochx/deploy-via-scp@v1.0.1
+        uses: horochx/deploy-via-scp@1.1.0
         with:
           user: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
