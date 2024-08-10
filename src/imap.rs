@@ -1045,18 +1045,12 @@ impl Session {
             .await?;
 
         for (folder, rowid_set, uid_set) in UidGrouper::from(rows) {
-            self.select_with_uidvalidity(context, &folder)
-                .await
-                .context("failed to select folder")?;
-
-            if let Err(err) = self.add_flag_finalized_with_set(&uid_set, "\\Seen").await {
+            if let Err(err) = self.select_with_uidvalidity(context, &folder).await {
+                warn!(context, "store_seen_flags_on_imap: Failed to select {folder}, will retry later: {err:#}.");
+            } else if let Err(err) = self.add_flag_finalized_with_set(&uid_set, "\\Seen").await {
                 warn!(
                     context,
-                    "Cannot mark messages {} in folder {} as seen, will retry later: {}.",
-                    uid_set,
-                    folder,
-                    err
-                );
+                    "Cannot mark messages {uid_set} in {folder} as seen, will retry later: {err:#}.");
             } else {
                 info!(
                     context,
