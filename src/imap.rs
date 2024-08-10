@@ -1510,8 +1510,8 @@ impl Session {
 
     /// Attempts to configure mvbox.
     ///
-    /// Tries to find any folder in the given list of `folders`. If none is found, tries to create
-    /// `folders[0]`. This method does not use LIST command to ensure that
+    /// Tries to find any folder examining `folders` in the order they go. If none is found, tries
+    /// to create any folder in the same order. This method does not use LIST command to ensure that
     /// configuration works even if mailbox lookup is forbidden via Access Control List (see
     /// <https://datatracker.ietf.org/doc/html/rfc4314>).
     ///
@@ -1545,16 +1545,17 @@ impl Session {
         if !create_mvbox {
             return Ok(None);
         }
-        let Some(folder) = folders.first() else {
-            return Ok(None);
-        };
-        match self.select_with_uidvalidity(context, folder).await {
-            Ok(_) => {
-                info!(context, "MVBOX-folder {} created.", folder);
-                return Ok(Some(folder));
-            }
-            Err(err) => {
-                warn!(context, "Cannot create MVBOX-folder {:?}: {}", folder, err);
+        // Some servers require namespace-style folder names like "INBOX.DeltaChat", so we try all
+        // the variants here.
+        for folder in folders {
+            match self.select_with_uidvalidity(context, folder).await {
+                Ok(_) => {
+                    info!(context, "MVBOX-folder {} created.", folder);
+                    return Ok(Some(folder));
+                }
+                Err(err) => {
+                    warn!(context, "Cannot create MVBOX-folder {:?}: {}", folder, err);
+                }
             }
         }
         Ok(None)
