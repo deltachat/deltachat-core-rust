@@ -74,7 +74,7 @@ jobs:
           show-progress: false
           fetch-depth: 0 # Fetch history to calculate VCS version number.
       - name: Use Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
       - name: npm install
