@@ -3,7 +3,7 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use ::pgp::types::KeyTrait;
+use ::pgp::types::PublicKeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
 use deltachat_contact_tools::EmailAddress;
 use futures::TryStreamExt;

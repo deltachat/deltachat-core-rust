@@ -496,7 +496,7 @@ impl Peerstate {
     pub fn set_verified(
         &mut self,
         key: SignedPublicKey,
-        fingerprint: Fingerprint,
+        fingerprint: crate::key::Fingerprint,
         verifier: String,
     ) -> Result<()> {
         if key.fingerprint() == fingerprint {

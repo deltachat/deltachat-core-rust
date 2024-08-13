@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
+use pgp::types::PublicKeyTrait;
 use pgp::SignedPublicKey;
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, Notify, OnceCell, RwLock};
@@ -748,7 +749,7 @@ impl Context {
             .count("SELECT COUNT(*) FROM acpeerstates;", ())
             .await?;
         let fingerprint_str = match load_self_public_key(self).await {
-            Ok(key) => key.fingerprint().hex(),
+            Ok(key) => crate::key::DcKey::fingerprint(&key).hex(),
             Err(err) => format!("<key failure: {err}>"),
         };
 
@@ -1132,7 +1133,7 @@ impl Context {
             EncryptPreference::Mutual,
             &public_key,
         );
-        let fingerprint = public_key.fingerprint();
+        let fingerprint = crate::key::DcKey::fingerprint(&public_key);
         peerstate.set_verified(public_key, fingerprint, "".to_string())?;
         peerstate.save_to_db(&self.sql).await?;
         chat_id

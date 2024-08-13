@@ -5,6 +5,7 @@ use std::io;
 use std::io::Cursor;
 
 use anyhow::{bail, Context as _, Result};
+use chrono::{DateTime, Utc};
 use deltachat_contact_tools::EmailAddress;
 use pgp::armor::BlockType;
 use pgp::composed::{
@@ -15,7 +16,8 @@ use pgp::crypto::ecc_curve::ECCCurve;
 use pgp::crypto::hash::HashAlgorithm;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{
-    CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, SecretKeyTrait, StringToKey,
+    CompressionAlgorithm, KeyVersion, Mpi, PublicKeyTrait, PublicParams, SecretKeyTrait,
+    SignatureBytes, StringToKey,
 };
 use rand::{thread_rng, CryptoRng, Rng};
 use tokio::runtime::Handle;
@@ -43,8 +45,8 @@ enum SignedPublicKeyOrSubkey<'a> {
     Subkey(&'a SignedPublicSubKey),
 }
 
-impl<'a> KeyTrait for SignedPublicKeyOrSubkey<'a> {
-    fn fingerprint(&self) -> Vec<u8> {
+impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
+    fn fingerprint(&self) -> pgp::types::Fingerprint {
         match self {
             Self::Key(k) => k.fingerprint(),
             Self::Subkey(k) => k.fingerprint(),
@@ -64,14 +66,12 @@ impl<'a> KeyTrait for SignedPublicKeyOrSubkey<'a> {
             Self::Subkey(k) => k.algorithm(),
         }
     }
-}
 
-impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
     fn verify_signature(
         &self,
         hash: HashAlgorithm,
         data: &[u8],
-        sig: &[Mpi],
+        sig: &SignatureBytes,
     ) -> pgp::errors::Result<()> {
         match self {
             Self::Key(k) => k.verify_signature(hash, data, sig),
@@ -79,22 +79,34 @@ impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
         }
     }
 
-    fn encrypt<R: Rng + CryptoRng>(
-        &self,
-        rng: &mut R,
-        plain: &[u8],
-    ) -> pgp::errors::Result<Vec<Mpi>> {
+    fn encrypt<R: Rng + CryptoRng>(&self, rng: R, plain: &[u8]) -> pgp::errors::Result<Vec<Mpi>> {
         match self {
             Self::Key(k) => k.encrypt(rng, plain),
             Self::Subkey(k) => k.encrypt(rng, plain),
         }
     }
 
-    fn to_writer_old(&self, writer: &mut impl io::Write) -> pgp::errors::Result<()> {
+    fn serialize_for_hashing(&self, writer: &mut impl io::Write) -> pgp::errors::Result<()> {
         match self {
-            Self::Key(k) => k.to_writer_old(writer),
-            Self::Subkey(k) => k.to_writer_old(writer),
+            Self::Key(k) => k.serialize_for_hashing(writer),
+            Self::Subkey(k) => k.serialize_for_hashing(writer),
         }
+    }
+
+    fn version(&self) -> KeyVersion {
+        todo!()
+    }
+
+    fn created_at(&self) -> &DateTime<Utc> {
+        todo!()
+    }
+
+    fn expiration(&self) -> Option<u16> {
+        todo!()
+    }
+
+    fn public_params(&self) -> &PublicParams {
+        todo!()
     }
 }
 
@@ -153,9 +165,10 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     let (signing_key_type, encryption_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
-        KeyGenType::Ed25519 | KeyGenType::Default => {
-            (PgpKeyType::EdDSA, PgpKeyType::ECDH(ECCCurve::Curve25519))
-        }
+        KeyGenType::Ed25519 | KeyGenType::Default => (
+            PgpKeyType::EdDSALegacy,
+            PgpKeyType::ECDH(ECCCurve::Curve25519),
+        ),
     };
 
     let user_id = format!("<{addr}>");
@@ -195,7 +208,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     let secret_key = key_params
         .generate()
         .context("failed to generate the key")?
-        .sign(|| "".into())
+        .sign(thread_rng(), || "".into())
         .context("failed to sign secret key")?;
     secret_key
         .verify()
@@ -203,7 +216,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
 
     let public_key = secret_key
         .public_key()
-        .sign(&secret_key, || "".into())
+        .sign(thread_rng(), &secret_key, || "".into())
         .context("failed to sign public key")?;
     public_key
         .verify()
@@ -261,7 +274,7 @@ pub async fn pk_encrypt(
             let mut rng = thread_rng();
 
             let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
-                let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
+                let signed_msg = lit_msg.sign(thread_rng(), skey, || "".into(), HASH_ALGORITHM)?;
                 let compressed_msg = if compress {
                     signed_msg.compress(CompressionAlgorithm::ZLIB)?
                 } else {
@@ -285,6 +298,7 @@ pub fn pk_calc_signature(
     private_key_for_signing: &SignedSecretKey,
 ) -> Result<String> {
     let msg = Message::new_literal_bytes("", plain).sign(
+        thread_rng(),
         private_key_for_signing,
         || "".into(),
         HASH_ALGORITHM,
