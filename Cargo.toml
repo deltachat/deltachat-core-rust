@@ -186,14 +186,7 @@ serde = "1.0"
 serde_json = "1"
 tempfile = "3.13.0"
 thiserror = "1"
-
-# 1.38 is the latest version before `mio` dependency update
-# that broke compilation with Android NDK r23c and r24.
-# Version 1.39.0 cannot be compiled using these NDKs,
-# see issue <https://github.com/tokio-rs/tokio/issues/6748>
-# for details.
-tokio = "~1.38.1"
-
+tokio = "1"
 tokio-util = "0.7.11"
 tracing-subscriber = "0.3"
 yerpc = "0.6.2"
