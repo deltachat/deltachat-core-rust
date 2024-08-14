@@ -1672,10 +1672,10 @@ impl CommandApi {
     ///
     /// This call will block until the QR code is ready,
     /// even if there is no concurrent call to [`CommandApi::provide_backup`],
-    /// but will fail after 10 seconds to avoid deadlocks.
+    /// but will fail after 60 seconds to avoid deadlocks.
     async fn get_backup_qr(&self, account_id: u32) -> Result<String> {
         let qr = tokio::time::timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(60),
             self.inner_get_backup_qr(account_id),
         )
         .await
@@ -1691,13 +1691,13 @@ impl CommandApi {
     ///
     /// This call will block until the QR code is ready,
     /// even if there is no concurrent call to [`CommandApi::provide_backup`],
-    /// but will fail after 10 seconds to avoid deadlocks.
+    /// but will fail after 60 seconds to avoid deadlocks.
     ///
     /// Returns the QR code rendered as an SVG image.
     async fn get_backup_qr_svg(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         let qr = tokio::time::timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(60),
             self.inner_get_backup_qr(account_id),
         )
         .await
