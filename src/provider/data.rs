@@ -520,7 +520,7 @@ static P_FREENET_DE: Provider = Provider {
 static P_GMAIL: Provider = Provider {
     id: "gmail",
     status: Status::Preparation,
-    before_login_hint: "For Gmail accounts, you need to create an app-password if you have \"2-Step Verification\" enabled. If this setting is not available, you need to enable \"less secure apps\".",
+    before_login_hint: "For Gmail accounts, you need to have \"2-Step Verification\" enabled and create an app-password.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/gmail",
     server: &[
@@ -1600,11 +1600,13 @@ static P_VIVALDI: Provider = Provider {
 // vk.com.md: vk.com
 static P_VK_COM: Provider = Provider {
     id: "vk.com",
-    status: Status::Broken,
-    before_login_hint: "К сожалению, VK Почта не поддерживает работу с Delta Chat. См. https://help.vk.mail.ru/vkmail/questions/client",
+    status: Status::Preparation,
+    before_login_hint: "Вам необходимо сгенерировать \"пароль для внешнего приложения\" в веб-интерфейсе mail.ru https://account.mail.ru/user/2-step-auth/passwords/ чтобы vk.com работал с Delta Chat.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/vk-com",
     server: &[
+        Server { protocol: Imap, socket: Ssl, hostname: "imap.mail.ru", port: 993, username_pattern: Email },
+        Server { protocol: Smtp, socket: Ssl, hostname: "smtp.mail.ru", port: 465, username_pattern: Email },
     ],
     opt: ProviderOptions::new(),
     config_defaults: None,
@@ -2415,4 +2417,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static _PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 8, 1).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 8, 14).unwrap());
