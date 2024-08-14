@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.142.5] - 2024-08-14
+
+### CI
+
+- Configure Dependabot to update GitHub Actions.
+
+### Documentation
+
+- Document new `mdns_enabled` behavior.
+
+### Fixes
+
+- Still try to create "INBOX.DeltaChat" if couldn't create "DeltaChat" ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
+- Store_seen_flags_on_imap: Skip to next messages if couldn't select folder ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
+- Increase timeout for QR generation to 60s ([#5882](https://github.com/deltachat/deltachat-core-rust/pull/5882)).
+
+### Miscellaneous Tasks
+
+- cargo: Bump regex from 1.10.5 to 1.10.6.
+- cargo: Bump serde from 1.0.204 to 1.0.205.
+- deps: Bump horochx/deploy-via-scp from 1.0.1 to 1.1.0.
+- deps: Bump dependabot/fetch-metadata from 1.1.1 to 2.2.0.
+- deps: Bump actions/setup-node from 2 to 4.
+- Update provider database.
+
 ## [1.142.4] - 2024-08-09
 
 ### Build system
@@ -4712,3 +4737,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.1...v1.142.2
 [1.142.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.2...v1.142.3
 [1.142.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.3...v1.142.4
+[1.142.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.4...v1.142.5
