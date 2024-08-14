@@ -18,9 +18,9 @@
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
         androidSdk = android.sdk.${system} (sdkPkgs:
           builtins.attrValues {
-            inherit (sdkPkgs) ndk-24-0-8215888 cmdline-tools-latest;
+            inherit (sdkPkgs) ndk-27-0-11902837 cmdline-tools-latest;
           });
-        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/24.0.8215888";
+        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/27.0.11902837";
 
         rustSrc = nix-filter.lib {
           root = ./.;
@@ -257,12 +257,20 @@
 
         androidAttrs = {
           armeabi-v7a = {
-            cc = "armv7a-linux-androideabi19-clang";
+            cc = "armv7a-linux-androideabi21-clang";
             rustTarget = "armv7-linux-androideabi";
           };
           arm64-v8a = {
             cc = "aarch64-linux-android21-clang";
             rustTarget = "aarch64-linux-android";
+          };
+          x86 = {
+            cc = "i686-linux-android21-clang";
+            rustTarget = "i686-linux-android";
+          };
+          x86_64 = {
+            cc = "x86_64-linux-android21-clang";
+            rustTarget = "x86_64-linux-android";
           };
         };
 
