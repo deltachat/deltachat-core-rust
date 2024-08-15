@@ -2,19 +2,19 @@
 
 ## [1.142.5] - 2024-08-14
 
-### CI
-
-- Configure Dependabot to update GitHub Actions.
-
-### Documentation
-
-- Document new `mdns_enabled` behavior.
-
 ### Fixes
 
 - Still try to create "INBOX.DeltaChat" if couldn't create "DeltaChat" ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
-- Store_seen_flags_on_imap: Skip to next messages if couldn't select folder ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
+- `store_seen_flags_on_imap`: Skip to next messages if couldn't select folder ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
 - Increase timeout for QR generation to 60s ([#5882](https://github.com/deltachat/deltachat-core-rust/pull/5882)).
+
+### Documentation
+
+- Document new `mdns_enabled` behavior (bots do not send MDNs by default).
+
+### CI
+
+- Configure Dependabot to update GitHub Actions.
 
 ### Miscellaneous Tasks
 
