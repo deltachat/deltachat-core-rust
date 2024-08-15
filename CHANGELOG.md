@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.142.6] - 2024-08-15
+
+### Fixes
+
+- Default to strict TLS checks if not configured.
+
+### Miscellaneous Tasks
+
+- deltachat-rpc-client: Fix ruff 0.6.0 warnings.
+
 ## [1.142.5] - 2024-08-14
 
 ### Fixes
@@ -4738,3 +4748,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.2...v1.142.3
 [1.142.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.3...v1.142.4
 [1.142.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.4...v1.142.5
+[1.142.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.5...v1.142.6
