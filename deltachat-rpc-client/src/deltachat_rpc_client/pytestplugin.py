@@ -114,13 +114,13 @@ class ACFactory:
         return to_client.run_until(lambda e: e.kind == EventType.INCOMING_MSG)
 
 
-@pytest.fixture()
+@pytest.fixture
 def rpc(tmp_path) -> AsyncGenerator:
     rpc_server = Rpc(accounts_dir=str(tmp_path / "accounts"))
     with rpc_server:
         yield rpc_server
 
 
-@pytest.fixture()
+@pytest.fixture
 def acfactory(rpc) -> AsyncGenerator:
     return ACFactory(DeltaChat(rpc))

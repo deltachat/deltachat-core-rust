@@ -12,10 +12,11 @@ import threading
 import time
 
 import pytest
+
 from deltachat_rpc_client import EventType
 
 
-@pytest.fixture()
+@pytest.fixture
 def path_to_webxdc(request):
     p = request.path.parent.parent.parent.joinpath("test-data/webxdc/chess.xdc")
     assert p.exists()

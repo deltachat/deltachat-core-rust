@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+
 from deltachat_rpc_client import Chat, EventType, SpecialContactId
 
 
