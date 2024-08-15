@@ -265,9 +265,7 @@ impl LoginParam {
             | CertificateChecks::AcceptInvalidCertificates2 => Some(false),
         };
         let provider_strict_tls = self.provider.map(|provider| provider.opt.strict_tls);
-        user_strict_tls
-            .or(provider_strict_tls)
-            .unwrap_or(self.socks5_config.is_some())
+        user_strict_tls.or(provider_strict_tls).unwrap_or(true)
     }
 }
 
