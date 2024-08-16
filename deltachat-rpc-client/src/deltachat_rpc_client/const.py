@@ -165,7 +165,7 @@ class CertificateChecks(IntEnum):
 
     AUTOMATIC = 0
     STRICT = 1
-    ACCEPT_INVALID_CERTIFICATES = 3
+    ACCEPT_INVALID_CERTIFICATES = 2
 
 
 class Connectivity(IntEnum):

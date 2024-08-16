@@ -10,36 +10,66 @@ use crate::provider::Socket;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::socks::Socks5Config;
 
+/// User entered setting for certificate checks.
+///
+/// Should be saved into `imap_certificate_checks` before running configuration.
 #[derive(Copy, Clone, Debug, Default, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
-pub enum CertificateChecks {
-    /// Same as AcceptInvalidCertificates if stored in the database
-    /// as `configured_{imap,smtp}_certificate_checks`.
-    ///
-    /// Previous Delta Chat versions stored this in `configured_*`
-    /// if Automatic configuration
-    /// was selected, configuration with strict TLS checks failed
-    /// and configuration without strict TLS checks succeeded.
-    ///
-    /// Currently Delta Chat stores only
-    /// `Strict` or `AcceptInvalidCertificates` variants
-    /// in `configured_*` settings.
-    ///
-    /// `Automatic` in `{imap,smtp}_certificate_checks`
-    /// means that provider database setting should be taken.
+pub enum EnteredCertificateChecks {
+    /// `Automatic` means that provider database setting should be taken.
     /// If there is no provider database setting for certificate checks,
-    /// `Automatic` is the same as `Strict`.
+    /// check certificates strictly.
     #[default]
     Automatic = 0,
 
+    /// Ensure that TLS certificate is valid for the server hostname.
     Strict = 1,
 
-    /// Same as AcceptInvalidCertificates
-    /// Previously known as AcceptInvalidHostnames, now deprecated.
-    AcceptInvalidCertificates2 = 2,
+    /// Accept certificates that are expired, self-signed
+    /// or otherwise not valid for the server hostname.
+    AcceptInvalidCertificates = 2,
 
-    AcceptInvalidCertificates = 3,
+    /// Alias for `AcceptInvalidCertificates`
+    /// for API compatibility.
+    AcceptInvalidCertificates2 = 3,
+}
+
+/// Values saved into `imap_certificate_checks`.
+#[derive(Copy, Clone, Debug, Default, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
+#[repr(u32)]
+#[strum(serialize_all = "snake_case")]
+pub enum ConfiguredCertificateChecks {
+    /// Use configuration from the provider database.
+    /// If there is no provider database setting for certificate checks,
+    /// accept invalid certificates.
+    ///
+    /// Must not be saved by new versions.
+    ///
+    /// Previous Delta Chat versions before core 1.133.0
+    /// stored this in `configured_imap_certificate_checks`
+    /// if Automatic configuration
+    /// was selected, configuration with strict TLS checks failed
+    /// and configuration without strict TLS checks succeeded.
+    OldAutomatic = 0,
+
+    /// Ensure that TLS certificate is valid for the server hostname.
+    Strict = 1,
+
+    /// Accept certificates that are expired, self-signed
+    /// or otherwise not valid for the server hostname.
+    AcceptInvalidCertificates = 2,
+
+    /// Accept certificates that are expired, self-signed
+    /// or otherwise not valid for the server hostname.
+    ///
+    /// Alias to `AcceptInvalidCertificates` for compatibility.
+    AcceptInvalidCertificates2 = 3,
+
+    /// Use configuration from the provider database.
+    /// If there is no provider database setting for certificate checks,
+    /// apply strict checks to TLS certificates.
+    Automatic = 4,
 }
 
 /// Login parameters for a single server, either IMAP or SMTP

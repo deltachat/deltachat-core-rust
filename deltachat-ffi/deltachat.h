@@ -5712,7 +5712,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Accept invalid certificates, including self-signed ones
  * or having incorrect hostname.
  */
-#define DC_CERTCK_ACCEPT_INVALID_CERTIFICATES 3
+#define DC_CERTCK_ACCEPT_INVALID_CERTIFICATES 2
 
 /**
  * @}
