@@ -438,7 +438,7 @@ impl TestContext {
     /// Retrieves a sent message from the jobs table.
     ///
     /// This retrieves and removes a message which has been scheduled to send from the jobs
-    /// table.  Messages are returned in the order they have been sent.
+    /// table. Messages are returned in the reverse order of sending.
     ///
     /// Panics if there is no message or on any error.
     pub async fn pop_sent_msg(&self) -> SentMessage<'_> {
@@ -530,6 +530,46 @@ impl TestContext {
             sender_context: &self.ctx,
             recipients,
         })
+    }
+
+    /// Retrieves a sent sync message from the db.
+    ///
+    /// This retrieves and removes a sync message which has been scheduled to send from the jobs
+    /// table. Messages are returned in the order they have been sent.
+    ///
+    /// Panics if there is no message or on any error.
+    pub async fn pop_sent_sync_msg(&self) -> SentMessage<'_> {
+        let (id, msg_id, payload) = self
+            .ctx
+            .sql
+            .query_row(
+                "SELECT id, msg_id, mime \
+                FROM imap_send \
+                ORDER BY id",
+                (),
+                |row| {
+                    let rowid: i64 = row.get(0)?;
+                    let msg_id: MsgId = row.get(1)?;
+                    let mime: String = row.get(2)?;
+                    Ok((rowid, msg_id, mime))
+                },
+            )
+            .await
+            .expect("query_row failed");
+        self.ctx
+            .sql
+            .execute("DELETE FROM imap_send WHERE id=?", (id,))
+            .await
+            .expect("failed to remove job");
+        update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
+            .await
+            .expect("failed to update message state");
+        SentMessage {
+            payload,
+            sender_msg_id: msg_id,
+            sender_context: &self.ctx,
+            recipients: self.get_primary_self_addr().await.unwrap(),
+        }
     }
 
     /// Parses a message.
@@ -1141,7 +1181,7 @@ pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 /// alice0's side that implies sending a sync message.
 pub(crate) async fn sync(alice0: &TestContext, alice1: &TestContext) {
     alice0.send_sync_msg().await.unwrap();
-    let sync_msg = alice0.pop_sent_msg().await;
+    let sync_msg = alice0.pop_sent_sync_msg().await;
     let no_msg = alice1.recv_msg_opt(&sync_msg).await;
     assert!(no_msg.is_none());
 }

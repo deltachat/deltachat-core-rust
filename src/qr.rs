@@ -719,7 +719,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             token::save(context, token::Namespace::InviteNumber, None, &invitenumber).await?;
             token::save(context, token::Namespace::Auth, None, &authcode).await?;
             context.sync_qr_code_tokens(None).await?;
-            context.scheduler.interrupt_smtp().await;
+            context.scheduler.interrupt_inbox().await;
         }
         Qr::ReviveVerifyGroup {
             invitenumber,
@@ -736,7 +736,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             .await?;
             token::save(context, token::Namespace::Auth, Some(&grpid), &authcode).await?;
             context.sync_qr_code_tokens(Some(&grpid)).await?;
-            context.scheduler.interrupt_smtp().await;
+            context.scheduler.interrupt_inbox().await;
         }
         Qr::Login { address, options } => {
             configure_from_login_qr(context, &address, options).await?

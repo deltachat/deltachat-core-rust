@@ -485,7 +485,6 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
     let ratelimited = if context.ratelimit.read().await.can_send() {
         // add status updates and sync messages to end of sending queue
         context.flush_status_updates().await?;
-        context.send_sync_msg().await?;
         false
     } else {
         true

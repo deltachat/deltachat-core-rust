@@ -991,6 +991,20 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 119)?;
+    if dbversion < migration_version {
+        sql.execute_migration(
+            "CREATE TABLE imap_send (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mime TEXT NOT NULL, -- Message content
+                msg_id INTEGER NOT NULL, -- ID of the message in the `msgs` table
+                attempts INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send the message
+            )",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

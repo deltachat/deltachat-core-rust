@@ -104,10 +104,8 @@ pub struct RenderedEmail {
     pub is_gossiped: bool,
     pub last_added_location_id: Option<u32>,
 
-    /// A comma-separated string of sync-IDs that are used by the rendered email
-    /// and must be deleted once the message is actually queued for sending
-    /// (deletion must be done by `delete_sync_ids()`).
-    /// If the rendered email is not queued for sending, the IDs must not be deleted.
+    /// A comma-separated string of sync-IDs that are used by the rendered email and must be deleted
+    /// from `multi_device_sync` once the message is actually queued for sending.
     pub sync_ids_to_delete: Option<String>,
 
     /// Message ID (Message in the sense of Email)
