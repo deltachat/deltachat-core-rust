@@ -109,7 +109,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
             context
                 .sync_qr_code_tokens(Some(chat.grpid.as_str()))
                 .await?;
-            context.scheduler.interrupt_smtp().await;
+            context.scheduler.interrupt_inbox().await;
         }
         format!(
             "OPENPGP4FPR:{}#a={}&g={}&x={}&i={}&s={}",
@@ -124,7 +124,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
         // parameters used: a=n=i=s=
         if sync_token {
             context.sync_qr_code_tokens(None).await?;
-            context.scheduler.interrupt_smtp().await;
+            context.scheduler.interrupt_inbox().await;
         }
         format!(
             "OPENPGP4FPR:{}#a={}&n={}&i={}&s={}",

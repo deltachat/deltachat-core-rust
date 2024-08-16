@@ -568,6 +568,21 @@ async fn fetch_idle(
     };
 
     if folder_config == Config::ConfiguredInboxFolder {
+        let mvbox;
+        let syncbox = match ctx.should_move_sync_msgs().await? {
+            false => &watch_folder,
+            true => {
+                mvbox = ctx.get_config(Config::ConfiguredMvboxFolder).await?;
+                mvbox.as_deref().unwrap_or(&watch_folder)
+            }
+        };
+        session
+            .send_sync_msgs(ctx, syncbox)
+            .await
+            .context("fetch_idle: send_sync_msgs")
+            .log_err(ctx)
+            .ok();
+
         session
             .store_seen_flags_on_imap(ctx)
             .await

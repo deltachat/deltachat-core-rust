@@ -588,6 +588,12 @@ impl Context {
             && !self.get_config_bool(Config::Bot).await?)
     }
 
+    /// Returns whether sync messages should be uploaded to the mvbox.
+    pub(crate) async fn should_move_sync_msgs(&self) -> Result<bool> {
+        Ok(self.get_config_bool(Config::MvboxMove).await?
+            || !self.get_config_bool(Config::IsChatmail).await?)
+    }
+
     /// Returns whether MDNs should be requested.
     pub(crate) async fn should_request_mdns(&self) -> Result<bool> {
         match self.get_config_bool_opt(Config::MdnsEnabled).await? {
@@ -791,7 +797,7 @@ impl Context {
         {
             return Ok(());
         }
-        self.scheduler.interrupt_smtp().await;
+        self.scheduler.interrupt_inbox().await;
         Ok(())
     }
 
@@ -1174,7 +1180,7 @@ mod tests {
         let status = "Synced via usual message";
         alice0.set_config(Config::Selfstatus, Some(status)).await?;
         alice0.send_sync_msg().await?;
-        alice0.pop_sent_msg().await;
+        alice0.pop_sent_sync_msg().await;
         let status1 = "Synced via sync message";
         alice1.set_config(Config::Selfstatus, Some(status1)).await?;
         tcm.send_recv(alice0, alice1, "hi Alice!").await;
@@ -1198,7 +1204,7 @@ mod tests {
             .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
             .await?;
         alice0.send_sync_msg().await?;
-        alice0.pop_sent_msg().await;
+        alice0.pop_sent_sync_msg().await;
         let file = alice1.dir.path().join("avatar.jpg");
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         tokio::fs::write(&file, bytes).await?;
