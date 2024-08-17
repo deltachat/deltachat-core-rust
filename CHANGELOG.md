@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.142.7] - 2024-08-17
+
+### Fixes
+
+- Do not save "Automatic" into configured_imap_certificate_checks. **This fixes regression introduced in core 1.142.4. Versions 1.142.4..1.142.6 should not be used in releases.**
+- Create a group unblocked for bot even if 1:1 chat is blocked ([#5514](https://github.com/deltachat/deltachat-core-rust/pull/5514)).
+- Update rpgp from 0.13.1 to 0.13.2 to fix "unable to decrypt" errors when sending messages to old Delta Chat clients and using Ed25519 keys to encrypt.
+- Do not request ALPN on standard ports and when using STARTTLS.
+
+### Features / Changes
+
+- jsonrpc: Add ContactObject::e2ee_avail.
+
+### Tests
+
+- Protected group for bot is auto-accepted.
+
 ## [1.142.6] - 2024-08-15
 
 ### Fixes
@@ -4749,3 +4766,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.3...v1.142.4
 [1.142.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.4...v1.142.5
 [1.142.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.5...v1.142.6
+[1.142.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.6...v1.142.7
