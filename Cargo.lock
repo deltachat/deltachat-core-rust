@@ -3080,7 +3080,7 @@ dependencies = [
  "iana-time-zone-haiku",
  "js-sys",
  "wasm-bindgen",
- "windows-core 0.52.0",
+ "windows-core 0.51.1",
 ]
 
 [[package]]
@@ -4428,9 +4428,9 @@ dependencies = [
 
 [[package]]
 name = "pgp"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aeab6e08a63a51a29a65e461d0b6fd0f8d350914712ec43773ca22ed51d5501c"
+checksum = "4a6c842436d5fa2b59eac1e9b3d142b50bfff99c1744c816b1f4c2ac55a20754"
 dependencies = [
  "aes",
  "aes-gcm",
