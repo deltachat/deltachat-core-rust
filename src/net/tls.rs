@@ -32,10 +32,10 @@ pub fn build_tls(strict_tls: bool, alpns: &[&str]) -> TlsConnector {
 pub async fn wrap_tls<T: AsyncRead + AsyncWrite + Unpin>(
     strict_tls: bool,
     hostname: &str,
-    alpn: &str,
+    alpn: &[&str],
     stream: T,
 ) -> Result<TlsStream<T>> {
-    let tls = build_tls(strict_tls, &[alpn]);
+    let tls = build_tls(strict_tls, alpn);
     let tls_stream = tls.connect(hostname, stream).await?;
     Ok(tls_stream)
 }
