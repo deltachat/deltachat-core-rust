@@ -16,6 +16,16 @@ use crate::provider::Socket;
 use crate::socks::Socks5Config;
 use crate::tools::time;
 
+/// Converts port number to ALPN list.
+fn alpn(port: u16) -> &'static [&'static str] {
+    if port == 465 {
+        // Do not request ALPN on standard port.
+        &[]
+    } else {
+        &["smtp"]
+    }
+}
+
 /// Returns TLS, STARTTLS or plaintext connection
 /// using SOCKS5 or direct connection depending on the given configuration.
 ///
@@ -113,7 +123,7 @@ async fn connect_secure_socks5(
     let socks5_stream = socks5_config
         .connect(context, hostname, port, strict_tls)
         .await?;
-    let tls_stream = wrap_tls(strict_tls, hostname, "smtp", socks5_stream).await?;
+    let tls_stream = wrap_tls(strict_tls, hostname, alpn(port), socks5_stream).await?;
     let mut buffered_stream = BufStream::new(tls_stream);
     skip_smtp_greeting(&mut buffered_stream).await?;
     let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
@@ -135,7 +145,7 @@ async fn connect_starttls_socks5(
     let client = SmtpClient::new().smtp_utf8(true);
     let transport = SmtpTransport::new(client, BufStream::new(socks5_stream)).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
-    let tls_stream = wrap_tls(strict_tls, hostname, "smtp", tcp_stream)
+    let tls_stream = wrap_tls(strict_tls, hostname, &[], tcp_stream)
         .await
         .context("STARTTLS upgrade failed")?;
     let buffered_stream = BufStream::new(tls_stream);
@@ -163,7 +173,7 @@ async fn connect_secure(
     hostname: &str,
     strict_tls: bool,
 ) -> Result<Box<dyn SessionBufStream>> {
-    let tls_stream = connect_tls_inner(addr, hostname, strict_tls, "smtp").await?;
+    let tls_stream = connect_tls_inner(addr, hostname, strict_tls, alpn(addr.port())).await?;
     let mut buffered_stream = BufStream::new(tls_stream);
     skip_smtp_greeting(&mut buffered_stream).await?;
     let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
@@ -181,7 +191,7 @@ async fn connect_starttls(
     let client = async_smtp::SmtpClient::new().smtp_utf8(true);
     let transport = async_smtp::SmtpTransport::new(client, BufStream::new(tcp_stream)).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
-    let tls_stream = wrap_tls(strict_tls, host, "smtp", tcp_stream)
+    let tls_stream = wrap_tls(strict_tls, host, &[], tcp_stream)
         .await
         .context("STARTTLS upgrade failed")?;
 
