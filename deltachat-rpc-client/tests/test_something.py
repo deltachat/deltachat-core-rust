@@ -635,3 +635,24 @@ def test_get_http_response(acfactory):
     http_response = alice._rpc.get_http_response(alice.id, "https://example.org")
     assert http_response["mimetype"] == "text/html"
     assert b"<title>Example Domain</title>" in base64.b64decode((http_response["blob"] + "==").encode())
+
+
+def test_configured_imap_certificate_checks(acfactory):
+    alice = acfactory.new_configured_account()
+    configured_certificate_checks = alice.get_config("configured_imap_certificate_checks")
+
+    # Certificate checks should be configured (not None)
+    assert configured_certificate_checks
+
+    # 0 is the value old Delta Chat core versions used
+    # to mean user entered "imap_certificate_checks=0" (Automatic)
+    # and configuration failed to use strict TLS checks
+    # so it switched strict TLS checks off.
+    #
+    # New versions of Delta Chat are not disabling TLS checks
+    # unless users explicitly disables them
+    # or provider database says provider has invalid certificates.
+    #
+    # Core 1.142.4, 1.142.5 and 1.142.6 saved this value due to bug.
+    # This test is a regression test to prevent this happening again.
+    assert configured_certificate_checks != "0"
