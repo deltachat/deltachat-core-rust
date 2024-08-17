@@ -11,7 +11,8 @@ use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
-use pgp::types::{KeyTrait, SecretKeyTrait};
+use pgp::types::{PublicKeyTrait, SecretKeyTrait};
+use rand::thread_rng;
 use tokio::runtime::Handle;
 
 use crate::config::Config;
@@ -26,7 +27,7 @@ use crate::tools::{self, time_elapsed};
 /// This trait is implemented for rPGP's [SignedPublicKey] and
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
-pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
+pub(crate) trait DcKey: Serialize + Deserializable + PublicKeyTrait + Clone {
     /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self> {
         Ok(<Self as Deserializable>::from_bytes(Cursor::new(bytes))?)
@@ -94,7 +95,7 @@ pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
 
     /// The fingerprint for the key.
     fn fingerprint(&self) -> Fingerprint {
-        Fingerprint::new(KeyTrait::fingerprint(self))
+        Fingerprint::new(PublicKeyTrait::fingerprint(self))
     }
 
     fn is_private() -> bool;
@@ -233,7 +234,7 @@ impl DcSecretKey for SignedSecretKey {
     fn split_public_key(&self) -> Result<SignedPublicKey> {
         self.verify()?;
         let unsigned_pubkey = SecretKeyTrait::public_key(self);
-        let signed_pubkey = unsigned_pubkey.sign(self, || "".into())?;
+        let signed_pubkey = unsigned_pubkey.sign(thread_rng(), self, || "".into())?;
         Ok(signed_pubkey)
     }
 }
@@ -392,12 +393,11 @@ pub async fn preconfigure_keypair(context: &Context, addr: &str, secret_data: &s
 
 /// A key fingerprint
 #[derive(Clone, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct Fingerprint(Vec<u8>);
+pub struct Fingerprint(pgp::types::Fingerprint);
 
 impl Fingerprint {
-    /// Creates new 160-bit (20 bytes) fingerprint.
-    pub fn new(v: Vec<u8>) -> Fingerprint {
-        debug_assert_eq!(v.len(), 20);
+    /// Creates new fingerprint.
+    pub fn new(v: pgp::types::Fingerprint) -> Fingerprint {
         Fingerprint(v)
     }
 
