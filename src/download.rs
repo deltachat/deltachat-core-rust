@@ -3,7 +3,7 @@
 use std::cmp::max;
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, ensure, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
@@ -201,7 +201,11 @@ impl Session {
             bail!("Attempt to fetch UID 0");
         }
 
-        self.select_with_uidvalidity(context, folder).await?;
+        let create = false;
+        let folder_exists = self
+            .select_with_uidvalidity(context, folder, create)
+            .await?;
+        ensure!(folder_exists, "No folder {folder}");
 
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);
