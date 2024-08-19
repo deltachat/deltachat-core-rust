@@ -143,7 +143,7 @@ pub enum Qr {
         instance_pattern: String,
     },
 
-    /// As the user if they want to add or use the given SOCKS5 proxy
+    /// Ask the user if they want to add or use the given SOCKS5 proxy
     Socks5Proxy {
         /// SOCKS5 server
         host: String,
