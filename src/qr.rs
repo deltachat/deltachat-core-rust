@@ -691,7 +691,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
 
             context.set_config(Config::Socks5Host, Some(&host)).await?;
             context
-                .set_config_u32(Config::Socks5Port, port as u32)
+                .set_config_u32(Config::Socks5Port, u32::from(port))
                 .await?;
             context.set_config(Config::Socks5User, None).await?;
             context.set_config(Config::Socks5Password, None).await?;
