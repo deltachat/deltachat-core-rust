@@ -684,6 +684,11 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
                 .await?;
         }
         Qr::Socks5Proxy { host, port } => {
+            // disable proxy before changing settings to not use a combination of old and new
+            context
+                .set_config_bool(Config::Socks5Enabled, false)
+                .await?;
+
             context.set_config(Config::Socks5Host, Some(&host)).await?;
             context
                 .set_config_u32(Config::Socks5Port, port as u32)
