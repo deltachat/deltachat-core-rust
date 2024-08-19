@@ -373,21 +373,21 @@ impl fmt::Display for ConfiguredLoginParam {
         let mut first = true;
         for imap in &self.imap {
             if !first {
-                write!(f, ",")?;
+                write!(f, ", ")?;
             }
             write!(f, "{imap}")?;
             first = false;
         }
-        write!(f, "] smtp:")?;
+        write!(f, "] smtp:[")?;
         let mut first = true;
         for smtp in &self.smtp {
             if !first {
-                write!(f, ",")?;
+                write!(f, ", ")?;
             }
             write!(f, "{smtp}")?;
             first = false;
         }
-        write!(f, "provider:{provider_id} cert_{certificate_checks}")?;
+        write!(f, "] provider:{provider_id} cert_{certificate_checks}")?;
         Ok(())
     }
 }
