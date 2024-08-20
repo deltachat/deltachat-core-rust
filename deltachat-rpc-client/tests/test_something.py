@@ -83,6 +83,16 @@ def test_configure_ip(acfactory) -> None:
         account.configure()
 
 
+def test_configure_alternative_port(acfactory) -> None:
+    """Test that configuration with alternative port 443 works."""
+    account = acfactory.new_preconfigured_account()
+
+    account.set_config("mail_port", "443")
+    account.set_config("send_port", "443")
+
+    account.configure()
+
+
 def test_account(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
