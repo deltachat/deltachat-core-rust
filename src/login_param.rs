@@ -443,6 +443,9 @@ impl ConfiguredLoginParam {
         let imap;
         let smtp;
 
+        let legacy_mail_user = sql.get_raw_config("configured_mail_user").await?;
+        let legacy_send_user = sql.get_raw_config("configured_send_user").await?;
+
         if let Some(provider) = provider {
             let addr_localpart = if let Some(at) = addr.find('@') {
                 addr.split_at(at).0.to_string()
@@ -467,9 +470,13 @@ impl ConfiguredLoginParam {
                             port: server.port,
                             security,
                         },
-                        user: match server.username_pattern {
-                            UsernamePattern::Email => addr.to_string(),
-                            UsernamePattern::Emaillocalpart => addr_localpart.clone(),
+                        user: if let Some(legacy_mail_user) = &legacy_mail_user {
+                            legacy_mail_user.clone()
+                        } else {
+                            match server.username_pattern {
+                                UsernamePattern::Email => addr.to_string(),
+                                UsernamePattern::Emaillocalpart => addr_localpart.clone(),
+                            }
                         },
                     })
                 })
@@ -492,9 +499,13 @@ impl ConfiguredLoginParam {
                             port: server.port,
                             security,
                         },
-                        user: match server.username_pattern {
-                            UsernamePattern::Email => addr.to_string(),
-                            UsernamePattern::Emaillocalpart => addr_localpart.clone(),
+                        user: if let Some(legacy_send_user) = &legacy_send_user {
+                            legacy_send_user.clone()
+                        } else {
+                            match server.username_pattern {
+                                UsernamePattern::Email => addr.to_string(),
+                                UsernamePattern::Emaillocalpart => addr_localpart.clone(),
+                            }
                         },
                     })
                 })
@@ -518,10 +529,7 @@ impl ConfiguredLoginParam {
                 .await?
                 .unwrap_or_default();
 
-            let mail_user = sql
-                .get_raw_config("configured_mail_user")
-                .await?
-                .unwrap_or_default();
+            let mail_user = legacy_mail_user.unwrap_or_default();
             let mail_security: Socket = sql
                 .get_raw_config_int("configured_mail_security")
                 .await?
@@ -536,10 +544,7 @@ impl ConfiguredLoginParam {
                 .get_raw_config_int("configured_send_port")
                 .await?
                 .unwrap_or_default();
-            let send_user = sql
-                .get_raw_config("configured_send_user")
-                .await?
-                .unwrap_or_default();
+            let send_user = legacy_send_user.unwrap_or_default();
             let send_security: Socket = sql
                 .get_raw_config_int("configured_send_security")
                 .await?
@@ -723,6 +728,96 @@ mod tests {
         t.set_config(Config::Configured, Some("1")).await?;
         let loaded = ConfiguredLoginParam::load(&t).await?.unwrap();
         assert_eq!(param, loaded);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_posteo_alias() -> Result<()> {
+        let t = TestContext::new().await;
+
+        let user = "alice@posteo.de";
+
+        // Alice has old config with "alice@posteo.at" address
+        // and "alice@posteo.de" username.
+        t.set_config(Config::Configured, Some("1")).await?;
+        t.set_config(Config::ConfiguredProvider, Some("posteo"))
+            .await?;
+        t.set_config(Config::ConfiguredAddr, Some("alice@posteo.at"))
+            .await?;
+        t.set_config(Config::ConfiguredMailServer, Some("posteo.de"))
+            .await?;
+        t.set_config(Config::ConfiguredMailPort, Some("993"))
+            .await?;
+        t.set_config(Config::ConfiguredMailSecurity, Some("1"))
+            .await?; // TLS
+        t.set_config(Config::ConfiguredMailUser, Some(user)).await?;
+        t.set_config(Config::ConfiguredMailPw, Some("foobarbaz"))
+            .await?;
+        t.set_config(Config::ConfiguredImapCertificateChecks, Some("1"))
+            .await?; // Strict
+        t.set_config(Config::ConfiguredSendServer, Some("posteo.de"))
+            .await?;
+        t.set_config(Config::ConfiguredSendPort, Some("465"))
+            .await?;
+        t.set_config(Config::ConfiguredSendSecurity, Some("1"))
+            .await?; // TLS
+        t.set_config(Config::ConfiguredSendUser, Some(user)).await?;
+        t.set_config(Config::ConfiguredSendPw, Some("foobarbaz"))
+            .await?;
+        t.set_config(Config::ConfiguredSmtpCertificateChecks, Some("1"))
+            .await?; // Strict
+        t.set_config(Config::ConfiguredServerFlags, Some("0"))
+            .await?;
+
+        let param = ConfiguredLoginParam {
+            addr: "alice@posteo.at".to_string(),
+            imap: vec![
+                ConfiguredServerLoginParam {
+                    connection: ConnectionCandidate {
+                        host: "posteo.de".to_string(),
+                        port: 993,
+                        security: ConnectionSecurity::Tls,
+                    },
+                    user: user.to_string(),
+                },
+                ConfiguredServerLoginParam {
+                    connection: ConnectionCandidate {
+                        host: "posteo.de".to_string(),
+                        port: 143,
+                        security: ConnectionSecurity::Starttls,
+                    },
+                    user: user.to_string(),
+                },
+            ],
+            imap_password: "foobarbaz".to_string(),
+            smtp: vec![
+                ConfiguredServerLoginParam {
+                    connection: ConnectionCandidate {
+                        host: "posteo.de".to_string(),
+                        port: 465,
+                        security: ConnectionSecurity::Tls,
+                    },
+                    user: user.to_string(),
+                },
+                ConfiguredServerLoginParam {
+                    connection: ConnectionCandidate {
+                        host: "posteo.de".to_string(),
+                        port: 587,
+                        security: ConnectionSecurity::Starttls,
+                    },
+                    user: user.to_string(),
+                },
+            ],
+            smtp_password: "foobarbaz".to_string(),
+            socks5_config: None,
+            provider: get_provider_by_id("posteo"),
+            certificate_checks: ConfiguredCertificateChecks::Strict,
+            oauth2: false,
+        };
+
+        let loaded = ConfiguredLoginParam::load(&t).await?.unwrap();
+        assert_eq!(loaded, param);
 
         Ok(())
     }
