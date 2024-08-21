@@ -122,27 +122,34 @@ pub struct EnteredLoginParam {
 impl EnteredLoginParam {
     /// Loads entered account settings.
     pub async fn load(context: &Context) -> Result<Self> {
-        let sql = &context.sql;
-
-        let addr = sql
-            .get_raw_config("addr")
+        let addr = context
+            .get_config(Config::Addr)
             .await?
             .unwrap_or_default()
             .trim()
             .to_string();
 
-        let mail_server = sql.get_raw_config("mail_server").await?.unwrap_or_default();
-        let mail_port = sql
-            .get_raw_config_int("mail_port")
+        let mail_server = context
+            .get_config(Config::MailServer)
             .await?
             .unwrap_or_default();
-        let mail_security = sql
-            .get_raw_config_int("mail_security")
+        let mail_port = context
+            .get_config_parsed::<u16>(Config::MailPort)
+            .await?
+            .unwrap_or_default();
+        let mail_security = context
+            .get_config_parsed::<i32>(Config::MailSecurity)
             .await?
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
-        let mail_user = sql.get_raw_config("mail_user").await?.unwrap_or_default();
-        let mail_pw = sql.get_raw_config("mail_pw").await?.unwrap_or_default();
+        let mail_user = context
+            .get_config(Config::MailUser)
+            .await?
+            .unwrap_or_default();
+        let mail_pw = context
+            .get_config(Config::MailPw)
+            .await?
+            .unwrap_or_default();
 
         // The setting is named `imap_certificate_checks`
         // for backwards compatibility,
@@ -158,21 +165,30 @@ impl EnteredLoginParam {
             Default::default()
         };
 
-        let send_server = sql.get_raw_config("send_server").await?.unwrap_or_default();
-        let send_port = sql
-            .get_raw_config_int("send_port")
+        let send_server = context
+            .get_config(Config::SendServer)
             .await?
             .unwrap_or_default();
-        let send_security = sql
-            .get_raw_config_int("send_security")
+        let send_port = context
+            .get_config_parsed::<u16>(Config::SendPort)
+            .await?
+            .unwrap_or_default();
+        let send_security = context
+            .get_config_parsed::<i32>(Config::SendSecurity)
             .await?
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
-        let send_user = sql.get_raw_config("send_user").await?.unwrap_or_default();
-        let send_pw = sql.get_raw_config("send_pw").await?.unwrap_or_default();
+        let send_user = context
+            .get_config(Config::SendUser)
+            .await?
+            .unwrap_or_default();
+        let send_pw = context
+            .get_config(Config::SendPw)
+            .await?
+            .unwrap_or_default();
 
-        let server_flags = sql
-            .get_raw_config_int("server_flags")
+        let server_flags = context
+            .get_config_parsed::<i32>(Config::ServerFlags)
             .await?
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
@@ -183,14 +199,14 @@ impl EnteredLoginParam {
             addr,
             imap: EnteredServerLoginParam {
                 server: mail_server,
-                port: mail_port as u16,
+                port: mail_port,
                 security: mail_security,
                 user: mail_user,
                 password: mail_pw,
             },
             smtp: EnteredServerLoginParam {
                 server: send_server,
-                port: send_port as u16,
+                port: send_port,
                 security: send_security,
                 user: send_user,
                 password: send_pw,
@@ -397,22 +413,21 @@ impl ConfiguredLoginParam {
     ///
     /// Returns `None` if account is not configured.
     pub async fn load(context: &Context) -> Result<Option<Self>> {
-        let sql = &context.sql;
-
         if !context.get_config_bool(Config::Configured).await? {
             return Ok(None);
         }
 
-        let addr = sql
-            .get_raw_config("configured_addr")
+        let addr = context
+            .get_config(Config::ConfiguredAddr)
             .await?
             .unwrap_or_default()
             .trim()
             .to_string();
 
-        let certificate_checks: ConfiguredCertificateChecks = if let Some(certificate_checks) = sql
-            .get_raw_config_int("configured_imap_certificate_checks")
-            .await?
+        let certificate_checks: ConfiguredCertificateChecks = if let Some(certificate_checks) =
+            context
+                .get_config_parsed::<i32>(Config::ConfiguredImapCertificateChecks)
+                .await?
         {
             num_traits::FromPrimitive::from_i32(certificate_checks)
                 .context("Invalid configured_imap_certificate_checks value")?
@@ -431,8 +446,8 @@ impl ConfiguredLoginParam {
             .await?
             .context("IMAP password is not configured")?;
 
-        let server_flags = sql
-            .get_raw_config_int("configured_server_flags")
+        let server_flags = context
+            .get_config_parsed::<i32>(Config::ConfiguredServerFlags)
             .await?
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
@@ -442,8 +457,8 @@ impl ConfiguredLoginParam {
         let imap;
         let smtp;
 
-        let legacy_mail_user = sql.get_raw_config("configured_mail_user").await?;
-        let legacy_send_user = sql.get_raw_config("configured_send_user").await?;
+        let legacy_mail_user = context.get_config(Config::ConfiguredMailUser).await?;
+        let legacy_send_user = context.get_config(Config::ConfiguredSendUser).await?;
 
         if let Some(provider) = provider {
             let addr_localpart = if let Some(at) = addr.find('@') {
@@ -519,18 +534,18 @@ impl ConfiguredLoginParam {
                 .context("Failed to parse configured SMTP servers")?;
         } else {
             // Load legacy settings storing a single IMAP and single SMTP server.
-            let mail_server = sql
-                .get_raw_config("configured_mail_server")
+            let mail_server = context
+                .get_config(Config::ConfiguredMailServer)
                 .await?
                 .unwrap_or_default();
-            let mail_port = sql
-                .get_raw_config_int("configured_mail_port")
+            let mail_port = context
+                .get_config_parsed::<u16>(Config::ConfiguredMailPort)
                 .await?
                 .unwrap_or_default();
 
             let mail_user = legacy_mail_user.unwrap_or_default();
-            let mail_security: Socket = sql
-                .get_raw_config_int("configured_mail_security")
+            let mail_security: Socket = context
+                .get_config_parsed::<i32>(Config::ConfiguredMailSecurity)
                 .await?
                 .and_then(num_traits::FromPrimitive::from_i32)
                 .unwrap_or_default();
@@ -539,13 +554,13 @@ impl ConfiguredLoginParam {
                 .get_config(Config::ConfiguredSendServer)
                 .await?
                 .context("SMTP server is not configured")?;
-            let send_port = sql
-                .get_raw_config_int("configured_send_port")
+            let send_port = context
+                .get_config_parsed::<u16>(Config::ConfiguredSendPort)
                 .await?
                 .unwrap_or_default();
             let send_user = legacy_send_user.unwrap_or_default();
-            let send_security: Socket = sql
-                .get_raw_config_int("configured_send_security")
+            let send_security: Socket = context
+                .get_config_parsed::<i32>(Config::ConfiguredSendSecurity)
                 .await?
                 .and_then(num_traits::FromPrimitive::from_i32)
                 .unwrap_or_default();
@@ -553,7 +568,7 @@ impl ConfiguredLoginParam {
             imap = vec![ConfiguredServerLoginParam {
                 connection: ConnectionCandidate {
                     host: mail_server,
-                    port: mail_port as u16,
+                    port: mail_port,
                     security: mail_security.try_into()?,
                 },
                 user: mail_user,
@@ -561,7 +576,7 @@ impl ConfiguredLoginParam {
             smtp = vec![ConfiguredServerLoginParam {
                 connection: ConnectionCandidate {
                     host: send_server,
-                    port: send_port as u16,
+                    port: send_port,
                     security: send_security.try_into()?,
                 },
                 user: send_user,
@@ -585,8 +600,6 @@ impl ConfiguredLoginParam {
 
     /// Save this loginparam to the database.
     pub async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
-        let sql = &context.sql;
-
         context.set_primary_self_addr(&self.addr).await?;
 
         context
@@ -609,16 +622,18 @@ impl ConfiguredLoginParam {
             .set_config(Config::ConfiguredSendPw, Some(&self.smtp_password))
             .await?;
 
-        sql.set_raw_config_int(
-            "configured_imap_certificate_checks",
-            self.certificate_checks as i32,
-        )
-        .await?;
-        sql.set_raw_config_int(
-            "configured_smtp_certificate_checks",
-            self.certificate_checks as i32,
-        )
-        .await?;
+        context
+            .set_config_u32(
+                Config::ConfiguredImapCertificateChecks,
+                self.certificate_checks as u32,
+            )
+            .await?;
+        context
+            .set_config_u32(
+                Config::ConfiguredSmtpCertificateChecks,
+                self.certificate_checks as u32,
+            )
+            .await?;
 
         // Remove legacy settings.
         context
@@ -642,14 +657,16 @@ impl ConfiguredLoginParam {
             true => DC_LP_AUTH_OAUTH2,
             false => DC_LP_AUTH_NORMAL,
         };
-        sql.set_raw_config_int("configured_server_flags", server_flags)
+        context
+            .set_config_u32(Config::ConfiguredServerFlags, server_flags as u32)
             .await?;
 
-        sql.set_raw_config(
-            "configured_provider",
-            self.provider.map(|provider| provider.id),
-        )
-        .await?;
+        context
+            .set_config(
+                Config::ConfiguredProvider,
+                self.provider.map(|provider| provider.id),
+            )
+            .await?;
 
         Ok(())
     }
