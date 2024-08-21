@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.142.8] - 2024-08-21
+
+### Fixes
+
+- Do not panic on unknown CertificateChecks values.
+
 ## [1.142.7] - 2024-08-17
 
 ### Fixes
@@ -4767,3 +4773,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.4...v1.142.5
 [1.142.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.5...v1.142.6
 [1.142.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.6...v1.142.7
+[1.142.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.7...v1.142.8
