@@ -148,10 +148,12 @@ impl EnteredLoginParam {
         // for backwards compatibility,
         // but now it is a global setting applied to all protocols,
         // while `smtp_certificate_checks` is ignored.
-        let certificate_checks = if let Some(certificate_checks) =
-            sql.get_raw_config_int("imap_ceritifacte_checks").await?
+        let certificate_checks = if let Some(certificate_checks) = context
+            .get_config_parsed::<i32>(Config::ImapCertificateChecks)
+            .await?
         {
-            num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
+            num_traits::FromPrimitive::from_i32(certificate_checks)
+                .context("Unknown imap_certificate_checks value")?
         } else {
             Default::default()
         };
@@ -688,6 +690,34 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_entered_login_param() -> Result<()> {
+        let t = &TestContext::new().await;
+
+        t.set_config(Config::Addr, Some("alice@example.org"))
+            .await?;
+        t.set_config(Config::MailPw, Some("foobarbaz")).await?;
+
+        let param = EnteredLoginParam::load(t).await?;
+        assert_eq!(param.addr, "alice@example.org");
+        assert_eq!(
+            param.certificate_checks,
+            EnteredCertificateChecks::Automatic
+        );
+
+        t.set_config(Config::ImapCertificateChecks, Some("1"))
+            .await?;
+        let param = EnteredLoginParam::load(t).await?;
+        assert_eq!(param.certificate_checks, EnteredCertificateChecks::Strict);
+
+        // Fail to load invalid settings, but do not panic.
+        t.set_config(Config::ImapCertificateChecks, Some("999"))
+            .await?;
+        assert!(EnteredLoginParam::load(t).await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_load_login_param() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -726,6 +756,11 @@ mod tests {
         t.set_config(Config::Configured, Some("1")).await?;
         let loaded = ConfiguredLoginParam::load(&t).await?.unwrap();
         assert_eq!(param, loaded);
+
+        // Test that we don't panic on unknown ConfiguredImapCertificateChecks values.
+        t.set_config(Config::ConfiguredImapCertificateChecks, Some("999"))
+            .await?;
+        assert!(ConfiguredLoginParam::load(&t).await.is_err());
 
         Ok(())
     }
