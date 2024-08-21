@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
 use crate::net::load_connection_timestamp;
-use crate::provider::{get_provider_by_id, Protocol, Provider, Socket, UsernamePattern};
+use crate::provider::{Protocol, Provider, Socket, UsernamePattern};
 use crate::socks::Socks5Config;
 use crate::sql::Sql;
 
@@ -435,10 +435,7 @@ impl ConfiguredLoginParam {
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
-        let provider = context
-            .get_config(Config::ConfiguredProvider)
-            .await?
-            .and_then(|provider_id| get_provider_by_id(&provider_id));
+        let provider = context.get_configured_provider().await?;
 
         let imap;
         let smtp;
@@ -672,6 +669,7 @@ impl ConfiguredLoginParam {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::provider::get_provider_by_id;
     use crate::test_utils::TestContext;
 
     #[test]
