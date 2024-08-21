@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context as _, Result};
 
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
@@ -132,7 +132,8 @@ impl LoginParam {
         let key = &format!("{prefix}imap_certificate_checks");
         let certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
+                num_traits::FromPrimitive::from_i32(certificate_checks)
+                    .with_context(|| format!("Invalid {key} value"))?
             } else {
                 Default::default()
             };
