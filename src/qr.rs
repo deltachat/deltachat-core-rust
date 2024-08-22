@@ -150,6 +150,12 @@ pub enum Qr {
 
         /// SOCKS5 port
         port: u16,
+
+        /// SOCKS5 user
+        user: Option<String>,
+
+        /// SOCKS5 password
+        pass: Option<String>,
     },
 
     /// Contact address is scanned.
@@ -558,16 +564,27 @@ fn decode_tg_socks_proxy(_context: &Context, qr: &str) -> Result<Qr> {
     const SOCKS5_DEFAULT_PORT: u16 = 1080;
     let mut host: Option<String> = None;
     let mut port: u16 = SOCKS5_DEFAULT_PORT;
+    let mut user: Option<String> = None;
+    let mut pass: Option<String> = None;
     for (key, value) in url.query_pairs() {
         if key == "server" {
             host = Some(value.to_string());
         } else if key == "port" {
             port = value.parse().unwrap_or(SOCKS5_DEFAULT_PORT);
+        } else if key == "user" {
+            user = Some(value.to_string());
+        } else if key == "pass" {
+            pass = Some(value.to_string());
         }
     }
 
     if let Some(host) = host {
-        Ok(Qr::Socks5Proxy { host, port })
+        Ok(Qr::Socks5Proxy {
+            host,
+            port,
+            user,
+            pass,
+        })
     } else {
         bail!("Bad t.me/socks url: {:?}", url);
     }
@@ -683,7 +700,12 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
                 .set_config_internal(Config::WebrtcInstance, Some(&instance_pattern))
                 .await?;
         }
-        Qr::Socks5Proxy { host, port } => {
+        Qr::Socks5Proxy {
+            host,
+            port,
+            user,
+            pass,
+        } => {
             // disable proxy before changing settings to not use a combination of old and new
             context
                 .set_config_bool(Config::Socks5Enabled, false)
@@ -693,8 +715,12 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             context
                 .set_config_u32(Config::Socks5Port, u32::from(port))
                 .await?;
-            context.set_config(Config::Socks5User, None).await?;
-            context.set_config(Config::Socks5Password, None).await?;
+            context
+                .set_config(Config::Socks5User, user.as_deref())
+                .await?;
+            context
+                .set_config(Config::Socks5Password, pass.as_deref())
+                .await?;
             context.set_config_bool(Config::Socks5Enabled, true).await?;
         }
         Qr::WithdrawVerifyContact {
@@ -1536,7 +1562,9 @@ mod tests {
             qr,
             Qr::Socks5Proxy {
                 host: "84.53.239.95".to_string(),
-                port: 4145
+                port: 4145,
+                user: None,
+                pass: None,
             }
         );
 
@@ -1545,7 +1573,9 @@ mod tests {
             qr,
             Qr::Socks5Proxy {
                 host: "foo.bar".to_string(),
-                port: 123
+                port: 123,
+                user: None,
+                pass: None,
             }
         );
 
@@ -1554,7 +1584,24 @@ mod tests {
             qr,
             Qr::Socks5Proxy {
                 host: "foo.baz".to_string(),
-                port: 1080
+                port: 1080,
+                user: None,
+                pass: None,
+            }
+        );
+
+        let qr = check_qr(
+            &t,
+            "https://t.me/socks?server=foo.baz&port=12345&user=ada&pass=ms%21%2F%24",
+        )
+        .await?;
+        assert_eq!(
+            qr,
+            Qr::Socks5Proxy {
+                host: "foo.baz".to_string(),
+                port: 12345,
+                user: Some("ada".to_string()),
+                pass: Some("ms!/$".to_string()),
             }
         );
 
@@ -1641,6 +1688,7 @@ mod tests {
         assert_eq!(t.get_config(Config::Socks5User).await?, None);
         assert_eq!(t.get_config(Config::Socks5Password).await?, None);
 
+        // make sure, user&password are reset when not specified in the URL
         t.set_config(Config::Socks5User, Some("alice")).await?;
         t.set_config(Config::Socks5Password, Some("secret")).await?;
         let res = set_config_from_qr(&t, "https://t.me/socks?server=1.2.3.4").await;
@@ -1653,6 +1701,25 @@ mod tests {
         assert_eq!(t.get_config_u32(Config::Socks5Port).await?, 1080);
         assert_eq!(t.get_config(Config::Socks5User).await?, None);
         assert_eq!(t.get_config(Config::Socks5Password).await?, None);
+
+        // make sure, user&password are set when specified in the URL
+        let res =
+            set_config_from_qr(&t, "https://t.me/socks?server=jau&user=Da&pass=x%26%25%24X").await;
+        assert!(res.is_ok());
+        assert_eq!(t.get_config_bool(Config::Socks5Enabled).await?, true);
+        assert_eq!(
+            t.get_config(Config::Socks5Host).await?,
+            Some("jau".to_string())
+        );
+        assert_eq!(t.get_config_u32(Config::Socks5Port).await?, 1080);
+        assert_eq!(
+            t.get_config(Config::Socks5User).await?,
+            Some("Da".to_string())
+        );
+        assert_eq!(
+            t.get_config(Config::Socks5Password).await?,
+            Some("x&%$X".to_string())
+        );
 
         Ok(())
     }
