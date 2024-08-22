@@ -76,7 +76,7 @@ pub enum ConfiguredCertificateChecks {
 }
 
 /// Login parameters for a single server, either IMAP or SMTP
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct EnteredServerLoginParam {
     /// Server hostname or IP address.
     pub server: String,
@@ -99,7 +99,7 @@ pub struct EnteredServerLoginParam {
 }
 
 /// Login parameters entered by the user.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct EnteredLoginParam {
     /// Email address.
     pub addr: String,
@@ -360,9 +360,21 @@ pub struct ConfiguredLoginParam {
 
     pub imap: Vec<ConfiguredServerLoginParam>,
 
+    // Custom IMAP user.
+    //
+    // This overwrites autoconfig from the provider database
+    // if non-empty.
+    pub imap_user: String,
+
     pub imap_password: String,
 
     pub smtp: Vec<ConfiguredServerLoginParam>,
+
+    // Custom SMTP user.
+    //
+    // This overwrites autoconfig from the provider database
+    // if non-empty.
+    pub smtp_user: String,
 
     pub smtp_password: String,
 
@@ -457,8 +469,14 @@ impl ConfiguredLoginParam {
         let imap;
         let smtp;
 
-        let legacy_mail_user = context.get_config(Config::ConfiguredMailUser).await?;
-        let legacy_send_user = context.get_config(Config::ConfiguredSendUser).await?;
+        let mail_user = context
+            .get_config(Config::ConfiguredMailUser)
+            .await?
+            .unwrap_or_default();
+        let send_user = context
+            .get_config(Config::ConfiguredSendUser)
+            .await?
+            .unwrap_or_default();
 
         if let Some(provider) = provider {
             let addr_localpart = if let Some(at) = addr.find('@') {
@@ -484,8 +502,8 @@ impl ConfiguredLoginParam {
                             port: server.port,
                             security,
                         },
-                        user: if let Some(legacy_mail_user) = &legacy_mail_user {
-                            legacy_mail_user.clone()
+                        user: if !mail_user.is_empty() {
+                            mail_user.clone()
                         } else {
                             match server.username_pattern {
                                 UsernamePattern::Email => addr.to_string(),
@@ -513,8 +531,8 @@ impl ConfiguredLoginParam {
                             port: server.port,
                             security,
                         },
-                        user: if let Some(legacy_send_user) = &legacy_send_user {
-                            legacy_send_user.clone()
+                        user: if !send_user.is_empty() {
+                            send_user.clone()
                         } else {
                             match server.username_pattern {
                                 UsernamePattern::Email => addr.to_string(),
@@ -543,7 +561,6 @@ impl ConfiguredLoginParam {
                 .await?
                 .unwrap_or_default();
 
-            let mail_user = legacy_mail_user.unwrap_or_default();
             let mail_security: Socket = context
                 .get_config_parsed::<i32>(Config::ConfiguredMailSecurity)
                 .await?
@@ -558,7 +575,6 @@ impl ConfiguredLoginParam {
                 .get_config_parsed::<u16>(Config::ConfiguredSendPort)
                 .await?
                 .unwrap_or_default();
-            let send_user = legacy_send_user.unwrap_or_default();
             let send_security: Socket = context
                 .get_config_parsed::<i32>(Config::ConfiguredSendSecurity)
                 .await?
@@ -571,7 +587,7 @@ impl ConfiguredLoginParam {
                     port: mail_port,
                     security: mail_security.try_into()?,
                 },
-                user: mail_user,
+                user: mail_user.clone(),
             }];
             smtp = vec![ConfiguredServerLoginParam {
                 connection: ConnectionCandidate {
@@ -579,7 +595,7 @@ impl ConfiguredLoginParam {
                     port: send_port,
                     security: send_security.try_into()?,
                 },
-                user: send_user,
+                user: send_user.clone(),
             }];
         }
 
@@ -588,8 +604,10 @@ impl ConfiguredLoginParam {
         Ok(Some(ConfiguredLoginParam {
             addr,
             imap,
+            imap_user: mail_user,
             imap_password: mail_pw,
             smtp,
+            smtp_user: send_user,
             smtp_password: send_pw,
             certificate_checks,
             provider,
@@ -616,7 +634,14 @@ impl ConfiguredLoginParam {
             .await?;
 
         context
+            .set_config(Config::ConfiguredMailUser, Some(&self.imap_user))
+            .await?;
+        context
             .set_config(Config::ConfiguredMailPw, Some(&self.imap_password))
+            .await?;
+
+        context
+            .set_config(Config::ConfiguredSendUser, Some(&self.smtp_user))
             .await?;
         context
             .set_config(Config::ConfiguredSendPw, Some(&self.smtp_password))
@@ -643,7 +668,6 @@ impl ConfiguredLoginParam {
         context
             .set_config(Config::ConfiguredMailSecurity, None)
             .await?;
-        context.set_config(Config::ConfiguredMailUser, None).await?;
         context
             .set_config(Config::ConfiguredSendServer, None)
             .await?;
@@ -651,7 +675,6 @@ impl ConfiguredLoginParam {
         context
             .set_config(Config::ConfiguredSendSecurity, None)
             .await?;
-        context.set_config(Config::ConfiguredSendUser, None).await?;
 
         let server_flags = match self.oauth2 {
             true => DC_LP_AUTH_OAUTH2,
@@ -748,6 +771,7 @@ mod tests {
                 },
                 user: "alice".to_string(),
             }],
+            imap_user: "".to_string(),
             imap_password: "foo".to_string(),
             smtp: vec![ConfiguredServerLoginParam {
                 connection: ConnectionCandidate {
@@ -757,6 +781,7 @@ mod tests {
                 },
                 user: "alice@example.org".to_string(),
             }],
+            smtp_user: "".to_string(),
             smtp_password: "bar".to_string(),
             // socks5_config is not saved by `save_to_database`, using default value
             socks5_config: None,
@@ -840,6 +865,7 @@ mod tests {
                     user: user.to_string(),
                 },
             ],
+            imap_user: "alice@posteo.de".to_string(),
             imap_password: "foobarbaz".to_string(),
             smtp: vec![
                 ConfiguredServerLoginParam {
@@ -859,6 +885,7 @@ mod tests {
                     user: user.to_string(),
                 },
             ],
+            smtp_user: "alice@posteo.de".to_string(),
             smtp_password: "foobarbaz".to_string(),
             socks5_config: None,
             provider: get_provider_by_id("posteo"),
