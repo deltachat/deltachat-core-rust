@@ -332,6 +332,7 @@ async fn get_configured_param(
                 }
             })
             .collect(),
+        imap_user: param.imap.user.clone(),
         imap_password: param.imap.password.clone(),
         smtp: servers
             .iter()
@@ -353,6 +354,7 @@ async fn get_configured_param(
                 }
             })
             .collect(),
+        smtp_user: param.smtp.user.clone(),
         smtp_password,
         socks5_config: param.socks5_config.clone(),
         provider,
@@ -610,7 +612,9 @@ pub enum Error {
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
+    use super::*;
     use crate::config::Config;
+    use crate::login_param::EnteredServerLoginParam;
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -621,5 +625,25 @@ mod tests {
             .unwrap();
         t.set_config(Config::MailPw, Some("123456")).await.unwrap();
         assert!(t.configure().await.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_configured_param() -> Result<()> {
+        let t = &TestContext::new().await;
+        let entered_param = EnteredLoginParam {
+            addr: "alice@example.org".to_string(),
+
+            imap: EnteredServerLoginParam {
+                user: "alice@example.net".to_string(),
+                password: "foobar".to_string(),
+                ..Default::default()
+            },
+
+            ..Default::default()
+        };
+        let configured_param = get_configured_param(t, &entered_param).await?;
+        assert_eq!(configured_param.imap_user, "alice@example.net");
+        assert_eq!(configured_param.smtp_user, "");
+        Ok(())
     }
 }

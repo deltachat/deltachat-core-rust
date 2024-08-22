@@ -93,6 +93,16 @@ def test_configure_alternative_port(acfactory) -> None:
     account.configure()
 
 
+def test_configure_username(acfactory) -> None:
+    account = acfactory.new_preconfigured_account()
+
+    addr = account.get_config("addr")
+    account.set_config("mail_user", addr)
+    account.configure()
+
+    assert account.get_config("configured_mail_user") == addr
+
+
 def test_account(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 

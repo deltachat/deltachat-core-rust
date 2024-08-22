@@ -219,7 +219,7 @@ pub enum Config {
 
     /// Configured IMAP server username.
     ///
-    /// This is replaced by `configured_imap_servers` for new configurations.
+    /// This is set if user has configured username manually.
     ConfiguredMailUser,
 
     /// Configured IMAP server password.
@@ -253,7 +253,7 @@ pub enum Config {
 
     /// Configured SMTP server username.
     ///
-    /// This is replaced by `configured_smtp_servers` for new configurations.
+    /// This is set if user has configured username manually.
     ConfiguredSendUser,
 
     /// Configured SMTP server password.
