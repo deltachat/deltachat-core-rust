@@ -878,6 +878,20 @@ static P_MEHL_CLOUD: Provider = Provider {
             protocol: Imap,
             socket: Ssl,
             hostname: "mehl.cloud",
+            port: 443,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "mehl.cloud",
+            port: 443,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "mehl.cloud",
             port: 993,
             username_pattern: Email,
         },
@@ -1013,6 +1027,20 @@ static P_NINE_TESTRUN_ORG: Provider = Provider {
             protocol: Imap,
             socket: Ssl,
             hostname: "nine.testrun.org",
+            port: 443,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "nine.testrun.org",
+            port: 443,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "nine.testrun.org",
             port: 993,
             username_pattern: Email,
         },
@@ -1035,20 +1063,6 @@ static P_NINE_TESTRUN_ORG: Provider = Provider {
             socket: Starttls,
             hostname: "nine.testrun.org",
             port: 587,
-            username_pattern: Email,
-        },
-        Server {
-            protocol: Imap,
-            socket: Ssl,
-            hostname: "nine.testrun.org",
-            port: 443,
-            username_pattern: Email,
-        },
-        Server {
-            protocol: Smtp,
-            socket: Ssl,
-            hostname: "nine.testrun.org",
-            port: 443,
             username_pattern: Email,
         },
     ],
@@ -2417,4 +2431,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static _PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 8, 14).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 8, 23).unwrap());
