@@ -30,6 +30,7 @@ const IDELTACHAT_NOSLASH_SCHEME: &str = "https://i.delta.chat#";
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
 pub(super) const DCLOGIN_SCHEME: &str = "DCLOGIN:";
 const DCWEBRTC_SCHEME: &str = "DCWEBRTC:";
+const TG_SOCKS_SCHEME: &str = "https://t.me/socks";
 const MAILTO_SCHEME: &str = "mailto:";
 const MATMSG_SCHEME: &str = "MATMSG:";
 const VCARD_SCHEME: &str = "BEGIN:VCARD";
@@ -140,6 +141,21 @@ pub enum Qr {
 
         /// URL pattern for video chat rooms.
         instance_pattern: String,
+    },
+
+    /// Ask the user if they want to add or use the given SOCKS5 proxy
+    Socks5Proxy {
+        /// SOCKS5 server
+        host: String,
+
+        /// SOCKS5 port
+        port: u16,
+
+        /// SOCKS5 user
+        user: Option<String>,
+
+        /// SOCKS5 password
+        pass: Option<String>,
     },
 
     /// Contact address is scanned.
@@ -277,6 +293,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         dclogin_scheme::decode_login(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
         decode_webrtc_instance(context, qr)?
+    } else if starts_with_ignore_case(qr, TG_SOCKS_SCHEME) {
+        decode_tg_socks_proxy(context, qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME) {
         decode_backup(qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
@@ -539,6 +557,39 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
     }
 }
 
+/// scheme: `https://t.me/socks?server=foo&port=123` or `https://t.me/socks?server=1.2.3.4&port=123`
+fn decode_tg_socks_proxy(_context: &Context, qr: &str) -> Result<Qr> {
+    let url = url::Url::parse(qr).context("Invalid t.me/socks url")?;
+
+    const SOCKS5_DEFAULT_PORT: u16 = 1080;
+    let mut host: Option<String> = None;
+    let mut port: u16 = SOCKS5_DEFAULT_PORT;
+    let mut user: Option<String> = None;
+    let mut pass: Option<String> = None;
+    for (key, value) in url.query_pairs() {
+        if key == "server" {
+            host = Some(value.to_string());
+        } else if key == "port" {
+            port = value.parse().unwrap_or(SOCKS5_DEFAULT_PORT);
+        } else if key == "user" {
+            user = Some(value.to_string());
+        } else if key == "pass" {
+            pass = Some(value.to_string());
+        }
+    }
+
+    if let Some(host) = host {
+        Ok(Qr::Socks5Proxy {
+            host,
+            port,
+            user,
+            pass,
+        })
+    } else {
+        bail!("Bad t.me/socks url: {:?}", url);
+    }
+}
+
 /// Decodes a [`DCBACKUP_SCHEME`] QR code.
 ///
 /// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
@@ -648,6 +699,29 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             context
                 .set_config_internal(Config::WebrtcInstance, Some(&instance_pattern))
                 .await?;
+        }
+        Qr::Socks5Proxy {
+            host,
+            port,
+            user,
+            pass,
+        } => {
+            // disable proxy before changing settings to not use a combination of old and new
+            context
+                .set_config_bool(Config::Socks5Enabled, false)
+                .await?;
+
+            context.set_config(Config::Socks5Host, Some(&host)).await?;
+            context
+                .set_config_u32(Config::Socks5Port, u32::from(port))
+                .await?;
+            context
+                .set_config(Config::Socks5User, user.as_deref())
+                .await?;
+            context
+                .set_config(Config::Socks5Password, pass.as_deref())
+                .await?;
+            context.set_config_bool(Config::Socks5Enabled, true).await?;
         }
         Qr::WithdrawVerifyContact {
             invitenumber,
@@ -870,6 +944,7 @@ mod tests {
     use super::*;
     use crate::aheader::EncryptPreference;
     use crate::chat::{create_group_chat, ProtectionStatus};
+    use crate::config::Config;
     use crate::key::DcKey;
     use crate::securejoin::get_securejoin_qr;
     use crate::test_utils::{alice_keypair, TestContext};
@@ -1479,6 +1554,73 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_tg_socks_proxy() -> Result<()> {
+        let t = TestContext::new().await;
+
+        let qr = check_qr(&t, "https://t.me/socks?server=84.53.239.95&port=4145").await?;
+        assert_eq!(
+            qr,
+            Qr::Socks5Proxy {
+                host: "84.53.239.95".to_string(),
+                port: 4145,
+                user: None,
+                pass: None,
+            }
+        );
+
+        let qr = check_qr(&t, "https://t.me/socks?server=foo.bar&port=123").await?;
+        assert_eq!(
+            qr,
+            Qr::Socks5Proxy {
+                host: "foo.bar".to_string(),
+                port: 123,
+                user: None,
+                pass: None,
+            }
+        );
+
+        let qr = check_qr(&t, "https://t.me/socks?server=foo.baz").await?;
+        assert_eq!(
+            qr,
+            Qr::Socks5Proxy {
+                host: "foo.baz".to_string(),
+                port: 1080,
+                user: None,
+                pass: None,
+            }
+        );
+
+        let qr = check_qr(
+            &t,
+            "https://t.me/socks?server=foo.baz&port=12345&user=ada&pass=ms%21%2F%24",
+        )
+        .await?;
+        assert_eq!(
+            qr,
+            Qr::Socks5Proxy {
+                host: "foo.baz".to_string(),
+                port: 12345,
+                user: Some("ada".to_string()),
+                pass: Some("ms!/$".to_string()),
+            }
+        );
+
+        // wrong domain results in Qr:Url instead of Qr::Socks5Proxy
+        let qr = check_qr(&t, "https://not.me/socks?noserver=84.53.239.95&port=4145").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "https://not.me/socks?noserver=84.53.239.95&port=4145".to_string()
+            }
+        );
+
+        let qr = check_qr(&t, "https://t.me/socks?noserver=84.53.239.95&port=4145").await;
+        assert!(qr.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_account_bad_scheme() {
         let ctx = TestContext::new().await;
         let res = check_qr(
@@ -1498,7 +1640,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_set_config_from_qr() -> Result<()> {
+    async fn test_set_webrtc_instance_config_from_qr() -> Result<()> {
         let ctx = TestContext::new().await;
 
         assert!(ctx.ctx.get_config(Config::WebrtcInstance).await?.is_none());
@@ -1524,6 +1666,59 @@ mod tests {
         assert_eq!(
             ctx.ctx.get_config(Config::WebrtcInstance).await?.unwrap(),
             "basicwebrtc:https://foo.bar/?$ROOM&test"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_set_socks5_proxy_config_from_qr() -> Result<()> {
+        let t = TestContext::new().await;
+
+        assert_eq!(t.get_config_bool(Config::Socks5Enabled).await?, false);
+
+        let res = set_config_from_qr(&t, "https://t.me/socks?server=foo&port=666").await;
+        assert!(res.is_ok());
+        assert_eq!(t.get_config_bool(Config::Socks5Enabled).await?, true);
+        assert_eq!(
+            t.get_config(Config::Socks5Host).await?,
+            Some("foo".to_string())
+        );
+        assert_eq!(t.get_config_u32(Config::Socks5Port).await?, 666);
+        assert_eq!(t.get_config(Config::Socks5User).await?, None);
+        assert_eq!(t.get_config(Config::Socks5Password).await?, None);
+
+        // make sure, user&password are reset when not specified in the URL
+        t.set_config(Config::Socks5User, Some("alice")).await?;
+        t.set_config(Config::Socks5Password, Some("secret")).await?;
+        let res = set_config_from_qr(&t, "https://t.me/socks?server=1.2.3.4").await;
+        assert!(res.is_ok());
+        assert_eq!(t.get_config_bool(Config::Socks5Enabled).await?, true);
+        assert_eq!(
+            t.get_config(Config::Socks5Host).await?,
+            Some("1.2.3.4".to_string())
+        );
+        assert_eq!(t.get_config_u32(Config::Socks5Port).await?, 1080);
+        assert_eq!(t.get_config(Config::Socks5User).await?, None);
+        assert_eq!(t.get_config(Config::Socks5Password).await?, None);
+
+        // make sure, user&password are set when specified in the URL
+        let res =
+            set_config_from_qr(&t, "https://t.me/socks?server=jau&user=Da&pass=x%26%25%24X").await;
+        assert!(res.is_ok());
+        assert_eq!(t.get_config_bool(Config::Socks5Enabled).await?, true);
+        assert_eq!(
+            t.get_config(Config::Socks5Host).await?,
+            Some("jau".to_string())
+        );
+        assert_eq!(t.get_config_u32(Config::Socks5Port).await?, 1080);
+        assert_eq!(
+            t.get_config(Config::Socks5User).await?,
+            Some("Da".to_string())
+        );
+        assert_eq!(
+            t.get_config(Config::Socks5Password).await?,
+            Some("x&%$X".to_string())
         );
 
         Ok(())

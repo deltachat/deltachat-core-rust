@@ -52,6 +52,7 @@ impl Lot {
                 Qr::Backup { .. } => None,
                 Qr::Backup2 { .. } => None,
                 Qr::WebrtcInstance { domain, .. } => Some(domain),
+                Qr::Socks5Proxy { host, .. } => Some(host),
                 Qr::Addr { draft, .. } => draft.as_deref(),
                 Qr::Url { url } => Some(url),
                 Qr::Text { text } => Some(text),
@@ -68,7 +69,10 @@ impl Lot {
     pub fn get_text2(&self) -> Option<Cow<str>> {
         match self {
             Self::Summary(summary) => Some(summary.truncated_text(160)),
-            Self::Qr(_) => None,
+            Self::Qr(qr) => match qr {
+                Qr::Socks5Proxy { port, .. } => Some(Cow::Owned(format!("{port}"))),
+                _ => None,
+            },
             Self::Error(_) => None,
         }
     }
@@ -105,6 +109,7 @@ impl Lot {
                 Qr::Backup { .. } => LotState::QrBackup,
                 Qr::Backup2 { .. } => LotState::QrBackup2,
                 Qr::WebrtcInstance { .. } => LotState::QrWebrtcInstance,
+                Qr::Socks5Proxy { .. } => LotState::QrSocks5Proxy,
                 Qr::Addr { .. } => LotState::QrAddr,
                 Qr::Url { .. } => LotState::QrUrl,
                 Qr::Text { .. } => LotState::QrText,
@@ -131,6 +136,7 @@ impl Lot {
                 Qr::Backup { .. } => Default::default(),
                 Qr::Backup2 { .. } => Default::default(),
                 Qr::WebrtcInstance { .. } => Default::default(),
+                Qr::Socks5Proxy { .. } => Default::default(),
                 Qr::Addr { contact_id, .. } => contact_id.to_u32(),
                 Qr::Url { .. } => Default::default(),
                 Qr::Text { .. } => Default::default(),
@@ -184,6 +190,9 @@ pub enum LotState {
 
     /// text1=domain, text2=instance pattern
     QrWebrtcInstance = 260,
+
+    /// text1=host, text2=port
+    QrSocks5Proxy = 270,
 
     /// id=contact
     QrAddr = 320,

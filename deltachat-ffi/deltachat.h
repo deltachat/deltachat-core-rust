@@ -2507,6 +2507,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_BACKUP                 251
 #define         DC_QR_BACKUP2                252
 #define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain, text2=instance pattern
+#define         DC_QR_SOCKS5_PROXY           270 // text1=host, text2=port
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL
@@ -2559,6 +2560,10 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
  *   ask the user if they want to use the given service for video chats;
  *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_SOCKS5_PROXY with dc_lot_t::text1=host, dc_lot_t::text2=port:
+ *   ask the user if they want to use the given proxy and overwrite the previous one, if any.
+ *   if so, call dc_set_config_from_qr() and restart I/O.
  *
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
  *   e-mail address scanned, optionally, a draft message could be set in

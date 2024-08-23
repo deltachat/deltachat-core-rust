@@ -44,6 +44,12 @@ pub enum QrObject {
         domain: String,
         instance_pattern: String,
     },
+    Socks5Proxy {
+        host: String,
+        port: u16,
+        user: Option<String>,
+        pass: Option<String>,
+    },
     Addr {
         contact_id: u32,
         draft: Option<String>,
@@ -151,6 +157,17 @@ impl From<Qr> for QrObject {
             } => QrObject::WebrtcInstance {
                 domain,
                 instance_pattern,
+            },
+            Qr::Socks5Proxy {
+                host,
+                port,
+                user,
+                pass,
+            } => QrObject::Socks5Proxy {
+                host,
+                port,
+                user,
+                pass,
             },
             Qr::Addr { contact_id, draft } => {
                 let contact_id = contact_id.to_u32();
