@@ -279,9 +279,10 @@ impl ChatId {
     ) -> Result<Self> {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
-                if create_blocked == Blocked::Not && chat.blocked != Blocked::Not {
-                    chat.id.set_blocked(context, Blocked::Not).await?;
+                if create_blocked != Blocked::Not || chat.blocked == Blocked::Not {
+                    return Ok(chat.id);
                 }
+                chat.id.set_blocked(context, Blocked::Not).await?;
                 chat.id
             }
             None => {
