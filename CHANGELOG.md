@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.142.9] - 2024-08-24
+
+### Fixes
+
+- Fix reading of multiline SMTP greetings ([#5911](https://github.com/deltachat/deltachat-core-rust/pull/5911)).
+
+### Features / Changes
+
+- Update preloaded DNS cache.
+
 ## [1.142.8] - 2024-08-21
 
 ### Fixes
@@ -4774,3 +4784,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.5...v1.142.6
 [1.142.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.6...v1.142.7
 [1.142.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.7...v1.142.8
+[1.142.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.8...v1.142.9

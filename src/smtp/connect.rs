@@ -150,11 +150,12 @@ async fn connect_stream(
 async fn skip_smtp_greeting<R: tokio::io::AsyncBufReadExt + Unpin>(stream: &mut R) -> Result<()> {
     let mut line = String::with_capacity(512);
     loop {
+        line.clear();
         let read = stream.read_line(&mut line).await?;
         if read == 0 {
             bail!("Unexpected EOF while reading SMTP greeting.");
         }
-        if line.starts_with("220- ") {
+        if line.starts_with("220-") {
             continue;
         } else if line.starts_with("220 ") {
             return Ok(());
@@ -257,4 +258,20 @@ async fn connect_insecure(addr: SocketAddr) -> Result<Box<dyn SessionBufStream>>
     skip_smtp_greeting(&mut buffered_stream).await?;
     let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
     Ok(session_stream)
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::io::BufReader;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_skip_smtp_greeting() -> Result<()> {
+        let greeting = b"220-server261.web-hosting.com ESMTP Exim 4.96.2 #2 Sat, 24 Aug 2024 12:25:53 -0400 \r\n\
+                         220-We do not authorize the use of this system to transport unsolicited,\r\n\
+                         220 and/or bulk e-mail.\r\n";
+        let mut buffered_stream = BufReader::new(&greeting[..]);
+        skip_smtp_greeting(&mut buffered_stream).await
+    }
 }

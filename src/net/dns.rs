@@ -1,6 +1,7 @@
 //! DNS resolution and cache.
 
 use anyhow::{Context as _, Result};
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 use tokio::net::lookup_host;
@@ -9,6 +10,7 @@ use tokio::time::timeout;
 use super::load_connection_timestamp;
 use crate::context::Context;
 use crate::tools::time;
+use once_cell::sync::Lazy;
 
 /// Inserts entry into DNS cache
 /// or updates existing one with a new timestamp.
@@ -106,6 +108,399 @@ pub(crate) async fn update_connect_timestamp(
     Ok(())
 }
 
+static DNS_PRELOAD: Lazy<HashMap<&'static str, Vec<IpAddr>>> = Lazy::new(|| {
+    HashMap::from([
+        (
+            "mail.sangham.net",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(159, 69, 186, 85)),
+                IpAddr::V6(Ipv6Addr::new(0x2a01, 0x4f8, 0xc17, 0x798c, 0, 0, 0, 1)),
+            ],
+        ),
+        (
+            "nine.testrun.org",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(116, 202, 233, 236)),
+                IpAddr::V4(Ipv4Addr::new(128, 140, 126, 197)),
+                IpAddr::V4(Ipv4Addr::new(49, 12, 116, 128)),
+                IpAddr::V6(Ipv6Addr::new(0x2a01, 0x4f8, 0x241, 0x4ce8, 0, 0, 0, 2)),
+            ],
+        ),
+        (
+            "disroot.org",
+            vec![IpAddr::V4(Ipv4Addr::new(178, 21, 23, 139))],
+        ),
+        (
+            "imap.gmail.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(142, 250, 110, 108)),
+                IpAddr::V4(Ipv4Addr::new(142, 250, 110, 109)),
+                IpAddr::V4(Ipv4Addr::new(66, 102, 1, 108)),
+                IpAddr::V4(Ipv4Addr::new(66, 102, 1, 109)),
+                IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x400c, 0xc1f, 0, 0, 0, 0x6c)),
+                IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x400c, 0xc1f, 0, 0, 0, 0x6d)),
+            ],
+        ),
+        (
+            "smtp.gmail.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(142, 250, 110, 109)),
+                IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x4013, 0xc04, 0, 0, 0, 0x6c)),
+            ],
+        ),
+        (
+            "mail.autistici.org",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(198, 167, 222, 108)),
+                IpAddr::V4(Ipv4Addr::new(82, 94, 249, 234)),
+                IpAddr::V4(Ipv4Addr::new(93, 190, 126, 19)),
+            ],
+        ),
+        (
+            "smtp.autistici.org",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(198, 167, 222, 108)),
+                IpAddr::V4(Ipv4Addr::new(82, 94, 249, 234)),
+                IpAddr::V4(Ipv4Addr::new(93, 190, 126, 19)),
+            ],
+        ),
+        (
+            "daleth.cafe",
+            vec![IpAddr::V4(Ipv4Addr::new(37, 27, 6, 204))],
+        ),
+        (
+            "imap.163.com",
+            vec![IpAddr::V4(Ipv4Addr::new(111, 124, 203, 45))],
+        ),
+        (
+            "smtp.163.com",
+            vec![IpAddr::V4(Ipv4Addr::new(103, 129, 252, 45))],
+        ),
+        (
+            "imap.aol.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(212, 82, 101, 33)),
+                IpAddr::V4(Ipv4Addr::new(87, 248, 98, 69)),
+            ],
+        ),
+        (
+            "smtp.aol.com",
+            vec![IpAddr::V4(Ipv4Addr::new(87, 248, 97, 31))],
+        ),
+        (
+            "mail.arcor.de",
+            vec![IpAddr::V4(Ipv4Addr::new(2, 207, 150, 234))],
+        ),
+        (
+            "imap.arcor.de",
+            vec![IpAddr::V4(Ipv4Addr::new(2, 207, 150, 230))],
+        ),
+        (
+            "imap.fastmail.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(103, 168, 172, 43)),
+                IpAddr::V4(Ipv4Addr::new(103, 168, 172, 58)),
+            ],
+        ),
+        (
+            "smtp.fastmail.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(103, 168, 172, 45)),
+                IpAddr::V4(Ipv4Addr::new(103, 168, 172, 60)),
+            ],
+        ),
+        (
+            "imap.gmx.net",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(212, 227, 17, 170)),
+                IpAddr::V4(Ipv4Addr::new(212, 227, 17, 186)),
+            ],
+        ),
+        (
+            "imap.mail.de",
+            vec![IpAddr::V4(Ipv4Addr::new(62, 201, 172, 16))],
+        ),
+        (
+            "smtp.mailbox.org",
+            vec![IpAddr::V4(Ipv4Addr::new(185, 97, 174, 196))],
+        ),
+        (
+            "imap.mailbox.org",
+            vec![IpAddr::V4(Ipv4Addr::new(185, 97, 174, 199))],
+        ),
+        (
+            "imap.naver.com",
+            vec![IpAddr::V4(Ipv4Addr::new(125, 209, 238, 153))],
+        ),
+        (
+            "imap.ouvaton.coop",
+            vec![IpAddr::V4(Ipv4Addr::new(194, 36, 166, 20))],
+        ),
+        (
+            "imap.purelymail.com",
+            vec![IpAddr::V4(Ipv4Addr::new(18, 204, 123, 63))],
+        ),
+        (
+            "imap.tiscali.it",
+            vec![IpAddr::V4(Ipv4Addr::new(213, 205, 33, 10))],
+        ),
+        (
+            "smtp.tiscali.it",
+            vec![IpAddr::V4(Ipv4Addr::new(213, 205, 33, 13))],
+        ),
+        (
+            "imap.web.de",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(212, 227, 17, 162)),
+                IpAddr::V4(Ipv4Addr::new(212, 227, 17, 178)),
+            ],
+        ),
+        (
+            "imap.ziggo.nl",
+            vec![IpAddr::V4(Ipv4Addr::new(84, 116, 6, 3))],
+        ),
+        (
+            "imap.zoho.eu",
+            vec![IpAddr::V4(Ipv4Addr::new(185, 230, 214, 25))],
+        ),
+        (
+            "imaps.bluewin.ch",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(16, 62, 253, 42)),
+                IpAddr::V4(Ipv4Addr::new(16, 63, 141, 244)),
+                IpAddr::V4(Ipv4Addr::new(16, 63, 146, 183)),
+            ],
+        ),
+        (
+            "mail.buzon.uy",
+            vec![IpAddr::V4(Ipv4Addr::new(185, 101, 93, 79))],
+        ),
+        (
+            "mail.ecloud.global",
+            vec![IpAddr::V4(Ipv4Addr::new(95, 217, 246, 96))],
+        ),
+        (
+            "mail.ende.in.net",
+            vec![IpAddr::V4(Ipv4Addr::new(95, 217, 5, 72))],
+        ),
+        (
+            "mail.gmx.net",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(212, 227, 17, 168)),
+                IpAddr::V4(Ipv4Addr::new(212, 227, 17, 190)),
+            ],
+        ),
+        (
+            "mail.infomaniak.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(83, 166, 143, 44)),
+                IpAddr::V4(Ipv4Addr::new(83, 166, 143, 45)),
+            ],
+        ),
+        (
+            "mail.mymagenta.at",
+            vec![IpAddr::V4(Ipv4Addr::new(80, 109, 253, 241))],
+        ),
+        (
+            "mail.nubo.coop",
+            vec![IpAddr::V4(Ipv4Addr::new(79, 99, 201, 10))],
+        ),
+        (
+            "mail.riseup.net",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(198, 252, 153, 70)),
+                IpAddr::V4(Ipv4Addr::new(198, 252, 153, 71)),
+            ],
+        ),
+        (
+            "mail.systemausfall.org",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(51, 75, 71, 249)),
+                IpAddr::V4(Ipv4Addr::new(80, 153, 252, 42)),
+            ],
+        ),
+        (
+            "mail.systemli.org",
+            vec![IpAddr::V4(Ipv4Addr::new(93, 190, 126, 36))],
+        ),
+        (
+            "mehl.cloud",
+            vec![IpAddr::V4(Ipv4Addr::new(95, 217, 223, 172))],
+        ),
+        (
+            "mx.freenet.de",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(195, 4, 92, 210)),
+                IpAddr::V4(Ipv4Addr::new(195, 4, 92, 211)),
+                IpAddr::V4(Ipv4Addr::new(195, 4, 92, 212)),
+                IpAddr::V4(Ipv4Addr::new(195, 4, 92, 213)),
+            ],
+        ),
+        (
+            "newyear.aktivix.org",
+            vec![IpAddr::V4(Ipv4Addr::new(162, 247, 75, 192))],
+        ),
+        (
+            "pimap.schulon.org",
+            vec![IpAddr::V4(Ipv4Addr::new(194, 77, 246, 20))],
+        ),
+        (
+            "posteo.de",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(185, 67, 36, 168)),
+                IpAddr::V4(Ipv4Addr::new(185, 67, 36, 169)),
+            ],
+        ),
+        (
+            "psmtp.schulon.org",
+            vec![IpAddr::V4(Ipv4Addr::new(194, 77, 246, 20))],
+        ),
+        (
+            "secureimap.t-online.de",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(194, 25, 134, 114)),
+                IpAddr::V4(Ipv4Addr::new(194, 25, 134, 115)),
+                IpAddr::V4(Ipv4Addr::new(194, 25, 134, 50)),
+                IpAddr::V4(Ipv4Addr::new(194, 25, 134, 51)),
+            ],
+        ),
+        (
+            "securesmtp.t-online.de",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(194, 25, 134, 110)),
+                IpAddr::V4(Ipv4Addr::new(194, 25, 134, 46)),
+            ],
+        ),
+        (
+            "smtp.aliyun.com",
+            vec![IpAddr::V4(Ipv4Addr::new(47, 246, 136, 232))],
+        ),
+        (
+            "smtp.mail.de",
+            vec![IpAddr::V4(Ipv4Addr::new(62, 201, 172, 21))],
+        ),
+        (
+            "smtp.mail.ru",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(217, 69, 139, 160)),
+                IpAddr::V4(Ipv4Addr::new(94, 100, 180, 160)),
+            ],
+        ),
+        (
+            "imap.mail.yahoo.com",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(87, 248, 103, 8)),
+                IpAddr::V4(Ipv4Addr::new(212, 82, 101, 24)),
+            ],
+        ),
+        (
+            "smtp.mail.yahoo.com",
+            vec![IpAddr::V4(Ipv4Addr::new(87, 248, 97, 36))],
+        ),
+        (
+            "imap.mailo.com",
+            vec![IpAddr::V4(Ipv4Addr::new(213, 182, 54, 20))],
+        ),
+        (
+            "smtp.mailo.com",
+            vec![IpAddr::V4(Ipv4Addr::new(213, 182, 54, 20))],
+        ),
+        (
+            "smtp.naver.com",
+            vec![IpAddr::V4(Ipv4Addr::new(125, 209, 238, 155))],
+        ),
+        (
+            "smtp.ouvaton.coop",
+            vec![IpAddr::V4(Ipv4Addr::new(194, 36, 166, 20))],
+        ),
+        (
+            "smtp.purelymail.com",
+            vec![IpAddr::V4(Ipv4Addr::new(18, 204, 123, 63))],
+        ),
+        (
+            "imap.qq.com",
+            vec![IpAddr::V4(Ipv4Addr::new(43, 129, 255, 54))],
+        ),
+        (
+            "smtp.qq.com",
+            vec![IpAddr::V4(Ipv4Addr::new(43, 129, 255, 54))],
+        ),
+        (
+            "imap.rambler.ru",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 169)),
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 171)),
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 168)),
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 170)),
+            ],
+        ),
+        (
+            "smtp.rambler.ru",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 165)),
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 167)),
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 166)),
+                IpAddr::V4(Ipv4Addr::new(81, 19, 77, 164)),
+            ],
+        ),
+        (
+            "imap.vivaldi.net",
+            vec![IpAddr::V4(Ipv4Addr::new(31, 209, 137, 15))],
+        ),
+        (
+            "smtp.vivaldi.net",
+            vec![IpAddr::V4(Ipv4Addr::new(31, 209, 137, 12))],
+        ),
+        (
+            "imap.vodafonemail.de",
+            vec![IpAddr::V4(Ipv4Addr::new(2, 207, 150, 230))],
+        ),
+        (
+            "smtp.vodafonemail.de",
+            vec![IpAddr::V4(Ipv4Addr::new(2, 207, 150, 234))],
+        ),
+        (
+            "smtp.web.de",
+            vec![
+                IpAddr::V4(Ipv4Addr::new(213, 165, 67, 108)),
+                IpAddr::V4(Ipv4Addr::new(213, 165, 67, 124)),
+            ],
+        ),
+        (
+            "imap.yandex.com",
+            vec![IpAddr::V4(Ipv4Addr::new(77, 88, 21, 125))],
+        ),
+        (
+            "smtp.yandex.com",
+            vec![IpAddr::V4(Ipv4Addr::new(77, 88, 21, 158))],
+        ),
+        (
+            "smtp.ziggo.nl",
+            vec![IpAddr::V4(Ipv4Addr::new(84, 116, 6, 3))],
+        ),
+        (
+            "smtp.zoho.eu",
+            vec![IpAddr::V4(Ipv4Addr::new(185, 230, 212, 164))],
+        ),
+        (
+            "smtpauths.bluewin.ch",
+            vec![IpAddr::V4(Ipv4Addr::new(195, 186, 120, 54))],
+        ),
+        (
+            "stinpriza.net",
+            vec![IpAddr::V4(Ipv4Addr::new(5, 9, 122, 184))],
+        ),
+        (
+            "undernet.uy",
+            vec![IpAddr::V4(Ipv4Addr::new(167, 62, 254, 153))],
+        ),
+        (
+            "webbox222.server-home.org",
+            vec![IpAddr::V4(Ipv4Addr::new(91, 203, 111, 88))],
+        ),
+    ])
+});
+
 /// Load hardcoded cache if everything else fails.
 ///
 /// See <https://support.delta.chat/t/no-dns-resolution-result/2778> and
@@ -114,61 +509,10 @@ pub(crate) async fn update_connect_timestamp(
 /// In the future we may pre-resolve all provider database addresses
 /// and build them in.
 fn load_hardcoded_cache(hostname: &str, port: u16) -> Vec<SocketAddr> {
-    match hostname {
-        "mail.sangham.net" => {
-            vec![
-                SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::new(0x2a01, 0x4f8, 0xc17, 0x798c, 0, 0, 0, 1)),
-                    port,
-                ),
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(159, 69, 186, 85)), port),
-            ]
-        }
-        "nine.testrun.org" => {
-            vec![
-                SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::new(0x2a01, 0x4f8, 0x241, 0x4ce8, 0, 0, 0, 2)),
-                    port,
-                ),
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(116, 202, 233, 236)), port),
-            ]
-        }
-        "disroot.org" => {
-            vec![SocketAddr::new(
-                IpAddr::V4(Ipv4Addr::new(178, 21, 23, 139)),
-                port,
-            )]
-        }
-        "mail.riseup.net" => {
-            vec![
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(198, 252, 153, 70)), port),
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(198, 252, 153, 71)), port),
-            ]
-        }
-        "imap.gmail.com" => {
-            vec![
-                SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x400c, 0xc1f, 0, 0, 0, 0x6c)),
-                    port,
-                ),
-                SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x400c, 0xc1f, 0, 0, 0, 0x6d)),
-                    port,
-                ),
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(142, 250, 110, 109)), port),
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(142, 250, 110, 108)), port),
-            ]
-        }
-        "smtp.gmail.com" => {
-            vec![
-                SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x4013, 0xc04, 0, 0, 0, 0x6c)),
-                    port,
-                ),
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(142, 250, 110, 109)), port),
-            ]
-        }
-        _ => Vec::new(),
+    if let Some(ips) = DNS_PRELOAD.get(hostname) {
+        ips.iter().map(|ip| SocketAddr::new(*ip, port)).collect()
+    } else {
+        Vec::new()
     }
 }
 
