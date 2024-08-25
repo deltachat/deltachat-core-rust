@@ -27,6 +27,13 @@ use tls::wrap_tls;
 /// This constant should be more than the largest expected RTT.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Transaction timeout, e.g. for a GET or POST request
+/// together with all connection attempts.
+///
+/// This is the worst case time user has to wait on a very slow network
+/// after clicking a button and before getting an error message.
+pub(crate) const TRANSACTION_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// TTL for caches in seconds.
 pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
 

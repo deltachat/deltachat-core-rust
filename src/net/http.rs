@@ -136,8 +136,24 @@ pub(crate) async fn get_client(context: &Context, load_cache: bool) -> Result<re
     let socks5_config = Socks5Config::from_database(&context.sql).await?;
     let resolver = Arc::new(CustomResolver::new(context.clone(), load_cache));
 
+    // `reqwest` uses `hyper-util` crate internally which implements
+    // [Happy Eyeballs](https://datatracker.ietf.org/doc/html/rfc6555) algorithm.
+    // On a dual-stack host it starts IPv4 connection attempts in parallel
+    // to IPv6 connection attempts after 300 ms.
+    // In the worst case of all connection attempts
+    // timing out this allows to try four IPv6 and four IPv4
+    // addresses before request expires
+    // if request timeout is set to 5 minutes
+    // and connection timeout is set to 1 minute.
+    //
+    // We do not set write timeout because `reqwest`
+    // does not support it, but request timeout
+    // should prevent deadlocks if the server
+    // does not read the data.
     let builder = reqwest::ClientBuilder::new()
-        .timeout(super::TIMEOUT)
+        .connect_timeout(super::TIMEOUT)
+        .read_timeout(super::TIMEOUT)
+        .timeout(super::TRANSACTION_TIMEOUT)
         .add_root_certificate(LETSENCRYPT_ROOT.clone())
         .dns_resolver(resolver);
 
