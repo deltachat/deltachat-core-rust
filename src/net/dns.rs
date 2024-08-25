@@ -108,6 +108,10 @@ pub(crate) async fn update_connect_timestamp(
     Ok(())
 }
 
+/// Preloaded DNS results that can be used in case of DNS server failures.
+///
+/// See <https://support.delta.chat/t/no-dns-resolution-result/2778> and
+/// <https://github.com/deltachat/deltachat-core-rust/issues/4920> for reasons.
 static DNS_PRELOAD: Lazy<HashMap<&'static str, Vec<IpAddr>>> = Lazy::new(|| {
     HashMap::from([
         (
@@ -501,21 +505,6 @@ static DNS_PRELOAD: Lazy<HashMap<&'static str, Vec<IpAddr>>> = Lazy::new(|| {
     ])
 });
 
-/// Load hardcoded cache if everything else fails.
-///
-/// See <https://support.delta.chat/t/no-dns-resolution-result/2778> and
-/// <https://github.com/deltachat/deltachat-core-rust/issues/4920> for reasons.
-///
-/// In the future we may pre-resolve all provider database addresses
-/// and build them in.
-fn load_hardcoded_cache(hostname: &str, port: u16) -> Vec<SocketAddr> {
-    if let Some(ips) = DNS_PRELOAD.get(hostname) {
-        ips.iter().map(|ip| SocketAddr::new(*ip, port)).collect()
-    } else {
-        Vec::new()
-    }
-}
-
 async fn lookup_cache(
     context: &Context,
     host: &str,
@@ -631,8 +620,13 @@ pub(crate) async fn lookup_host_with_cache(
             }
         }
 
-        if resolved_addrs.is_empty() {
-            return Ok(load_hardcoded_cache(hostname, port));
+        if let Some(ips) = DNS_PRELOAD.get(hostname) {
+            for ip in ips {
+                let addr = SocketAddr::new(*ip, port);
+                if !resolved_addrs.contains(&addr) {
+                    resolved_addrs.push(addr);
+                }
+            }
         }
     }
 
