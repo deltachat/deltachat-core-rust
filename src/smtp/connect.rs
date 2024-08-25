@@ -5,13 +5,16 @@ use std::net::SocketAddr;
 use anyhow::{bail, format_err, Context as _, Result};
 use async_smtp::{SmtpClient, SmtpTransport};
 use tokio::io::BufStream;
+use tokio::task::JoinSet;
 
 use crate::context::Context;
 use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
-use crate::net::{connect_tcp_inner, connect_tls_inner, update_connection_history};
+use crate::net::{
+    connect_tcp_inner, connect_tls_inner, update_connection_history, CONNECTION_DELAYS,
+};
 use crate::oauth2::get_oauth2_access_token;
 use crate::socks::Socks5Config;
 use crate::tools::time;
@@ -72,6 +75,49 @@ pub(crate) async fn connect_and_auth(
     Ok(transport)
 }
 
+async fn connection_attempt(
+    context: Context,
+    host: String,
+    security: ConnectionSecurity,
+    resolved_addr: SocketAddr,
+    strict_tls: bool,
+) -> Result<Box<dyn SessionBufStream>> {
+    let context = &context;
+    let host = &host;
+    info!(
+        context,
+        "Attempting SMTP connection to {host} ({resolved_addr})."
+    );
+    let res = match security {
+        ConnectionSecurity::Tls => connect_secure(resolved_addr, host, strict_tls).await,
+        ConnectionSecurity::Starttls => connect_starttls(resolved_addr, host, strict_tls).await,
+        ConnectionSecurity::Plain => connect_insecure(resolved_addr).await,
+    };
+    match res {
+        Ok(stream) => {
+            let ip_addr = resolved_addr.ip().to_string();
+            let port = resolved_addr.port();
+
+            let save_cache = match security {
+                ConnectionSecurity::Tls | ConnectionSecurity::Starttls => strict_tls,
+                ConnectionSecurity::Plain => false,
+            };
+            if save_cache {
+                update_connect_timestamp(context, host, &ip_addr).await?;
+            }
+            update_connection_history(context, "smtp", host, port, &ip_addr, time()).await?;
+            Ok(stream)
+        }
+        Err(err) => {
+            warn!(
+                context,
+                "Failed to connect to {host} ({resolved_addr}): {err:#}."
+            );
+            Err(err)
+        }
+    }
+}
+
 /// Returns TLS, STARTTLS or plaintext connection
 /// using SOCKS5 or direct connection depending on the given configuration.
 ///
@@ -106,37 +152,86 @@ async fn connect_stream(
         };
         Ok(stream)
     } else {
-        let mut first_error = None;
         let load_cache = match security {
             ConnectionSecurity::Tls | ConnectionSecurity::Starttls => strict_tls,
             ConnectionSecurity::Plain => false,
         };
 
-        for resolved_addr in lookup_host_with_cache(context, host, port, "smtp", load_cache).await?
+        let mut connection_attempt_set = JoinSet::new();
+        let mut delay_set = JoinSet::new();
+
+        let mut connection_futures = Vec::new();
+
+        for resolved_addr in lookup_host_with_cache(context, host, port, "smtp", load_cache)
+            .await?
+            .into_iter()
+            .rev()
         {
-            let res = match security {
-                ConnectionSecurity::Tls => connect_secure(resolved_addr, host, strict_tls).await,
-                ConnectionSecurity::Starttls => {
-                    connect_starttls(resolved_addr, host, strict_tls).await
-                }
-                ConnectionSecurity::Plain => connect_insecure(resolved_addr).await,
-            };
-            match res {
-                Ok(stream) => {
-                    let ip_addr = resolved_addr.ip().to_string();
-                    if load_cache {
-                        update_connect_timestamp(context, host, &ip_addr).await?;
+            let context = context.clone();
+            let host = host.to_string();
+            let fut = connection_attempt(context, host, security, resolved_addr, strict_tls);
+            connection_futures.push(fut);
+        }
+
+        // Start with one connection.
+        if let Some(fut) = connection_futures.pop() {
+            connection_attempt_set.spawn(fut);
+        }
+
+        for delay in CONNECTION_DELAYS {
+            delay_set.spawn(tokio::time::sleep(delay));
+        }
+
+        let mut first_error = None;
+        loop {
+            tokio::select! {
+                biased;
+
+                res = connection_attempt_set.join_next() => {
+                    match res {
+                        Some(res) => {
+                            match res.context("Failed to join task")? {
+                                Ok(conn) => {
+                                    // Successfully connected.
+                                    return Ok(conn);
+                                },
+                                Err(err) => {
+                                    // Some connection attempt failed.
+                                    first_error.get_or_insert(err);
+                                }
+                            }
+                        },
+                        None => {
+                            // Out of connection attempts.
+                            //
+                            // Break out of the loop and return error.
+                            break;
+                        }
                     }
-                    update_connection_history(context, "smtp", host, port, &ip_addr, time())
-                        .await?;
-                    return Ok(stream);
-                }
-                Err(err) => {
-                    warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                    first_error.get_or_insert(err);
+                },
+                _ = delay_set.join_next(), if !delay_set.is_empty() => {
+                    // Delay expired.
+                    //
+                    // Don't do anything other than adding
+                    // another connection attempt to the active set.
                 }
             }
+
+            if let Some(fut) = connection_futures.pop() {
+                connection_attempt_set.spawn(fut);
+            }
         }
+
+        // Abort remaining connection attempts and free resources
+        // such as OS sockets and `Context` references
+        // held by connection attempt tasks.
+        //
+        // `delay_set` contains just `sleep` tasks
+        // so no need to await futures there,
+        // it is enough that futures are aborted
+        // when the set is dropped.
+        connection_attempt_set.shutdown().await;
+
         Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
     }
 }
