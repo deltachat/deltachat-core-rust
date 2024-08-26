@@ -881,7 +881,7 @@ async fn test_verified_member_added_reordering() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_no_unencrypted_name_if_verified() -> Result<()> {
+async fn test_no_unencrypted_name_if_encrypted() -> Result<()> {
     let mut tcm = TestContextManager::new();
     for verified in [false, true] {
         let alice = tcm.alice().await;
@@ -898,7 +898,7 @@ async fn test_no_unencrypted_name_if_verified() -> Result<()> {
         let chat_id = bob.create_chat(&alice).await.id;
         let msg = &bob.send_text(chat_id, "hi").await;
 
-        assert_eq!(msg.payload.contains("Bob Smith"), !verified);
+        assert_eq!(msg.payload.contains("Bob Smith"), false);
         assert!(msg.payload.contains("BEGIN PGP MESSAGE"));
 
         let msg = alice.recv_msg(msg).await;
