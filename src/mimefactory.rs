@@ -731,17 +731,13 @@ impl MimeFactory {
                     protected_headers.push(header.clone());
                 }
 
-                if is_encrypted && verified || is_securejoin_message {
-                    unprotected_headers.push(
-                        Header::new_with_value(
-                            header.name,
-                            vec![Address::new_mailbox(self.from_addr.clone())],
-                        )
-                        .unwrap(),
-                    );
-                } else {
-                    unprotected_headers.push(header);
-                }
+                unprotected_headers.push(
+                    Header::new_with_value(
+                        header.name,
+                        vec![Address::new_mailbox(self.from_addr.clone())],
+                    )
+                    .unwrap(),
+                );
             } else if header_name == "to" {
                 protected_headers.push(header.clone());
                 if is_encrypted {
