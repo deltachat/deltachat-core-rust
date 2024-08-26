@@ -2,7 +2,7 @@
 //!
 //! This private module is only compiled for test runs.
 #![allow(clippy::indexing_slicing)]
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
 use std::ops::{Deref, DerefMut};
 use std::panic;
@@ -478,24 +478,32 @@ impl TestContext {
             .await
             .expect("failed to update message state");
 
-        // Check that we are sending exactly one From, Subject, Date, To, Message-ID, and MIME-Version header.
-        // This is to test for a regression where Delta Chat would sometimes send multiple From headers.
-        let payload_headers: Vec<_> = payload.split("\r\n\r\n").next().unwrap().lines().collect();
+        let payload_headers = payload.split("\r\n\r\n").next().unwrap().lines();
+        let payload_header_names: Vec<_> = payload_headers
+            .map(|h| h.split(':').next().unwrap())
+            .collect();
+
+        // Check that we are sending exactly one From, Subject, Date, To, Message-ID, and MIME-Version header:
         for header in &[
-            "From: ",
-            "Subject: ",
-            "Date: ",
-            "To: ",
+            "From",
+            "Subject",
+            "Date",
+            "To",
             "Message-ID",
-            "MIME-Version: ",
+            "MIME-Version",
         ] {
             assert_eq!(
-                payload_headers
-                    .iter()
-                    .filter(|s| s.starts_with(header))
-                    .count(),
+                payload_header_names.iter().filter(|h| *h == header).count(),
                 1,
                 "This sent email should contain the header {header} exactly 1 time:\n{payload}"
+            );
+        }
+        // Check that we aren't sending any header twice:
+        let mut hash_set = HashSet::new();
+        for header_name in payload_header_names {
+            assert!(
+                hash_set.insert(header_name),
+                "This sent email shouldn't contain the header {header_name} multiple times:\n{payload}"
             );
         }
 
