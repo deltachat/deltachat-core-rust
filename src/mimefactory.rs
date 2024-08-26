@@ -726,19 +726,17 @@ impl MimeFactory {
             } else if header_name == "autocrypt" {
                 unprotected_headers.push(header.clone());
             } else if header_name == "from" {
+                protected_headers.push(header.clone());
                 if is_encrypted && verified || is_securejoin_message {
                     unprotected_headers.push(
                         Header::new_with_value(
-                            header.name.clone(),
+                            header.name,
                             vec![Address::new_mailbox(self.from_addr.clone())],
                         )
                         .unwrap(),
                     );
                 } else {
-                    unprotected_headers.push(header.clone());
-                }
-                if is_encrypted {
-                    protected_headers.push(header); // Repeat the From: header in the encrypted part
+                    unprotected_headers.push(header);
                 }
             } else if header_name == "to" {
                 protected_headers.push(header.clone());
@@ -899,19 +897,23 @@ impl MimeFactory {
             let message = PartBuilder::new()
                 .message_type(MimeMultipartType::Mixed)
                 .child(message.build());
+
+            let sign_message =
+                !skip_autocrypt && context.get_config_bool(Config::SignUnencrypted).await?;
+
+            if !sign_message {
+                let unprotected: HashSet<&str> =
+                    HashSet::from_iter(unprotected_headers.iter().map(|h| h.name.as_str()));
+
+                // Deduplicate protected headers that also are in the unprotected headers
+                protected_headers.retain(|h| !unprotected.contains(&h.name.as_str()));
+            }
+
             let message = protected_headers
                 .iter()
                 .fold(message, |message, header| message.header(header.clone()));
 
-            if skip_autocrypt || !context.get_config_bool(Config::SignUnencrypted).await? {
-                let protected: HashSet<Header> = HashSet::from_iter(protected_headers.into_iter());
-                for h in unprotected_headers.split_off(0) {
-                    if !protected.contains(&h) {
-                        unprotected_headers.push(h);
-                    }
-                }
-                message
-            } else {
+            if sign_message {
                 let message = message.header(get_content_type_directives_header());
                 let (payload, signature) = encrypt_helper.sign(context, message).await?;
                 PartBuilder::new()
@@ -932,6 +934,8 @@ impl MimeFactory {
                             .body(signature)
                             .build(),
                     )
+            } else {
+                message
             }
         };
 
@@ -2365,16 +2369,7 @@ mod tests {
                 .count(),
             1
         );
-
-        // It would be nicer if DC included the From: header here in order to also sign it.
-        // However, making sure that the From: header is included here,
-        // but not duplicated in unencrypted and unsigned messages
-        // and without leaking a cleartext DisplayName in securejoin messages
-        // was deemed not worth the effort and additional code complexity.
-        // (Context: In verified chats, the DisplayName should not be leaked,
-        // so we must make sure not to include it in securejoin messages)
-        assert_eq!(part.match_indices("From:").count(), 0);
-
+        assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Message-ID:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
@@ -2422,7 +2417,7 @@ mod tests {
                 .count(),
             1
         );
-        assert_eq!(part.match_indices("From:").count(), 0);
+        assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Message-ID:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
