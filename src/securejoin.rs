@@ -843,6 +843,7 @@ mod tests {
         );
 
         let sent = bob.pop_sent_msg().await;
+        assert!(!sent.payload.contains("Bob Examplenet"));
         assert_eq!(sent.recipient(), EmailAddress::new(alice_addr).unwrap());
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
@@ -862,6 +863,7 @@ mod tests {
 
         let sent = alice.pop_sent_msg().await;
         assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
+        assert!(!sent.payload.contains("Alice Exampleorg"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
         assert_eq!(

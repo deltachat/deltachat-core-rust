@@ -726,18 +726,18 @@ impl MimeFactory {
             } else if header_name == "autocrypt" {
                 unprotected_headers.push(header.clone());
             } else if header_name == "from" {
-                protected_headers.push(header.clone());
-                if is_encrypted && verified || is_securejoin_message {
-                    unprotected_headers.push(
-                        Header::new_with_value(
-                            header.name,
-                            vec![Address::new_mailbox(self.from_addr.clone())],
-                        )
-                        .unwrap(),
-                    );
-                } else {
-                    unprotected_headers.push(header);
+                // Unencrypted securejoin messages should _not_ include the display name:
+                if is_encrypted || !is_securejoin_message {
+                    protected_headers.push(header.clone());
                 }
+
+                unprotected_headers.push(
+                    Header::new_with_value(
+                        header.name,
+                        vec![Address::new_mailbox(self.from_addr.clone())],
+                    )
+                    .unwrap(),
+                );
             } else if header_name == "to" {
                 protected_headers.push(header.clone());
                 if is_encrypted {
@@ -902,12 +902,11 @@ impl MimeFactory {
                 .fold(message, |message, header| message.header(header.clone()));
 
             if skip_autocrypt || !context.get_config_bool(Config::SignUnencrypted).await? {
-                let protected: HashSet<Header> = HashSet::from_iter(protected_headers.into_iter());
-                for h in unprotected_headers.split_off(0) {
-                    if !protected.contains(&h) {
-                        unprotected_headers.push(h);
-                    }
-                }
+                // Deduplicate unprotected headers that also are in the protected headers:
+                let protected: HashSet<&str> =
+                    HashSet::from_iter(protected_headers.iter().map(|h| h.name.as_str()));
+                unprotected_headers.retain(|h| !protected.contains(&h.name.as_str()));
+
                 message
             } else {
                 let message = message.header(get_content_type_directives_header());

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.142.10] - 2024-08-26
+
+### Fixes
+
+- Only include one From: header in securejoin messages ([#5917](https://github.com/deltachat/deltachat-core-rust/pull/5917)).
+
 ## [1.142.9] - 2024-08-24
 
 ### Fixes
@@ -4785,3 +4791,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.6...v1.142.7
 [1.142.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.7...v1.142.8
 [1.142.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.8...v1.142.9
+[1.142.10]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.9..v1.142.10
