@@ -726,7 +726,11 @@ impl MimeFactory {
             } else if header_name == "autocrypt" {
                 unprotected_headers.push(header.clone());
             } else if header_name == "from" {
-                protected_headers.push(header.clone());
+                // Unencrypted securejoin messages should _not_ include the display name:
+                if is_encrypted || !is_securejoin_message {
+                    protected_headers.push(header.clone());
+                }
+
                 if is_encrypted && verified || is_securejoin_message {
                     unprotected_headers.push(
                         Header::new_with_value(
@@ -897,23 +901,18 @@ impl MimeFactory {
             let message = PartBuilder::new()
                 .message_type(MimeMultipartType::Mixed)
                 .child(message.build());
-
-            let sign_message =
-                !skip_autocrypt && context.get_config_bool(Config::SignUnencrypted).await?;
-
-            if !sign_message {
-                let unprotected: HashSet<&str> =
-                    HashSet::from_iter(unprotected_headers.iter().map(|h| h.name.as_str()));
-
-                // Deduplicate protected headers that also are in the unprotected headers
-                protected_headers.retain(|h| !unprotected.contains(&h.name.as_str()));
-            }
-
             let message = protected_headers
                 .iter()
                 .fold(message, |message, header| message.header(header.clone()));
 
-            if sign_message {
+            if skip_autocrypt || !context.get_config_bool(Config::SignUnencrypted).await? {
+                // Deduplicate unprotected headers that also are in the protected headers:
+                let protected: HashSet<&str> =
+                    HashSet::from_iter(protected_headers.iter().map(|h| h.name.as_str()));
+                unprotected_headers.retain(|h| !protected.contains(&h.name.as_str()));
+
+                message
+            } else {
                 let message = message.header(get_content_type_directives_header());
                 let (payload, signature) = encrypt_helper.sign(context, message).await?;
                 PartBuilder::new()
@@ -934,8 +933,6 @@ impl MimeFactory {
                             .body(signature)
                             .build(),
                     )
-            } else {
-                message
             }
         };
 
