@@ -726,17 +726,19 @@ impl MimeFactory {
             } else if header_name == "autocrypt" {
                 unprotected_headers.push(header.clone());
             } else if header_name == "from" {
-                protected_headers.push(header.clone());
                 if is_encrypted && verified || is_securejoin_message {
                     unprotected_headers.push(
                         Header::new_with_value(
-                            header.name,
+                            header.name.clone(),
                             vec![Address::new_mailbox(self.from_addr.clone())],
                         )
                         .unwrap(),
                     );
                 } else {
-                    unprotected_headers.push(header);
+                    unprotected_headers.push(header.clone());
+                }
+                if is_encrypted {
+                    protected_headers.push(header); // Repeat the From: header in the encrypted part
                 }
             } else if header_name == "to" {
                 protected_headers.push(header.clone());
@@ -2363,7 +2365,16 @@ mod tests {
                 .count(),
             1
         );
-        assert_eq!(part.match_indices("From:").count(), 1);
+
+        // It would be nicer if DC included the From: header here in order to also sign it.
+        // However, making sure that the From: header is included here,
+        // but not duplicated in unencrypted and unsigned messages
+        // and without leaking a cleartext DisplayName in securejoin messages
+        // was deemed not worth the effort and additional code complexity.
+        // (Context: In verified chats, the DisplayName should not be leaked,
+        // so we must make sure not to include it in securejoin messages)
+        assert_eq!(part.match_indices("From:").count(), 0);
+
         assert_eq!(part.match_indices("Message-ID:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
@@ -2411,7 +2422,7 @@ mod tests {
                 .count(),
             1
         );
-        assert_eq!(part.match_indices("From:").count(), 1);
+        assert_eq!(part.match_indices("From:").count(), 0);
         assert_eq!(part.match_indices("Message-ID:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);

@@ -477,6 +477,28 @@ impl TestContext {
         update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
             .await
             .expect("failed to update message state");
+
+        // Check that we are sending exactly one From, Subject, Date, To, Message-ID, and MIME-Version header.
+        // This is to test for a regression where Delta Chat would sometimes send multiple From headers.
+        let payload_headers: Vec<_> = payload.split("\r\n\r\n").next().unwrap().lines().collect();
+        for header in &[
+            "From: ",
+            "Subject: ",
+            "Date: ",
+            "To: ",
+            "Message-ID",
+            "MIME-Version: ",
+        ] {
+            assert_eq!(
+                payload_headers
+                    .iter()
+                    .filter(|s| s.starts_with(header))
+                    .count(),
+                1,
+                "This sent email should contain the header {header} exactly 1 time:\n{payload}"
+            );
+        }
+
         Some(SentMessage {
             payload,
             sender_msg_id: msg_id,
