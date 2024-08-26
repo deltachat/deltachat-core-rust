@@ -579,6 +579,16 @@ impl MimeFactory {
                 "Auto-Submitted".to_string(),
                 "auto-generated".to_string(),
             ));
+        } else if let Loaded::Message { msg, .. } = &self.loaded {
+            if msg.param.get_cmd() == SystemMessage::SecurejoinMessage {
+                let step = msg.param.get(Param::Arg).unwrap_or_default();
+                if step != "vg-request" && step != "vc-request" {
+                    headers.push(Header::new(
+                        "Auto-Submitted".to_string(),
+                        "auto-replied".to_string(),
+                    ));
+                }
+            }
         }
 
         if let Loaded::Message { chat, .. } = &self.loaded {
@@ -1192,12 +1202,6 @@ impl MimeFactory {
                     if let Some(id) = msg.param.get(Param::Arg4) {
                         headers.push(Header::new("Secure-Join-Group".into(), id.into()));
                     };
-                    if step != "vg-request" && step != "vc-request" {
-                        headers.push(Header::new(
-                            "Auto-Submitted".to_string(),
-                            "auto-replied".to_string(),
-                        ));
-                    }
                 }
             }
             SystemMessage::ChatProtectionEnabled => {
