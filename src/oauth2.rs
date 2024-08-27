@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
@@ -246,11 +246,20 @@ pub(crate) async fn get_oauth2_addr(
     }
 
     if let Some(access_token) = get_oauth2_access_token(context, addr, code, false).await? {
-        let addr_out = oauth2.get_addr(context, &access_token).await;
+        let addr_out = match oauth2.get_addr(context, &access_token).await {
+            Ok(addr) => addr,
+            Err(err) => {
+                warn!(context, "Error getting addr: {err:#}.");
+                None
+            }
+        };
         if addr_out.is_none() {
             // regenerate
             if let Some(access_token) = get_oauth2_access_token(context, addr, code, true).await? {
-                Ok(oauth2.get_addr(context, &access_token).await)
+                Ok(oauth2
+                    .get_addr(context, &access_token)
+                    .await
+                    .unwrap_or_default())
             } else {
                 Ok(None)
             }
@@ -282,7 +291,7 @@ impl Oauth2 {
         None
     }
 
-    async fn get_addr(&self, context: &Context, access_token: &str) -> Option<String> {
+    async fn get_addr(&self, context: &Context, access_token: &str) -> Result<Option<String>> {
         let userinfo_url = self.get_userinfo.unwrap_or("");
         let userinfo_url = replace_in_uri(userinfo_url, "$ACCESS_TOKEN", access_token);
 
@@ -298,40 +307,28 @@ impl Oauth2 {
         // so it is safe to load DNS cache.
         let load_cache = true;
 
-        let client = match crate::net::http::get_client(context, load_cache).await {
-            Ok(cl) => cl,
-            Err(err) => {
-                warn!(context, "failed to get HTTP client: {}", err);
-                return None;
-            }
-        };
-        let response = match client.get(userinfo_url).send().await {
-            Ok(response) => response,
-            Err(err) => {
-                warn!(context, "failed to get userinfo: {}", err);
-                return None;
-            }
-        };
+        let client = crate::net::http::get_client(context, load_cache)
+            .await
+            .context("Failed to get HTTP client")?;
+        let response = client
+            .get(userinfo_url)
+            .send()
+            .await
+            .context("Failed to get userinfo")?;
         let response: Result<HashMap<String, serde_json::Value>, _> = response.json().await;
-        let parsed = match response {
-            Ok(parsed) => parsed,
-            Err(err) => {
-                warn!(context, "Error getting userinfo: {}", err);
-                return None;
-            }
-        };
+        let parsed = response.context("Error getting userinfo")?;
         // CAVE: serde_json::Value.as_str() removes the quotes of json-strings
         // but serde_json::Value.to_string() does not!
         if let Some(addr) = parsed.get("email") {
             if let Some(s) = addr.as_str() {
-                Some(s.to_string())
+                Ok(Some(s.to_string()))
             } else {
                 warn!(context, "E-mail in userinfo is not a string: {}", addr);
-                None
+                Ok(None)
             }
         } else {
             warn!(context, "E-mail missing in userinfo.");
-            None
+            Ok(None)
         }
     }
 }
