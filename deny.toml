@@ -60,8 +60,6 @@ skip = [
      { name = "sync_wrapper", version = "0.1.2" },
      { name = "synstructure", version = "0.12.6" },
      { name = "syn", version = "1.0.109" },
-     { name = "system-configuration-sys", version = "0.5.0" },
-     { name = "system-configuration", version = "0.5.1" },
      { name = "time", version = "<0.3" },
      { name = "tokio-rustls", version = "0.24.1" },
      { name = "toml_edit", version = "0.21.1" },
