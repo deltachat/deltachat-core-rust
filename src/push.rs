@@ -61,16 +61,13 @@ impl PushSubscriber {
             return Ok(());
         };
 
-        let load_cache = true;
-        let response = http::get_client(context, load_cache)
-            .await?
-            .post("https://notifications.delta.chat/register")
-            .body(format!("{{\"token\":\"{token}\"}}"))
-            .send()
-            .await?;
-
-        let response_status = response.status();
-        if response_status.is_success() {
+        if http::post_string(
+            context,
+            "https://notifications.delta.chat/register",
+            format!("{{\"token\":\"{token}\"}}"),
+        )
+        .await?
+        {
             state.heartbeat_subscribed = true;
         }
         Ok(())

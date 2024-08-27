@@ -8,7 +8,6 @@ use fast_socks5::client::{Config, Socks5Stream};
 use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
 use fast_socks5::Socks5Command;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
 
@@ -52,20 +51,6 @@ impl Socks5Config {
         } else {
             Ok(None)
         }
-    }
-
-    /// Converts SOCKS5 configuration into URL.
-    pub fn to_url(&self) -> String {
-        // `socks5h` means that hostname is resolved into address by the proxy
-        // and DNS requests should not leak.
-        let mut url = "socks5h://".to_string();
-        if let Some((username, password)) = &self.user_password {
-            let username_urlencoded = utf8_percent_encode(username, NON_ALPHANUMERIC).to_string();
-            let password_urlencoded = utf8_percent_encode(password, NON_ALPHANUMERIC).to_string();
-            url += &format!("{username_urlencoded}:{password_urlencoded}@");
-        }
-        url += &format!("{}:{}", self.host, self.port);
-        url
     }
 
     /// If `load_dns_cache` is true, loads cached DNS resolution results.
@@ -112,37 +97,5 @@ impl fmt::Display for Socks5Config {
                 "user: None".to_string()
             }
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_socks5h_url() {
-        let config = Socks5Config {
-            host: "127.0.0.1".to_string(),
-            port: 9050,
-            user_password: None,
-        };
-        assert_eq!(config.to_url(), "socks5h://127.0.0.1:9050");
-
-        let config = Socks5Config {
-            host: "example.org".to_string(),
-            port: 1080,
-            user_password: Some(("root".to_string(), "toor".to_string())),
-        };
-        assert_eq!(config.to_url(), "socks5h://root:toor@example.org:1080");
-
-        let config = Socks5Config {
-            host: "example.org".to_string(),
-            port: 1080,
-            user_password: Some(("root".to_string(), "foo/?\\@".to_string())),
-        };
-        assert_eq!(
-            config.to_url(),
-            "socks5h://root:foo%2F%3F%5C%40@example.org:1080"
-        );
     }
 }

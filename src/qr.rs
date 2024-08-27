@@ -19,6 +19,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::key::Fingerprint;
 use crate::message::Message;
+use crate::net::http::post_empty;
 use crate::peerstate::Peerstate;
 use crate::token;
 use crate::tools::validate_id;
@@ -612,21 +613,8 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
         bail!("DCACCOUNT QR codes must use HTTPS scheme");
     }
 
-    // As only HTTPS is used, it is safe to load DNS cache.
-    let load_cache = true;
-
-    let response = crate::net::http::get_client(context, load_cache)
-        .await?
-        .post(url_str)
-        .send()
-        .await?;
-    let response_status = response.status();
-    let response_text = response
-        .text()
-        .await
-        .context("Cannot create account, request failed: empty response")?;
-
-    if response_status.is_success() {
+    let (response_text, response_success) = post_empty(context, url_str).await?;
+    if response_success {
         let CreateAccountSuccessResponse { password, email } = serde_json::from_str(&response_text)
             .with_context(|| {
                 format!("Cannot create account, response is malformed:\n{response_text:?}")
