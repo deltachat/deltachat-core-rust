@@ -437,6 +437,10 @@ pub enum StockMessage {
         fallback = "Could not yet establish guaranteed end-to-end encryption, but you may already send a message."
     ))]
     SecurejoinWaitTimeout = 191,
+
+    /// "Security" title for connectivity view section.
+    #[strum(props(fallback = "Security"))]
+    Security = 192,
 }
 
 impl StockMessage {
@@ -1365,6 +1369,11 @@ pub(crate) async fn backup_transfer_qr(context: &Context) -> Result<String> {
 
 pub(crate) async fn backup_transfer_msg_body(context: &Context) -> String {
     translated(context, StockMessage::BackupTransferMsgBody).await
+}
+
+/// Stock string: `Security`.
+pub(crate) async fn security(context: &Context) -> String {
+    translated(context, StockMessage::Security).await
 }
 
 impl Context {
