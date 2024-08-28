@@ -162,7 +162,7 @@ where
 
     let mut first_error = None;
 
-    loop {
+    let res = loop {
         if let Some(fut) = futures.next() {
             connection_attempt_set.spawn(fut);
         }
@@ -180,7 +180,7 @@ where
                 match res.context("Failed to join task")? {
                     Ok(conn) => {
                         // Successfully connected.
-                        return Ok(conn);
+                        break Ok(conn);
                     }
                     Err(err) => {
                         // Some connection attempt failed.
@@ -192,17 +192,19 @@ where
                 // Out of connection attempts.
                 //
                 // Break out of the loop and return error.
-                break;
+                break Err(
+                    first_error.unwrap_or_else(|| format_err!("No connection attempts were made"))
+                );
             }
         }
-    }
+    };
 
     // Abort remaining connection attempts and free resources
     // such as OS sockets and `Context` references
     // held by connection attempt tasks.
     connection_attempt_set.shutdown().await;
 
-    Err(first_error.unwrap_or_else(|| format_err!("No connection attempts were made")))
+    res
 }
 
 /// If `load_cache` is true, may use cached DNS results.
