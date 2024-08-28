@@ -202,7 +202,7 @@ where
     // held by connection attempt tasks.
     connection_attempt_set.shutdown().await;
 
-    Err(first_error.unwrap_or_else(|| format_err!("No DNS resolution results")))
+    Err(first_error.unwrap_or_else(|| format_err!("No connection attempts were made")))
 }
 
 /// If `load_cache` is true, may use cached DNS results.
