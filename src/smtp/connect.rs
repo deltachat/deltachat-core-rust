@@ -161,24 +161,21 @@ async fn connect_stream(
 
         let mut connection_attempt_set = JoinSet::new();
 
-        let mut connection_futures = Vec::new();
-
-        for resolved_addr in lookup_host_with_cache(context, host, port, "smtp", load_cache)
-            .await?
-            .into_iter()
-            .rev()
-        {
-            let context = context.clone();
-            let host = host.to_string();
-            let fut = connection_attempt(context, host, security, resolved_addr, strict_tls);
-            connection_futures.push(fut);
-        }
+        let mut connection_futures =
+            lookup_host_with_cache(context, host, port, "smtp", load_cache)
+                .await?
+                .into_iter()
+                .map(|resolved_addr| {
+                    let context = context.clone();
+                    let host = host.to_string();
+                    connection_attempt(context, host, security, resolved_addr, strict_tls)
+                });
 
         let mut delays = CONNECTION_DELAYS.into_iter();
         let mut first_error = None;
 
         loop {
-            if let Some(fut) = connection_futures.pop() {
+            if let Some(fut) = connection_futures.next() {
                 connection_attempt_set.spawn(fut);
             }
 
