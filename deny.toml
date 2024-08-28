@@ -62,7 +62,6 @@ skip = [
      { name = "syn", version = "1.0.109" },
      { name = "time", version = "<0.3" },
      { name = "tokio-rustls", version = "0.24.1" },
-     { name = "toml_edit", version = "0.21.1" },
      { name = "wasi", version = "<0.11" },
      { name = "webpki-roots", version ="0.25.4" },
      { name = "windows_aarch64_gnullvm", version = "<0.52" },
@@ -76,7 +75,6 @@ skip = [
      { name = "windows_x86_64_gnullvm", version = "<0.52" },
      { name = "windows_x86_64_gnu", version = "<0.52" },
      { name = "windows_x86_64_msvc", version = "<0.52" },
-     { name = "winnow", version = "0.5.40" },
      { name = "winreg", version = "0.50.0" },
      { name = "x509-parser", version = "<0.16.0" },
 ]
