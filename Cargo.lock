@@ -3080,7 +3080,7 @@ dependencies = [
  "iana-time-zone-haiku",
  "js-sys",
  "wasm-bindgen",
- "windows-core 0.51.1",
+ "windows-core 0.52.0",
 ]
 
 [[package]]
@@ -3274,9 +3274,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-base"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24ddb47e8160fb1d563a6f541c813c2f185423a0ad1c9260a6c76891a2300c26"
+checksum = "d8d60492b6099a5e94b674d0f4c564b3fa63a211836a090bc34c14d422721c19"
 dependencies = [
  "aead",
  "anyhow",
@@ -3315,9 +3315,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-gossip"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c13f9a1da4e901f4d7e78b13139b372b361ed41fa9521a13432783880035a19a"
+checksum = "11551a79338d0d3aac1cff957a8801a2c3ffccce59fa1f3d60ca183aa785edab"
 dependencies = [
  "anyhow",
  "async-channel 2.3.1",
@@ -3343,9 +3343,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ab017d2786c0b77583371cef016d3e76bdbc7d13b66532023cb7e854f65d15a"
+checksum = "0be681eb052594a43afa8d2d2cc093361917c7348c779df3fe92a7169bd2f9c5"
 dependencies = [
  "anyhow",
  "erased_set",
@@ -3364,12 +3364,11 @@ dependencies = [
 
 [[package]]
 name = "iroh-net"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "372fbf01dc303be5427b6ea33b80411b3cfb6443d6389ce1ffc43231f244a51c"
+checksum = "1b18cd649ce3a342d8480038abee8170e483bc3bec8f111bf57ca9679c5075ce"
 dependencies = [
  "anyhow",
- "async-channel 2.3.1",
  "backoff",
  "base64 0.22.1",
  "bytes",
