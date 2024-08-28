@@ -225,6 +225,6 @@ pub(crate) async fn connect_tcp(
     let connection_futures = lookup_host_with_cache(context, host, port, "", load_cache)
         .await?
         .into_iter()
-        .map(|resolved_addr| connect_tcp_inner(resolved_addr));
+        .map(connect_tcp_inner);
     run_connection_attempts(connection_futures).await
 }
