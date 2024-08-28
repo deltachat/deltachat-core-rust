@@ -38,7 +38,7 @@ pub(crate) const TRANSACTION_TIMEOUT: Duration = Duration::from_secs(300);
 /// TTL for caches in seconds.
 pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
 
-/// Start additional connection attempts after 300 ms, 5 s, 10 s and 15 s.
+/// Start additional connection attempts after 300 ms, 1 s, 5 s and 10 s.
 /// This way we can have up to 5 parallel connection attempts at the same time.
 pub(crate) const CONNECTION_DELAYS: [Duration; 4] = [
     Duration::from_millis(300),
