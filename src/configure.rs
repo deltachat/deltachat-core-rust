@@ -576,7 +576,7 @@ async fn get_autoconfig(
 
 async fn nicer_configuration_error(context: &Context, e: String) -> String {
     if e.to_lowercase().contains("could not resolve")
-        || e.to_lowercase().contains("no dns resolution results")
+        || e.to_lowercase().contains("connection attempts")
         || e.to_lowercase()
             .contains("temporary failure in name resolution")
         || e.to_lowercase().contains("name or service not known")

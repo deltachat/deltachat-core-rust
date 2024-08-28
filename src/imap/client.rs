@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 
-use anyhow::{format_err, Context as _, Result};
+use anyhow::{Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
 use fast_socks5::client::Socks5Stream;
@@ -14,7 +14,9 @@ use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
-use crate::net::{connect_tcp_inner, connect_tls_inner, update_connection_history};
+use crate::net::{
+    connect_tcp_inner, connect_tls_inner, run_connection_attempts, update_connection_history,
+};
 use crate::socks::Socks5Config;
 use crate::tools::time;
 
@@ -106,6 +108,53 @@ impl Client {
         Ok(Session::new(session, capabilities))
     }
 
+    async fn connection_attempt(
+        context: Context,
+        host: String,
+        security: ConnectionSecurity,
+        resolved_addr: SocketAddr,
+        strict_tls: bool,
+    ) -> Result<Self> {
+        let context = &context;
+        let host = &host;
+        info!(
+            context,
+            "Attempting IMAP connection to {host} ({resolved_addr})."
+        );
+        let res = match security {
+            ConnectionSecurity::Tls => {
+                Client::connect_secure(resolved_addr, host, strict_tls).await
+            }
+            ConnectionSecurity::Starttls => {
+                Client::connect_starttls(resolved_addr, host, strict_tls).await
+            }
+            ConnectionSecurity::Plain => Client::connect_insecure(resolved_addr).await,
+        };
+        match res {
+            Ok(client) => {
+                let ip_addr = resolved_addr.ip().to_string();
+                let port = resolved_addr.port();
+
+                let save_cache = match security {
+                    ConnectionSecurity::Tls | ConnectionSecurity::Starttls => strict_tls,
+                    ConnectionSecurity::Plain => false,
+                };
+                if save_cache {
+                    update_connect_timestamp(context, host, &ip_addr).await?;
+                }
+                update_connection_history(context, "imap", host, port, &ip_addr, time()).await?;
+                Ok(client)
+            }
+            Err(err) => {
+                warn!(
+                    context,
+                    "Failed to connect to {host} ({resolved_addr}): {err:#}."
+                );
+                Err(err)
+            }
+        }
+    }
+
     pub async fn connect(
         context: &Context,
         socks5_config: Option<Socks5Config>,
@@ -131,40 +180,21 @@ impl Client {
             };
             Ok(client)
         } else {
-            let mut first_error = None;
             let load_cache = match security {
                 ConnectionSecurity::Tls | ConnectionSecurity::Starttls => strict_tls,
                 ConnectionSecurity::Plain => false,
             };
-            for resolved_addr in
-                lookup_host_with_cache(context, host, port, "imap", load_cache).await?
-            {
-                let res = match security {
-                    ConnectionSecurity::Tls => {
-                        Client::connect_secure(resolved_addr, host, strict_tls).await
-                    }
-                    ConnectionSecurity::Starttls => {
-                        Client::connect_starttls(resolved_addr, host, strict_tls).await
-                    }
-                    ConnectionSecurity::Plain => Client::connect_insecure(resolved_addr).await,
-                };
-                match res {
-                    Ok(client) => {
-                        let ip_addr = resolved_addr.ip().to_string();
-                        if load_cache {
-                            update_connect_timestamp(context, host, &ip_addr).await?;
-                        }
-                        update_connection_history(context, "imap", host, port, &ip_addr, time())
-                            .await?;
-                        return Ok(client);
-                    }
-                    Err(err) => {
-                        warn!(context, "Failed to connect to {resolved_addr}: {err:#}.");
-                        first_error.get_or_insert(err);
-                    }
-                }
-            }
-            Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+
+            let connection_futures =
+                lookup_host_with_cache(context, host, port, "imap", load_cache)
+                    .await?
+                    .into_iter()
+                    .map(|resolved_addr| {
+                        let context = context.clone();
+                        let host = host.to_string();
+                        Self::connection_attempt(context, host, security, resolved_addr, strict_tls)
+                    });
+            run_connection_attempts(connection_futures).await
         }
     }
 

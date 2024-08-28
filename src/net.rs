@@ -1,4 +1,5 @@
 //! # Common network utilities.
+use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::time::Duration;
@@ -6,6 +7,7 @@ use std::time::Duration;
 use anyhow::{format_err, Context as _, Result};
 use async_native_tls::TlsStream;
 use tokio::net::TcpStream;
+use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
@@ -130,6 +132,84 @@ pub(crate) async fn connect_tls_inner(
     Ok(tls_stream)
 }
 
+/// Runs connection attempt futures.
+///
+/// Accepts iterator of connection attempt futures
+/// and runs them until one of them succeeds
+/// or all of them fail.
+///
+/// If all connection attempts fail, returns the first error.
+///
+/// This functions starts with one connection attempt and maintains
+/// up to five parallel connection attempts if connecting takes time.
+pub(crate) async fn run_connection_attempts<O, I, F>(mut futures: I) -> Result<O>
+where
+    I: Iterator<Item = F>,
+    F: Future<Output = Result<O>> + Send + 'static,
+    O: Send + 'static,
+{
+    let mut connection_attempt_set = JoinSet::new();
+
+    // Start additional connection attempts after 300 ms, 1 s, 5 s and 10 s.
+    // This way we can have up to 5 parallel connection attempts at the same time.
+    let mut delays = [
+        Duration::from_millis(300),
+        Duration::from_secs(1),
+        Duration::from_secs(5),
+        Duration::from_secs(10),
+    ]
+    .into_iter();
+
+    let mut first_error = None;
+
+    let res = loop {
+        if let Some(fut) = futures.next() {
+            connection_attempt_set.spawn(fut);
+        }
+
+        let one_year = Duration::from_secs(60 * 60 * 24 * 365);
+        let delay = delays.next().unwrap_or(one_year); // one year can be treated as infinitely long here
+        let Ok(res) = timeout(delay, connection_attempt_set.join_next()).await else {
+            // The delay for starting the next connection attempt has expired.
+            // `continue` the loop to push the next connection into connection_attempt_set.
+            continue;
+        };
+
+        match res {
+            Some(res) => {
+                match res.context("Failed to join task") {
+                    Ok(Ok(conn)) => {
+                        // Successfully connected.
+                        break Ok(conn);
+                    }
+                    Ok(Err(err)) => {
+                        // Some connection attempt failed.
+                        first_error.get_or_insert(err);
+                    }
+                    Err(err) => {
+                        break Err(err);
+                    }
+                }
+            }
+            None => {
+                // Out of connection attempts.
+                //
+                // Break out of the loop and return error.
+                break Err(
+                    first_error.unwrap_or_else(|| format_err!("No connection attempts were made"))
+                );
+            }
+        }
+    };
+
+    // Abort remaining connection attempts and free resources
+    // such as OS sockets and `Context` references
+    // held by connection attempt tasks.
+    connection_attempt_set.shutdown().await;
+
+    res
+}
+
 /// If `load_cache` is true, may use cached DNS results.
 /// Because the cache may be poisoned with incorrect results by networks hijacking DNS requests,
 /// this option should only be used when connection is authenticated,
@@ -142,22 +222,9 @@ pub(crate) async fn connect_tcp(
     port: u16,
     load_cache: bool,
 ) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
-    let mut first_error = None;
-
-    for resolved_addr in lookup_host_with_cache(context, host, port, "", load_cache).await? {
-        match connect_tcp_inner(resolved_addr).await {
-            Ok(stream) => {
-                return Ok(stream);
-            }
-            Err(err) => {
-                warn!(
-                    context,
-                    "Failed to connect to {}: {:#}.", resolved_addr, err
-                );
-                first_error.get_or_insert(err);
-            }
-        }
-    }
-
-    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+    let connection_futures = lookup_host_with_cache(context, host, port, "", load_cache)
+        .await?
+        .into_iter()
+        .map(connect_tcp_inner);
+    run_connection_attempts(connection_futures).await
 }
