@@ -1,13 +1,10 @@
 //! SMTP connection establishment.
 
 use std::net::SocketAddr;
-use std::time::Duration;
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use async_smtp::{SmtpClient, SmtpTransport};
 use tokio::io::BufStream;
-use tokio::task::JoinSet;
-use tokio::time::timeout;
 
 use crate::context::Context;
 use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
@@ -15,7 +12,7 @@ use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
 use crate::net::{
-    connect_tcp_inner, connect_tls_inner, update_connection_history, CONNECTION_DELAYS,
+    connect_tcp_inner, connect_tls_inner, run_futures_with_delays, update_connection_history,
 };
 use crate::oauth2::get_oauth2_access_token;
 use crate::socks::Socks5Config;
@@ -159,61 +156,15 @@ async fn connect_stream(
             ConnectionSecurity::Plain => false,
         };
 
-        let mut connection_attempt_set = JoinSet::new();
-
-        let mut connection_futures =
-            lookup_host_with_cache(context, host, port, "smtp", load_cache)
-                .await?
-                .into_iter()
-                .map(|resolved_addr| {
-                    let context = context.clone();
-                    let host = host.to_string();
-                    connection_attempt(context, host, security, resolved_addr, strict_tls)
-                });
-
-        let mut delays = CONNECTION_DELAYS.into_iter();
-        let mut first_error = None;
-
-        loop {
-            if let Some(fut) = connection_futures.next() {
-                connection_attempt_set.spawn(fut);
-            }
-
-            let one_year = Duration::from_secs(60 * 60 * 24 * 365);
-            let delay = delays.next().unwrap_or(one_year); // one year can be treated as infinitely long here
-            let Ok(res) = timeout(delay, connection_attempt_set.join_next()).await else {
-                // The delay for starting the next connection attempt has expired.
-                // `continue` the loop to push the next connection into connection_attempt_set.
-                continue;
-            };
-
-            match res {
-                Some(res) => {
-                    match res.context("Failed to join task")? {
-                        Ok(conn) => {
-                            // Successfully connected.
-                            return Ok(conn);
-                        }
-                        Err(err) => {
-                            // Some connection attempt failed.
-                            first_error.get_or_insert(err);
-                        }
-                    }
-                }
-                None => {
-                    // Out of connection attempts.
-                    //
-                    // Break out of the loop and return error.
-                    break;
-                }
-            }
-        }
-
-        // Abort remaining connection attempts and free resources
-        // such as OS sockets and `Context` references
-        // held by connection attempt tasks.
-        connection_attempt_set.shutdown().await;
-        Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+        let connection_futures = lookup_host_with_cache(context, host, port, "smtp", load_cache)
+            .await?
+            .into_iter()
+            .map(|resolved_addr| {
+                let context = context.clone();
+                let host = host.to_string();
+                connection_attempt(context, host, security, resolved_addr, strict_tls)
+            });
+        run_futures_with_delays(connection_futures).await
     }
 }
 

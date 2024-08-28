@@ -1,4 +1,5 @@
 //! # Common network utilities.
+use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::time::Duration;
@@ -40,7 +41,7 @@ pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
 
 /// Start additional connection attempts after 300 ms, 1 s, 5 s and 10 s.
 /// This way we can have up to 5 parallel connection attempts at the same time.
-pub(crate) const CONNECTION_DELAYS: [Duration; 4] = [
+const CONNECTION_DELAYS: [Duration; 4] = [
     Duration::from_millis(300),
     Duration::from_secs(1),
     Duration::from_secs(5),
@@ -140,35 +141,19 @@ pub(crate) async fn connect_tls_inner(
     Ok(tls_stream)
 }
 
-/// If `load_cache` is true, may use cached DNS results.
-/// Because the cache may be poisoned with incorrect results by networks hijacking DNS requests,
-/// this option should only be used when connection is authenticated,
-/// for example using TLS.
-/// If TLS is not used or invalid TLS certificates are allowed,
-/// this option should be disabled.
-pub(crate) async fn connect_tcp(
-    context: &Context,
-    host: &str,
-    port: u16,
-    load_cache: bool,
-) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
+pub(crate) async fn run_futures_with_delays<O, I, F>(mut futures: I) -> Result<O>
+where
+    I: Iterator<Item = F>,
+    F: Future<Output = Result<O>> + Send + 'static,
+    O: Send + 'static,
+{
     let mut connection_attempt_set = JoinSet::new();
-
-    let mut connection_futures = Vec::new();
-    for resolved_addr in lookup_host_with_cache(context, host, port, "", load_cache)
-        .await?
-        .into_iter()
-        .rev()
-    {
-        let fut = connect_tcp_inner(resolved_addr);
-        connection_futures.push(fut);
-    }
 
     let mut delays = CONNECTION_DELAYS.into_iter();
     let mut first_error = None;
 
     loop {
-        if let Some(fut) = connection_futures.pop() {
+        if let Some(fut) = futures.next() {
             connection_attempt_set.spawn(fut);
         }
 
@@ -207,5 +192,24 @@ pub(crate) async fn connect_tcp(
     // held by connection attempt tasks.
     connection_attempt_set.shutdown().await;
 
-    Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
+    Err(first_error.unwrap_or_else(|| format_err!("No DNS resolution results")))
+}
+
+/// If `load_cache` is true, may use cached DNS results.
+/// Because the cache may be poisoned with incorrect results by networks hijacking DNS requests,
+/// this option should only be used when connection is authenticated,
+/// for example using TLS.
+/// If TLS is not used or invalid TLS certificates are allowed,
+/// this option should be disabled.
+pub(crate) async fn connect_tcp(
+    context: &Context,
+    host: &str,
+    port: u16,
+    load_cache: bool,
+) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
+    let connection_futures = lookup_host_with_cache(context, host, port, "", load_cache)
+        .await?
+        .into_iter()
+        .map(|resolved_addr| connect_tcp_inner(resolved_addr));
+    run_futures_with_delays(connection_futures).await
 }
