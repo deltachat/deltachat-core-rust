@@ -2358,6 +2358,25 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_no_quote() {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        tcm.send_recv_accept(alice, bob, "Hi!").await;
+        let msg = tcm
+            .send_recv(
+                alice,
+                bob,
+                "On 2024-08-28, Alice wrote:\n> A quote.\nNot really.",
+            )
+            .await;
+
+        assert!(msg.quoted_text().is_none());
+        assert!(msg.quoted_message(bob).await.unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_unencrypted_quote_encrypted_message() -> Result<()> {
         let mut tcm = TestContextManager::new();
 
