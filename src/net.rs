@@ -177,14 +177,17 @@ where
 
         match res {
             Some(res) => {
-                match res.context("Failed to join task")? {
-                    Ok(conn) => {
+                match res.context("Failed to join task") {
+                    Ok(Ok(conn)) => {
                         // Successfully connected.
                         break Ok(conn);
                     }
-                    Err(err) => {
+                    Ok(Err(err)) => {
                         // Some connection attempt failed.
                         first_error.get_or_insert(err);
+                    }
+                    Err(err) => {
+                        break Err(err);
                     }
                 }
             }
