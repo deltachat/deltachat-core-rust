@@ -117,7 +117,7 @@ pub(crate) fn simplify(mut input: String, is_chat_message: bool) -> SimplifiedTe
     let lines = split_lines(&input);
     let (lines, is_forwarded) = skip_forward_header(&lines);
 
-    let (lines, mut top_quote) = remove_top_quote(lines);
+    let (lines, mut top_quote) = remove_top_quote(lines, is_chat_message);
     let original_lines = &lines;
     let (lines, footer_lines) = remove_message_footer(lines);
     let footer = footer_lines.map(|footer_lines| render_message(footer_lines, false));
@@ -210,7 +210,10 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>)
 }
 
 #[allow(clippy::indexing_slicing)]
-fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
+fn remove_top_quote<'a>(
+    lines: &'a [&str],
+    is_chat_message: bool,
+) -> (&'a [&'a str], Option<String>) {
     let mut first_quoted_line = 0;
     let mut last_quoted_line = None;
     let mut has_quoted_headline = false;
@@ -220,7 +223,11 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
                 first_quoted_line = l;
             }
             last_quoted_line = Some(l)
-        } else if is_quoted_headline(line) && !has_quoted_headline && last_quoted_line.is_none() {
+        } else if !is_chat_message
+            && is_quoted_headline(line)
+            && !has_quoted_headline
+            && last_quoted_line.is_none()
+        {
             has_quoted_headline = true
         } else {
             /* non-quoting line found */
@@ -396,16 +403,33 @@ mod tests {
 
     #[test]
     fn test_remove_top_quote() {
-        let (lines, top_quote) = remove_top_quote(&["> first", "> second"]);
+        let (lines, top_quote) = remove_top_quote(&["> first", "> second"], true);
         assert!(lines.is_empty());
         assert_eq!(top_quote.unwrap(), "first\nsecond");
 
-        let (lines, top_quote) = remove_top_quote(&["> first", "> second", "not a quote"]);
+        let (lines, top_quote) = remove_top_quote(&["> first", "> second", "not a quote"], true);
         assert_eq!(lines, &["not a quote"]);
         assert_eq!(top_quote.unwrap(), "first\nsecond");
 
-        let (lines, top_quote) = remove_top_quote(&["not a quote", "> first", "> second"]);
+        let (lines, top_quote) = remove_top_quote(&["not a quote", "> first", "> second"], true);
         assert_eq!(lines, &["not a quote", "> first", "> second"]);
+        assert!(top_quote.is_none());
+
+        let (lines, top_quote) = remove_top_quote(
+            &["On 2024-08-28, Bob wrote:", "> quote", "not a quote"],
+            false,
+        );
+        assert_eq!(lines, &["not a quote"]);
+        assert_eq!(top_quote.unwrap(), "quote");
+
+        let (lines, top_quote) = remove_top_quote(
+            &["On 2024-08-28, Bob wrote:", "> quote", "not a quote"],
+            true,
+        );
+        assert_eq!(
+            lines,
+            &["On 2024-08-28, Bob wrote:", "> quote", "not a quote"]
+        );
         assert!(top_quote.is_none());
     }
 
