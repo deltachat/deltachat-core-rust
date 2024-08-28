@@ -39,15 +39,6 @@ pub(crate) const TRANSACTION_TIMEOUT: Duration = Duration::from_secs(300);
 /// TTL for caches in seconds.
 pub(crate) const CACHE_TTL: u64 = 30 * 24 * 60 * 60;
 
-/// Start additional connection attempts after 300 ms, 1 s, 5 s and 10 s.
-/// This way we can have up to 5 parallel connection attempts at the same time.
-const CONNECTION_DELAYS: [Duration; 4] = [
-    Duration::from_millis(300),
-    Duration::from_secs(1),
-    Duration::from_secs(5),
-    Duration::from_secs(10),
-];
-
 /// Removes connection history entries after `CACHE_TTL`.
 pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {
     let now = time();
@@ -141,7 +132,17 @@ pub(crate) async fn connect_tls_inner(
     Ok(tls_stream)
 }
 
-pub(crate) async fn run_futures_with_delays<O, I, F>(mut futures: I) -> Result<O>
+/// Runs connection attempt futures.
+///
+/// Accepts iterator of connection attempt futures
+/// and runs them until one of them succeeds
+/// or all of them fail.
+///
+/// If all connection attempts fail, returns the first error.
+///
+/// This functions starts with one connection attempt and maintains
+/// up to five parallel connection attempts if connecting takes time.
+pub(crate) async fn run_connection_attempts<O, I, F>(mut futures: I) -> Result<O>
 where
     I: Iterator<Item = F>,
     F: Future<Output = Result<O>> + Send + 'static,
@@ -149,7 +150,16 @@ where
 {
     let mut connection_attempt_set = JoinSet::new();
 
-    let mut delays = CONNECTION_DELAYS.into_iter();
+    // Start additional connection attempts after 300 ms, 1 s, 5 s and 10 s.
+    // This way we can have up to 5 parallel connection attempts at the same time.
+    let mut delays = [
+        Duration::from_millis(300),
+        Duration::from_secs(1),
+        Duration::from_secs(5),
+        Duration::from_secs(10),
+    ]
+    .into_iter();
+
     let mut first_error = None;
 
     loop {
@@ -211,5 +221,5 @@ pub(crate) async fn connect_tcp(
         .await?
         .into_iter()
         .map(|resolved_addr| connect_tcp_inner(resolved_addr));
-    run_futures_with_delays(connection_futures).await
+    run_connection_attempts(connection_futures).await
 }

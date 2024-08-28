@@ -12,7 +12,7 @@ use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
 use crate::net::{
-    connect_tcp_inner, connect_tls_inner, run_futures_with_delays, update_connection_history,
+    connect_tcp_inner, connect_tls_inner, run_connection_attempts, update_connection_history,
 };
 use crate::oauth2::get_oauth2_access_token;
 use crate::socks::Socks5Config;
@@ -164,7 +164,7 @@ async fn connect_stream(
                 let host = host.to_string();
                 connection_attempt(context, host, security, resolved_addr, strict_tls)
             });
-        run_futures_with_delays(connection_futures).await
+        run_connection_attempts(connection_futures).await
     }
 }
 
