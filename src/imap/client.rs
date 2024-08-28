@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
+use std::time::Duration;
 
 use anyhow::{format_err, Context as _, Result};
 use async_imap::Client as ImapClient;
@@ -7,6 +8,7 @@ use async_imap::Session as ImapSession;
 use fast_socks5::client::Socks5Stream;
 use tokio::io::BufWriter;
 use tokio::task::JoinSet;
+use tokio::time::timeout;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
@@ -187,7 +189,6 @@ impl Client {
             };
 
             let mut connection_attempt_set = JoinSet::new();
-            let mut delay_set = JoinSet::new();
 
             let mut connection_futures = Vec::new();
             for resolved_addr in lookup_host_with_cache(context, host, port, "imap", load_cache)
@@ -202,63 +203,47 @@ impl Client {
                 connection_futures.push(fut);
             }
 
-            // Start with one connection.
-            if let Some(fut) = connection_futures.pop() {
-                connection_attempt_set.spawn(fut);
-            }
-
-            for delay in CONNECTION_DELAYS {
-                delay_set.spawn(tokio::time::sleep(delay));
-            }
-
+            let mut delays = CONNECTION_DELAYS.into_iter();
             let mut first_error = None;
+
             loop {
-                tokio::select! {
-                    biased;
-
-                    res = connection_attempt_set.join_next() => {
-                        match res {
-                            Some(res) => {
-                                match res.context("Failed to join task")? {
-                                    Ok(conn) => {
-                                        // Successfully connected.
-                                        return Ok(conn);
-                                    },
-                                    Err(err) => {
-                                        // Some connection attempt failed.
-                                        first_error.get_or_insert(err);
-                                    }
-                                }
-                            },
-                            None => {
-                                // Out of connection attempts.
-                                //
-                                // Break out of the loop and return error.
-                                break;
-                            }
-                        }
-                    },
-                    _ = delay_set.join_next(), if !delay_set.is_empty() => {
-                        // Delay expired.
-                        //
-                        // Don't do anything other than adding
-                        // another connection attempt to the active set.
-                    }
-                }
-
                 if let Some(fut) = connection_futures.pop() {
                     connection_attempt_set.spawn(fut);
+                }
+
+                let one_year = Duration::from_secs(60 * 60 * 24 * 365);
+                let delay = delays.next().unwrap_or(one_year); // one year can be treated as infinitely long here
+                let Ok(res) = timeout(delay, connection_attempt_set.join_next()).await else {
+                    // The delay for starting the next connection attempt has expired.
+                    // `continue` the loop to push the next connection into connection_attempt_set.
+                    continue;
+                };
+
+                match res {
+                    Some(res) => {
+                        match res.context("Failed to join task")? {
+                            Ok(conn) => {
+                                // Successfully connected.
+                                return Ok(conn);
+                            }
+                            Err(err) => {
+                                // Some connection attempt failed.
+                                first_error.get_or_insert(err);
+                            }
+                        }
+                    }
+                    None => {
+                        // Out of connection attempts.
+                        //
+                        // Break out of the loop and return error.
+                        break;
+                    }
                 }
             }
 
             // Abort remaining connection attempts and free resources
             // such as OS sockets and `Context` references
             // held by connection attempt tasks.
-            //
-            // `delay_set` contains just `sleep` tasks
-            // so no need to await futures there,
-            // it is enough that futures are aborted
-            // when the set is dropped.
             connection_attempt_set.shutdown().await;
 
             Err(first_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}")))
