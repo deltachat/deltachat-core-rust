@@ -61,8 +61,15 @@ def test_qr_setup_contact_svg(acfactory) -> None:
 
 
 @pytest.mark.parametrize("protect", [True, False])
-def test_qr_securejoin(acfactory, protect):
+def test_qr_securejoin(acfactory, protect, tmp_path):
     alice, bob = acfactory.get_online_accounts(2)
+
+    # Setup second device for Alice
+    # to test observing securejoin protocol.
+    alice.export_backup(tmp_path)
+    files = list(tmp_path.glob("*.tar"))
+    alice2 = acfactory.get_unconfigured_account()
+    alice2.import_backup(files[0])
 
     logging.info("Alice creates a verified group")
     alice_chat = alice.create_group("Verified group", protect=protect)
@@ -96,6 +103,14 @@ def test_qr_securejoin(acfactory, protect):
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
     assert bob_contact_alice_snapshot.is_verified
+
+    # Start second Alice device.
+    # Alice observes securejoin protocol and verifies Bob on second device.
+    alice2.start_io()
+    alice2.wait_for_securejoin_inviter_success()
+    alice2_contact_bob = alice2.get_contact_by_addr(bob.get_config("addr"))
+    alice2_contact_bob_snapshot = alice2_contact_bob.get_snapshot()
+    assert alice2_contact_bob_snapshot.is_verified
 
 
 def test_qr_securejoin_contact_request(acfactory) -> None:

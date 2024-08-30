@@ -637,6 +637,8 @@ pub(crate) async fn observe_securejoin_on_other_device(
         return Ok(HandshakeMessage::Ignore);
     };
     peerstate.set_verified(key.clone(), fingerprint, addr)?;
+    peerstate.backward_verified_key_id =
+        Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
     peerstate.prefer_encrypt = EncryptPreference::Mutual;
     peerstate.save_to_db(&context.sql).await?;
 
