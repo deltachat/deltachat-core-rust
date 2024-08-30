@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.142.11] - 2024-08-30
+
+### Fixes
+
+- Set backward verification when observing vc-contact-confirm or `vg-member-added` ([#5930](https://github.com/deltachat/deltachat-core-rust/pull/5930)).
+
 ## [1.142.10] - 2024-08-26
 
 ### Fixes
@@ -4792,3 +4798,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.7...v1.142.8
 [1.142.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.8...v1.142.9
 [1.142.10]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.9..v1.142.10
+[1.142.11]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.10..v1.142.11
