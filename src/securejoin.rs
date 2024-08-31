@@ -369,60 +369,42 @@ pub(crate) async fn handle_securejoin_handshake(
             ==========================================================*/
 
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint: Fingerprint =
-                match mime_message.get_header(HeaderDef::SecureJoinFingerprint) {
-                    Some(fp) => fp.parse()?,
-                    None => {
-                        could_not_establish_secure_connection(
-                            context,
-                            contact_id,
-                            info_chat_id(context, contact_id).await?,
-                            "Fingerprint not provided.",
-                        )
-                        .await?;
-                        return Ok(HandshakeMessage::Ignore);
-                    }
-                };
-            if !encrypted_and_signed(context, mime_message, Some(&fingerprint)) {
-                could_not_establish_secure_connection(
+            let Some(fp) = mime_message.get_header(HeaderDef::SecureJoinFingerprint) else {
+                warn!(
                     context,
-                    contact_id,
-                    info_chat_id(context, contact_id).await?,
-                    "Auth not encrypted.",
-                )
-                .await?;
+                    "Ignoring {step} message because fingerprint is not provided."
+                );
+                return Ok(HandshakeMessage::Ignore);
+            };
+            let fingerprint: Fingerprint = fp.parse()?;
+            if !encrypted_and_signed(context, mime_message, Some(&fingerprint)) {
+                warn!(
+                    context,
+                    "Ignoring {step} message because the message is not encrypted."
+                );
                 return Ok(HandshakeMessage::Ignore);
             }
             if !verify_sender_by_fingerprint(context, &fingerprint, contact_id).await? {
-                could_not_establish_secure_connection(
+                warn!(
                     context,
-                    contact_id,
-                    info_chat_id(context, contact_id).await?,
-                    "Fingerprint mismatch on inviter-side.",
-                )
-                .await?;
+                    "Ignoring {step} message because of fingerprint mismatch."
+                );
                 return Ok(HandshakeMessage::Ignore);
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
             let Some(auth) = mime_message.get_header(HeaderDef::SecureJoinAuth) else {
-                could_not_establish_secure_connection(
+                warn!(
                     context,
-                    contact_id,
-                    info_chat_id(context, contact_id).await?,
-                    "Auth not provided.",
-                )
-                .await?;
+                    "Ignoring {step} message because of missing auth code."
+                );
                 return Ok(HandshakeMessage::Ignore);
             };
             let Some(group_chat_id) = token::auth_chat_id(context, auth).await? else {
-                could_not_establish_secure_connection(
+                warn!(
                     context,
-                    contact_id,
-                    info_chat_id(context, contact_id).await?,
-                    "Auth invalid.",
-                )
-                .await?;
+                    "Ignoring {step} message because of invalid auth code."
+                );
                 return Ok(HandshakeMessage::Ignore);
             };
 
@@ -439,13 +421,10 @@ pub(crate) async fn handle_securejoin_handshake(
             )
             .await?;
             if !fingerprint_found {
-                could_not_establish_secure_connection(
+                warn!(
                     context,
-                    contact_id,
-                    info_chat_id(context, contact_id).await?,
-                    "Fingerprint mismatch on inviter-side.",
-                )
-                .await?;
+                    "Ignoring {step} message because of the failure to find matching peerstate."
+                );
                 return Ok(HandshakeMessage::Ignore);
             }
             contact_id.regossip_keys(context).await?;

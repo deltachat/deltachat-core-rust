@@ -650,7 +650,8 @@ def test_withdraw_securejoin_qr(acfactory):
     logging.info("Bob scanned withdrawn QR code")
     while True:
         event = alice.wait_for_event()
-        if event.kind == EventType.MSGS_CHANGED and event.chat_id != 0:
+        if (
+            event.kind == EventType.WARNING
+            and "Ignoring vg-request-with-auth message because of invalid auth code." in event.msg
+        ):
             break
-    snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
-    assert snapshot.text == "Cannot establish guaranteed end-to-end encryption with {}".format(bob.get_config("addr"))
