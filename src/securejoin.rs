@@ -760,6 +760,7 @@ mod tests {
         CheckProtectionTimestamp,
         WrongAliceGossip,
         SecurejoinWaitTimeout,
+        AliceIsBot,
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -782,6 +783,11 @@ mod tests {
         test_setup_contact_ex(SetupContactCase::SecurejoinWaitTimeout).await
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_setup_contact_alice_is_bot() {
+        test_setup_contact_ex(SetupContactCase::AliceIsBot).await
+    }
+
     async fn test_setup_contact_ex(case: SetupContactCase) {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
@@ -790,13 +796,19 @@ mod tests {
         bob.set_config(Config::Displayname, Some("Bob Examplenet"))
             .await
             .unwrap();
-        alice
-            .set_config(Config::VerifiedOneOnOneChats, Some("1"))
-            .await
-            .unwrap();
-        bob.set_config(Config::VerifiedOneOnOneChats, Some("1"))
-            .await
-            .unwrap();
+        let alice_auto_submitted_hdr;
+        match case {
+            SetupContactCase::AliceIsBot => {
+                alice.set_config_bool(Config::Bot, true).await.unwrap();
+                alice_auto_submitted_hdr = "Auto-Submitted: auto-generated";
+            }
+            _ => alice_auto_submitted_hdr = "Auto-Submitted: auto-replied",
+        };
+        for t in [&alice, &bob] {
+            t.set_config_bool(Config::VerifiedOneOnOneChats, true)
+                .await
+                .unwrap();
+        }
 
         assert_eq!(
             Chatlist::try_load(&alice, 0, None, None)
@@ -845,7 +857,7 @@ mod tests {
         );
 
         let sent = alice.pop_sent_msg().await;
-        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
+        assert!(sent.payload.contains(alice_auto_submitted_hdr));
         assert!(!sent.payload.contains("Alice Exampleorg"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -958,6 +970,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contact_bob.get_authname(), "Bob Examplenet");
+        assert_eq!(contact_bob.is_bot(), false);
 
         // exactly one one-to-one chat should be visible for both now
         // (check this before calling alice.create_chat() explicitly below)
@@ -997,7 +1010,7 @@ mod tests {
 
         // Check Alice sent the right message to Bob.
         let sent = alice.pop_sent_msg().await;
-        assert!(sent.payload.contains("Auto-Submitted: auto-replied"));
+        assert!(sent.payload.contains(alice_auto_submitted_hdr));
         assert!(!sent.payload.contains("Alice Exampleorg"));
         let msg = bob.parse_msg(&sent).await;
         assert!(msg.was_encrypted());
@@ -1016,6 +1029,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contact_alice.get_authname(), "Alice Exampleorg");
+        assert_eq!(contact_alice.is_bot(), case == SetupContactCase::AliceIsBot);
 
         if case != SetupContactCase::SecurejoinWaitTimeout {
             // Later we check that the timeout message isn't added to the already protected chat.
@@ -1441,13 +1455,11 @@ First thread."#;
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
-        alice
-            .set_config(Config::VerifiedOneOnOneChats, Some("1"))
-            .await
-            .unwrap();
-        bob.set_config(Config::VerifiedOneOnOneChats, Some("1"))
-            .await
-            .unwrap();
+        for t in [&alice, &bob] {
+            t.set_config_bool(Config::VerifiedOneOnOneChats, true)
+                .await
+                .unwrap();
+        }
 
         let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
         join_securejoin(&bob.ctx, &qr).await.unwrap();
