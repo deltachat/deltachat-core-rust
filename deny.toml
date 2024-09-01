@@ -9,9 +9,6 @@ ignore = [
     # <https://rustsec.org/advisories/RUSTSEC-2023-0071>
     "RUSTSEC-2023-0071",
 
-    # Unmaintained ansi_term
-    "RUSTSEC-2021-0139",
-
     # Unmaintained encoding
     "RUSTSEC-2021-0153",
 ]
