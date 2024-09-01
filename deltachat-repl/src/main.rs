@@ -12,7 +12,6 @@ use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
 use std::process::Command;
 
-use ansi_term::Color;
 use anyhow::{bail, Error};
 use deltachat::chat::ChatId;
 use deltachat::config;
@@ -22,6 +21,7 @@ use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use deltachat::securejoin::*;
 use deltachat::EventType;
 use log::{error, info, warn};
+use nu_ansi_term::Color;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};

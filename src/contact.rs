@@ -2890,7 +2890,7 @@ Hi."#;
         bob.recv_msg(&sent_msg).await;
         let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
 
-        let green = ansi_term::Color::Green.normal();
+        let green = nu_ansi_term::Color::Green.normal();
         assert!(
             contact.was_seen_recently(),
             "{}",
