@@ -129,6 +129,7 @@ pub enum Config {
 
     /// True if Message Delivery Notifications (read receipts) should
     /// be sent and requested.
+    #[strum(props(default = "1"))]
     MdnsEnabled,
 
     /// True if "Sent" folder should be watched for changes.
@@ -516,18 +517,15 @@ impl Context {
 
     /// Returns whether MDNs should be requested.
     pub(crate) async fn should_request_mdns(&self) -> Result<bool> {
-        match self.get_config_bool_opt(Config::MdnsEnabled).await? {
-            Some(val) => Ok(val),
-            None => Ok(!self.get_config_bool(Config::Bot).await?),
+        match self.config_exists(Config::MdnsEnabled).await? {
+            true => self.get_config_bool(Config::MdnsEnabled).await,
+            false => Ok(!self.get_config_bool(Config::Bot).await?),
         }
     }
 
     /// Returns whether MDNs should be sent.
     pub(crate) async fn should_send_mdns(&self) -> Result<bool> {
-        Ok(self
-            .get_config_bool_opt(Config::MdnsEnabled)
-            .await?
-            .unwrap_or(true))
+        self.get_config_bool(Config::MdnsEnabled).await
     }
 
     /// Gets configured "delete_server_after" value.
@@ -984,9 +982,13 @@ mod tests {
         let t = &TestContext::new_alice().await;
         assert!(t.should_request_mdns().await?);
         assert!(t.should_send_mdns().await?);
+        // The setting should be displayed correctly.
+        assert!(t.get_config_bool(Config::MdnsEnabled).await?);
+
         t.set_config_bool(Config::Bot, true).await?;
         assert!(!t.should_request_mdns().await?);
         assert!(t.should_send_mdns().await?);
+        assert!(t.get_config_bool(Config::MdnsEnabled).await?);
         Ok(())
     }
 
