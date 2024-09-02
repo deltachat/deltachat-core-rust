@@ -3,9 +3,11 @@
 use std::fmt;
 
 use anyhow::{format_err, Context as _, Result};
+use deltachat_contact_tools::EmailAddress;
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
+use crate::configure::server_params::{expand_param_vector, ServerParams};
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
 use crate::net::load_connection_timestamp;
@@ -479,69 +481,147 @@ impl ConfiguredLoginParam {
             .unwrap_or_default();
 
         if let Some(provider) = provider {
-            let addr_localpart = if let Some(at) = addr.find('@') {
-                addr.split_at(at).0.to_string()
+            let parsed_addr = EmailAddress::new(&addr).context("Bad email-address")?;
+            let addr_localpart = parsed_addr.local;
+
+            if provider.server.is_empty() {
+                let servers = vec![
+                    ServerParams {
+                        protocol: Protocol::Imap,
+                        hostname: context
+                            .get_config(Config::ConfiguredMailServer)
+                            .await?
+                            .unwrap_or_default(),
+                        port: context
+                            .get_config_parsed::<u16>(Config::ConfiguredMailPort)
+                            .await?
+                            .unwrap_or_default(),
+                        socket: context
+                            .get_config_parsed::<i32>(Config::ConfiguredMailSecurity)
+                            .await?
+                            .and_then(num_traits::FromPrimitive::from_i32)
+                            .unwrap_or_default(),
+                        username: mail_user.clone(),
+                    },
+                    ServerParams {
+                        protocol: Protocol::Smtp,
+                        hostname: context
+                            .get_config(Config::ConfiguredSendServer)
+                            .await?
+                            .unwrap_or_default(),
+                        port: context
+                            .get_config_parsed::<u16>(Config::ConfiguredSendPort)
+                            .await?
+                            .unwrap_or_default(),
+                        socket: context
+                            .get_config_parsed::<i32>(Config::ConfiguredSendSecurity)
+                            .await?
+                            .and_then(num_traits::FromPrimitive::from_i32)
+                            .unwrap_or_default(),
+                        username: send_user.clone(),
+                    },
+                ];
+                let servers = expand_param_vector(servers, &addr, &parsed_addr.domain);
+                imap = servers
+                    .iter()
+                    .filter_map(|params| {
+                        let Ok(security) = params.socket.try_into() else {
+                            return None;
+                        };
+                        if params.protocol == Protocol::Imap {
+                            Some(ConfiguredServerLoginParam {
+                                connection: ConnectionCandidate {
+                                    host: params.hostname.clone(),
+                                    port: params.port,
+                                    security,
+                                },
+                                user: params.username.clone(),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                smtp = servers
+                    .iter()
+                    .filter_map(|params| {
+                        let Ok(security) = params.socket.try_into() else {
+                            return None;
+                        };
+                        if params.protocol == Protocol::Smtp {
+                            Some(ConfiguredServerLoginParam {
+                                connection: ConnectionCandidate {
+                                    host: params.hostname.clone(),
+                                    port: params.port,
+                                    security,
+                                },
+                                user: params.username.clone(),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
             } else {
-                addr.to_string()
-            };
-            imap = provider
-                .server
-                .iter()
-                .filter_map(|server| {
-                    if server.protocol != Protocol::Imap {
-                        return None;
-                    }
+                imap = provider
+                    .server
+                    .iter()
+                    .filter_map(|server| {
+                        if server.protocol != Protocol::Imap {
+                            return None;
+                        }
 
-                    let Ok(security) = server.socket.try_into() else {
-                        return None;
-                    };
+                        let Ok(security) = server.socket.try_into() else {
+                            return None;
+                        };
 
-                    Some(ConfiguredServerLoginParam {
-                        connection: ConnectionCandidate {
-                            host: server.hostname.to_string(),
-                            port: server.port,
-                            security,
-                        },
-                        user: if !mail_user.is_empty() {
-                            mail_user.clone()
-                        } else {
-                            match server.username_pattern {
-                                UsernamePattern::Email => addr.to_string(),
-                                UsernamePattern::Emaillocalpart => addr_localpart.clone(),
-                            }
-                        },
+                        Some(ConfiguredServerLoginParam {
+                            connection: ConnectionCandidate {
+                                host: server.hostname.to_string(),
+                                port: server.port,
+                                security,
+                            },
+                            user: if !mail_user.is_empty() {
+                                mail_user.clone()
+                            } else {
+                                match server.username_pattern {
+                                    UsernamePattern::Email => addr.to_string(),
+                                    UsernamePattern::Emaillocalpart => addr_localpart.clone(),
+                                }
+                            },
+                        })
                     })
-                })
-                .collect();
-            smtp = provider
-                .server
-                .iter()
-                .filter_map(|server| {
-                    if server.protocol != Protocol::Smtp {
-                        return None;
-                    }
+                    .collect();
+                smtp = provider
+                    .server
+                    .iter()
+                    .filter_map(|server| {
+                        if server.protocol != Protocol::Smtp {
+                            return None;
+                        }
 
-                    let Ok(security) = server.socket.try_into() else {
-                        return None;
-                    };
+                        let Ok(security) = server.socket.try_into() else {
+                            return None;
+                        };
 
-                    Some(ConfiguredServerLoginParam {
-                        connection: ConnectionCandidate {
-                            host: server.hostname.to_string(),
-                            port: server.port,
-                            security,
-                        },
-                        user: if !send_user.is_empty() {
-                            send_user.clone()
-                        } else {
-                            match server.username_pattern {
-                                UsernamePattern::Email => addr.to_string(),
-                                UsernamePattern::Emaillocalpart => addr_localpart.clone(),
-                            }
-                        },
+                        Some(ConfiguredServerLoginParam {
+                            connection: ConnectionCandidate {
+                                host: server.hostname.to_string(),
+                                port: server.port,
+                                security,
+                            },
+                            user: if !send_user.is_empty() {
+                                send_user.clone()
+                            } else {
+                                match server.username_pattern {
+                                    UsernamePattern::Email => addr.to_string(),
+                                    UsernamePattern::Emaillocalpart => addr_localpart.clone(),
+                                }
+                            },
+                        })
                     })
-                })
-                .collect();
+                    .collect();
+            }
         } else if let (Some(configured_mail_servers), Some(configured_send_servers)) = (
             context.get_config(Config::ConfiguredImapServers).await?,
             context.get_config(Config::ConfiguredSmtpServers).await?,
@@ -896,6 +976,42 @@ mod tests {
         let loaded = ConfiguredLoginParam::load(&t).await?.unwrap();
         assert_eq!(loaded, param);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_empty_server_list() -> Result<()> {
+        // Find a provider that does not have server list set.
+        //
+        // There is at least one such provider in the provider database.
+        let (domain, provider) = crate::provider::data::PROVIDER_DATA
+            .iter()
+            .find(|(_domain, provider)| provider.server.is_empty())
+            .unwrap();
+
+        let t = TestContext::new().await;
+
+        let addr = format!("alice@{domain}");
+
+        t.set_config(Config::Configured, Some("1")).await?;
+        t.set_config(Config::ConfiguredProvider, Some(provider.id))
+            .await?;
+        t.set_config(Config::ConfiguredAddr, Some(&addr)).await?;
+        t.set_config(Config::ConfiguredMailPw, Some("foobarbaz"))
+            .await?;
+        t.set_config(Config::ConfiguredImapCertificateChecks, Some("1"))
+            .await?; // Strict
+        t.set_config(Config::ConfiguredSendPw, Some("foobarbaz"))
+            .await?;
+        t.set_config(Config::ConfiguredSmtpCertificateChecks, Some("1"))
+            .await?; // Strict
+        t.set_config(Config::ConfiguredServerFlags, Some("0"))
+            .await?;
+
+        let loaded = ConfiguredLoginParam::load(&t).await?.unwrap();
+        assert_eq!(loaded.provider, Some(*provider));
+        assert_eq!(loaded.imap.is_empty(), false);
+        assert_eq!(loaded.smtp.is_empty(), false);
         Ok(())
     }
 }

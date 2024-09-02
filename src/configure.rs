@@ -11,7 +11,7 @@
 
 mod auto_mozilla;
 mod auto_outlook;
-mod server_params;
+pub(crate) mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use auto_mozilla::moz_autoconfigure;

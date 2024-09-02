@@ -1,6 +1,6 @@
 //! [Provider database](https://providers.delta.chat/) module.
 
-mod data;
+pub(crate) mod data;
 
 use anyhow::Result;
 use deltachat_contact_tools::EmailAddress;
