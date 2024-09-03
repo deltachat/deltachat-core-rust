@@ -470,10 +470,15 @@ impl Context {
         }
 
         // Default values
-        match key {
-            Config::ConfiguredInboxFolder => Ok(Some("INBOX".to_owned())),
-            _ => Ok(key.get_str("default").map(|s| s.to_string())),
-        }
+        let val = match key {
+            Config::ConfiguredInboxFolder => Some("INBOX"),
+            Config::DeleteServerAfter => match Box::pin(self.is_chatmail()).await? {
+                false => Some("0"),
+                true => Some("1"),
+            },
+            _ => key.get_str("default"),
+        };
+        Ok(val.map(|s| s.to_string()))
     }
 
     /// Returns Some(T) if a value for the given key exists and was successfully parsed.
@@ -558,14 +563,11 @@ impl Context {
         let val = match self
             .get_config_parsed::<i64>(Config::DeleteServerAfter)
             .await?
+            .unwrap_or(0)
         {
-            None => match self.is_chatmail().await? {
-                false => None,
-                true => Some(0),
-            },
-            Some(0) => None,
-            Some(1) => Some(0),
-            Some(x) => Some(x),
+            0 => None,
+            1 => Some(0),
+            x => Some(x),
         };
         Ok(val)
     }

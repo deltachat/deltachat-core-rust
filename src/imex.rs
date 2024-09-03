@@ -914,7 +914,18 @@ mod tests {
         let backup_dir = tempfile::tempdir().unwrap();
 
         let context1 = &TestContext::new_alice().await;
+
+        // Check that the setting is displayed correctly.
+        assert_eq!(
+            context1.get_config(Config::DeleteServerAfter).await?,
+            Some("0".to_string())
+        );
         context1.set_config_bool(Config::IsChatmail, true).await?;
+        assert_eq!(
+            context1.get_config(Config::DeleteServerAfter).await?,
+            Some("1".to_string())
+        );
+
         assert_eq!(context1.get_config_delete_server_after().await?, Some(0));
         imex(context1, ImexMode::ExportBackup, backup_dir.path(), None).await?;
         let _event = context1
