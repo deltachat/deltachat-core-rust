@@ -14,11 +14,32 @@ static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
     .unwrap()
 });
 
-pub fn build_tls(strict_tls: bool, alpns: &[&str]) -> TlsConnector {
+static IMAP_NAUTA_CU: Lazy<Certificate> = Lazy::new(|| {
+    Certificate::from_der(include_bytes!(
+        "../../assets/certificates/imap.nauta.cu.der"
+    ))
+    .unwrap()
+});
+
+static SMTP_NAUTA_CU: Lazy<Certificate> = Lazy::new(|| {
+    Certificate::from_der(include_bytes!(
+        "../../assets/certificates/smtp.nauta.cu.der"
+    ))
+    .unwrap()
+});
+
+fn build_tls(strict_tls: bool, hostname: &str, alpns: &[&str]) -> TlsConnector {
     let tls_builder = TlsConnector::new()
         .min_protocol_version(Some(Protocol::Tlsv12))
         .request_alpns(alpns)
         .add_root_certificate(LETSENCRYPT_ROOT.clone());
+
+    // Add self-signed certificates for known hostnames.
+    let tls_builder = match hostname {
+        "imap.nauta.cu" => tls_builder.add_root_certificate(IMAP_NAUTA_CU.clone()),
+        "smtp.nauta.cu" => tls_builder.add_root_certificate(SMTP_NAUTA_CU.clone()),
+        _ => tls_builder,
+    };
 
     if strict_tls {
         tls_builder
@@ -35,7 +56,7 @@ pub async fn wrap_tls<T: AsyncRead + AsyncWrite + Unpin>(
     alpn: &[&str],
     stream: T,
 ) -> Result<TlsStream<T>> {
-    let tls = build_tls(strict_tls, alpn);
+    let tls = build_tls(strict_tls, hostname, alpn);
     let tls_stream = tls.connect(hostname, stream).await?;
     Ok(tls_stream)
 }
@@ -48,7 +69,7 @@ mod tests {
     fn test_build_tls() {
         // we are using some additional root certificates.
         // make sure, they do not break construction of TlsConnector
-        let _ = build_tls(true, &[]);
-        let _ = build_tls(false, &[]);
+        let _ = build_tls(true, "example.org", &[]);
+        let _ = build_tls(false, "example.org", &[]);
     }
 }
