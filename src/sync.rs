@@ -328,8 +328,10 @@ mod tests {
     use anyhow::bail;
 
     use super::*;
+    use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::contact::{Contact, Origin};
+    use crate::securejoin::get_securejoin_qr;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::SystemTime;
 
@@ -628,6 +630,39 @@ mod tests {
             .await?;
         let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.text, "hi");
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_unpromoted_group_no_qr_sync() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        alice.set_config_bool(Config::SyncMsgs, true).await?;
+        let alice_chatid =
+            chat::create_group_chat(alice, ProtectionStatus::Protected, "the chat").await?;
+        let qr = get_securejoin_qr(alice, Some(alice_chatid)).await?;
+        let msg_id = alice.send_sync_msg().await?;
+        assert!(msg_id.is_none());
+
+        let bob = &tcm.bob().await;
+        tcm.exec_securejoin_qr(bob, alice, &qr).await;
+        let msg_id = alice.send_sync_msg().await?;
+        // The group becomes promoted when Bob joins, so the QR code token is synced.
+        assert!(msg_id.is_some());
+        let sent = alice.pop_sent_msg().await;
+        let msg = alice.parse_msg(&sent).await;
+        let mut sync_items = msg.sync_items.unwrap().items;
+        assert_eq!(sync_items.len(), 1);
+        let data = sync_items.pop().unwrap().data;
+        let SyncDataOrUnknown::SyncData(AddQrToken(_)) = data else {
+            unreachable!();
+        };
+
+        let fiona = &tcm.fiona().await;
+        tcm.exec_securejoin_qr(fiona, alice, &qr).await;
+        let msg_id = alice.send_sync_msg().await?;
+        // The QR code token was already synced before.
+        assert!(msg_id.is_none());
         Ok(())
     }
 }

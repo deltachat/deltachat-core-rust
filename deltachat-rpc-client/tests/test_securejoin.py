@@ -62,7 +62,7 @@ def test_qr_setup_contact_svg(acfactory) -> None:
 
 @pytest.mark.parametrize("protect", [True, False])
 def test_qr_securejoin(acfactory, protect, tmp_path):
-    alice, bob = acfactory.get_online_accounts(2)
+    alice, bob, fiona = acfactory.get_online_accounts(3)
 
     # Setup second device for Alice
     # to test observing securejoin protocol.
@@ -111,6 +111,13 @@ def test_qr_securejoin(acfactory, protect, tmp_path):
     alice2_contact_bob = alice2.get_contact_by_addr(bob.get_config("addr"))
     alice2_contact_bob_snapshot = alice2_contact_bob.get_snapshot()
     assert alice2_contact_bob_snapshot.is_verified
+
+    # The QR code token is synced, so alice2 must be able to handle join requests.
+    logging.info("Fiona joins verified group via alice2")
+    alice.stop_io()
+    fiona.secure_join(qr_code)
+    alice2.wait_for_securejoin_inviter_success()
+    fiona.wait_for_securejoin_joiner_success()
 
 
 def test_qr_securejoin_contact_request(acfactory) -> None:
