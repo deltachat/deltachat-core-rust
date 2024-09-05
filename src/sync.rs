@@ -4,7 +4,7 @@ use anyhow::Result;
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::ContactId;
@@ -117,36 +117,22 @@ impl Context {
         Ok(())
     }
 
-    /// Adds most recent qr-code tokens for a given chat to the list of items to be synced.
-    /// If device synchronization is disabled,
+    /// Adds most recent qr-code tokens for the given group or self-contact to the list of items to
+    /// be synced. If device synchronization is disabled,
     /// no tokens exist or the chat is unpromoted, the function does nothing.
     /// The caller should perform `SchedulerState::interrupt_smtp()` on its own to trigger sending.
-    pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
+    pub(crate) async fn sync_qr_code_tokens(&self, grpid: Option<&str>) -> Result<()> {
         if !self.should_send_sync_msgs().await? {
             return Ok(());
         }
-
         if let (Some(invitenumber), Some(auth)) = (
-            token::lookup(self, Namespace::InviteNumber, chat_id).await?,
-            token::lookup(self, Namespace::Auth, chat_id).await?,
+            token::lookup(self, Namespace::InviteNumber, grpid).await?,
+            token::lookup(self, Namespace::Auth, grpid).await?,
         ) {
-            let grpid = if let Some(chat_id) = chat_id {
-                let chat = Chat::load_from_db(self, chat_id).await?;
-                if !chat.is_promoted() {
-                    info!(
-                        self,
-                        "group '{}' not yet promoted, do not sync tokens yet.", chat.grpid
-                    );
-                    return Ok(());
-                }
-                Some(chat.grpid)
-            } else {
-                None
-            };
             self.add_sync_item(SyncData::AddQrToken(QrTokenData {
                 invitenumber,
                 auth,
-                grpid,
+                grpid: grpid.map(|s| s.to_string()),
             }))
             .await?;
         }
@@ -296,21 +282,9 @@ impl Context {
     }
 
     async fn add_qr_token(&self, token: &QrTokenData) -> Result<()> {
-        let chat_id = if let Some(grpid) = &token.grpid {
-            if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(self, grpid).await? {
-                Some(chat_id)
-            } else {
-                warn!(
-                    self,
-                    "Ignoring token for nonexistent/deleted group '{}'.", grpid
-                );
-                return Ok(());
-            }
-        } else {
-            None
-        };
-        token::save(self, Namespace::InviteNumber, chat_id, &token.invitenumber).await?;
-        token::save(self, Namespace::Auth, chat_id, &token.auth).await?;
+        let grpid = token.grpid.as_deref();
+        token::save(self, Namespace::InviteNumber, grpid, &token.invitenumber).await?;
+        token::save(self, Namespace::Auth, grpid, &token.auth).await?;
         Ok(())
     }
 
@@ -328,11 +302,11 @@ mod tests {
     use anyhow::bail;
 
     use super::*;
-    use crate::chat::ProtectionStatus;
+    use crate::chat::{remove_contact_from_chat, Chat, ProtectionStatus};
     use crate::chatlist::Chatlist;
     use crate::contact::{Contact, Origin};
     use crate::securejoin::get_securejoin_qr;
-    use crate::test_utils::{TestContext, TestContextManager};
+    use crate::test_utils::{self, TestContext, TestContextManager};
     use crate::tools::SystemTime;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -634,20 +608,25 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_unpromoted_group_no_qr_sync() -> Result<()> {
+    async fn test_unpromoted_group_qr_sync() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = &tcm.alice().await;
         alice.set_config_bool(Config::SyncMsgs, true).await?;
         let alice_chatid =
             chat::create_group_chat(alice, ProtectionStatus::Protected, "the chat").await?;
         let qr = get_securejoin_qr(alice, Some(alice_chatid)).await?;
-        let msg_id = alice.send_sync_msg().await?;
-        assert!(msg_id.is_none());
+
+        // alice2 syncs the QR code token.
+        let alice2 = &tcm.alice().await;
+        alice2.set_config_bool(Config::SyncMsgs, true).await?;
+        test_utils::sync(alice, alice2).await;
 
         let bob = &tcm.bob().await;
         tcm.exec_securejoin_qr(bob, alice, &qr).await;
         let msg_id = alice.send_sync_msg().await?;
-        // The group becomes promoted when Bob joins, so the QR code token is synced.
+        // Core <= v1.143 doesn't sync QR code tokens immediately, so current Core does that when a
+        // group is promoted for compatibility (because the group could be created by older Core).
+        // TODO: assert!(msg_id.is_none());
         assert!(msg_id.is_some());
         let sent = alice.pop_sent_msg().await;
         let msg = alice.parse_msg(&sent).await;
@@ -658,11 +637,22 @@ mod tests {
             unreachable!();
         };
 
+        // Remove Bob because alice2 doesn't have their key.
+        let alice_bob_id = alice.add_or_lookup_contact(bob).await.id;
+        remove_contact_from_chat(alice, alice_chatid, alice_bob_id).await?;
+        alice.pop_sent_msg().await;
+        let sent = alice
+            .send_text(alice_chatid, "Promoting group to another device")
+            .await;
+        alice2.recv_msg(&sent).await;
+
         let fiona = &tcm.fiona().await;
-        tcm.exec_securejoin_qr(fiona, alice, &qr).await;
-        let msg_id = alice.send_sync_msg().await?;
-        // The QR code token was already synced before.
-        assert!(msg_id.is_none());
+        tcm.exec_securejoin_qr(fiona, alice2, &qr).await;
+        let msg = fiona.get_last_msg().await;
+        assert_eq!(
+            msg.text,
+            "Member Me (fiona@example.net) added by alice@example.org."
+        );
         Ok(())
     }
 }
