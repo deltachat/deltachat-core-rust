@@ -71,11 +71,11 @@ def test_qr_securejoin(acfactory, protect, tmp_path):
     alice2 = acfactory.get_unconfigured_account()
     alice2.import_backup(files[0])
 
-    logging.info("Alice creates a verified group")
-    alice_chat = alice.create_group("Verified group", protect=protect)
+    logging.info("Alice creates a group")
+    alice_chat = alice.create_group("Group", protect=protect)
     assert alice_chat.get_basic_snapshot().is_protected == protect
 
-    logging.info("Bob joins verified group")
+    logging.info("Bob joins the group")
     qr_code = alice_chat.get_qr_code()
     bob.secure_join(qr_code)
 
@@ -113,7 +113,7 @@ def test_qr_securejoin(acfactory, protect, tmp_path):
     assert alice2_contact_bob_snapshot.is_verified
 
     # The QR code token is synced, so alice2 must be able to handle join requests.
-    logging.info("Fiona joins verified group via alice2")
+    logging.info("Fiona joins the group via alice2")
     alice.stop_io()
     fiona.secure_join(qr_code)
     alice2.wait_for_securejoin_inviter_success()

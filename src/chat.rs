@@ -1935,11 +1935,13 @@ impl Chat {
             msg.param.set_int(Param::AttachGroupImage, 1);
             self.param.remove(Param::Unpromoted);
             self.update_param(context).await?;
-            // send_sync_msg() is called a moment later at `smtp::send_smtp_messages()`
-            // when the group creation message is already in the `smtp` table --
-            // this makes sure, the other devices are aware of grpid that is used in the sync-message.
+            // TODO: Remove this compat code needed because Core <= v1.143:
+            // - doesn't accept synchronization of QR code tokens for unpromoted groups, so we also
+            //   send them when the group is promoted.
+            // - doesn't sync QR code tokens for unpromoted groups and the group might be created
+            //   before an upgrade.
             context
-                .sync_qr_code_tokens(Some(self.id))
+                .sync_qr_code_tokens(Some(self.grpid.as_str()))
                 .await
                 .log_err(context)
                 .ok();
@@ -3777,9 +3779,14 @@ pub(crate) async fn add_contact_to_chat_ex(
             return Err(e);
         }
         sync = Nosync;
+        // TODO: Remove this compat code needed because Core <= v1.143:
+        // - doesn't accept synchronization of QR code tokens for unpromoted groups, so we also send
+        //   them when the group is promoted.
+        // - doesn't sync QR code tokens for unpromoted groups and the group might be created before
+        //   an upgrade.
         if sync_qr_code_tokens
             && context
-                .sync_qr_code_tokens(Some(chat_id))
+                .sync_qr_code_tokens(Some(chat.grpid.as_str()))
                 .await
                 .log_err(context)
                 .is_ok()

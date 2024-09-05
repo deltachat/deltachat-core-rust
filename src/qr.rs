@@ -11,7 +11,7 @@ use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
 use self::dclogin_scheme::configure_from_login_qr;
-use crate::chat::{get_chat_id_by_grpid, ChatIdBlocked};
+use crate::chat::ChatIdBlocked;
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{Contact, ContactId, Origin};
@@ -727,18 +727,15 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             grpid,
             ..
         } => {
-            let chat_id = get_chat_id_by_grpid(context, &grpid)
-                .await?
-                .map(|(chat_id, _protected, _blocked)| chat_id);
             token::save(
                 context,
                 token::Namespace::InviteNumber,
-                chat_id,
+                Some(&grpid),
                 &invitenumber,
             )
             .await?;
-            token::save(context, token::Namespace::Auth, chat_id, &authcode).await?;
-            context.sync_qr_code_tokens(chat_id).await?;
+            token::save(context, token::Namespace::Auth, Some(&grpid), &authcode).await?;
+            context.sync_qr_code_tokens(Some(&grpid)).await?;
             context.scheduler.interrupt_smtp().await;
         }
         Qr::Login { address, options } => {

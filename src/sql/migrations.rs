@@ -971,6 +971,26 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 118)?;
+    if dbversion < migration_version {
+        sql.execute_migration(
+            "CREATE TABLE tokens_new (
+                id INTEGER PRIMARY KEY,
+                namespc INTEGER DEFAULT 0,
+                foreign_key TEXT DEFAULT '',
+                token TEXT DEFAULT '',
+                timestamp INTEGER DEFAULT 0
+            ) STRICT;
+            INSERT INTO tokens_new
+                SELECT t.id, t.namespc, IFNULL(c.grpid, ''), t.token, t.timestamp
+                FROM tokens t LEFT JOIN chats c ON t.foreign_id=c.id;
+            DROP TABLE tokens;
+            ALTER TABLE tokens_new RENAME TO tokens;",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

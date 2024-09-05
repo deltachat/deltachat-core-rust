@@ -1,13 +1,13 @@
 //! Implementation of [SecureJoin protocols](https://securejoin.delta.chat/).
 
-use anyhow::{bail, Context as _, Error, Result};
+use anyhow::{bail, ensure, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
+use crate::chat::{self, get_chat_id_by_grpid, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::chatlist_events;
 use crate::config::Config;
-use crate::constants::Blocked;
+use crate::constants::{Blocked, Chattype};
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
@@ -60,13 +60,29 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
 
     ensure_secret_key_exists(context).await.ok();
 
-    // invitenumber will be used to allow starting the handshake,
-    // auth will be used to verify the fingerprint
-    let sync_token = token::lookup(context, Namespace::InviteNumber, group)
+    let chat = match group {
+        Some(id) => {
+            let chat = Chat::load_from_db(context, id).await?;
+            ensure!(
+                chat.typ == Chattype::Group,
+                "Can't generate SecureJoin QR code for 1:1 chat {id}"
+            );
+            ensure!(
+                !chat.grpid.is_empty(),
+                "Can't generate SecureJoin QR code for ad-hoc group {id}"
+            );
+            Some(chat)
+        }
+        None => None,
+    };
+    let grpid = chat.as_ref().map(|c| c.grpid.as_str());
+    let sync_token = token::lookup(context, Namespace::InviteNumber, grpid)
         .await?
         .is_none();
-    let invitenumber = token::lookup_or_new(context, Namespace::InviteNumber, group).await?;
-    let auth = token::lookup_or_new(context, Namespace::Auth, group).await?;
+    // invitenumber will be used to allow starting the handshake,
+    // auth will be used to verify the fingerprint
+    let invitenumber = token::lookup_or_new(context, Namespace::InviteNumber, grpid).await?;
+    let auth = token::lookup_or_new(context, Namespace::Auth, grpid).await?;
     let self_addr = context.get_primary_self_addr().await?;
     let self_name = context
         .get_config(Config::Displayname)
@@ -85,19 +101,14 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
     let self_name_urlencoded =
         utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
-    let qr = if let Some(group) = group {
+    let qr = if let Some(chat) = chat {
         // parameters used: a=g=x=i=s=
-        let chat = Chat::load_from_db(context, group).await?;
-        if chat.grpid.is_empty() {
-            bail!(
-                "can't generate securejoin QR code for ad-hoc group {}",
-                group
-            );
-        }
         let group_name = chat.get_name();
         let group_name_urlencoded = utf8_percent_encode(group_name, NON_ALPHANUMERIC).to_string();
         if sync_token {
-            context.sync_qr_code_tokens(Some(chat.id)).await?;
+            context
+                .sync_qr_code_tokens(Some(chat.grpid.as_str()))
+                .await?;
             context.scheduler.interrupt_smtp().await;
         }
         format!(
@@ -400,12 +411,22 @@ pub(crate) async fn handle_securejoin_handshake(
                 );
                 return Ok(HandshakeMessage::Ignore);
             };
-            let Some(group_chat_id) = token::auth_chat_id(context, auth).await? else {
+            let Some(grpid) = token::auth_foreign_key(context, auth).await? else {
                 warn!(
                     context,
                     "Ignoring {step} message because of invalid auth code."
                 );
                 return Ok(HandshakeMessage::Ignore);
+            };
+            let group_chat_id = match grpid.as_str() {
+                "" => None,
+                id => {
+                    let Some((chat_id, ..)) = get_chat_id_by_grpid(context, id).await? else {
+                        warn!(context, "Ignoring {step} message: unknown grpid {id}.",);
+                        return Ok(HandshakeMessage::Ignore);
+                    };
+                    Some(chat_id)
+                }
             };
 
             let contact_addr = Contact::get_by_id(context, contact_id)
@@ -432,7 +453,20 @@ pub(crate) async fn handle_securejoin_handshake(
             info!(context, "Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             inviter_progress(context, contact_id, 600);
-            if group_chat_id.is_unset() {
+            if let Some(group_chat_id) = group_chat_id {
+                // Join group.
+                secure_connection_established(
+                    context,
+                    contact_id,
+                    group_chat_id,
+                    mime_message.timestamp_sent,
+                )
+                .await?;
+                chat::add_contact_to_chat_ex(context, Nosync, group_chat_id, contact_id, true)
+                    .await?;
+                inviter_progress(context, contact_id, 800);
+                inviter_progress(context, contact_id, 1000);
+            } else {
                 // Setup verified contact.
                 secure_connection_established(
                     context,
@@ -445,19 +479,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     .await
                     .context("failed sending vc-contact-confirm message")?;
 
-                inviter_progress(context, contact_id, 1000);
-            } else {
-                // Join group.
-                secure_connection_established(
-                    context,
-                    contact_id,
-                    group_chat_id,
-                    mime_message.timestamp_sent,
-                )
-                .await?;
-                chat::add_contact_to_chat_ex(context, Nosync, group_chat_id, contact_id, true)
-                    .await?;
-                inviter_progress(context, contact_id, 800);
                 inviter_progress(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
