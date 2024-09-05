@@ -17,6 +17,7 @@ use crate::tools::time;
 
 pub(crate) mod dns;
 pub(crate) mod http;
+pub(crate) mod proxy;
 pub(crate) mod session;
 pub(crate) mod tls;
 

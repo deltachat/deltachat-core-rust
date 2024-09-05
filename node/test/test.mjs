@@ -271,7 +271,7 @@ describe('Basic offline Tests', function () {
       'sync_msgs',
       'sentbox_watch',
       'show_emails',
-      'socks5_enabled',
+      'proxy_enabled',
       'sqlite_version',
       'uptime',
       'used_account_settings',

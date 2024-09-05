@@ -84,7 +84,6 @@ mod scheduler;
 pub mod securejoin;
 mod simplify;
 mod smtp;
-mod socks;
 pub mod stock_str;
 mod sync;
 mod timesmearing;

@@ -4,7 +4,6 @@ use std::ops::{Deref, DerefMut};
 use anyhow::{Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
-use fast_socks5::client::Socks5Stream;
 use tokio::io::BufWriter;
 
 use super::capabilities::Capabilities;
@@ -12,12 +11,12 @@ use super::session::Session;
 use crate::context::Context;
 use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
+use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
 use crate::net::{
     connect_tcp_inner, connect_tls_inner, run_connection_attempts, update_connection_history,
 };
-use crate::socks::Socks5Config;
 use crate::tools::time;
 
 #[derive(Debug)]
@@ -157,25 +156,25 @@ impl Client {
 
     pub async fn connect(
         context: &Context,
-        socks5_config: Option<Socks5Config>,
+        proxy_config: Option<ProxyConfig>,
         strict_tls: bool,
         candidate: ConnectionCandidate,
     ) -> Result<Self> {
         let host = &candidate.host;
         let port = candidate.port;
         let security = candidate.security;
-        if let Some(socks5_config) = socks5_config {
+        if let Some(proxy_config) = proxy_config {
             let client = match security {
                 ConnectionSecurity::Tls => {
-                    Client::connect_secure_socks5(context, host, port, strict_tls, socks5_config)
+                    Client::connect_secure_proxy(context, host, port, strict_tls, proxy_config)
                         .await?
                 }
                 ConnectionSecurity::Starttls => {
-                    Client::connect_starttls_socks5(context, host, port, socks5_config, strict_tls)
+                    Client::connect_starttls_proxy(context, host, port, proxy_config, strict_tls)
                         .await?
                 }
                 ConnectionSecurity::Plain => {
-                    Client::connect_insecure_socks5(context, host, port, socks5_config).await?
+                    Client::connect_insecure_proxy(context, host, port, proxy_config).await?
                 }
             };
             Ok(client)
@@ -249,17 +248,17 @@ impl Client {
         Ok(client)
     }
 
-    async fn connect_secure_socks5(
+    async fn connect_secure_proxy(
         context: &Context,
         domain: &str,
         port: u16,
         strict_tls: bool,
-        socks5_config: Socks5Config,
+        proxy_config: ProxyConfig,
     ) -> Result<Self> {
-        let socks5_stream = socks5_config
+        let proxy_stream = proxy_config
             .connect(context, domain, port, strict_tls)
             .await?;
-        let tls_stream = wrap_tls(strict_tls, domain, alpn(port), socks5_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, domain, alpn(port), proxy_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
@@ -270,14 +269,14 @@ impl Client {
         Ok(client)
     }
 
-    async fn connect_insecure_socks5(
+    async fn connect_insecure_proxy(
         context: &Context,
         domain: &str,
         port: u16,
-        socks5_config: Socks5Config,
+        proxy_config: ProxyConfig,
     ) -> Result<Self> {
-        let socks5_stream = socks5_config.connect(context, domain, port, false).await?;
-        let buffered_stream = BufWriter::new(socks5_stream);
+        let proxy_stream = proxy_config.connect(context, domain, port, false).await?;
+        let buffered_stream = BufWriter::new(proxy_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = Client::new(session_stream);
         let _greeting = client
@@ -287,20 +286,20 @@ impl Client {
         Ok(client)
     }
 
-    async fn connect_starttls_socks5(
+    async fn connect_starttls_proxy(
         context: &Context,
         hostname: &str,
         port: u16,
-        socks5_config: Socks5Config,
+        proxy_config: ProxyConfig,
         strict_tls: bool,
     ) -> Result<Self> {
-        let socks5_stream = socks5_config
+        let proxy_stream = proxy_config
             .connect(context, hostname, port, strict_tls)
             .await?;
 
         // Run STARTTLS command and convert the client back into a stream.
-        let buffered_socks5_stream = BufWriter::new(socks5_stream);
-        let mut client = ImapClient::new(buffered_socks5_stream);
+        let buffered_proxy_stream = BufWriter::new(proxy_stream);
+        let mut client = ImapClient::new(buffered_proxy_stream);
         let _greeting = client
             .read_response()
             .await
@@ -309,10 +308,10 @@ impl Client {
             .run_command_and_check_ok("STARTTLS", None)
             .await
             .context("STARTTLS command failed")?;
-        let buffered_socks5_stream = client.into_inner();
-        let socks5_stream: Socks5Stream<_> = buffered_socks5_stream.into_inner();
+        let buffered_proxy_stream = client.into_inner();
+        let proxy_stream = buffered_proxy_stream.into_inner();
 
-        let tls_stream = wrap_tls(strict_tls, hostname, &[], socks5_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, &[], proxy_stream)
             .await
             .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufWriter::new(tls_stream);

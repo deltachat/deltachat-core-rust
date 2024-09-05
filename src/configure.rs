@@ -196,8 +196,8 @@ async fn get_configured_param(
         param.smtp.password.clone()
     };
 
-    let socks5_config = param.socks5_config.clone();
-    let socks5_enabled = socks5_config.is_some();
+    let proxy_config = param.proxy_config.clone();
+    let proxy_enabled = proxy_config.is_some();
 
     let mut addr = param.addr.clone();
     if param.oauth2 {
@@ -240,7 +240,7 @@ async fn get_configured_param(
             "checking internal provider-info for offline autoconfig"
         );
 
-        provider = provider::get_provider_info(ctx, &param_domain, socks5_enabled).await;
+        provider = provider::get_provider_info(ctx, &param_domain, proxy_enabled).await;
         if let Some(provider) = provider {
             if provider.server.is_empty() {
                 info!(ctx, "Offline autoconfig found, but no servers defined.");
@@ -356,7 +356,7 @@ async fn get_configured_param(
             .collect(),
         smtp_user: param.smtp.user.clone(),
         smtp_password,
-        socks5_config: param.socks5_config.clone(),
+        proxy_config: param.proxy_config.clone(),
         provider,
         certificate_checks: match param.certificate_checks {
             EnteredCertificateChecks::Automatic => ConfiguredCertificateChecks::Automatic,
@@ -388,7 +388,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     let smtp_param = configured_param.smtp.clone();
     let smtp_password = configured_param.smtp_password.clone();
     let smtp_addr = configured_param.addr.clone();
-    let smtp_socks5 = configured_param.socks5_config.clone();
+    let proxy_config = configured_param.proxy_config.clone();
 
     let smtp_config_task = task::spawn(async move {
         let mut smtp = Smtp::new();
@@ -396,7 +396,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
             &context_smtp,
             &smtp_param,
             &smtp_password,
-            &smtp_socks5,
+            &proxy_config,
             &smtp_addr,
             strict_tls,
             configured_param.oauth2,
@@ -414,7 +414,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     let mut imap = Imap::new(
         configured_param.imap.clone(),
         configured_param.imap_password.clone(),
-        configured_param.socks5_config.clone(),
+        configured_param.proxy_config.clone(),
         &configured_param.addr,
         strict_tls,
         configured_param.oauth2,

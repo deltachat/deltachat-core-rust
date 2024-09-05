@@ -321,12 +321,12 @@ impl CommandApi {
     ) -> Result<Option<ProviderInfo>> {
         let ctx = self.get_context(account_id).await?;
 
-        let socks5_enabled = ctx
-            .get_config_bool(deltachat::config::Config::Socks5Enabled)
+        let proxy_enabled = ctx
+            .get_config_bool(deltachat::config::Config::ProxyEnabled)
             .await?;
 
         let provider_info =
-            get_provider_info(&ctx, email.split('@').last().unwrap_or(""), socks5_enabled).await;
+            get_provider_info(&ctx, email.split('@').last().unwrap_or(""), proxy_enabled).await;
         Ok(ProviderInfo::from_dc_type(provider_info))
     }
 

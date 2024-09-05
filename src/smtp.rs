@@ -18,9 +18,9 @@ use crate::login_param::{ConfiguredLoginParam, ConfiguredServerLoginParam};
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
+use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionBufStream;
 use crate::scheduler::connectivity::ConnectivityStore;
-use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str::unencrypted_email;
 use crate::tools::{self, time_elapsed};
@@ -95,7 +95,7 @@ impl Smtp {
             context,
             &lp.smtp,
             &lp.smtp_password,
-            &lp.socks5_config,
+            &lp.proxy_config,
             &lp.addr,
             lp.strict_tls(),
             lp.oauth2,
@@ -110,7 +110,7 @@ impl Smtp {
         context: &Context,
         login_params: &[ConfiguredServerLoginParam],
         password: &str,
-        socks5_config: &Option<Socks5Config>,
+        proxy_config: &Option<ProxyConfig>,
         addr: &str,
         strict_tls: bool,
         oauth2: bool,
@@ -130,7 +130,7 @@ impl Smtp {
             info!(context, "SMTP trying to connect to {}.", &lp.connection);
             let transport = match connect::connect_and_auth(
                 context,
-                socks5_config,
+                proxy_config,
                 strict_tls,
                 lp.connection.clone(),
                 oauth2,

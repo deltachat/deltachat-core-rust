@@ -69,7 +69,7 @@ skip = [
      { name = "windows-core", version = "<0.54.0" },
      { name = "windows_i686_gnu", version = "<0.52" },
      { name = "windows_i686_msvc", version = "<0.52" },
-     { name = "windows-sys", version = "<0.52" },
+     { name = "windows-sys", version = "<0.59" },
      { name = "windows-targets", version = "<0.52" },
      { name = "windows", version = "<0.54.0" },
      { name = "windows_x86_64_gnullvm", version = "<0.52" },

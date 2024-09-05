@@ -1249,10 +1249,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "providerinfo" => {
             ensure!(!arg1.is_empty(), "Argument <addr> missing.");
-            let socks5_enabled = context
-                .get_config_bool(config::Config::Socks5Enabled)
+            let proxy_enabled = context
+                .get_config_bool(config::Config::ProxyEnabled)
                 .await?;
-            match provider::get_provider_info(&context, arg1, socks5_enabled).await {
+            match provider::get_provider_info(&context, arg1, proxy_enabled).await {
                 Some(info) => {
                     println!("Information for provider belonging to {arg1}:");
                     println!("status: {}", info.status as u32);

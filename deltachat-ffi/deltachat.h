@@ -403,11 +403,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `send_port`    = SMTP-port, guessed if left out
  * - `send_security`= SMTP-socket, one of @ref DC_SOCKET, defaults to #DC_SOCKET_AUTO
  * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
- * - `socks5_enabled` = SOCKS5 enabled
- * - `socks5_host` = SOCKS5 proxy server host
- * - `socks5_port` = SOCKS5 proxy server port
- * - `socks5_user` = SOCKS5 proxy username
- * - `socks5_password` = SOCKS5 proxy password
+ * - `proxy_enabled` = Proxy enabled. Disabled by default.
+ * - `proxy_url` = Proxy URL. May contain multiple URLs separated by newline, but only the first one is used.
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = deprecated option, should be set to the same value as `imap_certificate_checks` but ignored by the new core
  * - `displayname`  = Own name to use when sending messages. MUAs are allowed to spread this way e.g. using CC, defaults to empty

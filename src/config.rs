@@ -91,21 +91,43 @@ pub enum Config {
     /// Should not be extended in the future, create new config keys instead.
     ServerFlags,
 
+    /// True if proxy is enabled.
+    ///
+    /// Can be used to disable proxy without erasing known URLs.
+    ProxyEnabled,
+
+    /// Proxy URL.
+    ///
+    /// Supported URLs schemes are `socks5://` (SOCKS 5) and `ss://` (Shadowsocks).
+    ///
+    /// May contain multiple URLs separated by newline, in which case the first one is used.
+    ProxyUrl,
+
     /// True if SOCKS5 is enabled.
     ///
     /// Can be used to disable SOCKS5 without erasing SOCKS5 configuration.
+    ///
+    /// Deprecated in favor of `ProxyEnabled`.
     Socks5Enabled,
 
     /// SOCKS5 proxy server hostname or address.
+    ///
+    /// Deprecated in favor of `ProxyUrl`.
     Socks5Host,
 
     /// SOCKS5 proxy server port.
+    ///
+    /// Deprecated in favor of `ProxyUrl`.
     Socks5Port,
 
     /// SOCKS5 proxy server username.
+    ///
+    /// Deprecated in favor of `ProxyUrl`.
     Socks5User,
 
     /// SOCKS5 proxy server password.
+    ///
+    /// Deprecated in favor of `ProxyUrl`.
     Socks5Password,
 
     /// Own name to use in the `From:` field when sending messages.
@@ -614,6 +636,7 @@ impl Context {
     fn check_config(key: Config, value: Option<&str>) -> Result<()> {
         match key {
             Config::Socks5Enabled
+            | Config::ProxyEnabled
             | Config::BccSelf
             | Config::E2eeEnabled
             | Config::MdnsEnabled

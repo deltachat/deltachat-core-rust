@@ -4537,19 +4537,16 @@ pub unsafe extern "C" fn dc_provider_new_from_email_with_dns(
     let addr = to_string_lossy(addr);
 
     let ctx = &*context;
-    let socks5_enabled = block_on(async move {
-        ctx.get_config_bool(config::Config::Socks5Enabled)
-            .await
-            .context("Can't get config")
-            .log_err(ctx)
-    });
+    let proxy_enabled = block_on(ctx.get_config_bool(config::Config::ProxyEnabled))
+        .context("Can't get config")
+        .log_err(ctx);
 
-    match socks5_enabled {
-        Ok(socks5_enabled) => {
+    match proxy_enabled {
+        Ok(proxy_enabled) => {
             match block_on(provider::get_provider_info_by_addr(
                 ctx,
                 addr.as_str(),
-                socks5_enabled,
+                proxy_enabled,
             ))
             .log_err(ctx)
             .unwrap_or_default()

@@ -726,7 +726,7 @@ impl Context {
         let request_msgs = message::get_request_msg_cnt(self).await;
         let contacts = Contact::get_real_cnt(self).await?;
         let is_configured = self.get_config_int(Config::Configured).await?;
-        let socks5_enabled = self.get_config_int(Config::Socks5Enabled).await?;
+        let proxy_enabled = self.get_config_int(Config::ProxyEnabled).await?;
         let dbversion = self
             .sql
             .get_raw_config_int("dbversion")
@@ -807,7 +807,7 @@ impl Context {
                 .unwrap_or_else(|| "<unset>".to_string()),
         );
         res.insert("is_configured", is_configured.to_string());
-        res.insert("socks5_enabled", socks5_enabled.to_string());
+        res.insert("proxy_enabled", proxy_enabled.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2);
 
@@ -1693,6 +1693,8 @@ mod tests {
             "server_flags",
             "skip_start_messages",
             "smtp_certificate_checks",
+            "proxy_url",      // May contain passwords, don't leak it to the logs.
+            "socks5_enabled", // SOCKS5 options are deprecated.
             "socks5_host",
             "socks5_port",
             "socks5_user",

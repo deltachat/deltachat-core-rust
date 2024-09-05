@@ -9,13 +9,13 @@ use tokio::io::BufStream;
 use crate::context::Context;
 use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
+use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
 use crate::net::{
     connect_tcp_inner, connect_tls_inner, run_connection_attempts, update_connection_history,
 };
 use crate::oauth2::get_oauth2_access_token;
-use crate::socks::Socks5Config;
 use crate::tools::time;
 
 /// Converts port number to ALPN list.
@@ -31,7 +31,7 @@ fn alpn(port: u16) -> &'static [&'static str] {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn connect_and_auth(
     context: &Context,
-    socks5_config: &Option<Socks5Config>,
+    proxy_config: &Option<ProxyConfig>,
     strict_tls: bool,
     candidate: ConnectionCandidate,
     oauth2: bool,
@@ -40,7 +40,7 @@ pub(crate) async fn connect_and_auth(
     password: &str,
 ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
     let session_stream =
-        connect_stream(context, socks5_config.clone(), strict_tls, candidate).await?;
+        connect_stream(context, proxy_config.clone(), strict_tls, candidate).await?;
     let client = async_smtp::SmtpClient::new()
         .smtp_utf8(true)
         .without_greeting();
@@ -127,7 +127,7 @@ async fn connection_attempt(
 /// to unify the result regardless of whether TLS or STARTTLS is used.
 async fn connect_stream(
     context: &Context,
-    socks5_config: Option<Socks5Config>,
+    proxy_config: Option<ProxyConfig>,
     strict_tls: bool,
     candidate: ConnectionCandidate,
 ) -> Result<Box<dyn SessionBufStream>> {
@@ -135,18 +135,17 @@ async fn connect_stream(
     let port = candidate.port;
     let security = candidate.security;
 
-    if let Some(socks5_config) = socks5_config {
+    if let Some(proxy_config) = proxy_config {
         let stream = match security {
             ConnectionSecurity::Tls => {
-                connect_secure_socks5(context, host, port, strict_tls, socks5_config.clone())
-                    .await?
+                connect_secure_proxy(context, host, port, strict_tls, proxy_config.clone()).await?
             }
             ConnectionSecurity::Starttls => {
-                connect_starttls_socks5(context, host, port, strict_tls, socks5_config.clone())
+                connect_starttls_proxy(context, host, port, strict_tls, proxy_config.clone())
                     .await?
             }
             ConnectionSecurity::Plain => {
-                connect_insecure_socks5(context, host, port, socks5_config.clone()).await?
+                connect_insecure_proxy(context, host, port, proxy_config.clone()).await?
             }
         };
         Ok(stream)
@@ -192,37 +191,37 @@ async fn skip_smtp_greeting<R: tokio::io::AsyncBufReadExt + Unpin>(stream: &mut 
     }
 }
 
-async fn connect_secure_socks5(
+async fn connect_secure_proxy(
     context: &Context,
     hostname: &str,
     port: u16,
     strict_tls: bool,
-    socks5_config: Socks5Config,
+    proxy_config: ProxyConfig,
 ) -> Result<Box<dyn SessionBufStream>> {
-    let socks5_stream = socks5_config
+    let proxy_stream = proxy_config
         .connect(context, hostname, port, strict_tls)
         .await?;
-    let tls_stream = wrap_tls(strict_tls, hostname, alpn(port), socks5_stream).await?;
+    let tls_stream = wrap_tls(strict_tls, hostname, alpn(port), proxy_stream).await?;
     let mut buffered_stream = BufStream::new(tls_stream);
     skip_smtp_greeting(&mut buffered_stream).await?;
     let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
     Ok(session_stream)
 }
 
-async fn connect_starttls_socks5(
+async fn connect_starttls_proxy(
     context: &Context,
     hostname: &str,
     port: u16,
     strict_tls: bool,
-    socks5_config: Socks5Config,
+    proxy_config: ProxyConfig,
 ) -> Result<Box<dyn SessionBufStream>> {
-    let socks5_stream = socks5_config
+    let proxy_stream = proxy_config
         .connect(context, hostname, port, strict_tls)
         .await?;
 
     // Run STARTTLS command and convert the client back into a stream.
     let client = SmtpClient::new().smtp_utf8(true);
-    let transport = SmtpTransport::new(client, BufStream::new(socks5_stream)).await?;
+    let transport = SmtpTransport::new(client, BufStream::new(proxy_stream)).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
     let tls_stream = wrap_tls(strict_tls, hostname, &[], tcp_stream)
         .await
@@ -232,16 +231,14 @@ async fn connect_starttls_socks5(
     Ok(session_stream)
 }
 
-async fn connect_insecure_socks5(
+async fn connect_insecure_proxy(
     context: &Context,
     hostname: &str,
     port: u16,
-    socks5_config: Socks5Config,
+    proxy_config: ProxyConfig,
 ) -> Result<Box<dyn SessionBufStream>> {
-    let socks5_stream = socks5_config
-        .connect(context, hostname, port, false)
-        .await?;
-    let mut buffered_stream = BufStream::new(socks5_stream);
+    let proxy_stream = proxy_config.connect(context, hostname, port, false).await?;
+    let mut buffered_stream = BufStream::new(proxy_stream);
     skip_smtp_greeting(&mut buffered_stream).await?;
     let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
     Ok(session_stream)
