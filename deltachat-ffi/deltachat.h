@@ -7384,6 +7384,11 @@ void dc_event_unref(dc_event_t* event);
 /// Used as info message.
 #define DC_STR_SECUREJOIN_WAIT_TIMEOUT 191
 
+/// "Security"
+///
+/// Used in connectivity view.
+#define DC_STR_SECUREJOIN_WAIT_TIMEOUT 192
+
 /// "Contact". Deprecated, currently unused.
 #define DC_STR_CONTACT 200
 
