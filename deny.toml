@@ -11,6 +11,9 @@ ignore = [
 
     # Unmaintained encoding
     "RUSTSEC-2021-0153",
+
+    # Unmaintained proc-macro-error
+    "RUSTSEC-2024-0370",
 ]
 
 [bans]
