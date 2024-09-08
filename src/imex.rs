@@ -716,12 +716,12 @@ async fn export_database(
 /// NB: Calling this after a backup import isn't reliable as we can crash in between, but this is a
 /// problem only for old backups, new backups already have `DeleteServerAfter` set if necessary.
 async fn adjust_delete_server_after(context: &Context) -> Result<()> {
-    if context.config_exists(Config::DeleteServerAfter).await? || !context.is_chatmail().await? {
-        return Ok(());
+    if context.is_chatmail().await? && !context.config_exists(Config::DeleteServerAfter).await? {
+        context
+            .set_config(Config::DeleteServerAfter, Some("0"))
+            .await?;
     }
-    context
-        .set_config(Config::DeleteServerAfter, Some("0"))
-        .await
+    Ok(())
 }
 
 #[cfg(test)]
