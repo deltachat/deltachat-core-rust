@@ -54,7 +54,7 @@ pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
             .map(|(n, _)| n)
             .unwrap_or_default();
 
-        if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
+        if let Some(index) = buf[..end_pos].rfind([' ', '\n']) {
             Cow::Owned(format!("{}{}", &buf[..=index], DC_ELLIPSIS))
         } else {
             Cow::Owned(format!("{}{}", &buf[..end_pos], DC_ELLIPSIS))
@@ -98,7 +98,7 @@ pub(crate) fn truncate_by_lines(
         // Text has too many lines and needs to be truncated.
         let text = {
             if let Some(buffer) = buf.get(..end_pos) {
-                if let Some(index) = buffer.rfind(|c| c == ' ' || c == '\n') {
+                if let Some(index) = buffer.rfind([' ', '\n']) {
                     buf.get(..=index)
                 } else {
                     buf.get(..end_pos)

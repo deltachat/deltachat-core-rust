@@ -72,7 +72,7 @@ pub(super) fn decode_login(qr: &str) -> Result<Qr> {
         .unwrap_or(url_without_scheme);
 
     let addr = payload
-        .split(|c| c == '?' || c == '/')
+        .split(['?', '/'])
         .next()
         .context("invalid DCLOGIN payload E3")?;
 
