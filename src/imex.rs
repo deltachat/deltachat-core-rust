@@ -14,6 +14,7 @@ use tokio_tar::Archive;
 
 use crate::blob::BlobDirContents;
 use crate::chat::{self, delete_and_reset_all_device_msgs};
+use crate::config::Config;
 use crate::context::Context;
 use crate::e2ee;
 use crate::events::EventType;
@@ -373,6 +374,9 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
             .await
             .context("cannot import unpacked database");
     }
+    if res.is_ok() {
+        res = adjust_delete_server_after(context).await;
+    }
     fs::remove_file(unpacked_database)
         .await
         .context("cannot remove unpacked database")
@@ -677,6 +681,7 @@ async fn export_database(
         .to_str()
         .with_context(|| format!("path {} is not valid unicode", dest.display()))?;
 
+    adjust_delete_server_after(context).await?;
     context
         .sql
         .set_raw_config_int("backup_time", timestamp)
@@ -704,6 +709,19 @@ async fn export_database(
             Ok(())
         })
         .await
+}
+
+/// Sets `Config::DeleteServerAfter` to "never" if needed so that new messages are present on the
+/// server after a backup restoration or available for all devices in multi-device case.
+/// NB: Calling this after a backup import isn't reliable as we can crash in between, but this is a
+/// problem only for old backups, new backups already have `DeleteServerAfter` set if necessary.
+async fn adjust_delete_server_after(context: &Context) -> Result<()> {
+    if context.is_chatmail().await? && !context.config_exists(Config::DeleteServerAfter).await? {
+        context
+            .set_config(Config::DeleteServerAfter, Some("0"))
+            .await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -887,6 +905,49 @@ mod tests {
                     .await?,
                 set_verified_oneonone_chats
             );
+        }
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_export_import_chatmail_backup() -> Result<()> {
+        let backup_dir = tempfile::tempdir().unwrap();
+
+        let context1 = &TestContext::new_alice().await;
+
+        // Check that the setting is displayed correctly.
+        assert_eq!(
+            context1.get_config(Config::DeleteServerAfter).await?,
+            Some("0".to_string())
+        );
+        context1.set_config_bool(Config::IsChatmail, true).await?;
+        assert_eq!(
+            context1.get_config(Config::DeleteServerAfter).await?,
+            Some("1".to_string())
+        );
+
+        assert_eq!(context1.get_config_delete_server_after().await?, Some(0));
+        imex(context1, ImexMode::ExportBackup, backup_dir.path(), None).await?;
+        let _event = context1
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+            .await;
+
+        let context2 = &TestContext::new().await;
+        let backup = has_backup(context2, backup_dir.path()).await?;
+        imex(context2, ImexMode::ImportBackup, backup.as_ref(), None).await?;
+        let _event = context2
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+            .await;
+        assert!(context2.is_configured().await?);
+        assert!(context2.is_chatmail().await?);
+        for ctx in [context1, context2] {
+            assert_eq!(
+                ctx.get_config(Config::DeleteServerAfter).await?,
+                Some("0".to_string())
+            );
+            assert_eq!(ctx.get_config_delete_server_after().await?, None);
         }
         Ok(())
     }
