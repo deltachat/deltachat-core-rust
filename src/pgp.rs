@@ -142,6 +142,19 @@ pub struct KeyPair {
     pub secret: SignedSecretKey,
 }
 
+#[cfg(test)]
+impl KeyPair {
+    /// Creates new keypair from a secret key.
+    ///
+    /// Public key is split off the secret key.
+    pub fn new(secret: SignedSecretKey) -> Result<Self> {
+        use crate::key::DcSecretKey;
+
+        let public = secret.split_public_key()?;
+        Ok(Self { public, secret })
+    }
+}
+
 /// Create a new key pair.
 ///
 /// Both secret and public key consist of signing primary key and encryption subkey
