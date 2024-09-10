@@ -673,8 +673,19 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             proxy_url += ":";
             proxy_url += &port.to_string();
 
+            let old_proxy_url_value = context
+                .get_config(Config::ProxyUrl)
+                .await?
+                .unwrap_or_default();
+            let proxy_urls: Vec<&str> = std::iter::once(proxy_url.as_str())
+                .chain(
+                    old_proxy_url_value
+                        .split('\n')
+                        .filter(|s| !s.is_empty() && *s != proxy_url),
+                )
+                .collect();
             context
-                .set_config(Config::ProxyUrl, Some(&proxy_url))
+                .set_config(Config::ProxyUrl, Some(&proxy_urls.join("\n")))
                 .await?;
             context.set_config_bool(Config::ProxyEnabled, true).await?;
         }
@@ -1646,7 +1657,7 @@ mod tests {
         assert_eq!(t.get_config_bool(Config::ProxyEnabled).await?, true);
         assert_eq!(
             t.get_config(Config::ProxyUrl).await?,
-            Some("socks5://1.2.3.4:1080".to_string())
+            Some("socks5://1.2.3.4:1080\nsocks5://foo:666".to_string())
         );
 
         // make sure, user&password are set when specified in the URL
@@ -1656,7 +1667,22 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(
             t.get_config(Config::ProxyUrl).await?,
-            Some("socks5://Da:x%26%25%24X@jau:1080".to_string())
+            Some(
+                "socks5://Da:x%26%25%24X@jau:1080\nsocks5://1.2.3.4:1080\nsocks5://foo:666"
+                    .to_string()
+            )
+        );
+
+        // Scanning existing proxy brings it to the top in the list.
+        let res = set_config_from_qr(&t, "https://t.me/socks?server=foo&port=666").await;
+        assert!(res.is_ok());
+        assert_eq!(t.get_config_bool(Config::ProxyEnabled).await?, true);
+        assert_eq!(
+            t.get_config(Config::ProxyUrl).await?,
+            Some(
+                "socks5://foo:666\nsocks5://Da:x%26%25%24X@jau:1080\nsocks5://1.2.3.4:1080"
+                    .to_string()
+            )
         );
 
         Ok(())
