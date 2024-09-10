@@ -438,8 +438,11 @@ impl Config {
 }
 
 impl Context {
-    /// Returns true if configuration value is set for the given key.
-    pub async fn config_exists(&self, key: Config) -> Result<bool> {
+    /// Returns true if configuration value is set in the db for the given key.
+    ///
+    /// NB: Don't use this to check if the key is configured because this doesn't look into
+    /// environment. The proper use of this function is e.g. checking a key before setting it.
+    pub(crate) async fn config_exists(&self, key: Config) -> Result<bool> {
         Ok(self.sql.get_raw_config(key.as_ref()).await?.is_some())
     }
 
