@@ -980,39 +980,30 @@ impl SentMessage<'_> {
 ///
 /// The keypair was created using the crate::key::tests::gen_key test.
 pub fn alice_keypair() -> KeyPair {
-    let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/alice-public.asc"))
-        .unwrap()
-        .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/alice-secret.asc"))
         .unwrap()
         .0;
-    KeyPair { public, secret }
+    KeyPair::new(secret).unwrap()
 }
 
 /// Load a pre-generated keypair for bob@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
 pub fn bob_keypair() -> KeyPair {
-    let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/bob-public.asc"))
-        .unwrap()
-        .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/bob-secret.asc"))
         .unwrap()
         .0;
-    KeyPair { public, secret }
+    KeyPair::new(secret).unwrap()
 }
 
 /// Load a pre-generated keypair for fiona@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
 pub fn fiona_keypair() -> KeyPair {
-    let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/fiona-public.asc"))
-        .unwrap()
-        .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/fiona-secret.asc"))
         .unwrap()
         .0;
-    KeyPair { public, secret }
+    KeyPair::new(secret).unwrap()
 }
 
 /// Utility to help wait for and retrieve events.
