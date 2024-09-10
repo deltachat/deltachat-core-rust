@@ -244,7 +244,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let _guard = context.generating_key_mutex.lock().await;
 
     // Check if the key appeared while we were waiting on the lock.
-    match load_keypair(context, &addr).await? {
+    match load_keypair(context).await? {
         Some(key_pair) => Ok(key_pair),
         None => {
             let start = tools::Time::now();
@@ -266,10 +266,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     }
 }
 
-pub(crate) async fn load_keypair(
-    context: &Context,
-    addr: &EmailAddress,
-) -> Result<Option<KeyPair>> {
+pub(crate) async fn load_keypair(context: &Context) -> Result<Option<KeyPair>> {
     let res = context
         .sql
         .query_row_optional(
@@ -287,7 +284,6 @@ pub(crate) async fn load_keypair(
 
     Ok(if let Some((pub_bytes, sec_bytes)) = res {
         Some(KeyPair {
-            addr: addr.clone(),
             public: SignedPublicKey::from_slice(&pub_bytes)?,
             secret: SignedSecretKey::from_slice(&sec_bytes)?,
         })
@@ -371,15 +367,10 @@ pub(crate) async fn store_self_keypair(
 /// This API is used for testing purposes
 /// to avoid generating the key in tests.
 /// Use import/export APIs instead.
-pub async fn preconfigure_keypair(context: &Context, addr: &str, secret_data: &str) -> Result<()> {
-    let addr = EmailAddress::new(addr)?;
+pub async fn preconfigure_keypair(context: &Context, secret_data: &str) -> Result<()> {
     let secret = SignedSecretKey::from_asc(secret_data)?.0;
     let public = secret.split_public_key()?;
-    let keypair = KeyPair {
-        addr,
-        public,
-        secret,
-    };
+    let keypair = KeyPair { public, secret };
     store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
     Ok(())
 }

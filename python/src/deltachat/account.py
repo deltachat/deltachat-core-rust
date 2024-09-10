@@ -194,15 +194,13 @@ class Account:
         assert res != ffi.NULL, f"config value not found for: {name!r}"
         return from_dc_charpointer(res)
 
-    def _preconfigure_keypair(self, addr: str, secret: str) -> None:
+    def _preconfigure_keypair(self, secret: str) -> None:
         """See dc_preconfigure_keypair() in deltachat.h.
 
         In other words, you don't need this.
         """
         res = lib.dc_preconfigure_keypair(
             self._dc_context,
-            as_dc_charpointer(addr),
-            ffi.NULL,
             as_dc_charpointer(secret),
         )
         if res == 0:
