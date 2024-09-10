@@ -256,19 +256,28 @@ impl TestContextBuilder {
 
     /// Builds the [`TestContext`].
     pub async fn build(self) -> TestContext {
-        let name = self.key_pair.as_ref().map(|key| key.addr.local.clone());
-
-        let test_context = TestContext::new_internal(name, self.log_sink).await;
-
         if let Some(key_pair) = self.key_pair {
-            test_context
-                .configure_addr(&key_pair.addr.to_string())
-                .await;
+            let userid = {
+                let public_key = &key_pair.public;
+                let id_bstr = public_key.details.users.first().unwrap().id.id();
+                String::from_utf8(id_bstr.to_vec()).unwrap()
+            };
+            let addr = mailparse::addrparse(&userid)
+                .unwrap()
+                .extract_single_info()
+                .unwrap()
+                .addr;
+            let name = EmailAddress::new(&addr).unwrap().local;
+
+            let test_context = TestContext::new_internal(Some(name), self.log_sink).await;
+            test_context.configure_addr(&addr).await;
             key::store_self_keypair(&test_context, &key_pair, KeyPairUse::Default)
                 .await
                 .expect("Failed to save key");
+            test_context
+        } else {
+            TestContext::new_internal(None, self.log_sink).await
         }
-        test_context
     }
 }
 
@@ -979,55 +988,39 @@ impl SentMessage<'_> {
 ///
 /// The keypair was created using the crate::key::tests::gen_key test.
 pub fn alice_keypair() -> KeyPair {
-    let addr = EmailAddress::new("alice@example.org").unwrap();
-
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/alice-public.asc"))
         .unwrap()
         .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/alice-secret.asc"))
         .unwrap()
         .0;
-    KeyPair {
-        addr,
-        public,
-        secret,
-    }
+    KeyPair { public, secret }
 }
 
 /// Load a pre-generated keypair for bob@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
 pub fn bob_keypair() -> KeyPair {
-    let addr = EmailAddress::new("bob@example.net").unwrap();
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/bob-public.asc"))
         .unwrap()
         .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/bob-secret.asc"))
         .unwrap()
         .0;
-    KeyPair {
-        addr,
-        public,
-        secret,
-    }
+    KeyPair { public, secret }
 }
 
 /// Load a pre-generated keypair for fiona@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
 pub fn fiona_keypair() -> KeyPair {
-    let addr = EmailAddress::new("fiona@example.net").unwrap();
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/fiona-public.asc"))
         .unwrap()
         .0;
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/fiona-secret.asc"))
         .unwrap()
         .0;
-    KeyPair {
-        addr,
-        public,
-        secret,
-    }
+    KeyPair { public, secret }
 }
 
 /// Utility to help wait for and retrieve events.

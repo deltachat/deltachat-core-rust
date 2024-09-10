@@ -462,7 +462,7 @@ class ACFactory:
     def remove_preconfigured_keys(self) -> None:
         self._preconfigured_keys = []
 
-    def _preconfigure_key(self, account, addr):
+    def _preconfigure_key(self, account):
         # Only set a preconfigured key if we haven't used it yet for another account.
         try:
             keyname = self._preconfigured_keys.pop(0)
@@ -471,9 +471,9 @@ class ACFactory:
         else:
             fname_sec = self.data.read_path(f"key/{keyname}-secret.asc")
             if fname_sec:
-                account._preconfigure_keypair(addr, fname_sec)
+                account._preconfigure_keypair(fname_sec)
                 return True
-            print(f"WARN: could not use preconfigured keys for {addr!r}")
+            print("WARN: could not use preconfigured keys")
 
     def get_pseudo_configured_account(self, passphrase: Optional[str] = None) -> Account:
         # do a pseudo-configured account
@@ -492,7 +492,7 @@ class ACFactory:
                 "configured": "1",
             },
         )
-        self._preconfigure_key(ac, addr)
+        self._preconfigure_key(ac)
         self._acsetup.init_logging(ac)
         return ac
 
@@ -528,7 +528,7 @@ class ACFactory:
         configdict.setdefault("delete_server_after", 0)
         ac.update_config(configdict)
         self._acsetup._account2config[ac] = configdict
-        self._preconfigure_key(ac, configdict["addr"])
+        self._preconfigure_key(ac)
         return ac
 
     def wait_configured(self, account) -> None:

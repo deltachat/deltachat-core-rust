@@ -135,9 +135,6 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
 /// keys together as they are one unit.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct KeyPair {
-    /// Email address.
-    pub addr: EmailAddress,
-
     /// Public key.
     pub public: SignedPublicKey,
 
@@ -210,7 +207,6 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
         .context("invalid public key generated")?;
 
     Ok(KeyPair {
-        addr,
         public: public_key,
         secret: secret_key,
     })

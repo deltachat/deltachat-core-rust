@@ -835,8 +835,6 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_preconfigure_keypair(
     context: *mut dc_context_t,
-    addr: *const libc::c_char,
-    _public_data: *const libc::c_char,
     secret_data: *const libc::c_char,
 ) -> i32 {
     if context.is_null() {
@@ -844,9 +842,8 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
         return 0;
     }
     let ctx = &*context;
-    let addr = to_string_lossy(addr);
     let secret_data = to_string_lossy(secret_data);
-    block_on(preconfigure_keypair(ctx, &addr, &secret_data))
+    block_on(preconfigure_keypair(ctx, &secret_data))
         .context("Failed to save keypair")
         .log_err(ctx)
         .is_ok() as libc::c_int

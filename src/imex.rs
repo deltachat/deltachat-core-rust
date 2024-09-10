@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use deltachat_contact_tools::EmailAddress;
 use futures::TryStreamExt;
 use futures_lite::FutureExt;
 
@@ -178,10 +177,7 @@ async fn set_self_key(context: &Context, armored: &str, set_default: bool) -> Re
         info!(context, "No Autocrypt-Prefer-Encrypt header.");
     };
 
-    let self_addr = context.get_primary_self_addr().await?;
-    let addr = EmailAddress::new(&self_addr)?;
     let keypair = pgp::KeyPair {
-        addr,
         public: public_key,
         secret: private_key,
     };
