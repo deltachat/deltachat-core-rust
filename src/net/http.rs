@@ -43,7 +43,7 @@ where
 {
     let scheme = parsed_url.scheme_str().context("URL has no scheme")?;
     let host = parsed_url.host().context("URL has no host")?;
-    let proxy_config_opt = ProxyConfig::from_database(&context.sql).await?;
+    let proxy_config_opt = ProxyConfig::load(context).await?;
 
     let stream: Box<dyn SessionStream> = match scheme {
         "http" => {

@@ -196,7 +196,7 @@ impl EnteredLoginParam {
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
-        let proxy_config = ProxyConfig::from_database(&context.sql).await?;
+        let proxy_config = ProxyConfig::load(context).await?;
 
         Ok(EnteredLoginParam {
             addr,
@@ -681,7 +681,7 @@ impl ConfiguredLoginParam {
             }];
         }
 
-        let proxy_config = ProxyConfig::from_database(&context.sql).await?;
+        let proxy_config = ProxyConfig::load(context).await?;
 
         Ok(Some(ConfiguredLoginParam {
             addr,

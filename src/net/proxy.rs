@@ -238,7 +238,8 @@ impl ProxyConfig {
     }
 
     /// Reads proxy configuration from the database.
-    pub async fn from_database(sql: &Sql) -> Result<Option<Self>> {
+    pub async fn load(context: &Context) -> Result<Option<Self>> {
+        let sql = &context.sql;
         Self::migrate_socks_config(sql)
             .await
             .context("Failed to migrate legacy SOCKS config")?;
@@ -382,7 +383,7 @@ mod tests {
         t.set_config(Config::Socks5Host, Some("127.0.0.1")).await?;
         t.set_config(Config::Socks5Port, Some("9050")).await?;
 
-        let proxy_config = ProxyConfig::from_database(&t.sql).await?;
+        let proxy_config = ProxyConfig::load(&t).await?;
         // Even though proxy is not enabled, config should be migrated.
         assert_eq!(proxy_config, None);
 
@@ -399,7 +400,7 @@ mod tests {
         let t = TestContext::new().await;
 
         // Try to load config to trigger migration.
-        assert_eq!(ProxyConfig::from_database(&t.sql).await?, None);
+        assert_eq!(ProxyConfig::load(&t).await?, None);
 
         assert_eq!(t.get_config(Config::ProxyEnabled).await?, None);
         assert_eq!(
@@ -417,7 +418,7 @@ mod tests {
         t.set_config(Config::Socks5Host, Some("")).await?;
 
         // Try to load config to trigger migration.
-        assert_eq!(ProxyConfig::from_database(&t.sql).await?, None);
+        assert_eq!(ProxyConfig::load(&t).await?, None);
 
         assert_eq!(t.get_config(Config::ProxyEnabled).await?, None);
         assert_eq!(
