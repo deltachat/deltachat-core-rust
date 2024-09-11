@@ -16,6 +16,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
 
+use crate::config::Config;
 use crate::context::Context;
 use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
@@ -239,17 +240,19 @@ impl ProxyConfig {
 
     /// Reads proxy configuration from the database.
     pub async fn load(context: &Context) -> Result<Option<Self>> {
-        let sql = &context.sql;
-        Self::migrate_socks_config(sql)
+        Self::migrate_socks_config(&context.sql)
             .await
             .context("Failed to migrate legacy SOCKS config")?;
 
-        let enabled = sql.get_raw_config_bool("proxy_enabled").await?;
+        let enabled = context.get_config_bool(Config::ProxyEnabled).await?;
         if !enabled {
             return Ok(None);
         }
 
-        let proxy_url = sql.get_raw_config("proxy_url").await?.unwrap_or_default();
+        let proxy_url = context
+            .get_config(Config::ProxyUrl)
+            .await?
+            .unwrap_or_default();
         let proxy_url = proxy_url
             .split_once('\n')
             .map_or(proxy_url.clone(), |(first_url, _rest)| {
