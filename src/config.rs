@@ -98,7 +98,7 @@ pub enum Config {
 
     /// Proxy URL.
     ///
-    /// Supported URLs schemes are `socks5://` (SOCKS 5) and `ss://` (Shadowsocks).
+    /// Supported URLs schemes are `socks5://` (SOCKS5) and `ss://` (Shadowsocks).
     ///
     /// May contain multiple URLs separated by newline, in which case the first one is used.
     ProxyUrl,
