@@ -109,7 +109,9 @@ impl Socks5Config {
         target_port: u16,
         load_dns_cache: bool,
     ) -> Result<Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-        let tcp_stream = connect_tcp(context, &self.host, self.port, load_dns_cache).await?;
+        let tcp_stream = connect_tcp(context, &self.host, self.port, load_dns_cache)
+            .await
+            .context("Failed to connect to SOCKS 5 proxy")?;
 
         let authentication_method = if let Some((username, password)) = self.user_password.as_ref()
         {
