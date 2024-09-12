@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.143.0] - 2024-09-12
+
+### Features / Changes
+
+- Automatic reconfiguration, e.g. switching to implicit TLS if STARTTLS port stops working.
+- Always use preloaded DNS results.
+- Add "Auto-Submitted: auto-replied" header to appropriate SecureJoin messages.
+- Parallelize IMAP and SMTP connection attempts ([#5915](https://github.com/deltachat/deltachat-core-rust/pull/5915)).
+- securejoin: Ignore invalid *-request-with-auth messages silently.
+- ChatId::create_for_contact_with_blocked: Don't emit events on no op.
+- Delete messages from a chatmail server immediately by default ([#5805](https://github.com/deltachat/deltachat-core-rust/pull/5805)) ([#5840](https://github.com/deltachat/deltachat-core-rust/pull/5840)).
+- Shadowsocks support.
+- Recognize t.me SOCKS5 proxy QR codes ([#5895](https://github.com/deltachat/deltachat-core-rust/pull/5895))
+- Remove old iroh 0.4 and support for old `DCBACKUP` QR codes.
+
+### Fixes
+
+- http: Set I/O timeout to 1 minute rather than whole request timeout.
+- Add Auto-Submitted header in a single place.
+- Do not allow quotes with "... wrote:" headers in chat messages.
+- Don't sync QR code token before populating the group ([#5935](https://github.com/deltachat/deltachat-core-rust/pull/5935)).
+
+### Documentation
+
+- Document that `bcc_self` is enabled by default.
+
+### CI
+
+- Update Rust to 1.81.0.
+
+### Miscellaneous Tasks
+
+- Update provider database.
+- cargo: Update iroh to 0.23.0.
+- cargo: Reduce number of duplicate dependencies.
+- cargo: Replace unmaintained ansi_term with nu-ansi-term.
+- Replace `reqwest` with direct usage of `hyper`.
+
+### Refactor
+
+- login_param: Use Config:: constants to avoid typos in key names.
+- Make Context::config_exists() crate-public.
+- Get_config_bool_opt(): Return None if only default value exists.
+
+### Tests
+
+- Test that alternative port 443 works.
+- Alice is (non-)bot on Bob's side after QR contact setup.
+
 ## [1.142.12] - 2024-09-02
 
 ### Fixes
@@ -4806,3 +4855,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.10]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.9..v1.142.10
 [1.142.11]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.10..v1.142.11
 [1.142.12]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.11..v1.142.12
+[1.143.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.12..v1.143.0
