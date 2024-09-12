@@ -4263,7 +4263,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
                 message::update_msg_state(context, msg.id, MessageState::OutPending).await?
             }
-            _ => bail!("unexpected message state"),
+            msg_state => bail!("Unexpected message state {msg_state}"),
         }
         context.emit_event(EventType::MsgsChanged {
             chat_id: msg.chat_id,
