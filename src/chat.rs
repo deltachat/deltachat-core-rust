@@ -46,8 +46,8 @@ use crate::stock_str;
 use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
-    create_smeared_timestamps, get_abs_path, gm2local_offset, smeared_time, time, IsNoneOrEmpty,
-    SystemTime,
+    create_smeared_timestamps, get_abs_path, gm2local_offset, smeared_time, time,
+    truncate_msg_text, IsNoneOrEmpty, SystemTime,
 };
 use crate::webxdc::StatusUpdateSerial;
 
@@ -2072,6 +2072,8 @@ impl Chat {
         msg.from_id = ContactId::SELF;
         msg.rfc724_mid = new_rfc724_mid;
         msg.timestamp_sort = timestamp;
+        let (msg_text, was_truncated) = truncate_msg_text(context, msg.text.clone()).await?;
+        let mime_modified = new_mime_headers.is_some() | was_truncated;
 
         // add message to the database
         if let Some(update_msg_id) = update_msg_id {
@@ -2093,14 +2095,14 @@ impl Chat {
                         msg.timestamp_sort,
                         msg.viewtype,
                         msg.state,
-                        msg.text,
-                        message::normalize_text(&msg.text),
+                        msg_text,
+                        message::normalize_text(&msg_text),
                         &msg.subject,
                         msg.param.to_string(),
                         msg.hidden,
                         msg.in_reply_to.as_deref().unwrap_or_default(),
                         new_references,
-                        new_mime_headers.is_some(),
+                        mime_modified,
                         new_mime_headers.unwrap_or_default(),
                         location_id as i32,
                         ephemeral_timer,
@@ -2144,14 +2146,14 @@ impl Chat {
                         msg.timestamp_sort,
                         msg.viewtype,
                         msg.state,
-                        msg.text,
-                        message::normalize_text(&msg.text),
+                        msg_text,
+                        message::normalize_text(&msg_text),
                         &msg.subject,
                         msg.param.to_string(),
                         msg.hidden,
                         msg.in_reply_to.as_deref().unwrap_or_default(),
                         new_references,
-                        new_mime_headers.is_some(),
+                        mime_modified,
                         new_mime_headers.unwrap_or_default(),
                         location_id as i32,
                         ephemeral_timer,
