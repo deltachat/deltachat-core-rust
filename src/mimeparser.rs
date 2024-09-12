@@ -17,7 +17,7 @@ use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
 use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
-use crate::constants::{self, Chattype, DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
+use crate::constants::{self, Chattype};
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
@@ -34,7 +34,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::sync::SyncItems;
 use crate::tools::{
-    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time, truncate_by_lines,
+    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time, truncate_msg_text,
     validate_id,
 };
 use crate::{chatlist_events, location, stock_str, tools};
@@ -1179,22 +1179,11 @@ impl MimeMessage {
                             (simplified_txt, top_quote)
                         };
 
-                        let is_bot = context.get_config_bool(Config::Bot).await?;
-
-                        let simplified_txt = if is_bot {
-                            simplified_txt
-                        } else {
-                            // Truncate text if it has too many lines
-                            let (simplified_txt, was_truncated) = truncate_by_lines(
-                                simplified_txt,
-                                DC_DESIRED_TEXT_LINES,
-                                DC_DESIRED_TEXT_LINE_LEN,
-                            );
-                            if was_truncated {
-                                self.is_mime_modified = was_truncated;
-                            }
-                            simplified_txt
-                        };
+                        let (simplified_txt, was_truncated) =
+                            truncate_msg_text(context, simplified_txt).await?;
+                        if was_truncated {
+                            self.is_mime_modified = was_truncated;
+                        }
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part {
@@ -3607,6 +3596,17 @@ On 2020-10-25, Bob wrote:
                     <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
             );
             assert!(mimemsg.parts[0].msg.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
+        }
+
+        {
+            let chat = t.get_self_chat().await;
+            t.send_text(chat.id, &long_txt).await;
+            let msg = t.get_last_msg_in(chat.id).await;
+            assert!(msg.has_html());
+            assert!(
+                msg.text.matches("just repeated").count() <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
+            );
+            assert!(msg.text.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
         }
 
         t.set_config(Config::Bot, Some("1")).await?;

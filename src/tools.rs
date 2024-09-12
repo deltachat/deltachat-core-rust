@@ -36,7 +36,8 @@ use tokio::{fs, io};
 use url::Url;
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
-use crate::constants::{DC_ELLIPSIS, DC_OUTDATED_WARNING_DAYS};
+use crate::config::Config;
+use crate::constants::{self, DC_ELLIPSIS, DC_OUTDATED_WARNING_DAYS};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::message::{Message, Viewtype};
@@ -121,6 +122,22 @@ pub(crate) fn truncate_by_lines(
         // text is unchanged
         (buf, false)
     }
+}
+
+/// Shortens a message text if necessary according to the configuration. Adds "[...]" to the end of
+/// the shortened text.
+///
+/// Returns the resulting text and a bool telling whether a truncation was done.
+pub(crate) async fn truncate_msg_text(context: &Context, text: String) -> Result<(String, bool)> {
+    if context.get_config_bool(Config::Bot).await? {
+        return Ok((text, false));
+    }
+    // Truncate text if it has too many lines
+    Ok(truncate_by_lines(
+        text,
+        constants::DC_DESIRED_TEXT_LINES,
+        constants::DC_DESIRED_TEXT_LINE_LEN,
+    ))
 }
 
 /* ******************************************************************************
