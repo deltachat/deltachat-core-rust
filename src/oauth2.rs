@@ -62,8 +62,8 @@ pub async fn get_oauth2_url(
     addr: &str,
     redirect_uri: &str,
 ) -> Result<Option<String>> {
-    let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
-    if let Some(oauth2) = Oauth2::from_address(context, addr, socks5_enabled).await {
+    let proxy_enabled = context.get_config_bool(Config::ProxyEnabled).await?;
+    if let Some(oauth2) = Oauth2::from_address(context, addr, proxy_enabled).await {
         context
             .sql
             .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri))
@@ -83,8 +83,8 @@ pub(crate) async fn get_oauth2_access_token(
     code: &str,
     regenerate: bool,
 ) -> Result<Option<String>> {
-    let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
-    if let Some(oauth2) = Oauth2::from_address(context, addr, socks5_enabled).await {
+    let proxy_enabled = context.get_config_bool(Config::ProxyEnabled).await?;
+    if let Some(oauth2) = Oauth2::from_address(context, addr, proxy_enabled).await {
         let lock = context.oauth2_mutex.lock().await;
 
         // read generated token
@@ -232,8 +232,8 @@ pub(crate) async fn get_oauth2_addr(
     addr: &str,
     code: &str,
 ) -> Result<Option<String>> {
-    let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
-    let oauth2 = match Oauth2::from_address(context, addr, socks5_enabled).await {
+    let proxy_enabled = context.get_config_bool(Config::ProxyEnabled).await?;
+    let oauth2 = match Oauth2::from_address(context, addr, proxy_enabled).await {
         Some(o) => o,
         None => return Ok(None),
     };

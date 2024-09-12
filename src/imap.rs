@@ -37,12 +37,12 @@ use crate::login_param::{
 };
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
+use crate::net::proxy::ProxyConfig;
 use crate::oauth2::get_oauth2_access_token;
 use crate::receive_imf::{
     from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
 };
 use crate::scheduler::connectivity::ConnectivityStore;
-use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{self, create_id, duration_to_str};
@@ -80,8 +80,9 @@ pub(crate) struct Imap {
     /// Password.
     password: String,
 
-    /// SOCKS 5 configuration.
-    socks5_config: Option<Socks5Config>,
+    /// Proxy configuration.
+    proxy_config: Option<ProxyConfig>,
+
     strict_tls: bool,
 
     oauth2: bool,
@@ -237,7 +238,7 @@ impl Imap {
     pub fn new(
         lp: Vec<ConfiguredServerLoginParam>,
         password: String,
-        socks5_config: Option<Socks5Config>,
+        proxy_config: Option<ProxyConfig>,
         addr: &str,
         strict_tls: bool,
         oauth2: bool,
@@ -248,7 +249,7 @@ impl Imap {
             addr: addr.to_string(),
             lp,
             password,
-            socks5_config,
+            proxy_config,
             strict_tls,
             oauth2,
             login_failed_once: false,
@@ -271,7 +272,7 @@ impl Imap {
         let imap = Self::new(
             param.imap.clone(),
             param.imap_password.clone(),
-            param.socks5_config.clone(),
+            param.proxy_config.clone(),
             &param.addr,
             param.strict_tls(),
             param.oauth2,
@@ -336,7 +337,7 @@ impl Imap {
             let connection_candidate = lp.connection.clone();
             let client = match Client::connect(
                 context,
-                self.socks5_config.clone(),
+                self.proxy_config.clone(),
                 self.strict_tls,
                 connection_candidate,
             )

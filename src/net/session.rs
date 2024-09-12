@@ -1,3 +1,4 @@
+use crate::net::proxy::ShadowsocksStream;
 use async_native_tls::TlsStream;
 use fast_socks5::client::Socks5Stream;
 use std::pin::Pin;
@@ -42,6 +43,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Sync + std::fmt::Debug> SessionStream
 impl<T: SessionStream> SessionStream for Socks5Stream<T> {
     fn set_read_timeout(&mut self, timeout: Option<Duration>) {
         self.get_socket_mut().set_read_timeout(timeout)
+    }
+}
+impl<T: SessionStream> SessionStream for ShadowsocksStream<T> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.stream.get_mut().set_read_timeout(timeout)
     }
 }
 

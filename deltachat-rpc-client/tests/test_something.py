@@ -433,7 +433,7 @@ def test_provider_info(rpc) -> None:
     assert provider_info["id"] == "gmail"
 
     # Disable MX record resolution.
-    rpc.set_config(account_id, "socks5_enabled", "1")
+    rpc.set_config(account_id, "proxy_enabled", "1")
     provider_info = rpc.get_provider_info(account_id, "github.com")
     assert provider_info is None
 

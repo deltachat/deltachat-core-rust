@@ -11,8 +11,8 @@ use crate::configure::server_params::{expand_param_vector, ServerParams};
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
 use crate::net::load_connection_timestamp;
+use crate::net::proxy::ProxyConfig;
 use crate::provider::{Protocol, Provider, Socket, UsernamePattern};
-use crate::socks::Socks5Config;
 use crate::sql::Sql;
 
 /// User-entered setting for certificate checks.
@@ -116,7 +116,8 @@ pub struct EnteredLoginParam {
     /// invalid hostnames
     pub certificate_checks: EnteredCertificateChecks,
 
-    pub socks5_config: Option<Socks5Config>,
+    /// Proxy configuration.
+    pub proxy_config: Option<ProxyConfig>,
 
     pub oauth2: bool,
 }
@@ -195,7 +196,7 @@ impl EnteredLoginParam {
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
-        let socks5_config = Socks5Config::from_database(&context.sql).await?;
+        let proxy_config = ProxyConfig::load(context).await?;
 
         Ok(EnteredLoginParam {
             addr,
@@ -214,7 +215,7 @@ impl EnteredLoginParam {
                 password: send_pw,
             },
             certificate_checks,
-            socks5_config,
+            proxy_config,
             oauth2,
         })
     }
@@ -380,7 +381,8 @@ pub struct ConfiguredLoginParam {
 
     pub smtp_password: String,
 
-    pub socks5_config: Option<Socks5Config>,
+    /// Proxy configuration.
+    pub proxy_config: Option<ProxyConfig>,
 
     pub provider: Option<&'static Provider>,
 
@@ -679,7 +681,7 @@ impl ConfiguredLoginParam {
             }];
         }
 
-        let socks5_config = Socks5Config::from_database(&context.sql).await?;
+        let proxy_config = ProxyConfig::load(context).await?;
 
         Ok(Some(ConfiguredLoginParam {
             addr,
@@ -691,7 +693,7 @@ impl ConfiguredLoginParam {
             smtp_password: send_pw,
             certificate_checks,
             provider,
-            socks5_config,
+            proxy_config,
             oauth2,
         }))
     }
@@ -778,7 +780,7 @@ impl ConfiguredLoginParam {
         let provider_strict_tls = self.provider.map(|provider| provider.opt.strict_tls);
         match self.certificate_checks {
             ConfiguredCertificateChecks::OldAutomatic => {
-                provider_strict_tls.unwrap_or(self.socks5_config.is_some())
+                provider_strict_tls.unwrap_or(self.proxy_config.is_some())
             }
             ConfiguredCertificateChecks::Automatic => provider_strict_tls.unwrap_or(true),
             ConfiguredCertificateChecks::Strict => true,
@@ -863,8 +865,8 @@ mod tests {
             }],
             smtp_user: "".to_string(),
             smtp_password: "bar".to_string(),
-            // socks5_config is not saved by `save_to_database`, using default value
-            socks5_config: None,
+            // proxy_config is not saved by `save_to_database`, using default value
+            proxy_config: None,
             provider: None,
             certificate_checks: ConfiguredCertificateChecks::Strict,
             oauth2: false,
@@ -967,7 +969,7 @@ mod tests {
             ],
             smtp_user: "alice@posteo.de".to_string(),
             smtp_password: "foobarbaz".to_string(),
-            socks5_config: None,
+            proxy_config: None,
             provider: get_provider_by_id("posteo"),
             certificate_checks: ConfiguredCertificateChecks::Strict,
             oauth2: false,

@@ -8,9 +8,9 @@ use mime::Mime;
 use serde::Serialize;
 
 use crate::context::Context;
+use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_tls;
-use crate::socks::Socks5Config;
 
 /// HTTP(S) GET response.
 #[derive(Debug)]
@@ -43,7 +43,7 @@ where
 {
     let scheme = parsed_url.scheme_str().context("URL has no scheme")?;
     let host = parsed_url.host().context("URL has no host")?;
-    let socks5_config_opt = Socks5Config::from_database(&context.sql).await?;
+    let proxy_config_opt = ProxyConfig::load(context).await?;
 
     let stream: Box<dyn SessionStream> = match scheme {
         "http" => {
@@ -54,11 +54,11 @@ where
             // better resolve from scratch each time to prevent
             // cache poisoning attacks from having lasting effects.
             let load_cache = false;
-            if let Some(socks5_config) = socks5_config_opt {
-                let socks5_stream = socks5_config
+            if let Some(proxy_config) = proxy_config_opt {
+                let proxy_stream = proxy_config
                     .connect(context, host, port, load_cache)
                     .await?;
-                Box::new(socks5_stream)
+                Box::new(proxy_stream)
             } else {
                 let tcp_stream = crate::net::connect_tcp(context, host, port, load_cache).await?;
                 Box::new(tcp_stream)
@@ -69,11 +69,11 @@ where
             let load_cache = true;
             let strict_tls = true;
 
-            if let Some(socks5_config) = socks5_config_opt {
-                let socks5_stream = socks5_config
+            if let Some(proxy_config) = proxy_config_opt {
+                let proxy_stream = proxy_config
                     .connect(context, host, port, load_cache)
                     .await?;
-                let tls_stream = wrap_tls(strict_tls, host, &[], socks5_stream).await?;
+                let tls_stream = wrap_tls(strict_tls, host, &[], proxy_stream).await?;
                 Box::new(tls_stream)
             } else {
                 let tcp_stream = crate::net::connect_tcp(context, host, port, load_cache).await?;
