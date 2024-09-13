@@ -509,6 +509,8 @@ static P_FREENET_DE: Provider = Provider {
     overview_page: "https://providers.delta.chat/freenet-de",
     server: &[
         Server { protocol: Imap, socket: Ssl, hostname: "mx.freenet.de", port: 993, username_pattern: Email },
+        Server { protocol: Imap, socket: Starttls, hostname: "mx.freenet.de", port: 143, username_pattern: Email },
+        Server { protocol: Smtp, socket: Ssl, hostname: "mx.freenet.de", port: 465, username_pattern: Email },
         Server { protocol: Smtp, socket: Starttls, hostname: "mx.freenet.de", port: 587, username_pattern: Email },
     ],
     opt: ProviderOptions::new(),
@@ -532,7 +534,7 @@ static P_GMAIL: Provider = Provider {
         ..ProviderOptions::new()
     },
     config_defaults: None,
-    oauth2_authorizer: Some(Oauth2Authorizer::Gmail),
+    oauth2_authorizer: None,
 };
 
 // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
@@ -938,6 +940,41 @@ static P_MEHL_STORE: Provider = Provider {
     oauth2_authorizer: None,
 };
 
+// migadu.md: migadu.com
+static P_MIGADU: Provider = Provider {
+    id: "migadu",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/migadu",
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.migadu.com",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "smtp.migadu.com",
+            port: 465,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Starttls,
+            hostname: "smtp.migadu.com",
+            port: 587,
+            username_pattern: Email,
+        },
+    ],
+    opt: ProviderOptions::new(),
+    config_defaults: None,
+    oauth2_authorizer: None,
+};
+
 // nauta.cu.md: nauta.cu
 static P_NAUTA_CU: Provider = Provider {
     id: "nauta.cu",
@@ -1158,7 +1195,7 @@ static P_OUVATON_COOP: Provider = Provider {
     oauth2_authorizer: None,
 };
 
-// posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ca, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.it, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
+// posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ca, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.it, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
 static P_POSTEO: Provider = Provider {
     id: "posteo",
     status: Status::Ok,
@@ -1532,11 +1569,26 @@ static P_TUTANOTA: Provider = Provider {
 // ukr.net.md: ukr.net
 static P_UKR_NET: Provider = Provider {
     id: "ukr.net",
-    status: Status::Ok,
-    before_login_hint: "",
+    status: Status::Preparation,
+    before_login_hint: "You must allow IMAP access to your account before you can login.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/ukr-net",
-    server: &[],
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.ukr.net",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "smtp.ukr.net",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
     opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
@@ -1818,7 +1870,7 @@ static P_ZOHO: Provider = Provider {
     oauth2_authorizer: None,
 };
 
-pub(crate) static PROVIDER_DATA: [(&str, &Provider); 531] = [
+pub(crate) static PROVIDER_DATA: [(&str, &Provider); 533] = [
     ("163.com", &P_163),
     ("aktivix.org", &P_AKTIVIX_ORG),
     ("aliyun.com", &P_ALIYUN),
@@ -2191,6 +2243,7 @@ pub(crate) static PROVIDER_DATA: [(&str, &Provider); 531] = [
     ("ente.quest", &P_MEHL_STORE),
     ("ente.cfd", &P_MEHL_STORE),
     ("nein.jetzt", &P_MEHL_STORE),
+    ("migadu.com", &P_MIGADU),
     ("nauta.cu", &P_NAUTA_CU),
     ("naver.com", &P_NAVER),
     ("nine.testrun.org", &P_NINE_TESTRUN_ORG),
@@ -2211,6 +2264,7 @@ pub(crate) static PROVIDER_DATA: [(&str, &Provider); 531] = [
     ("posteo.cl", &P_POSTEO),
     ("posteo.co", &P_POSTEO),
     ("posteo.co.uk", &P_POSTEO),
+    ("posteo.com", &P_POSTEO),
     ("posteo.com.br", &P_POSTEO),
     ("posteo.cr", &P_POSTEO),
     ("posteo.cz", &P_POSTEO),
@@ -2393,6 +2447,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("mailo.com", &P_MAILO_COM),
         ("mehl.cloud", &P_MEHL_CLOUD),
         ("mehl.store", &P_MEHL_STORE),
+        ("migadu", &P_MIGADU),
         ("nauta.cu", &P_NAUTA_CU),
         ("naver", &P_NAVER),
         ("nine.testrun.org", &P_NINE_TESTRUN_ORG),
@@ -2431,4 +2486,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static _PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 8, 23).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2024, 9, 13).unwrap());
