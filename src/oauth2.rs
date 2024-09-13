@@ -6,7 +6,6 @@ use anyhow::{Context as _, Result};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
-use crate::config::Config;
 use crate::context::Context;
 use crate::net::http::post_form;
 use crate::net::read_url_blob;
@@ -62,8 +61,7 @@ pub async fn get_oauth2_url(
     addr: &str,
     redirect_uri: &str,
 ) -> Result<Option<String>> {
-    let proxy_enabled = context.get_config_bool(Config::ProxyEnabled).await?;
-    if let Some(oauth2) = Oauth2::from_address(context, addr, proxy_enabled).await {
+    if let Some(oauth2) = Oauth2::from_address(context, addr).await {
         context
             .sql
             .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri))
@@ -83,8 +81,7 @@ pub(crate) async fn get_oauth2_access_token(
     code: &str,
     regenerate: bool,
 ) -> Result<Option<String>> {
-    let proxy_enabled = context.get_config_bool(Config::ProxyEnabled).await?;
-    if let Some(oauth2) = Oauth2::from_address(context, addr, proxy_enabled).await {
+    if let Some(oauth2) = Oauth2::from_address(context, addr).await {
         let lock = context.oauth2_mutex.lock().await;
 
         // read generated token
@@ -232,8 +229,7 @@ pub(crate) async fn get_oauth2_addr(
     addr: &str,
     code: &str,
 ) -> Result<Option<String>> {
-    let proxy_enabled = context.get_config_bool(Config::ProxyEnabled).await?;
-    let oauth2 = match Oauth2::from_address(context, addr, proxy_enabled).await {
+    let oauth2 = match Oauth2::from_address(context, addr).await {
         Some(o) => o,
         None => return Ok(None),
     };
@@ -268,8 +264,9 @@ pub(crate) async fn get_oauth2_addr(
 }
 
 impl Oauth2 {
-    async fn from_address(context: &Context, addr: &str, skip_mx: bool) -> Option<Self> {
+    async fn from_address(context: &Context, addr: &str) -> Option<Self> {
         let addr_normalized = normalize_addr(addr);
+        let skip_mx = true;
         if let Some(domain) = addr_normalized
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
@@ -367,38 +364,20 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_oauth_from_address() {
         let t = TestContext::new().await;
-        assert_eq!(
-            Oauth2::from_address(&t, "hello@gmail.com", false).await,
-            Some(OAUTH2_GMAIL)
-        );
-        assert_eq!(
-            Oauth2::from_address(&t, "hello@googlemail.com", false).await,
-            Some(OAUTH2_GMAIL)
-        );
-        assert_eq!(
-            Oauth2::from_address(&t, "hello@yandex.com", false).await,
-            Some(OAUTH2_YANDEX)
-        );
-        assert_eq!(
-            Oauth2::from_address(&t, "hello@yandex.ru", false).await,
-            Some(OAUTH2_YANDEX)
-        );
-        assert_eq!(Oauth2::from_address(&t, "hello@web.de", false).await, None);
-    }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_oauth_from_mx() {
-        // youtube staff seems to use "google workspace with oauth2", figures this out by MX lookup
-        let t = TestContext::new().await;
+        // Delta Chat does not have working Gmail client ID anymore.
+        assert_eq!(Oauth2::from_address(&t, "hello@gmail.com").await, None);
+        assert_eq!(Oauth2::from_address(&t, "hello@googlemail.com").await, None);
+
         assert_eq!(
-            Oauth2::from_address(&t, "hello@youtube.com", false).await,
-            Some(OAUTH2_GMAIL)
+            Oauth2::from_address(&t, "hello@yandex.com").await,
+            Some(OAUTH2_YANDEX)
         );
-        // without MX lookup, we would not know as youtube.com is not in our provider-db
         assert_eq!(
-            Oauth2::from_address(&t, "hello@youtube.com", true).await,
-            None
+            Oauth2::from_address(&t, "hello@yandex.ru").await,
+            Some(OAUTH2_YANDEX)
         );
+        assert_eq!(Oauth2::from_address(&t, "hello@web.de").await, None);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -414,11 +393,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_oauth2_url() {
         let ctx = TestContext::new().await;
-        let addr = "dignifiedquire@gmail.com";
+        let addr = "example@yandex.com";
         let redirect_uri = "chat.delta:/com.b44t.messenger";
         let res = get_oauth2_url(&ctx.ctx, addr, redirect_uri).await.unwrap();
 
-        assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
+        assert_eq!(res, Some("https://oauth.yandex.com/authorize?client_id=c4d0b6735fc8420a816d7e1303469341&response_type=code&scope=mail%3Aimap_full%20mail%3Asmtp&force_confirm=true".into()));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
