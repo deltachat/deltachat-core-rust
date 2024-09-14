@@ -290,7 +290,11 @@ impl Imap {
     /// Calling this function is not enough to perform IMAP operations. Use [`Imap::prepare`]
     /// instead if you are going to actually use connection rather than trying connection
     /// parameters.
-    pub(crate) async fn connect(&mut self, context: &Context) -> Result<Session> {
+    pub(crate) async fn connect(
+        &mut self,
+        context: &Context,
+        configuring: bool,
+    ) -> Result<Session> {
         let now = tools::Time::now();
         let until_can_send = max(
             min(self.conn_last_try, now)
@@ -416,19 +420,12 @@ impl Imap {
                     warn!(context, "IMAP failed to login: {err:#}.");
                     first_error.get_or_insert(format_err!("{message} ({err:#})"));
 
-                    let lock = context.wrong_pw_warning_mutex.lock().await;
-                    if self.login_failed_once
+                    let _lock = context.wrong_pw_warning_mutex.lock().await;
+                    if !configuring
+                        && self.login_failed_once
                         && err_str.to_lowercase().contains("authentication")
                         && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                     {
-                        if let Err(e) = context
-                            .set_config_internal(Config::NotifyAboutWrongPw, None)
-                            .await
-                        {
-                            warn!(context, "{e:#}.");
-                        }
-                        drop(lock);
-
                         let mut msg = Message::new(Viewtype::Text);
                         msg.text.clone_from(&message);
                         if let Err(e) = chat::add_device_msg_with_importance(
@@ -440,6 +437,12 @@ impl Imap {
                         .await
                         {
                             warn!(context, "Failed to add device message: {e:#}.");
+                        } else {
+                            context
+                                .set_config_internal(Config::NotifyAboutWrongPw, None)
+                                .await
+                                .log_err(context)
+                                .ok();
                         }
                     } else {
                         self.login_failed_once = true;
@@ -456,7 +459,8 @@ impl Imap {
     /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
     /// determined.
     pub(crate) async fn prepare(&mut self, context: &Context) -> Result<Session> {
-        let mut session = match self.connect(context).await {
+        let configuring = false;
+        let mut session = match self.connect(context, configuring).await {
             Ok(session) => session,
             Err(err) => {
                 self.connectivity.set_err(context, &err).await;

@@ -111,15 +111,10 @@ impl Context {
 
         let param = EnteredLoginParam::load(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
-
-        let configured_param_res = configure(self, &param).await;
-        self.set_config_internal(Config::NotifyAboutWrongPw, None)
-            .await?;
-
-        on_configure_completed(self, configured_param_res?, old_addr).await?;
-
+        let configured_param = configure(self, &param).await?;
         self.set_config_internal(Config::NotifyAboutWrongPw, Some("1"))
             .await?;
+        on_configure_completed(self, configured_param, old_addr).await?;
         Ok(())
     }
 }
@@ -417,7 +412,8 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
         configured_param.oauth2,
         r,
     );
-    let mut imap_session = match imap.connect(ctx).await {
+    let configuring = true;
+    let mut imap_session = match imap.connect(ctx, configuring).await {
         Ok(session) => session,
         Err(err) => bail!("{}", nicer_configuration_error(ctx, err.to_string()).await),
     };
