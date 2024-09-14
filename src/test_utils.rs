@@ -474,9 +474,17 @@ impl TestContext {
             .execute("DELETE FROM smtp WHERE id=?;", (rowid,))
             .await
             .expect("failed to remove job");
-        update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
+        if !self
+            .ctx
+            .sql
+            .exists("SELECT COUNT(*) FROM smtp WHERE msg_id=?", (msg_id,))
             .await
-            .expect("failed to update message state");
+            .expect("Failed to check for more jobs")
+        {
+            update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
+                .await
+                .expect("failed to update message state");
+        }
 
         let payload_headers = payload.split("\r\n\r\n").next().unwrap().lines();
         let payload_header_names: Vec<_> = payload_headers

@@ -4260,7 +4260,11 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             msg.update_param(context).await?;
         }
         match msg.get_state() {
-            MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
+            // `get_state()` may return an outdated `OutPending`, so update anyway.
+            MessageState::OutPending
+            | MessageState::OutFailed
+            | MessageState::OutDelivered
+            | MessageState::OutMdnRcvd => {
                 message::update_msg_state(context, msg.id, MessageState::OutPending).await?
             }
             msg_state => bail!("Unexpected message state {msg_state}"),
@@ -6846,8 +6850,29 @@ mod tests {
         )
         .await?;
         let sent2 = alice.pop_sent_msg().await;
-        resend_msgs(&alice, &[sent1.sender_msg_id]).await?;
+        let resent_msg_id = sent1.sender_msg_id;
+        resend_msgs(&alice, &[resent_msg_id]).await?;
+        assert_eq!(
+            resent_msg_id.get_state(&alice).await?,
+            MessageState::OutPending
+        );
+        resend_msgs(&alice, &[resent_msg_id]).await?;
+        // Message can be re-sent multiple times.
+        assert_eq!(
+            resent_msg_id.get_state(&alice).await?,
+            MessageState::OutPending
+        );
+        alice.pop_sent_msg().await;
+        // There's still one more pending SMTP job.
+        assert_eq!(
+            resent_msg_id.get_state(&alice).await?,
+            MessageState::OutPending
+        );
         let sent3 = alice.pop_sent_msg().await;
+        assert_eq!(
+            resent_msg_id.get_state(&alice).await?,
+            MessageState::OutDelivered
+        );
 
         // Bob receives all messages
         let bob = TestContext::new_bob().await;
