@@ -620,7 +620,7 @@ def test_long_group_name(acfactory, lp):
 
 
 def test_send_self_message(acfactory, lp):
-    ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
+    ac1 = acfactory.new_online_configuring_account(mvbox_move=True, bcc_self=True)
     acfactory.bring_accounts_online()
     lp.sec("ac1: create self chat")
     chat = ac1.get_self_contact().create_chat()

@@ -2108,6 +2108,19 @@ async fn test_no_unencrypted_name_in_self_chat() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_no_smtp_job_for_self_chat() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let bob = &tcm.bob().await;
+    bob.set_config_bool(Config::BccSelf, false).await?;
+    let chat_id = bob.get_self_chat().await.id;
+    let mut msg = Message::new(Viewtype::Text);
+    msg.text = "Happy birthday to me".to_string();
+    chat::send_msg(bob, chat_id, &mut msg).await?;
+    assert!(bob.pop_sent_msg_opt(Duration::ZERO).await.is_none());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_outgoing_classic_mail_creates_chat() {
     let alice = TestContext::new_alice().await;
 
