@@ -32,6 +32,41 @@ on the contributing page: <https://github.com/deltachat/deltachat-core-rust/cont
 We format the code using `rustfmt`. Run `cargo fmt` prior to committing the code.
 Run `scripts/clippy.sh` to check the code for common mistakes with [Clippy].
 
+Multi-line SQL statements should be formatted using string literals,
+for example
+```
+    sql.execute(
+        "CREATE TABLE messages (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+text TEXT DEFAULT '' NOT NULL -- message text
+) STRICT",
+    )
+    .await?;
+```
+
+Do not use macros like [`concat!`](https://doc.rust-lang.org/std/macro.concat.html)
+or [`indoc!](https://docs.rs/indoc).
+Do not escape newlines like this:
+```
+    sql.execute(
+        "CREATE TABLE messages ( \
+id INTEGER PRIMARY KEY AUTOINCREMENT, \
+text TEXT DEFAULT '' NOT NULL \
+) STRICT",
+    )
+    .await?;
+```
+Escaping newlines
+is prone to errors like this if space before backslash is missing:
+```
+"SELECT foo\
+ FROM bar"
+```
+Literal above results in `SELECT fooFROM bar` string.
+This style also does not allow using `--` comments.
+
+### Commit messages
+
 Commit messages follow the [Conventional Commits] notation.
 We use [git-cliff] to generate the changelog from commit messages before the release.
 
