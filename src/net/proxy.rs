@@ -1,25 +1,27 @@
 //! # Proxy support.
 //!
-//! Delta Chat supports SOCKS5 and Shadowsocks protocols.
+//! Delta Chat supports HTTP(S) CONNECT, SOCKS5 and Shadowsocks protocols.
 
 use std::fmt;
 use std::pin::Pin;
 
-use anyhow::{format_err, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
+use base64::Engine;
+use bytes::{BufMut, BytesMut};
 use fast_socks5::client::Socks5Stream;
 use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
 use fast_socks5::Socks5Command;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use pin_project::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
+use crate::net::{connect_tcp, wrap_tls};
 use crate::sql::Sql;
 
 /// Default SOCKS5 port according to [RFC 1928](https://tools.ietf.org/html/rfc1928).
@@ -95,6 +97,20 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HttpConfig {
+    /// HTTP proxy host.
+    pub host: String,
+
+    /// HTTP proxy port.
+    pub port: u16,
+
+    /// Username and password for basic authentication.
+    ///
+    /// If set, `Proxy-Authorization` header is sent.
+    pub user_password: Option<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Socks5Config {
     pub host: String,
     pub port: u16,
@@ -135,9 +151,92 @@ impl Socks5Config {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProxyConfig {
+    // HTTP proxy.
+    Http(HttpConfig),
+
+    // HTTPS proxy.
+    Https(HttpConfig),
+
+    // SOCKS5 proxy.
     Socks5(Socks5Config),
 
+    // Shadowsocks proxy.
     Shadowsocks(ShadowsocksConfig),
+}
+
+/// Constructs HTTP/1.1 `CONNECT` request for HTTP(S) proxy.
+fn http_connect_request(host: &str, port: u16, auth: Option<(&str, &str)>) -> String {
+    // According to <https://datatracker.ietf.org/doc/html/rfc7230#section-5.4>
+    // clients MUST send `Host:` header in HTTP/1.1 requests,
+    // so repeat the host there.
+    let mut res = format!("CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n");
+    if let Some((username, password)) = auth {
+        res += "Proxy-Authorization: Basic ";
+        res += &base64::engine::general_purpose::STANDARD.encode(format!("{username}:{password}"));
+        res += "\r\n";
+    }
+    res += "\r\n";
+    res
+}
+
+/// Sends HTTP/1.1 `CONNECT` request over given connection
+/// to establish an HTTP tunnel.
+///
+/// Returns the same connection back so actual data can be tunneled over it.
+async fn http_tunnel<T>(mut conn: T, host: &str, port: u16, auth: Option<(&str, &str)>) -> Result<T>
+where
+    T: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    // Send HTTP/1.1 CONNECT request.
+    let request = http_connect_request(host, port, auth);
+    conn.write_all(request.as_bytes()).await?;
+
+    let mut buffer = BytesMut::with_capacity(4096);
+
+    let res = loop {
+        if !buffer.has_remaining_mut() {
+            bail!("CONNECT response exceeded buffer size");
+        }
+        let n = conn.read_buf(&mut buffer).await?;
+        if n == 0 {
+            bail!("Unexpected end of CONNECT response");
+        }
+
+        let res = &buffer[..];
+        if res.ends_with(b"\r\n\r\n") {
+            // End of response is not reached, read more.
+            break res;
+        }
+    };
+
+    // Normally response looks like
+    // `HTTP/1.1 200 Connection established\r\n\r\n`.
+    if !res.starts_with(b"HTTP/") {
+        bail!("Unexpected HTTP CONNECT response: {res:?}");
+    }
+
+    // HTTP-version followed by space has fixed length
+    // according to RFC 7230:
+    // <https://datatracker.ietf.org/doc/html/rfc7230#section-3.1.2>
+    //
+    // Normally status line starts with `HTTP/1.1 `.
+    // We only care about 3-digit status code.
+    let status_code = res
+        .get(9..12)
+        .context("HTTP status line does not contain a status code")?;
+
+    // Interpert status code according to
+    // <https://datatracker.ietf.org/doc/html/rfc7231#section-6>.
+    if status_code == b"407" {
+        Err(format_err!("Proxy Authentication Required"))
+    } else if status_code.starts_with(b"2") {
+        // Success.
+        Ok(conn)
+    } else {
+        Err(format_err!(
+            "Failed to establish HTTP CONNECT tunnel: {res:?}"
+        ))
+    }
 }
 
 impl ProxyConfig {
@@ -145,6 +244,58 @@ impl ProxyConfig {
     fn from_url(url: &str) -> Result<Self> {
         let url = url::Url::parse(url).context("Cannot parse proxy URL")?;
         match url.scheme() {
+            "http" => {
+                let host = url
+                    .host_str()
+                    .context("HTTP proxy URL has no host")?
+                    .to_string();
+                let port = url.port().unwrap_or(80);
+                let user_password = if let Some(password) = url.password() {
+                    let username = percent_encoding::percent_decode_str(url.username())
+                        .decode_utf8()
+                        .context("HTTP proxy username is not a valid UTF-8")?
+                        .to_string();
+                    let password = percent_encoding::percent_decode_str(password)
+                        .decode_utf8()
+                        .context("HTTP proxy password is not a valid UTF-8")?
+                        .to_string();
+                    Some((username, password))
+                } else {
+                    None
+                };
+                let http_config = HttpConfig {
+                    host,
+                    port,
+                    user_password,
+                };
+                Ok(Self::Http(http_config))
+            }
+            "https" => {
+                let host = url
+                    .host_str()
+                    .context("HTTPS proxy URL has no host")?
+                    .to_string();
+                let port = url.port().unwrap_or(443);
+                let user_password = if let Some(password) = url.password() {
+                    let username = percent_encoding::percent_decode_str(url.username())
+                        .decode_utf8()
+                        .context("HTTPS proxy username is not a valid UTF-8")?
+                        .to_string();
+                    let password = percent_encoding::percent_decode_str(password)
+                        .decode_utf8()
+                        .context("HTTPS proxy password is not a valid UTF-8")?
+                        .to_string();
+                    Some((username, password))
+                } else {
+                    None
+                };
+                let https_config = HttpConfig {
+                    host,
+                    port,
+                    user_password,
+                };
+                Ok(Self::Https(https_config))
+            }
             "ss" => {
                 let server_config = shadowsocks::config::ServerConfig::from_url(url.as_str())?;
                 let shadowsocks_config = ShadowsocksConfig { server_config };
@@ -274,6 +425,42 @@ impl ProxyConfig {
         load_dns_cache: bool,
     ) -> Result<Box<dyn SessionStream>> {
         match self {
+            ProxyConfig::Http(http_config) => {
+                let load_cache = false;
+                let tcp_stream = crate::net::connect_tcp(
+                    context,
+                    &http_config.host,
+                    http_config.port,
+                    load_cache,
+                )
+                .await?;
+                let auth = if let Some((username, password)) = &http_config.user_password {
+                    Some((username.as_str(), password.as_str()))
+                } else {
+                    None
+                };
+                let tunnel_stream = http_tunnel(tcp_stream, target_host, target_port, auth).await?;
+                Ok(Box::new(tunnel_stream))
+            }
+            ProxyConfig::Https(https_config) => {
+                let load_cache = true;
+                let strict_tls = true;
+                let tcp_stream = crate::net::connect_tcp(
+                    context,
+                    &https_config.host,
+                    https_config.port,
+                    load_cache,
+                )
+                .await?;
+                let tls_stream = wrap_tls(strict_tls, &https_config.host, &[], tcp_stream).await?;
+                let auth = if let Some((username, password)) = &https_config.user_password {
+                    Some((username.as_str(), password.as_str()))
+                } else {
+                    None
+                };
+                let tunnel_stream = http_tunnel(tls_stream, target_host, target_port, auth).await?;
+                Ok(Box::new(tunnel_stream))
+            }
             ProxyConfig::Socks5(socks5_config) => {
                 let socks5_stream = socks5_config
                     .connect(context, target_host, target_port, load_dns_cache)
@@ -362,6 +549,111 @@ mod tests {
                 port: 9150,
                 user_password: Some(("foo".to_string(), "bar".to_string()))
             })
+        );
+
+        let proxy_config = ProxyConfig::from_url("socks5://127.0.0.1:80").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Socks5(Socks5Config {
+                host: "127.0.0.1".to_string(),
+                port: 80,
+                user_password: None
+            })
+        );
+
+        let proxy_config = ProxyConfig::from_url("socks5://127.0.0.1").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Socks5(Socks5Config {
+                host: "127.0.0.1".to_string(),
+                port: 1080,
+                user_password: None
+            })
+        );
+
+        let proxy_config = ProxyConfig::from_url("socks5://127.0.0.1:1080").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Socks5(Socks5Config {
+                host: "127.0.0.1".to_string(),
+                port: 1080,
+                user_password: None
+            })
+        );
+    }
+
+    #[test]
+    fn test_http_url() {
+        let proxy_config = ProxyConfig::from_url("http://127.0.0.1").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Http(HttpConfig {
+                host: "127.0.0.1".to_string(),
+                port: 80,
+                user_password: None
+            })
+        );
+
+        let proxy_config = ProxyConfig::from_url("http://127.0.0.1:80").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Http(HttpConfig {
+                host: "127.0.0.1".to_string(),
+                port: 80,
+                user_password: None
+            })
+        );
+
+        let proxy_config = ProxyConfig::from_url("http://127.0.0.1:443").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Http(HttpConfig {
+                host: "127.0.0.1".to_string(),
+                port: 443,
+                user_password: None
+            })
+        );
+    }
+
+    #[test]
+    fn test_https_url() {
+        let proxy_config = ProxyConfig::from_url("https://127.0.0.1").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Https(HttpConfig {
+                host: "127.0.0.1".to_string(),
+                port: 443,
+                user_password: None
+            })
+        );
+
+        let proxy_config = ProxyConfig::from_url("https://127.0.0.1:80").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Https(HttpConfig {
+                host: "127.0.0.1".to_string(),
+                port: 80,
+                user_password: None
+            })
+        );
+
+        let proxy_config = ProxyConfig::from_url("https://127.0.0.1:443").unwrap();
+        assert_eq!(
+            proxy_config,
+            ProxyConfig::Https(HttpConfig {
+                host: "127.0.0.1".to_string(),
+                port: 443,
+                user_password: None
+            })
+        );
+    }
+
+    #[test]
+    fn test_http_connect_request() {
+        assert_eq!(http_connect_request("example.org", 143, Some(("aladdin", "opensesame"))), "CONNECT example.org:143 HTTP/1.1\r\nHost: example.org:143\r\nProxy-Authorization: Basic YWxhZGRpbjpvcGVuc2VzYW1l\r\n\r\n");
+        assert_eq!(
+            http_connect_request("example.net", 587, None),
+            "CONNECT example.net:587 HTTP/1.1\r\nHost: example.net:587\r\n\r\n"
         );
     }
 
