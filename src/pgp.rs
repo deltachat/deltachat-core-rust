@@ -405,7 +405,7 @@ mod tests {
     use tokio::sync::OnceCell;
 
     use super::*;
-    use crate::test_utils::{alice_keypair, bob_keypair};
+    use crate::test_utils::{alice_keypair, bob_keypair, TestContextManager};
 
     #[test]
     fn test_split_armored_data_1() {
@@ -591,5 +591,39 @@ mod tests {
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_rotate_encryption_key() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        tcm.send_recv(alice, bob, "Hi!").await;
+
+        // TODO: alice changes encryption key
+        let mut alice_keyring = crate::key::load_self_secret_keyring(alice).await?;
+        let mut alice_key = alice_keyring.pop().unwrap();
+
+        // There should be no public subkeys.
+        assert!(alice_key.public_subkeys.is_empty());
+
+        // There is exactly one secret subkey
+        // that we are going to replace.
+        assert_eq!(alice_key.secret_subkeys.len(), 1);
+        alice_key.secret_subkeys.clear();
+
+        let new_subkey = SubkeyParamsBuilder::default()
+            .key_type(PgpKeyType::ECDH(ECCCurve::Curve25519))
+            .can_encrypt(true)
+            .passphrase(None)
+            .build()
+            .context("Failed to build subkey parameters")?;
+
+        let new_keypair = KeyPair::new(alice_key)?;
+
+        tcm.send_recv(alice, bob, "Hi again, with a new key!").await;
+
+        Ok(())
     }
 }
