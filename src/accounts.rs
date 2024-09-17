@@ -114,7 +114,20 @@ impl Accounts {
 
     /// Selects the given account.
     pub async fn select_account(&mut self, id: u32) -> Result<()> {
+        let previous_account_id = self.config.get_selected_account();
+        if let Some(true) = self.config.get_disable_background_io(previous_account_id) {
+            if let Some(previous_account_ctx) = self.get_account(previous_account_id) {
+                previous_account_ctx.stop_io().await;
+            }
+        }
+
         self.config.select_account(id).await?;
+
+        if let Some(true) = self.config.get_disable_background_io(id) {
+            if let Some(previous_account_ctx) = self.get_account(id) {
+                previous_account_ctx.start_io().await;
+            }
+        }
 
         Ok(())
     }
@@ -269,7 +282,9 @@ impl Accounts {
     /// Starts background tasks such as IMAP and SMTP loops for all accounts.
     pub async fn start_io(&mut self) {
         for account in self.accounts.values_mut() {
-            account.start_io().await;
+            if let Some(false) = self.config.get_disable_background_io(account.id) {
+                account.start_io().await;
+            }
         }
     }
 
@@ -281,6 +296,33 @@ impl Accounts {
         for account in self.accounts.values() {
             account.stop_io().await;
         }
+    }
+
+    /// Set disable_background_io for an account, when enabled,
+    /// io is stopped unless the account is selected and background fetch is also disabled for the account
+    ///
+    /// This automatically stops/starts io when account is in the background
+    pub async fn set_disable_background_io(
+        &mut self,
+        id: u32,
+        disable_background_io: bool,
+    ) -> Result<()> {
+        self.config
+            .set_disable_background_io(id, disable_background_io)
+            .await?;
+        if let Some(account) = self.get_account(id) {
+            if disable_background_io {
+                account.stop_io().await;
+            } else {
+                account.start_io().await;
+            }
+        }
+        Ok(())
+    }
+
+    // Checks if background io is disabled
+    pub fn get_disable_background_io(&self, id: u32) -> Option<bool> {
+        self.config.get_disable_background_io(id)
     }
 
     /// Notifies all accounts that the network may have become available.
@@ -301,6 +343,8 @@ impl Accounts {
     ///
     /// This is an auxiliary function and not part of public API.
     /// Use [Accounts::background_fetch] instead.
+    ///
+    /// Acounts with `disable_background_io` are not fetched
     async fn background_fetch_without_timeout(&self) {
         async fn background_fetch_and_log_error(account: Context) {
             if let Err(error) = account.background_fetch().await {
@@ -311,6 +355,7 @@ impl Accounts {
         join_all(
             self.accounts
                 .values()
+                .filter(|account| self.config.get_disable_background_io(account.id) != Some(true))
                 .cloned()
                 .map(background_fetch_and_log_error),
         )
@@ -322,6 +367,8 @@ impl Accounts {
     /// The `AccountsBackgroundFetchDone` event is emitted at the end,
     /// process all events until you get this one and you can safely return to the background
     /// without forgetting to create notifications caused by timing race conditions.
+    ///
+    /// Acounts with `disable_background_io` are not fetched
     pub async fn background_fetch(&self, timeout: std::time::Duration) {
         if let Err(_err) =
             tokio::time::timeout(timeout, self.background_fetch_without_timeout()).await
@@ -569,6 +616,7 @@ impl Config {
                 id,
                 dir: target_dir,
                 uuid,
+                disable_background_io: false,
             });
             self.inner.next_id += 1;
             id
@@ -631,6 +679,28 @@ impl Config {
         self.sync().await?;
         Ok(())
     }
+
+    pub(crate) async fn set_disable_background_io(&mut self, id: u32, value: bool) -> Result<()> {
+        let position = self
+            .inner
+            .accounts
+            .iter()
+            .position(|e| e.id == id)
+            .context("account not found")?;
+        self.inner
+            .accounts
+            .get_mut(position)
+            .context("account not found")?
+            .disable_background_io = value;
+
+        self.sync().await?;
+        Ok(())
+    }
+
+    // Checks if background io is disabled
+    pub fn get_disable_background_io(&self, id: u32) -> Option<bool> {
+        Some(self.get_account(id)?.disable_background_io)
+    }
 }
 
 /// Spend up to 1 minute trying to do the operation.
@@ -677,6 +747,12 @@ struct AccountConfig {
 
     /// Universally unique account identifier.
     pub uuid: Uuid,
+
+    /// Disable account io when it is not selected
+    ///
+    /// this means io is stopped unless the account is selected
+    /// and background fetch is also disabled for the account
+    pub disable_background_io: bool,
 }
 
 impl AccountConfig {

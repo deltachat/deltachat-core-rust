@@ -227,16 +227,16 @@ impl CommandApi {
     /// Get a list of all configured accounts.
     async fn get_all_accounts(&self) -> Result<Vec<Account>> {
         let mut accounts = Vec::new();
-        for id in self.accounts.read().await.get_all() {
-            let context_option = self.accounts.read().await.get_account(id);
-            if let Some(ctx) = context_option {
-                accounts.push(Account::from_context(&ctx, id).await?)
-            }
+        let manager = self.accounts.read().await;
+        for id in manager.get_all() {
+            accounts.push(Account::load(&manager, id).await?)
         }
         Ok(accounts)
     }
 
     /// Starts background tasks for all accounts.
+    ///
+    /// Acounts with `disable_background_io` are not started, unless the account is the selected one
     async fn start_io_for_all_accounts(&self) -> Result<()> {
         self.accounts.write().await.start_io().await;
         Ok(())
@@ -253,6 +253,8 @@ impl CommandApi {
     /// The `AccountsBackgroundFetchDone` event is emitted at the end even in case of timeout.
     /// Process all events until you get this one and you can safely return to the background
     /// without forgetting to create notifications caused by timing race conditions.
+    ///
+    /// Acounts with `disable_background_io` are not fetched
     async fn accounts_background_fetch(&self, timeout_in_seconds: f64) -> Result<()> {
         self.accounts
             .write()
@@ -260,6 +262,22 @@ impl CommandApi {
             .background_fetch(std::time::Duration::from_secs_f64(timeout_in_seconds))
             .await;
         Ok(())
+    }
+
+    /// Set disable_background_io for an account, when enabled,
+    /// io is stopped unless the account is selected and background fetch is also disabled for the account
+    ///
+    /// This automatically stops/starts io when account is in the background
+    pub async fn set_disable_background_io(
+        &self,
+        account_id: u32,
+        disable_background_io: bool,
+    ) -> Result<()> {
+        self.accounts
+            .write()
+            .await
+            .set_disable_background_io(account_id, disable_background_io)
+            .await
     }
 
     // ---------------------------------------------
@@ -282,15 +300,8 @@ impl CommandApi {
 
     /// Get top-level info for an account.
     async fn get_account_info(&self, account_id: u32) -> Result<Account> {
-        let context_option = self.accounts.read().await.get_account(account_id);
-        if let Some(ctx) = context_option {
-            Ok(Account::from_context(&ctx, account_id).await?)
-        } else {
-            Err(anyhow!(
-                "account with id {} doesn't exist anymore",
-                account_id
-            ))
-        }
+        let manager = &self.accounts.read().await;
+        Account::load(manager, account_id).await
     }
 
     /// Get the combined filesize of an account in bytes
