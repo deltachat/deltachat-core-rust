@@ -57,14 +57,14 @@ fd-lock = "4"
 futures = { workspace = true }
 futures-lite = { workspace = true }
 hex = "0.4.0"
-hickory-resolver = "0.24"
+hickory-resolver = "=0.25.0-alpha.2"
 http-body-util = "0.1.2"
 humansize = "2"
 hyper = "1"
 hyper-util = "0.1.7"
 image = { version = "0.25.1", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh-net = { version = "0.23.0", default-features = false }
-iroh-gossip = { version = "0.23.0", default-features = false, features = ["net"] }
+iroh-net = { version = "0.25.0", default-features = false }
+iroh-gossip = { version = "0.25.0", default-features = false, features = ["net"] }
 kamadak-exif = "0.5.3"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = { workspace = true }

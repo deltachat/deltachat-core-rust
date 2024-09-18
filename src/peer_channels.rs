@@ -253,7 +253,7 @@ impl Context {
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
             .relay_mode(relay_mode)
-            .bind(0)
+            .bind()
             .await?;
 
         // create gossip
@@ -265,7 +265,6 @@ impl Context {
 
         // Shuts down on deltachat shutdown
         tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
-        tokio::spawn(gossip_direct_address_loop(endpoint.clone(), gossip.clone()));
 
         Ok(Iroh {
             endpoint,
@@ -283,15 +282,6 @@ impl Context {
             .get_or_try_init(|| async { ctx.init_peer_channels().await })
             .await
     }
-}
-
-/// Loop to update direct addresses of the gossip.
-async fn gossip_direct_address_loop(endpoint: Endpoint, gossip: Gossip) -> Result<()> {
-    let mut stream = endpoint.direct_addresses();
-    while let Some(addrs) = stream.next().await {
-        gossip.update_direct_addresses(&addrs)?;
-    }
-    Ok(())
 }
 
 /// Cache a peers [NodeId] for one topic.
@@ -442,6 +432,13 @@ pub(crate) async fn create_iroh_header(
 
 async fn endpoint_loop(context: Context, endpoint: Endpoint, gossip: Gossip) {
     while let Some(conn) = endpoint.accept().await {
+        let conn = match conn.accept() {
+            Ok(conn) => conn,
+            Err(err) => {
+                warn!(context, "Failed to accept iroh connection: {err:#}.");
+                continue;
+            }
+        };
         info!(context, "IROH_REALTIME: accepting iroh connection");
         let gossip = gossip.clone();
         let context = context.clone();
