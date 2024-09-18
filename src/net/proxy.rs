@@ -13,8 +13,7 @@ use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
 use fast_socks5::Socks5Command;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
-use pin_project::pin_project;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
 use url::Url;
@@ -40,62 +39,6 @@ impl PartialEq for ShadowsocksConfig {
 }
 
 impl Eq for ShadowsocksConfig {}
-
-/// Wrapper for Shadowsocks stream implementing
-/// `Debug` and `SessionStream`.
-///
-/// Passes `AsyncRead` and `AsyncWrite` traits through.
-#[pin_project]
-pub(crate) struct ShadowsocksStream<S> {
-    #[pin]
-    pub(crate) stream: shadowsocks::ProxyClientStream<S>,
-}
-
-impl<S> std::fmt::Debug for ShadowsocksStream<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ShadowsocksStream")
-    }
-}
-
-impl<S> AsyncRead for ShadowsocksStream<S>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        self.project().stream.poll_read(cx, buf)
-    }
-}
-
-impl<S> AsyncWrite for ShadowsocksStream<S>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &[u8],
-    ) -> std::task::Poll<Result<usize, std::io::Error>> {
-        self.project().stream.poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), std::io::Error>> {
-        self.project().stream.poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), std::io::Error>> {
-        self.project().stream.poll_shutdown(cx)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpConfig {
@@ -469,15 +412,12 @@ impl ProxyConfig {
                         .context("Failed to connect to Shadowsocks proxy")?
                 };
 
-                let proxy_client_stream = shadowsocks::ProxyClientStream::from_stream(
+                let shadowsocks_stream = shadowsocks::ProxyClientStream::from_stream(
                     shadowsocks_context,
                     tcp_stream,
                     server_config,
                     (target_host.to_string(), target_port),
                 );
-                let shadowsocks_stream = ShadowsocksStream {
-                    stream: proxy_client_stream,
-                };
 
                 Ok(Box::new(shadowsocks_stream))
             }

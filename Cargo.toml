@@ -77,7 +77,6 @@ once_cell = { workspace = true }
 parking_lot = "0.12"
 percent-encoding = "2.3"
 pgp = { version = "0.13.2", default-features = false }
-pin-project = "1"
 qrcodegen = "1.7.0"
 quick-xml = "0.36"
 quoted_printable = "0.5"
@@ -90,7 +89,7 @@ serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
 serde = { workspace = true, features = ["derive"] }
 sha-1 = "0.10"
-shadowsocks = { version = "1.20.2", default-features = false, features = ["aead-cipher-2022"] }
+shadowsocks = { version = "1.21.0", default-features = false, features = ["aead-cipher-2022"] }
 smallvec = "1.13.2"
 strum = "0.26"
 strum_macros = "0.26"
