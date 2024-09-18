@@ -49,7 +49,6 @@ skip = [
      { name = "rustls-pemfile", version = "1.0.4" },
      { name = "rustls", version = "0.21.11" },
      { name = "rustls-webpki", version = "0.101.7" },
-     { name = "spin", version = "<0.9.6" },
      { name = "sync_wrapper", version = "0.1.2" },
      { name = "synstructure", version = "0.12.6" },
      { name = "syn", version = "1.0.109" },
