@@ -19,14 +19,10 @@ ignore = [
 # when upgrading.
 # Please keep this list alphabetically sorted.
 skip = [
-     { name = "asn1-rs-derive", version = "0.4.0" },
-     { name = "asn1-rs-impl", version = "0.1.0" },
-     { name = "asn1-rs", version = "0.5.2" },
      { name = "async-channel", version = "1.9.0" },
      { name = "base64", version = "<0.21" },
      { name = "base64", version = "0.21.7" },
      { name = "bitflags", version = "1.3.2" },
-     { name = "der-parser", version = "8.2.0" },
      { name = "event-listener", version = "2.5.3" },
      { name = "event-listener", version = "4.0.3" },
      { name = "fastrand", version = "1.9.0" },
@@ -36,9 +32,7 @@ skip = [
      { name = "http-body", version = "0.4.6" },
      { name = "http", version = "0.2.12" },
      { name = "hyper", version = "0.14.28" },
-     { name = "idna", version = "0.4.0" },
      { name = "nix", version = "0.26.4" },
-     { name = "oid-registry", version = "0.6.1" },
      { name = "quick-error", version = "<2.0" },
      { name = "rand_chacha", version = "<0.3" },
      { name = "rand_core", version = "<0.6" },
@@ -46,16 +40,10 @@ skip = [
      { name = "redox_syscall", version = "0.3.5" },
      { name = "regex-automata", version = "0.1.10" },
      { name = "regex-syntax", version = "0.6.29" },
-     { name = "rustls-pemfile", version = "1.0.4" },
-     { name = "rustls", version = "0.21.11" },
-     { name = "rustls-webpki", version = "0.101.7" },
      { name = "sync_wrapper", version = "0.1.2" },
-     { name = "synstructure", version = "0.12.6" },
      { name = "syn", version = "1.0.109" },
      { name = "time", version = "<0.3" },
-     { name = "tokio-rustls", version = "0.24.1" },
      { name = "wasi", version = "<0.11" },
-     { name = "webpki-roots", version ="0.25.4" },
      { name = "windows_aarch64_gnullvm", version = "<0.52" },
      { name = "windows_aarch64_msvc", version = "<0.52" },
      { name = "windows-core", version = "<0.54.0" },
@@ -68,7 +56,6 @@ skip = [
      { name = "windows_x86_64_gnu", version = "<0.52" },
      { name = "windows_x86_64_msvc", version = "<0.52" },
      { name = "winreg", version = "0.50.0" },
-     { name = "x509-parser", version = "<0.16.0" },
 ]
 
 

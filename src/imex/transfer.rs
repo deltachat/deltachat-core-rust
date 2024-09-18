@@ -97,7 +97,7 @@ impl BackupProvider {
         let endpoint = Endpoint::builder()
             .alpns(vec![BACKUP_ALPN.to_vec()])
             .relay_mode(relay_mode)
-            .bind(0)
+            .bind()
             .await?;
         let node_addr = endpoint.node_addr().await?;
 
@@ -220,6 +220,13 @@ impl BackupProvider {
 
                 conn = endpoint.accept() => {
                     if let Some(conn) = conn {
+                        let conn = match conn.accept() {
+                            Ok(conn) => conn,
+                            Err(err) => {
+                               warn!(context, "Failed to accept iroh connection: {err:#}.");
+                               continue;
+                            }
+                        };
                         // Got a new in-progress connection.
                         let context = context.clone();
                         let auth_token = auth_token.clone();
@@ -274,7 +281,7 @@ pub async fn get_backup2(
 ) -> Result<()> {
     let relay_mode = RelayMode::Disabled;
 
-    let endpoint = Endpoint::builder().relay_mode(relay_mode).bind(0).await?;
+    let endpoint = Endpoint::builder().relay_mode(relay_mode).bind().await?;
 
     let conn = endpoint.connect(node_addr, BACKUP_ALPN).await?;
     let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
@@ -296,8 +303,12 @@ pub async fn get_backup2(
     // Send an acknowledgement, but ignore the errors.
     // We have imported backup successfully already.
     send_stream.write_all(b".").await.ok();
-    send_stream.finish().await.ok();
+    send_stream.finish().ok();
     info!(context, "Sent backup reception acknowledgment.");
+
+    // Wait for the peer to acknowledge reception of the acknowledgement
+    // before closing the connection.
+    _ = send_stream.stopped().await;
 
     Ok(())
 }
