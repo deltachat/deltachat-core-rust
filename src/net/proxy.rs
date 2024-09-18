@@ -5,7 +5,7 @@
 use std::fmt;
 use std::pin::Pin;
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use base64::Engine;
 use bytes::{BufMut, BytesMut};
 use fast_socks5::client::Socks5Stream;
@@ -17,6 +17,7 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
+use url::Url;
 
 use crate::config::Config;
 use crate::context::Context;
@@ -108,6 +109,41 @@ pub struct HttpConfig {
     ///
     /// If set, `Proxy-Authorization` header is sent.
     pub user_password: Option<(String, String)>,
+}
+
+impl HttpConfig {
+    fn from_url(url: Url) -> Result<Self> {
+        ensure!(
+            matches!(url.scheme(), "http" | "https"),
+            "Cannot create HTTP proxy config from non-HTTP URL"
+        );
+        let host = url
+            .host_str()
+            .context("HTTP proxy URL has no host")?
+            .to_string();
+        let port = url
+            .port_or_known_default()
+            .context("HTTP(S) URLs are guaranteed to return Some port")?;
+        let user_password = if let Some(password) = url.password() {
+            let username = percent_encoding::percent_decode_str(url.username())
+                .decode_utf8()
+                .context("HTTP(S) proxy username is not a valid UTF-8")?
+                .to_string();
+            let password = percent_encoding::percent_decode_str(password)
+                .decode_utf8()
+                .context("HTTP(S) proxy password is not a valid UTF-8")?
+                .to_string();
+            Some((username, password))
+        } else {
+            None
+        };
+        let http_config = HttpConfig {
+            host,
+            port,
+            user_password,
+        };
+        Ok(http_config)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -242,58 +278,14 @@ where
 impl ProxyConfig {
     /// Creates a new proxy configuration by parsing given proxy URL.
     fn from_url(url: &str) -> Result<Self> {
-        let url = url::Url::parse(url).context("Cannot parse proxy URL")?;
+        let url = Url::parse(url).context("Cannot parse proxy URL")?;
         match url.scheme() {
             "http" => {
-                let host = url
-                    .host_str()
-                    .context("HTTP proxy URL has no host")?
-                    .to_string();
-                let port = url.port().unwrap_or(80);
-                let user_password = if let Some(password) = url.password() {
-                    let username = percent_encoding::percent_decode_str(url.username())
-                        .decode_utf8()
-                        .context("HTTP proxy username is not a valid UTF-8")?
-                        .to_string();
-                    let password = percent_encoding::percent_decode_str(password)
-                        .decode_utf8()
-                        .context("HTTP proxy password is not a valid UTF-8")?
-                        .to_string();
-                    Some((username, password))
-                } else {
-                    None
-                };
-                let http_config = HttpConfig {
-                    host,
-                    port,
-                    user_password,
-                };
+                let http_config = HttpConfig::from_url(url)?;
                 Ok(Self::Http(http_config))
             }
             "https" => {
-                let host = url
-                    .host_str()
-                    .context("HTTPS proxy URL has no host")?
-                    .to_string();
-                let port = url.port().unwrap_or(443);
-                let user_password = if let Some(password) = url.password() {
-                    let username = percent_encoding::percent_decode_str(url.username())
-                        .decode_utf8()
-                        .context("HTTPS proxy username is not a valid UTF-8")?
-                        .to_string();
-                    let password = percent_encoding::percent_decode_str(password)
-                        .decode_utf8()
-                        .context("HTTPS proxy password is not a valid UTF-8")?
-                        .to_string();
-                    Some((username, password))
-                } else {
-                    None
-                };
-                let https_config = HttpConfig {
-                    host,
-                    port,
-                    user_password,
-                };
+                let https_config = HttpConfig::from_url(url)?;
                 Ok(Self::Https(https_config))
             }
             "ss" => {
