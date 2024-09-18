@@ -117,6 +117,14 @@ impl HttpConfig {
             matches!(url.scheme(), "http" | "https"),
             "Cannot create HTTP proxy config from non-HTTP URL"
         );
+        ensure!(
+            url.path() == "/",
+            "HTTP(S) proxy URL should not have a path"
+        );
+        ensure!(
+            url.query().is_none(),
+            "HTTP(S) proxy URL should not have query parameters"
+        );
         let host = url
             .host_str()
             .context("HTTP proxy URL has no host")?

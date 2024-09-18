@@ -36,8 +36,8 @@ const MAILTO_SCHEME: &str = "mailto:";
 const MATMSG_SCHEME: &str = "MATMSG:";
 const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
-const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
+const SHADOWSOCKS_SCHEME: &str = "ss://";
 
 /// Backup transfer based on iroh-net.
 pub(crate) const DCBACKUP2_SCHEME: &str = "DCBACKUP2:";
@@ -127,19 +127,26 @@ pub enum Qr {
         instance_pattern: String,
     },
 
-    /// Ask the user if they want to add or use the given SOCKS5 proxy
-    Socks5Proxy {
-        /// SOCKS5 server
+    /// Ask the user if they want to use the given proxy.
+    ///
+    /// Note that HTTP(S) URLs without a path
+    /// and query parameters are treated as HTTP(S) proxy URL.
+    /// UI may want to still offer to open the URL
+    /// in the browser if QR code contents
+    /// starts with `http://` or `https://`
+    /// and the QR code was not scanned from
+    /// the proxy configuration screen.
+    Proxy {
+        /// Proxy URL.
+        ///
+        /// This is the URL that is going to be added.
+        url: String,
+
+        /// Host extracted from the URL to display in the UI.
         host: String,
 
-        /// SOCKS5 port
+        /// Port extracted from the URL to display in the UI.
         port: u16,
-
-        /// SOCKS5 user
-        user: Option<String>,
-
-        /// SOCKS5 password
-        pass: Option<String>,
     },
 
     /// Contact address is scanned.
@@ -279,6 +286,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         decode_webrtc_instance(context, qr)?
     } else if starts_with_ignore_case(qr, TG_SOCKS_SCHEME) {
         decode_tg_socks_proxy(context, qr)?
+    } else if qr.starts_with(SHADOWSOCKS_SCHEME) {
+        decode_shadowsocks_proxy(qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
         decode_backup2(qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -289,9 +298,32 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         decode_matmsg(context, qr).await?
     } else if qr.starts_with(VCARD_SCHEME) {
         decode_vcard(context, qr).await?
-    } else if qr.starts_with(HTTP_SCHEME) || qr.starts_with(HTTPS_SCHEME) {
-        Qr::Url {
-            url: qr.to_string(),
+    } else if let Ok(url) = url::Url::parse(qr) {
+        match url.scheme() {
+            "socks5" => Qr::Proxy {
+                url: qr.to_string(),
+                host: url.host_str().context("URL has no host")?.to_string(),
+                port: url.port().unwrap_or(DEFAULT_SOCKS_PORT),
+            },
+            "http" | "https" => {
+                if (url.path() != "/") | url.query().is_some() {
+                    // URL with a path or query cannot be a proxy URL.
+                    Qr::Url {
+                        url: qr.to_string(),
+                    }
+                } else {
+                    Qr::Proxy {
+                        url: qr.to_string(),
+                        host: url.host_str().context("URL has no host")?.to_string(),
+                        port: url
+                            .port_or_known_default()
+                            .context("HTTP(S) URLs are guaranteed to return Some port")?,
+                    }
+                }
+            }
+            _ => Qr::Url {
+                url: qr.to_string(),
+            },
         }
     } else {
         Qr::Text {
@@ -558,16 +590,35 @@ fn decode_tg_socks_proxy(_context: &Context, qr: &str) -> Result<Qr> {
         }
     }
 
-    if let Some(host) = host {
-        Ok(Qr::Socks5Proxy {
-            host,
-            port,
-            user,
-            pass,
-        })
-    } else {
+    let Some(host) = host else {
         bail!("Bad t.me/socks url: {:?}", url);
-    }
+    };
+
+    let mut url = "socks5://".to_string();
+    if let Some(pass) = pass {
+        url += &percent_encode(user.unwrap_or_default().as_bytes(), NON_ALPHANUMERIC).to_string();
+        url += ":";
+        url += &percent_encode(pass.as_bytes(), NON_ALPHANUMERIC).to_string();
+        url += "@";
+    };
+    url += &host;
+    url += ":";
+    url += &port.to_string();
+
+    Ok(Qr::Proxy { url, host, port })
+}
+
+/// Decodes `ss://` URLs for Shadowsocks proxies.
+fn decode_shadowsocks_proxy(qr: &str) -> Result<Qr> {
+    let server_config = shadowsocks::config::ServerConfig::from_url(qr)?;
+    let addr = server_config.addr();
+    let host = addr.host().to_string();
+    let port = addr.port();
+    Ok(Qr::Proxy {
+        url: qr.to_string(),
+        host,
+        port,
+    })
 }
 
 /// Decodes a [`DCBACKUP2_SCHEME`] QR code.
@@ -655,33 +706,16 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
                 .set_config_internal(Config::WebrtcInstance, Some(&instance_pattern))
                 .await?;
         }
-        Qr::Socks5Proxy {
-            host,
-            port,
-            user,
-            pass,
-        } => {
-            let mut proxy_url = "socks5://".to_string();
-            if let Some(pass) = pass {
-                proxy_url += &percent_encode(user.unwrap_or_default().as_bytes(), NON_ALPHANUMERIC)
-                    .to_string();
-                proxy_url += ":";
-                proxy_url += &percent_encode(pass.as_bytes(), NON_ALPHANUMERIC).to_string();
-                proxy_url += "@";
-            };
-            proxy_url += &host;
-            proxy_url += ":";
-            proxy_url += &port.to_string();
-
+        Qr::Proxy { url, .. } => {
             let old_proxy_url_value = context
                 .get_config(Config::ProxyUrl)
                 .await?
                 .unwrap_or_default();
-            let proxy_urls: Vec<&str> = std::iter::once(proxy_url.as_str())
+            let proxy_urls: Vec<&str> = std::iter::once(url.as_str())
                 .chain(
                     old_proxy_url_value
                         .split('\n')
-                        .filter(|s| !s.is_empty() && *s != proxy_url),
+                        .filter(|s| !s.is_empty() && *s != url),
                 )
                 .collect();
             context
@@ -919,8 +953,18 @@ mod tests {
         let qr = check_qr(&ctx.ctx, "http://www.hello.com").await?;
         assert_eq!(
             qr,
+            Qr::Proxy {
+                url: "http://www.hello.com".to_string(),
+                host: "www.hello.com".to_string(),
+                port: 80
+            }
+        );
+
+        let qr = check_qr(&ctx.ctx, "http://www.hello.com/hello").await?;
+        assert_eq!(
+            qr,
             Qr::Url {
-                url: "http://www.hello.com".to_string()
+                url: "http://www.hello.com/hello".to_string(),
             }
         );
 
@@ -934,8 +978,18 @@ mod tests {
         let qr = check_qr(&ctx.ctx, "https://www.hello.com").await?;
         assert_eq!(
             qr,
+            Qr::Proxy {
+                url: "https://www.hello.com".to_string(),
+                host: "www.hello.com".to_string(),
+                port: 443
+            }
+        );
+
+        let qr = check_qr(&ctx.ctx, "https://www.hello.com/hello").await?;
+        assert_eq!(
+            qr,
             Qr::Url {
-                url: "https://www.hello.com".to_string()
+                url: "https://www.hello.com/hello".to_string(),
             }
         );
 
@@ -1523,33 +1577,30 @@ mod tests {
         let qr = check_qr(&t, "https://t.me/socks?server=84.53.239.95&port=4145").await?;
         assert_eq!(
             qr,
-            Qr::Socks5Proxy {
+            Qr::Proxy {
+                url: "socks5://84.53.239.95:4145".to_string(),
                 host: "84.53.239.95".to_string(),
                 port: 4145,
-                user: None,
-                pass: None,
             }
         );
 
         let qr = check_qr(&t, "https://t.me/socks?server=foo.bar&port=123").await?;
         assert_eq!(
             qr,
-            Qr::Socks5Proxy {
+            Qr::Proxy {
+                url: "socks5://foo.bar:123".to_string(),
                 host: "foo.bar".to_string(),
                 port: 123,
-                user: None,
-                pass: None,
             }
         );
 
         let qr = check_qr(&t, "https://t.me/socks?server=foo.baz").await?;
         assert_eq!(
             qr,
-            Qr::Socks5Proxy {
+            Qr::Proxy {
+                url: "socks5://foo.baz:1080".to_string(),
                 host: "foo.baz".to_string(),
                 port: 1080,
-                user: None,
-                pass: None,
             }
         );
 
@@ -1560,11 +1611,10 @@ mod tests {
         .await?;
         assert_eq!(
             qr,
-            Qr::Socks5Proxy {
+            Qr::Proxy {
+                url: "socks5://ada:ms%21%2F%24@foo.baz:12345".to_string(),
                 host: "foo.baz".to_string(),
                 port: 12345,
-                user: Some("ada".to_string()),
-                pass: Some("ms!/$".to_string()),
             }
         );
 
@@ -1612,10 +1662,6 @@ mod tests {
         assert!(res.is_err());
         assert!(ctx.ctx.get_config(Config::WebrtcInstance).await?.is_none());
 
-        let res = set_config_from_qr(&ctx.ctx, "https://no.qr").await;
-        assert!(res.is_err());
-        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await?.is_none());
-
         let res = set_config_from_qr(&ctx.ctx, "dcwebrtc:https://example.org/").await;
         assert!(res.is_ok());
         assert_eq!(
@@ -1635,7 +1681,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_set_socks5_proxy_config_from_qr() -> Result<()> {
+    async fn test_set_proxy_config_from_qr() -> Result<()> {
         let t = TestContext::new().await;
 
         assert_eq!(t.get_config_bool(Config::ProxyEnabled).await?, false);
@@ -1680,6 +1726,57 @@ mod tests {
                 "socks5://foo:666\nsocks5://Da:x%26%25%24X@jau:1080\nsocks5://1.2.3.4:1080"
                     .to_string()
             )
+        );
+
+        set_config_from_qr(
+            &t,
+            "ss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888#Example1",
+        )
+        .await?;
+        assert_eq!(
+            t.get_config(Config::ProxyUrl).await?,
+            Some(
+                "ss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888#Example1\nsocks5://foo:666\nsocks5://Da:x%26%25%24X@jau:1080\nsocks5://1.2.3.4:1080"
+                    .to_string()
+            )
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_shadowsocks() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        let qr = check_qr(
+            &ctx.ctx,
+            "ss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888#Example1",
+        )
+        .await?;
+        assert_eq!(
+            qr,
+            Qr::Proxy {
+                url: "ss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888#Example1".to_string(),
+                host: "192.168.100.1".to_string(),
+                port: 8888,
+            }
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_socks5() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        let qr = check_qr(&ctx.ctx, "socks5://127.0.0.1:9050").await?;
+        assert_eq!(
+            qr,
+            Qr::Proxy {
+                url: "socks5://127.0.0.1:9050".to_string(),
+                host: "127.0.0.1".to_string(),
+                port: 9050,
+            }
         );
 
         Ok(())
