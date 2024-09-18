@@ -117,6 +117,13 @@ pub struct RenderedEmail {
     pub subject: String,
 }
 
+fn new_address_with_name(name: &str, address: String) -> Address {
+    match name == address {
+        true => Address::new_mailbox(address),
+        false => Address::new_mailbox_with_name(name.to_string(), address),
+    }
+}
+
 impl MimeFactory {
     pub async fn from_msg(context: &Context, msg: Message) -> Result<MimeFactory> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
@@ -474,10 +481,7 @@ impl MimeFactory {
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
         let mut headers = Vec::<Header>::new();
 
-        let from = Address::new_mailbox_with_name(
-            self.from_displayname.to_string(),
-            self.from_addr.clone(),
-        );
+        let from = new_address_with_name(&self.from_displayname, self.from_addr.clone());
 
         let undisclosed_recipients = match &self.loaded {
             Loaded::Message { chat, .. } => chat.typ == Chattype::Broadcast,
@@ -512,10 +516,7 @@ impl MimeFactory {
                 if name.is_empty() {
                     to.push(Address::new_mailbox(addr.clone()));
                 } else {
-                    to.push(Address::new_mailbox_with_name(
-                        name.to_string(),
-                        addr.clone(),
-                    ));
+                    to.push(new_address_with_name(name, addr.clone()));
                 }
             }
 
@@ -530,8 +531,7 @@ impl MimeFactory {
         headers.push(from_header.clone());
 
         if let Some(sender_displayname) = &self.sender_displayname {
-            let sender =
-                Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
+            let sender = new_address_with_name(sender_displayname, self.from_addr.clone());
             headers.push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
         }
         headers.push(Header::new_with_value("To".into(), to.clone()).unwrap());
@@ -1676,10 +1676,7 @@ mod tests {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == ' '));
 
-        let s = format!(
-            "{}",
-            Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
-        );
+        let s = format!("{}", new_address_with_name(display_name, addr.to_string()));
 
         println!("{s}");
 
@@ -1696,13 +1693,17 @@ mod tests {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == ' '));
 
-        let s = format!(
-            "{}",
-            Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
-        );
+        let s = format!("{}", new_address_with_name(display_name, addr.to_string()));
 
         // Addresses should not be unnecessarily be encoded, see <https://github.com/deltachat/deltachat-core-rust/issues/1575>:
         assert_eq!(s, "a space <x@y.org>");
+    }
+
+    #[test]
+    fn test_render_email_address_duplicated_as_name() {
+        let addr = "x@y.org";
+        let s = format!("{}", new_address_with_name(addr, addr.to_string()));
+        assert_eq!(s, "<x@y.org>");
     }
 
     #[test]
@@ -2246,7 +2247,7 @@ mod tests {
                 if name.is_empty() {
                     Address::new_mailbox(addr.to_string())
                 } else {
-                    Address::new_mailbox_with_name(name.to_string(), addr.to_string())
+                    new_address_with_name(name, addr.to_string())
                 }
             })
             .collect();
