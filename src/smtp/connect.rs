@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use anyhow::{bail, Context as _, Result};
 use async_smtp::{SmtpClient, SmtpTransport};
-use tokio::io::BufStream;
+use tokio::io::{AsyncBufRead, AsyncWrite, BufStream};
 
 use crate::context::Context;
 use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
@@ -28,6 +28,23 @@ fn alpn(port: u16) -> &'static [&'static str] {
     }
 }
 
+// Constructs a new SMTP transport
+// over a stream with already skipped SMTP greeting.
+async fn new_smtp_transport<S: AsyncBufRead + AsyncWrite + Unpin>(
+    stream: S,
+) -> Result<SmtpTransport<S>> {
+    // We always read the greeting manually to unify
+    // the cases of STARTTLS where the greeting is
+    // sent outside the encrypted channel and implicit TLS
+    // where the greeting is sent after establishing TLS channel.
+    let client = SmtpClient::new().smtp_utf8(true).without_greeting();
+
+    let transport = SmtpTransport::new(client, stream)
+        .await
+        .context("Failed to send EHLO command")?;
+    Ok(transport)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn connect_and_auth(
     context: &Context,
@@ -39,17 +56,17 @@ pub(crate) async fn connect_and_auth(
     user: &str,
     password: &str,
 ) -> Result<SmtpTransport<Box<dyn SessionBufStream>>> {
-    let session_stream =
-        connect_stream(context, proxy_config.clone(), strict_tls, candidate).await?;
-    let client = async_smtp::SmtpClient::new()
-        .smtp_utf8(true)
-        .without_greeting();
-    let mut transport = SmtpTransport::new(client, session_stream).await?;
+    let session_stream = connect_stream(context, proxy_config.clone(), strict_tls, candidate)
+        .await
+        .context("SMTP failed to connect")?;
+    let mut transport = new_smtp_transport(session_stream).await?;
 
     // Authenticate.
     let (creds, mechanism) = if oauth2 {
         // oauth2
-        let access_token = get_oauth2_access_token(context, addr, password, false).await?;
+        let access_token = get_oauth2_access_token(context, addr, password, false)
+            .await
+            .context("SMTP failed to get OAUTH2 access token")?;
         if access_token.is_none() {
             bail!("SMTP OAuth 2 error {}", addr);
         }
@@ -70,7 +87,10 @@ pub(crate) async fn connect_and_auth(
             ],
         )
     };
-    transport.try_login(&creds, &mechanism).await?;
+    transport
+        .try_login(&creds, &mechanism)
+        .await
+        .context("SMTP failed to login")?;
     Ok(transport)
 }
 
@@ -177,16 +197,19 @@ async fn skip_smtp_greeting<R: tokio::io::AsyncBufReadExt + Unpin>(stream: &mut 
     let mut line = String::with_capacity(512);
     loop {
         line.clear();
-        let read = stream.read_line(&mut line).await?;
+        let read = stream
+            .read_line(&mut line)
+            .await
+            .context("Failed to read from stream while waiting for SMTP greeting")?;
         if read == 0 {
-            bail!("Unexpected EOF while reading SMTP greeting.");
+            bail!("Unexpected EOF while reading SMTP greeting");
         }
         if line.starts_with("220-") {
             continue;
         } else if line.starts_with("220 ") {
             return Ok(());
         } else {
-            bail!("Unexpected greeting: {line:?}.");
+            bail!("Unexpected greeting: {line:?}");
         }
     }
 }
@@ -220,8 +243,9 @@ async fn connect_starttls_proxy(
         .await?;
 
     // Run STARTTLS command and convert the client back into a stream.
-    let client = SmtpClient::new().smtp_utf8(true);
-    let transport = SmtpTransport::new(client, BufStream::new(proxy_stream)).await?;
+    let mut buffered_stream = BufStream::new(proxy_stream);
+    skip_smtp_greeting(&mut buffered_stream).await?;
+    let transport = new_smtp_transport(buffered_stream).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
     let tls_stream = wrap_tls(strict_tls, hostname, &[], tcp_stream)
         .await
@@ -264,8 +288,9 @@ async fn connect_starttls(
     let tcp_stream = connect_tcp_inner(addr).await?;
 
     // Run STARTTLS command and convert the client back into a stream.
-    let client = async_smtp::SmtpClient::new().smtp_utf8(true);
-    let transport = async_smtp::SmtpTransport::new(client, BufStream::new(tcp_stream)).await?;
+    let mut buffered_stream = BufStream::new(tcp_stream);
+    skip_smtp_greeting(&mut buffered_stream).await?;
+    let transport = new_smtp_transport(buffered_stream).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
     let tls_stream = wrap_tls(strict_tls, host, &[], tcp_stream)
         .await

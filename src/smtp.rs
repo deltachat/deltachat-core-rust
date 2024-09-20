@@ -142,7 +142,7 @@ impl Smtp {
             {
                 Ok(transport) => transport,
                 Err(err) => {
-                    warn!(context, "SMTP failed to connect: {err:#}.");
+                    warn!(context, "SMTP failed to connect and authenticate: {err:#}.");
                     continue;
                 }
             };
