@@ -6292,11 +6292,10 @@ mod tests {
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let sent_msg = alice.pop_sent_msg().await;
         let msg = sent_msg.payload();
-        assert_eq!(msg.match_indices("Message-ID: <Mr.").count(), 2);
-        assert_eq!(msg.match_indices("References: <Mr.").count(), 1);
-        let msg = msg.replace("Message-ID: <Mr.", "Message-ID: <XXX");
-        assert_eq!(msg.match_indices("Message-ID: <Mr.").count(), 0);
-        assert_eq!(msg.match_indices("References: <Mr.").count(), 1);
+        assert_eq!(msg.match_indices("Message-ID: <").count(), 2);
+        assert_eq!(msg.match_indices("References: <").count(), 1);
+        let msg = msg.replace("Message-ID: <", "Message-ID: <X.X");
+        assert_eq!(msg.match_indices("References: <").count(), 1);
 
         // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
         receive_imf(&bob, msg.as_bytes(), false).await.unwrap();
@@ -6313,7 +6312,7 @@ mod tests {
         send_text_msg(&bob, bob_chat.id, "ho!".to_string()).await?;
         let sent_msg = bob.pop_sent_msg().await;
         let msg = sent_msg.payload();
-        let msg = msg.replace("Message-ID: <Mr.", "Message-ID: <XXX");
+        let msg = msg.replace("Message-ID: <", "Message-ID: <X.X");
         let msg = msg.replace("Chat-", "XXXX-");
         assert_eq!(msg.match_indices("Chat-").count(), 0);
 
