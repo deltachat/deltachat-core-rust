@@ -113,18 +113,6 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     fn from_url(url: Url) -> Result<Self> {
-        ensure!(
-            matches!(url.scheme(), "http" | "https"),
-            "Cannot create HTTP proxy config from non-HTTP URL"
-        );
-        ensure!(
-            url.path() == "/",
-            "HTTP(S) proxy URL should not have a path"
-        );
-        ensure!(
-            url.query().is_none(),
-            "HTTP(S) proxy URL should not have query parameters"
-        );
         let host = url
             .host_str()
             .context("HTTP proxy URL has no host")?
