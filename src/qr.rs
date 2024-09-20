@@ -306,8 +306,20 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
                 port: url.port().unwrap_or(DEFAULT_SOCKS_PORT),
             },
             "http" | "https" => {
-                if (url.path() != "/") | url.query().is_some() {
-                    // URL with a path or query cannot be a proxy URL.
+                // Parsing with a non-standard scheme
+                // is a hack to work around the `url` crate bug
+                // <https://github.com/servo/rust-url/issues/957>.
+                let url = if let Some(rest) = qr.strip_prefix("http://") {
+                    url::Url::parse(&format!("foobarbaz://{rest}"))?
+                } else if let Some(rest) = qr.strip_prefix("https://") {
+                    url::Url::parse(&format!("foobarbaz://{rest}"))?
+                } else {
+                    // Should not happen.
+                    url
+                };
+
+                if url.port().is_none() | (url.path() != "") | url.query().is_some() {
+                    // URL without a port, with a path or query cannot be a proxy URL.
                     Qr::Url {
                         url: qr.to_string(),
                     }
@@ -950,16 +962,33 @@ mod tests {
     async fn test_decode_http() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let qr = check_qr(&ctx.ctx, "http://www.hello.com").await?;
+        let qr = check_qr(&ctx.ctx, "http://www.hello.com:80").await?;
         assert_eq!(
             qr,
             Qr::Proxy {
-                url: "http://www.hello.com".to_string(),
+                url: "http://www.hello.com:80".to_string(),
                 host: "www.hello.com".to_string(),
                 port: 80
             }
         );
 
+        // If it has no explicit port, then it is not a proxy.
+        let qr = check_qr(&ctx.ctx, "http://www.hello.com").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "http://www.hello.com".to_string(),
+            }
+        );
+
+        // If it has a path, then it is not a proxy.
+        let qr = check_qr(&ctx.ctx, "http://www.hello.com/").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "http://www.hello.com/".to_string(),
+            }
+        );
         let qr = check_qr(&ctx.ctx, "http://www.hello.com/hello").await?;
         assert_eq!(
             qr,
@@ -975,16 +1004,33 @@ mod tests {
     async fn test_decode_https() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        let qr = check_qr(&ctx.ctx, "https://www.hello.com").await?;
+        let qr = check_qr(&ctx.ctx, "https://www.hello.com:443").await?;
         assert_eq!(
             qr,
             Qr::Proxy {
-                url: "https://www.hello.com".to_string(),
+                url: "https://www.hello.com:443".to_string(),
                 host: "www.hello.com".to_string(),
                 port: 443
             }
         );
 
+        // If it has no explicit port, then it is not a proxy.
+        let qr = check_qr(&ctx.ctx, "https://www.hello.com").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "https://www.hello.com".to_string(),
+            }
+        );
+
+        // If it has a path, then it is not a proxy.
+        let qr = check_qr(&ctx.ctx, "https://www.hello.com/").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "https://www.hello.com/".to_string(),
+            }
+        );
         let qr = check_qr(&ctx.ctx, "https://www.hello.com/hello").await?;
         assert_eq!(
             qr,
