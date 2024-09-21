@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.144.0] - 2024-09-21
+
+### API-Changes
+
+- [**breaking**] Make QR code type for proxy not specific to SOCKS5 ([#5980](https://github.com/deltachat/deltachat-core-rust/pull/5980)).
+
+  `DC_QR_SOCKS5_PROXY` is replaced with `DC_QR_PROXY`.
+
+### Features / Changes
+
+- Make resending OutPending messages possible ([#5817](https://github.com/deltachat/deltachat-core-rust/pull/5817)).
+- Don't SMTP-send messages to self-chat if BccSelf is disabled.
+- HTTP(S) tunneling.
+- Don't put displayname into From/To/Sender if it equals to address ([#5983](https://github.com/deltachat/deltachat-core-rust/pull/5983)).
+- Use IMAP APPEND command to upload sync messages ([#5845](https://github.com/deltachat/deltachat-core-rust/pull/5845)).
+- Generate 144-bit group IDs.
+- smtp: More verbose SMTP connection establishment errors.
+- Log unexpected message state when resending fails.
+
+### Fixes
+
+- Save QR code token regardless of whether the group exists ([#5954](https://github.com/deltachat/deltachat-core-rust/pull/5954)).
+- Shorten message text in locally sent messages too ([#2281](https://github.com/deltachat/deltachat-core-rust/pull/2281)).
+
+### Documentation
+
+- CONTRIBUTING.md: Document how to format SQL statements.
+
+### Miscellaneous Tasks
+
+- Update provider database.
+- cargo: Update iroh to 0.25.
+- cargo: Update lazy_static to 1.5.0.
+- deps: Bump async-imap from 0.10.0 to 0.10.1.
+
+### Refactor
+
+- Do not store deprecated `addr` and `is_default` into `keypairs`.
+- Remove `addr` from KeyPair.
+- Use `KeyPair::new()` in `create_keypair()`.
+
 ## [1.143.0] - 2024-09-12
 
 ### Features / Changes
@@ -4856,3 +4897,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.11]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.10..v1.142.11
 [1.142.12]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.11..v1.142.12
 [1.143.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.12..v1.143.0
+[1.144.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.143.0..v1.144.0
