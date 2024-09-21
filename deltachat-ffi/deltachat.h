@@ -2501,7 +2501,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_BACKUP                 251
 #define         DC_QR_BACKUP2                252
 #define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain, text2=instance pattern
-#define         DC_QR_SOCKS5_PROXY           270 // text1=host, text2=port
+#define         DC_QR_PROXY                  271 // text1=address (e.g. "127.0.0.1:9050")
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL

@@ -34,44 +34,41 @@ pub enum Meaning {
 }
 
 impl Lot {
-    pub fn get_text1(&self) -> Option<&str> {
+    pub fn get_text1(&self) -> Option<Cow<str>> {
         match self {
             Self::Summary(summary) => match &summary.prefix {
                 None => None,
-                Some(SummaryPrefix::Draft(text)) => Some(text),
-                Some(SummaryPrefix::Username(username)) => Some(username),
-                Some(SummaryPrefix::Me(text)) => Some(text),
+                Some(SummaryPrefix::Draft(text)) => Some(Cow::Borrowed(text)),
+                Some(SummaryPrefix::Username(username)) => Some(Cow::Borrowed(username)),
+                Some(SummaryPrefix::Me(text)) => Some(Cow::Borrowed(text)),
             },
             Self::Qr(qr) => match qr {
                 Qr::AskVerifyContact { .. } => None,
-                Qr::AskVerifyGroup { grpname, .. } => Some(grpname),
+                Qr::AskVerifyGroup { grpname, .. } => Some(Cow::Borrowed(grpname)),
                 Qr::FprOk { .. } => None,
                 Qr::FprMismatch { .. } => None,
-                Qr::FprWithoutAddr { fingerprint, .. } => Some(fingerprint),
-                Qr::Account { domain } => Some(domain),
+                Qr::FprWithoutAddr { fingerprint, .. } => Some(Cow::Borrowed(fingerprint)),
+                Qr::Account { domain } => Some(Cow::Borrowed(domain)),
                 Qr::Backup2 { .. } => None,
-                Qr::WebrtcInstance { domain, .. } => Some(domain),
-                Qr::Socks5Proxy { host, .. } => Some(host),
-                Qr::Addr { draft, .. } => draft.as_deref(),
-                Qr::Url { url } => Some(url),
-                Qr::Text { text } => Some(text),
+                Qr::WebrtcInstance { domain, .. } => Some(Cow::Borrowed(domain)),
+                Qr::Proxy { host, port, .. } => Some(Cow::Owned(format!("{host}:{port}"))),
+                Qr::Addr { draft, .. } => draft.as_deref().map(Cow::Borrowed),
+                Qr::Url { url } => Some(Cow::Borrowed(url)),
+                Qr::Text { text } => Some(Cow::Borrowed(text)),
                 Qr::WithdrawVerifyContact { .. } => None,
-                Qr::WithdrawVerifyGroup { grpname, .. } => Some(grpname),
+                Qr::WithdrawVerifyGroup { grpname, .. } => Some(Cow::Borrowed(grpname)),
                 Qr::ReviveVerifyContact { .. } => None,
-                Qr::ReviveVerifyGroup { grpname, .. } => Some(grpname),
-                Qr::Login { address, .. } => Some(address),
+                Qr::ReviveVerifyGroup { grpname, .. } => Some(Cow::Borrowed(grpname)),
+                Qr::Login { address, .. } => Some(Cow::Borrowed(address)),
             },
-            Self::Error(err) => Some(err),
+            Self::Error(err) => Some(Cow::Borrowed(err)),
         }
     }
 
     pub fn get_text2(&self) -> Option<Cow<str>> {
         match self {
             Self::Summary(summary) => Some(summary.truncated_text(160)),
-            Self::Qr(qr) => match qr {
-                Qr::Socks5Proxy { port, .. } => Some(Cow::Owned(format!("{port}"))),
-                _ => None,
-            },
+            Self::Qr(_) => None,
             Self::Error(_) => None,
         }
     }
@@ -107,7 +104,7 @@ impl Lot {
                 Qr::Account { .. } => LotState::QrAccount,
                 Qr::Backup2 { .. } => LotState::QrBackup2,
                 Qr::WebrtcInstance { .. } => LotState::QrWebrtcInstance,
-                Qr::Socks5Proxy { .. } => LotState::QrSocks5Proxy,
+                Qr::Proxy { .. } => LotState::QrProxy,
                 Qr::Addr { .. } => LotState::QrAddr,
                 Qr::Url { .. } => LotState::QrUrl,
                 Qr::Text { .. } => LotState::QrText,
@@ -133,7 +130,7 @@ impl Lot {
                 Qr::Account { .. } => Default::default(),
                 Qr::Backup2 { .. } => Default::default(),
                 Qr::WebrtcInstance { .. } => Default::default(),
-                Qr::Socks5Proxy { .. } => Default::default(),
+                Qr::Proxy { .. } => Default::default(),
                 Qr::Addr { contact_id, .. } => contact_id.to_u32(),
                 Qr::Url { .. } => Default::default(),
                 Qr::Text { .. } => Default::default(),
@@ -188,8 +185,8 @@ pub enum LotState {
     /// text1=domain, text2=instance pattern
     QrWebrtcInstance = 260,
 
-    /// text1=host, text2=port
-    QrSocks5Proxy = 270,
+    /// text1=address, text2=protocol
+    QrProxy = 271,
 
     /// id=contact
     QrAddr = 320,

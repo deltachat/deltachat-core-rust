@@ -41,11 +41,10 @@ pub enum QrObject {
         domain: String,
         instance_pattern: String,
     },
-    Socks5Proxy {
+    Proxy {
+        url: String,
         host: String,
         port: u16,
-        user: Option<String>,
-        pass: Option<String>,
     },
     Addr {
         contact_id: u32,
@@ -152,17 +151,7 @@ impl From<Qr> for QrObject {
                 domain,
                 instance_pattern,
             },
-            Qr::Socks5Proxy {
-                host,
-                port,
-                user,
-                pass,
-            } => QrObject::Socks5Proxy {
-                host,
-                port,
-                user,
-                pass,
-            },
+            Qr::Proxy { url, host, port } => QrObject::Proxy { url, host, port },
             Qr::Addr { contact_id, draft } => {
                 let contact_id = contact_id.to_u32();
                 QrObject::Addr { contact_id, draft }

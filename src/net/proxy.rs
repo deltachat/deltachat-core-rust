@@ -5,7 +5,7 @@
 use std::fmt;
 use std::pin::Pin;
 
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
 use base64::Engine;
 use bytes::{BufMut, BytesMut};
 use fast_socks5::client::Socks5Stream;
@@ -113,10 +113,6 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     fn from_url(url: Url) -> Result<Self> {
-        ensure!(
-            matches!(url.scheme(), "http" | "https"),
-            "Cannot create HTTP proxy config from non-HTTP URL"
-        );
         let host = url
             .host_str()
             .context("HTTP proxy URL has no host")?
