@@ -1,4 +1,5 @@
 //! TLS support.
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_native_tls::{Certificate, Protocol, TlsConnector, TlsStream};
@@ -46,7 +47,7 @@ pub async fn wrap_rustls<T: AsyncRead + AsyncWrite + Unpin>(
     let mut config = rustls::ClientConfig::builder()
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
-    config.alpn_protocols = alpn.into_iter().map(|s| s.as_bytes().to_vec()).collect();
+    config.alpn_protocols = alpn.iter().map(|s| s.as_bytes().to_vec()).collect();
 
     let tls = tokio_rustls::TlsConnector::from(Arc::new(config));
     let name = rustls_pki_types::ServerName::try_from(hostname)?.to_owned();

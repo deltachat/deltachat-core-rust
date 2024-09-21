@@ -20,8 +20,9 @@ use url::Url;
 
 use crate::config::Config;
 use crate::context::Context;
+use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
-use crate::net::{connect_tcp, wrap_tls};
+use crate::net::tls::wrap_rustls;
 use crate::sql::Sql;
 
 /// Default SOCKS5 port according to [RFC 1928](https://tools.ietf.org/html/rfc1928).
@@ -375,7 +376,6 @@ impl ProxyConfig {
             }
             ProxyConfig::Https(https_config) => {
                 let load_cache = true;
-                let strict_tls = true;
                 let tcp_stream = crate::net::connect_tcp(
                     context,
                     &https_config.host,
@@ -383,7 +383,7 @@ impl ProxyConfig {
                     load_cache,
                 )
                 .await?;
-                let tls_stream = wrap_tls(strict_tls, &https_config.host, &[], tcp_stream).await?;
+                let tls_stream = wrap_rustls(&https_config.host, &[], tcp_stream).await?;
                 let auth = if let Some((username, password)) = &https_config.user_password {
                     Some((username.as_str(), password.as_str()))
                 } else {

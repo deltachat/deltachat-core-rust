@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::context::Context;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
-use crate::net::tls::wrap_tls;
+use crate::net::tls::wrap_rustls;
 
 /// HTTP(S) GET response.
 #[derive(Debug)]
@@ -67,17 +67,16 @@ where
         "https" => {
             let port = parsed_url.port_u16().unwrap_or(443);
             let load_cache = true;
-            let strict_tls = true;
 
             if let Some(proxy_config) = proxy_config_opt {
                 let proxy_stream = proxy_config
                     .connect(context, host, port, load_cache)
                     .await?;
-                let tls_stream = wrap_tls(strict_tls, host, &[], proxy_stream).await?;
+                let tls_stream = wrap_rustls(host, &[], proxy_stream).await?;
                 Box::new(tls_stream)
             } else {
                 let tcp_stream = crate::net::connect_tcp(context, host, port, load_cache).await?;
-                let tls_stream = wrap_tls(strict_tls, host, &[], tcp_stream).await?;
+                let tls_stream = wrap_rustls(host, &[], tcp_stream).await?;
                 Box::new(tls_stream)
             }
         }
