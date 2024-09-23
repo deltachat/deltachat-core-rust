@@ -41,7 +41,7 @@ ratelimit = { path = "./deltachat-ratelimit" }
 anyhow = { workspace = true }
 async-broadcast = "0.7.1"
 async-channel = { workspace = true }
-async-imap = { version = "0.10.1", default-features = false, features = ["runtime-tokio"] }
+async-imap = { git = "https://github.com/async-email/async-imap.git", default-features = false, features = ["runtime-tokio", "compress"], branch = "link2xt/imap-compress" }
 async-native-tls = { version = "0.5", default-features = false, features = ["runtime-tokio"] }
 async-smtp = { version = "0.9", default-features = false, features = ["runtime-tokio"] }
 async_zip = { version = "0.0.17", default-features = false, features = ["deflate", "tokio-fs"] }
