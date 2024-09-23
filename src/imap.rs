@@ -39,6 +39,7 @@ use crate::login_param::{
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::net::proxy::ProxyConfig;
+use crate::net::session::SessionStream;
 use crate::oauth2::get_oauth2_access_token;
 use crate::receive_imf::{
     from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
@@ -55,7 +56,7 @@ pub mod scan_folders;
 pub mod select_folder;
 pub(crate) mod session;
 
-use client::Client;
+use client::{determine_capabilities, Client};
 use mailparse::SingleInfo;
 use session::Session;
 
@@ -376,7 +377,23 @@ impl Imap {
             };
 
             match login_res {
-                Ok(session) => {
+                Ok(mut session) => {
+                    let capabilities = determine_capabilities(&mut session).await?;
+
+                    let session = if capabilities.can_compress {
+                        info!(context, "Enabling IMAP compression.");
+                        let compressed_session = session
+                            .compress(|s| {
+                                let session_stream: Box<dyn SessionStream> = Box::new(s);
+                                session_stream
+                            })
+                            .await
+                            .context("Failed to enable IMAP compression")?;
+                        Session::new(compressed_session, capabilities)
+                    } else {
+                        Session::new(session, capabilities)
+                    };
+
                     // Store server ID in the context to display in account info.
                     let mut lock = context.server_id.write().await;
                     lock.clone_from(&session.capabilities.server_id);
