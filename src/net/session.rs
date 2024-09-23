@@ -53,6 +53,11 @@ impl<T: SessionStream> SessionStream for shadowsocks::ProxyClientStream<T> {
         self.get_mut().set_read_timeout(timeout)
     }
 }
+impl<T: SessionStream> SessionStream for async_imap::DeflateStream<T> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.get_mut().set_read_timeout(timeout)
+    }
+}
 
 /// Session stream with a read buffer.
 pub(crate) trait SessionBufStream: SessionStream + AsyncBufRead {}

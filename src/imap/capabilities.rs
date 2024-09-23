@@ -25,6 +25,10 @@ pub(crate) struct Capabilities {
     /// <https://tools.ietf.org/html/rfc5464>
     pub can_metadata: bool,
 
+    /// True if the server has COMPRESS=DEFLATE capability as defined in
+    /// <https://tools.ietf.org/html/rfc4978>
+    pub can_compress: bool,
+
     /// True if the server supports XDELTAPUSH capability.
     /// This capability means setting /private/devicetoken IMAP METADATA
     /// on the INBOX results in new mail notifications
