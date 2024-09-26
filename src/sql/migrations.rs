@@ -1005,6 +1005,29 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 120)?;
+    if dbversion < migration_version {
+        // Core 1.143.0 changed the default for `delete_server_after`
+        // to delete immediately (`1`) for chatmail accounts that don't have multidevice
+        // and updating to `0` when backup is exported.
+        //
+        // Since we don't know if existing configurations
+        // are multidevice, we set `delete_server_after` for them
+        // to the old default of `0`, so only new configurations are
+        // affected by the default change.
+        //
+        // `INSERT OR IGNORE` works
+        // because `keyname` was made UNIQUE in migration 106.
+        sql.execute_migration(
+            "INSERT OR IGNORE INTO config (keyname, value)
+             SELECT 'delete_server_after', '0'
+             FROM config WHERE keyname='configured'
+            ",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
