@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.145.0] - 2024-09-26
+
+### Fixes
+
+- Avoid changing `delete_server_after` default for existing configurations.
+
+### Miscellaneous Tasks
+
+- Sort dependency list.
+
+### Refactor
+
+- Do not wrap shadowsocks::ProxyClientStream.
+
 ## [1.144.0] - 2024-09-21
 
 ### API-Changes
@@ -4898,3 +4912,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.142.12]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.11..v1.142.12
 [1.143.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.12..v1.143.0
 [1.144.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.143.0..v1.144.0
+[1.145.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.144.0..v1.145.0
