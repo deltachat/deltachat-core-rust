@@ -857,6 +857,8 @@ impl Context {
     ///
     /// This should only be used by test code and during configure.
     pub(crate) async fn set_primary_self_addr(&self, primary_new: &str) -> Result<()> {
+        self.quota.write().await.take();
+
         // add old primary address (if exists) to secondary addresses
         let mut secondary_addrs = self.get_all_self_addrs().await?;
         // never store a primary address also as a secondary
@@ -869,7 +871,7 @@ impl Context {
 
         self.set_config_internal(Config::ConfiguredAddr, Some(primary_new))
             .await?;
-
+        self.emit_event(EventType::ConnectivityChanged);
         Ok(())
     }
 
