@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_quota_needs_update() {
+    async fn test_quota_needs_update() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let t = &tcm.unconfigured().await;
         const TIMEOUT: u64 = 60;
@@ -214,5 +214,14 @@ mod tests {
             modified: tools::Time::now(),
         });
         assert!(!t.quota_needs_update(TIMEOUT).await);
+
+        t.evtracker.clear_events();
+        t.set_primary_self_addr("new@addr").await?;
+        assert!(t.quota.read().await.is_none());
+        t.evtracker
+            .get_matching(|evt| matches!(evt, EventType::ConnectivityChanged))
+            .await;
+        assert!(t.quota_needs_update(TIMEOUT).await);
+        Ok(())
     }
 }
