@@ -539,7 +539,7 @@ async fn decode_ideltachat(context: &Context, prefix: &str, qr: &str) -> Result<
     let qr = qr.replacen('&', "#", 1);
     decode_openpgp(context, &qr)
         .await
-        .context("failed to decode {prefix} QR code")
+        .context(format!("failed to decode {prefix} QR code"))
 }
 
 /// scheme: `DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3`
