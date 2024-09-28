@@ -2584,6 +2584,43 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_markseen_not_downloaded_msg() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        alice.set_config(Config::DownloadLimit, Some("1")).await?;
+        let bob = &tcm.bob().await;
+        let bob_chat_id = tcm.send_recv_accept(alice, bob, "hi").await.chat_id;
+
+        let file_bytes = include_bytes!("../test-data/image/screenshot.png");
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)
+            .await?;
+        let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
+        let msg = alice.recv_msg(&sent_msg).await;
+        assert_eq!(msg.download_state, DownloadState::Available);
+        assert!(!msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
+        assert_eq!(msg.state, MessageState::InFresh);
+        markseen_msgs(alice, vec![msg.id]).await?;
+        let msg = Message::load_from_db(alice, msg.id).await?;
+        assert_eq!(msg.state, MessageState::InSeen);
+        assert!(
+            !alice
+                .sql
+                .exists("SELECT COUNT(*) FROM smtp_mdns", ())
+                .await?
+        );
+
+        alice.set_config(Config::DownloadLimit, None).await?;
+        let msg = alice.recv_msg(&sent_msg).await;
+        assert_eq!(msg.download_state, DownloadState::Done);
+        assert!(msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
+        assert!(msg.get_showpadlock());
+        assert_eq!(msg.state, MessageState::InSeen);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_state() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
