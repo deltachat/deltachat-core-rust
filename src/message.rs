@@ -2618,12 +2618,29 @@ mod tests {
         );
 
         alice.set_config(Config::DownloadLimit, None).await?;
-        let msg = alice.recv_msg(&sent_msg).await;
+        // Simulate that the message is even marked as `\Seen` on IMAP.
+        let rcvd_msg = receive_imf(alice, sent_msg.payload().as_bytes(), true)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(rcvd_msg.chat_id, msg.chat_id);
+        let msg = Message::load_from_db(alice, *rcvd_msg.msg_ids.last().unwrap())
+            .await
+            .unwrap();
         assert_eq!(msg.download_state, DownloadState::Done);
         assert!(msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
         assert!(msg.get_showpadlock());
+        assert_eq!(msg.state, MessageState::InNoticed);
+        markseen_msgs(alice, vec![msg.id]).await?;
+        let msg = Message::load_from_db(alice, msg.id).await?;
         assert_eq!(msg.state, MessageState::InSeen);
-
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM smtp_mdns", ())
+                .await?,
+            1
+        );
         Ok(())
     }
 
