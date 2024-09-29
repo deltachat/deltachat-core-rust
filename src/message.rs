@@ -2609,8 +2609,17 @@ mod tests {
         assert_eq!(msg.download_state, DownloadState::Done);
         assert!(msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
         assert!(msg.get_showpadlock());
+        assert_eq!(msg.state, MessageState::InNoticed);
+        markseen_msgs(alice, vec![msg.id]).await?;
+        let msg = Message::load_from_db(alice, msg.id).await?;
         assert_eq!(msg.state, MessageState::InSeen);
-
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM smtp_mdns", ())
+                .await?,
+            1
+        );
         Ok(())
     }
 
