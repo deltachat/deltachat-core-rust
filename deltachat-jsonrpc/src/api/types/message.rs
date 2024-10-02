@@ -640,7 +640,7 @@ pub struct MessageInfo {
     error: Option<String>,
     rfc724_mid: String,
     server_urls: Vec<String>,
-    hop_info: Option<String>,
+    hop_info: String,
 }
 
 impl MessageInfo {

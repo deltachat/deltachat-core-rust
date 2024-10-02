@@ -558,15 +558,13 @@ impl Sql {
         self.call(move |conn| match conn.query_row(sql.as_ref(), params, f) {
             Ok(res) => Ok(Some(res)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null)) => Ok(None),
             Err(err) => Err(err.into()),
         })
         .await
     }
 
     /// Executes a query which is expected to return one row and one
-    /// column. If the query does not return a value or returns SQL
-    /// `NULL`, returns `Ok(None)`.
+    /// column. If the query does not return any rows, returns `Ok(None)`.
     pub async fn query_get_value<T>(
         &self,
         query: &str,
