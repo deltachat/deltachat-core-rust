@@ -3416,65 +3416,6 @@ pub async fn get_chat_media(
     Ok(list)
 }
 
-/// Indicates the direction over which to iterate.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[repr(i32)]
-pub enum Direction {
-    /// Search forward.
-    Forward = 1,
-
-    /// Search backward.
-    Backward = -1,
-}
-
-/// Searches next/previous message based on the given message and list of types.
-///
-/// Deprecated since 2023-10-03.
-#[deprecated(note = "use `get_chat_media` instead")]
-pub async fn get_next_media(
-    context: &Context,
-    curr_msg_id: MsgId,
-    direction: Direction,
-    msg_type: Viewtype,
-    msg_type2: Viewtype,
-    msg_type3: Viewtype,
-) -> Result<Option<MsgId>> {
-    let mut ret: Option<MsgId> = None;
-
-    if let Ok(msg) = Message::load_from_db(context, curr_msg_id).await {
-        let list: Vec<MsgId> = get_chat_media(
-            context,
-            Some(msg.chat_id),
-            if msg_type != Viewtype::Unknown {
-                msg_type
-            } else {
-                msg.viewtype
-            },
-            msg_type2,
-            msg_type3,
-        )
-        .await?;
-        for (i, msg_id) in list.iter().enumerate() {
-            if curr_msg_id == *msg_id {
-                match direction {
-                    Direction::Forward => {
-                        if i + 1 < list.len() {
-                            ret = list.get(i + 1).copied();
-                        }
-                    }
-                    Direction::Backward => {
-                        if i >= 1 {
-                            ret = list.get(i - 1).copied();
-                        }
-                    }
-                }
-                break;
-            }
-        }
-    }
-    Ok(ret)
-}
-
 /// Returns a vector of contact IDs for given chat ID.
 pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<ContactId>> {
     // Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a

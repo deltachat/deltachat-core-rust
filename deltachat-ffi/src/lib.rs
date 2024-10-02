@@ -1444,48 +1444,6 @@ pub unsafe extern "C" fn dc_get_chat_media(
 }
 
 #[no_mangle]
-#[allow(deprecated)]
-pub unsafe extern "C" fn dc_get_next_media(
-    context: *mut dc_context_t,
-    msg_id: u32,
-    dir: libc::c_int,
-    msg_type: libc::c_int,
-    or_msg_type2: libc::c_int,
-    or_msg_type3: libc::c_int,
-) -> u32 {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_get_next_media()");
-        return 0;
-    }
-    let direction = if dir < 0 {
-        chat::Direction::Backward
-    } else {
-        chat::Direction::Forward
-    };
-
-    let ctx = &*context;
-    let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {msg_type}"));
-    let or_msg_type2 =
-        from_prim(or_msg_type2).expect(&format!("incorrect or_msg_type2 = {or_msg_type2}"));
-    let or_msg_type3 =
-        from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {or_msg_type3}"));
-
-    block_on(async move {
-        chat::get_next_media(
-            ctx,
-            MsgId::new(msg_id),
-            direction,
-            msg_type,
-            or_msg_type2,
-            or_msg_type3,
-        )
-        .await
-        .map(|msg_id| msg_id.map(|id| id.to_u32()).unwrap_or_default())
-        .unwrap_or(0)
-    })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_set_chat_visibility(
     context: *mut dc_context_t,
     chat_id: u32,

@@ -475,47 +475,6 @@ export class Context extends EventEmitter {
     return binding.dcn_get_msg_html(this.dcn_context, Number(messageId))
   }
 
-  getNextMediaMessage(
-    messageId: number,
-    msgType1: number,
-    msgType2: number,
-    msgType3: number
-  ) {
-    debug(
-      `getNextMediaMessage ${messageId} ${msgType1} ${msgType2} ${msgType3}`
-    )
-    return this._getNextMedia(messageId, 1, msgType1, msgType2, msgType3)
-  }
-
-  getPreviousMediaMessage(
-    messageId: number,
-    msgType1: number,
-    msgType2: number,
-    msgType3: number
-  ) {
-    debug(
-      `getPreviousMediaMessage ${messageId} ${msgType1} ${msgType2} ${msgType3}`
-    )
-    return this._getNextMedia(messageId, -1, msgType1, msgType2, msgType3)
-  }
-
-  _getNextMedia(
-    messageId: number,
-    dir: number,
-    msgType1: number,
-    msgType2: number,
-    msgType3: number
-  ): number {
-    return binding.dcn_get_next_media(
-      this.dcn_context,
-      Number(messageId),
-      dir,
-      msgType1 || 0,
-      msgType2 || 0,
-      msgType3 || 0
-    )
-  }
-
   getSecurejoinQrCode(chatId: number): string {
     debug(`getSecurejoinQrCode ${chatId}`)
     return binding.dcn_get_securejoin_qr(this.dcn_context, Number(chatId))

@@ -1053,27 +1053,6 @@ NAPI_METHOD(dcn_get_msg_html) {
   NAPI_RETURN_AND_UNREF_STRING(msg_html);
 }
 
-NAPI_METHOD(dcn_get_next_media) {
-  NAPI_ARGV(6);
-  NAPI_DCN_CONTEXT();
-  NAPI_ARGV_UINT32(msg_id, 1);
-  NAPI_ARGV_INT32(dir, 2);
-  NAPI_ARGV_INT32(msg_type1, 3);
-  NAPI_ARGV_INT32(msg_type2, 4);
-  NAPI_ARGV_INT32(msg_type3, 5);
-
-  //TRACE("calling..");
-  uint32_t next_id = dc_get_next_media(dcn_context->dc_context,
-                                       msg_id,
-                                       dir,
-                                       msg_type1,
-                                       msg_type2,
-                                       msg_type3);
-  //TRACE("result %d", next_id);
-
-  NAPI_RETURN_UINT32(next_id);
-}
-
 NAPI_METHOD(dcn_set_chat_visibility) {
   NAPI_ARGV(3);
   NAPI_DCN_CONTEXT();
@@ -3443,7 +3422,6 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(dcn_get_msg_cnt);
   NAPI_EXPORT_FUNCTION(dcn_get_msg_info);
   NAPI_EXPORT_FUNCTION(dcn_get_msg_html);
-  NAPI_EXPORT_FUNCTION(dcn_get_next_media);
   NAPI_EXPORT_FUNCTION(dcn_set_chat_visibility);
   NAPI_EXPORT_FUNCTION(dcn_get_securejoin_qr);
   NAPI_EXPORT_FUNCTION(dcn_get_securejoin_qr_svg);
