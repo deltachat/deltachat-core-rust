@@ -1042,7 +1042,13 @@ impl ChatId {
     pub(crate) async fn get_timestamp(self, context: &Context) -> Result<Option<i64>> {
         let timestamp = context
             .sql
-            .query_get_value("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?", (self,))
+            .query_get_value(
+                "SELECT MAX(timestamp)
+                 FROM msgs
+                 WHERE chat_id=?
+                 HAVING COUNT(*) > 0",
+                (self,),
+            )
             .await?;
         Ok(timestamp)
     }
@@ -1251,7 +1257,7 @@ impl ChatId {
     ) -> Result<Option<(String, String, String)>> {
         self.parent_query(
             context,
-            "rfc724_mid, mime_in_reply_to, mime_references",
+            "rfc724_mid, mime_in_reply_to, IFNULL(mime_references, '')",
             state_out_min,
             |row: &rusqlite::Row| {
                 let rfc724_mid: String = row.get(0)?;
@@ -1405,7 +1411,10 @@ impl ChatId {
             context
                 .sql
                 .query_get_value(
-                    "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state!=?",
+                    "SELECT MAX(timestamp)
+                     FROM msgs
+                     WHERE chat_id=? AND state!=?
+                     HAVING COUNT(*) > 0",
                     (self, MessageState::OutDraft),
                 )
                 .await?
@@ -1421,7 +1430,10 @@ impl ChatId {
             context
                 .sql
                 .query_get_value(
-                    "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND hidden=0 AND state>?",
+                    "SELECT MAX(timestamp)
+                     FROM msgs
+                     WHERE chat_id=? AND hidden=0 AND state>?
+                     HAVING COUNT(*) > 0",
                     (self, MessageState::InFresh),
                 )
                 .await?
@@ -4345,7 +4357,10 @@ pub async fn add_device_msg_with_importance(
         if let Some(last_msg_time) = context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                "SELECT MAX(timestamp)
+                 FROM msgs
+                 WHERE chat_id=?
+                 HAVING COUNT(*) > 0",
                 (chat_id,),
             )
             .await?

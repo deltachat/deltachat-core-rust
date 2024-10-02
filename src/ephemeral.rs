@@ -69,7 +69,7 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context as _, Result};
 use async_channel::Receiver;
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
@@ -176,9 +176,13 @@ impl ChatId {
     pub async fn get_ephemeral_timer(self, context: &Context) -> Result<Timer> {
         let timer = context
             .sql
-            .query_get_value("SELECT ephemeral_timer FROM chats WHERE id=?;", (self,))
-            .await?;
-        Ok(timer.unwrap_or_default())
+            .query_get_value(
+                "SELECT IFNULL(ephemeral_timer, 0) FROM chats WHERE id=?",
+                (self,),
+            )
+            .await?
+            .with_context(|| format!("Chat {self} not found"))?;
+        Ok(timer)
     }
 
     /// Set ephemeral timer value without sending a message.
@@ -509,7 +513,8 @@ async fn next_delete_device_after_timestamp(context: &Context) -> Result<Option<
                 FROM msgs
                 WHERE chat_id > ?
                   AND chat_id != ?
-                  AND chat_id != ?;
+                  AND chat_id != ?
+                HAVING count(*) > 0
                 "#,
                 (DC_CHAT_ID_TRASH, self_chat_id, device_chat_id),
             )
@@ -533,7 +538,8 @@ async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
             SELECT min(ephemeral_timestamp)
             FROM msgs
             WHERE ephemeral_timestamp != 0
-              AND chat_id != ?;
+              AND chat_id != ?
+            HAVING count(*) > 0
             "#,
             (DC_CHAT_ID_TRASH,), // Trash contains already deleted messages, skip them
         )
@@ -1407,6 +1413,16 @@ mod tests {
             let locations = location::get_range(account, None, None, 0, 0).await?;
             assert_eq!(locations.len(), 0);
         }
+
+        Ok(())
+    }
+
+    /// Tests that `.get_ephemeral_timer()` returns an error for invalid chat ID.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_ephemeral_timer_wrong_chat_id() -> Result<()> {
+        let context = TestContext::new().await;
+        let chat_id = ChatId::new(12345);
+        assert!(chat_id.get_ephemeral_timer(&context).await.is_err());
 
         Ok(())
     }

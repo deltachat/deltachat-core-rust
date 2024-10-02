@@ -219,11 +219,13 @@ impl MsgId {
     }
 
     /// Returns information about hops of a message, used for message info
-    pub async fn hop_info(self, context: &Context) -> Result<Option<String>> {
-        context
+    pub async fn hop_info(self, context: &Context) -> Result<String> {
+        let hop_info = context
             .sql
-            .query_get_value("SELECT hop_info FROM msgs WHERE id=?", (self,))
-            .await
+            .query_get_value("SELECT IFNULL(hop_info, '') FROM msgs WHERE id=?", (self,))
+            .await?
+            .with_context(|| format!("Message {self} not found"))?;
+        Ok(hop_info)
     }
 
     /// Returns detailed message information in a multi-line text form.
@@ -366,7 +368,11 @@ impl MsgId {
         let hop_info = self.hop_info(context).await?;
 
         ret += "\n\n";
-        ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
+        if hop_info.is_empty() {
+            ret += "No Hop Info";
+        } else {
+            ret += &hop_info;
+        }
 
         Ok(ret)
     }
@@ -1998,7 +2004,9 @@ pub(crate) async fn rfc724_mid_exists_ex(
         .query_row_optional(
             &("SELECT id, timestamp_sent, MIN(".to_string()
                 + expr
-                + ") FROM msgs WHERE rfc724_mid=? ORDER BY timestamp_sent DESC"),
+                + ") FROM msgs WHERE rfc724_mid=?
+              HAVING COUNT(*) > 0 -- Prevent MIN(expr) from returning NULL when there are no rows.
+              ORDER BY timestamp_sent DESC"),
             (rfc724_mid,),
             |row| {
                 let msg_id: MsgId = row.get(0)?;

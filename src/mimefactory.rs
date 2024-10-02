@@ -201,7 +201,8 @@ impl MimeFactory {
         let (in_reply_to, references) = context
             .sql
             .query_row(
-                "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
+                "SELECT mime_in_reply_to, IFNULL(mime_references, '')
+                 FROM msgs WHERE id=?",
                 (msg.id,),
                 |row| {
                     let in_reply_to: String = row.get(0)?;
