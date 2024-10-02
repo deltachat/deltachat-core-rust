@@ -1548,30 +1548,6 @@ dc_array_t*     dc_get_chat_media            (dc_context_t* context, uint32_t ch
 
 
 /**
- * Search next/previous message based on a given message and a list of types.
- * Typically used to implement the "next" and "previous" buttons
- * in a gallery or in a media player.
- *
- * @deprecated Deprecated 2023-10-03, use dc_get_chat_media() and navigate the returned array instead.
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @param msg_id The ID of the current message from which the next or previous message should be searched.
- * @param dir 1=get the next message, -1=get the previous one.
- * @param msg_type The message type to search for.
- *     If 0, the message type from curr_msg_id is used.
- * @param msg_type2 Alternative message type to search for. 0 to skip.
- * @param msg_type3 Alternative message type to search for. 0 to skip.
- * @return Returns the message ID that should be played next.
- *     The returned message is in the same chat as the given one
- *     and has one of the given types.
- *     Typically, this result is passed again to dc_get_next_media()
- *     later on the next swipe.
- *     If there is not next/previous message, the function returns 0.
- */
-uint32_t        dc_get_next_media            (dc_context_t* context, uint32_t msg_id, int dir, int msg_type, int msg_type2, int msg_type3);
-
-
-/**
  * Set chat visibility to pinned, archived or normal.
  *
  * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED
