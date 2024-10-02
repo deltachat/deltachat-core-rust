@@ -849,8 +849,16 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
     info!(context, "{} files in use.", files_in_use.len());
     /* go through directories and delete unused files */
     let blobdir = context.get_blobdir();
-    for p in [&blobdir.join(BLOBS_BACKUP_NAME), blobdir] {
-        match tokio::fs::read_dir(p).await {
+    let blobs_backup_dir = blobdir.join(BLOBS_BACKUP_NAME);
+    let mut dirs = vec![];
+    for d in [blobdir, blobs_backup_dir.as_path()] {
+        dirs.push((d.to_path_buf(), false));
+        dirs.push((d.to_path_buf(), true));
+    }
+    while let Some((p, add_dirs)) = dirs.pop() {
+        let check_files_use =
+            p == blobdir || (p.parent() == Some(blobdir) && p != blobs_backup_dir);
+        match tokio::fs::read_dir(&p).await {
             Ok(mut dir_handle) => {
                 /* avoid deletion of files that are just created to build a message object */
                 let diff = std::time::Duration::from_secs(60 * 60);
@@ -859,10 +867,17 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                     .unwrap_or(SystemTime::UNIX_EPOCH);
 
                 while let Ok(Some(entry)) = dir_handle.next_entry().await {
-                    let name_f = entry.file_name();
-                    let name_s = name_f.to_string_lossy();
+                    let path = entry.path();
+                    let Ok(path) = path
+                        .strip_prefix(blobdir)
+                        .context("housekeeping")
+                        .log_err(context)
+                    else {
+                        continue;
+                    };
+                    let name_s = path.to_string_lossy();
 
-                    if p == blobdir
+                    if check_files_use
                         && (is_file_in_use(&files_in_use, None, &name_s)
                             || is_file_in_use(&files_in_use, Some(".increation"), &name_s)
                             || is_file_in_use(&files_in_use, Some(".waveform"), &name_s)
@@ -873,7 +888,9 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
 
                     if let Ok(stats) = tokio::fs::metadata(entry.path()).await {
                         if stats.is_dir() {
-                            if let Err(e) = tokio::fs::remove_dir(entry.path()).await {
+                            if add_dirs {
+                                dirs.push((entry.path(), false));
+                            } else if let Err(e) = tokio::fs::remove_dir(entry.path()).await {
                                 // The dir could be created not by a user, but by a desktop
                                 // environment f.e. So, no warning.
                                 info!(
@@ -895,7 +912,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                             .accessed()
                             .map_or(false, |t| t > keep_files_newer_than);
 
-                        if p == blobdir
+                        if check_files_use
                             && (recently_created || recently_modified || recently_accessed)
                         {
                             info!(
@@ -927,7 +944,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                 }
             }
             Err(err) => {
-                if !p.ends_with(BLOBS_BACKUP_NAME) {
+                if !p.starts_with(&blobs_backup_dir) {
                     warn!(
                         context,
                         "Housekeeping: Cannot read dir {}: {:#}.",

@@ -181,14 +181,12 @@ def test_send_file_twice_unicode_filename_mangling(tmp_path, acfactory, lp):
     msg = send_and_receive_message()
     assert msg.text == "withfile"
     assert open(msg.filename).read() == "some data"
-    msg.filename.index(basename)
-    assert msg.filename.endswith(ext)
+    assert msg.filename.endswith(basename + ext)
 
     msg2 = send_and_receive_message()
     assert msg2.text == "withfile"
     assert open(msg2.filename).read() == "some data"
-    msg2.filename.index(basename)
-    assert msg2.filename.endswith(ext)
+    assert msg2.filename.endswith(basename + ext)
     assert msg.filename != msg2.filename
 
 
@@ -214,8 +212,7 @@ def test_send_file_html_attachment(tmp_path, acfactory, lp):
     msg = ac2.get_message_by_id(ev.data2)
 
     assert open(msg.filename).read() == content
-    msg.filename.index(basename)
-    assert msg.filename.endswith(ext)
+    assert msg.filename.endswith(basename + ext)
 
 
 def test_html_message(acfactory, lp):

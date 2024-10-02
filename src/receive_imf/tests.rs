@@ -1671,8 +1671,8 @@ async fn test_pdf_filename_simple() {
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
     let file_path = msg.param.get(Param::File).unwrap();
-    assert!(file_path.starts_with("$BLOBDIR/simple"));
-    assert!(file_path.ends_with(".pdf"));
+    assert!(file_path.starts_with("$BLOBDIR/"));
+    assert!(file_path.ends_with("/simple.pdf"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1687,8 +1687,8 @@ async fn test_pdf_filename_continuation() {
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
     let file_path = msg.param.get(Param::File).unwrap();
-    assert!(file_path.starts_with("$BLOBDIR/test pdf äöüß"));
-    assert!(file_path.ends_with(".pdf"));
+    assert!(file_path.starts_with("$BLOBDIR/"));
+    assert!(file_path.ends_with("/test pdf äöüß.pdf"));
 }
 
 /// HTML-images may come with many embedded images, eg. tiny icons, corners for formatting,

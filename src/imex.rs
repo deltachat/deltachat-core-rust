@@ -1,11 +1,12 @@
 //! # Import/export module.
 
 use std::ffi::OsStr;
+use std::io::ErrorKind as IoErrorKind;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use ::pgp::types::PublicKeyTrait;
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use futures::TryStreamExt;
 use futures_lite::FutureExt;
 use pin_project::pin_project;
@@ -386,24 +387,48 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
         if path.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
             continue;
         }
-        // async_tar unpacked to $BLOBDIR/BLOBS_BACKUP_NAME/, so we move the file afterwards.
+        // async_tar unpacked to "$BLOBDIR/BLOBS_BACKUP_NAME/", so we move the file afterwards.
         let from_path = context.get_blobdir().join(&path);
         if from_path.is_file() {
-            if let Some(name) = from_path.file_name() {
-                let to_path = context.get_blobdir().join(name);
-                if let Err(e) = fs::rename(&from_path, &to_path).await {
-                    blobs.push(from_path);
-                    break Err(e).context("Failed to move file to blobdir");
-                }
-                blobs.push(to_path);
-            } else {
-                warn!(context, "No file name");
+            blobs.push(from_path);
+            let Some(from_path) = blobs.last() else {
+                continue;
+            };
+            let mut components = path.components();
+            components.next(); // Skip "$BLOBDIR".
+            components.next(); // Skip "BLOBS_BACKUP_NAME".
+            let Some(comp0) = components.next() else {
+                break Err(anyhow!("Not enough components in {}.", path.display()));
+            };
+            let comp1 = components.next();
+            if components.next().is_some() {
+                break Err(anyhow!("Too many components in {}.", path.display()));
             }
+            let mut to_path = context.get_blobdir().join(comp0);
+            if let Some(comp) = comp1 {
+                if let Err(e) = fs::create_dir(&to_path).await {
+                    // The subdir may remain from a previous import try.
+                    if e.kind() != IoErrorKind::AlreadyExists {
+                        break Err(e).context("Failed to create subdir");
+                    }
+                }
+                to_path = to_path.join(comp);
+            }
+            if let Err(e) = fs::rename(&from_path, &to_path).await {
+                break Err(e).context("Failed to move file to blobdir");
+            }
+            blobs.pop();
+            blobs.push(to_path);
         }
     };
     if res.is_err() {
         for blob in blobs {
             fs::remove_file(&blob).await.log_err(context).ok();
+            if let Some(dir) = blob.parent() {
+                if dir != context.get_blobdir() {
+                    fs::remove_dir(dir).await.ok();
+                }
+            }
         }
     }
 

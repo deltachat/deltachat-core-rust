@@ -1165,10 +1165,10 @@ mod tests {
         // this.
         let self_chat = alice0.get_self_chat().await;
         let self_chat_avatar_path = self_chat.get_profile_image(&alice0).await?.unwrap();
-        assert_eq!(
-            self_chat_avatar_path,
-            alice0.get_blobdir().join("icon-saved-messages.png")
-        );
+        assert_eq!(self_chat_avatar_path.extension().unwrap(), "png");
+        let self_chat_avatar = fs::read(self_chat_avatar_path).await?;
+        let expected_avatar = include_bytes!("../assets/icon-saved-messages.png").to_vec();
+        assert_eq!(self_chat_avatar, expected_avatar);
         assert!(alice1
             .get_config(Config::Selfavatar)
             .await?

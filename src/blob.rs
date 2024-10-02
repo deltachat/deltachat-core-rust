@@ -10,17 +10,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Result};
 use base64::Engine as _;
-use futures::StreamExt;
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageReader;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageFormat, Pixel, Rgba};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
-use tokio_stream::wrappers::ReadDirStream;
 
 use crate::config::Config;
-use crate::constants::{self, MediaQuality};
+use crate::constants::{self, MediaQuality, BLOB_CREATE_ATTEMPTS};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -58,7 +56,8 @@ impl<'a> BlobObject<'a> {
     ) -> Result<BlobObject<'a>> {
         let blobdir = context.get_blobdir();
         let (stem, ext) = BlobObject::sanitise_name(suggested_name);
-        let (name, mut file) = BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
+        let (subdir, name, mut file) =
+            BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
         file.write_all(data).await.context("file write failure")?;
 
         // workaround a bug in async-std
@@ -68,42 +67,41 @@ impl<'a> BlobObject<'a> {
 
         let blob = BlobObject {
             blobdir,
-            name: format!("$BLOBDIR/{name}"),
+            name: format!("$BLOBDIR/{subdir}/{name}"),
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 
-    // Creates a new file, returning a tuple of the name and the handle.
+    // Creates a new file, returning a tuple of the subdir and file names and the handle.
     async fn create_new_file(
         context: &Context,
         dir: &Path,
         stem: &str,
         ext: &str,
-    ) -> Result<(String, fs::File)> {
-        const MAX_ATTEMPT: u32 = 16;
+    ) -> Result<(String, String, fs::File)> {
         let mut attempt = 0;
-        let mut name = format!("{stem}{ext}");
         loop {
             attempt += 1;
-            let path = dir.join(&name);
-            match fs::OpenOptions::new()
+            let subdir = format!("{:016x}", rand::random::<u64>());
+            let path = dir.join(&subdir);
+            if let Err(err) = fs::create_dir(&path).await.log_err(context) {
+                if attempt >= BLOB_CREATE_ATTEMPTS {
+                    return Err(err).context("Failed to create subdir");
+                } else if attempt == 1 && !dir.exists() {
+                    fs::create_dir_all(dir).await.log_err(context).ok();
+                }
+                continue;
+            }
+            let name = format!("{}{}", stem, ext);
+            let path = path.join(&name);
+            let file = fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path)
                 .await
-            {
-                Ok(file) => return Ok((name, file)),
-                Err(err) => {
-                    if attempt >= MAX_ATTEMPT {
-                        return Err(err).context("failed to create file");
-                    } else if attempt == 1 && !dir.exists() {
-                        fs::create_dir_all(dir).await.log_err(context).ok();
-                    } else {
-                        name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
-                    }
-                }
-            }
+                .context("Failed to create file")?;
+            return Ok((subdir, name, file));
         }
     }
 
@@ -118,12 +116,11 @@ impl<'a> BlobObject<'a> {
             .await
             .with_context(|| format!("failed to open file {}", src.display()))?;
         let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
-        let (name, mut dst_file) =
+        let (subdir, name, mut dst_file) =
             BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
-        let name_for_err = name.clone();
         if let Err(err) = io::copy(&mut src_file, &mut dst_file).await {
             // Attempt to remove the failed file, swallow errors resulting from that.
-            let path = context.get_blobdir().join(&name_for_err);
+            let path = context.get_blobdir().join(&subdir).join(&name);
             fs::remove_file(path).await.ok();
             return Err(err).context("failed to copy file");
         }
@@ -133,7 +130,7 @@ impl<'a> BlobObject<'a> {
 
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
-            name: format!("$BLOBDIR/{name}"),
+            name: format!("$BLOBDIR/{subdir}/{name}"),
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
@@ -222,7 +219,8 @@ impl<'a> BlobObject<'a> {
 
     /// The path relative in the blob directory.
     pub fn as_rel_path(&self) -> &Path {
-        Path::new(self.as_file_name())
+        let name = self.name.split_once('/').unwrap_or_default().1;
+        Path::new(name)
     }
 
     /// Returns the extension of the blob.
@@ -317,8 +315,13 @@ impl<'a> BlobObject<'a> {
             Some(name) => name,
             None => return false,
         };
-        if uname.find('/').is_some() {
-            return false;
+        if let Some((subdir, name)) = uname.split_once('/') {
+            if subdir.is_empty() || name.is_empty() {
+                return false;
+            }
+            if name.find('/').is_some() {
+                return false;
+            }
         }
         if uname.find('\\').is_some() {
             return false;
@@ -353,9 +356,7 @@ impl<'a> BlobObject<'a> {
         Ok(blob.as_name().to_string())
     }
 
-    pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
-        let blob_abs = self.to_abs_path();
-
+    pub async fn recode_to_avatar_size(&mut self, context: &'a Context) -> Result<()> {
         let img_wh =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
@@ -368,16 +369,7 @@ impl<'a> BlobObject<'a> {
         let strict_limits = true;
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        if let Some(new_name) = self.recode_to_size(
-            context,
-            blob_abs,
-            maybe_sticker,
-            img_wh,
-            20_000,
-            strict_limits,
-        )? {
-            self.name = new_name;
-        }
+        self.recode_to_size(context, maybe_sticker, img_wh, 20_000, strict_limits)?;
         Ok(())
     }
 
@@ -390,10 +382,9 @@ impl<'a> BlobObject<'a> {
     /// reset.
     pub async fn recode_to_image_size(
         &mut self,
-        context: &Context,
+        context: &'a Context,
         maybe_sticker: &mut bool,
     ) -> Result<()> {
-        let blob_abs = self.to_abs_path();
         let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
@@ -405,16 +396,7 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => (constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES),
             };
         let strict_limits = false;
-        if let Some(new_name) = self.recode_to_size(
-            context,
-            blob_abs,
-            maybe_sticker,
-            img_wh,
-            max_bytes,
-            strict_limits,
-        )? {
-            self.name = new_name;
-        }
+        self.recode_to_size(context, maybe_sticker, img_wh, max_bytes, strict_limits)?;
         Ok(())
     }
 
@@ -422,13 +404,13 @@ impl<'a> BlobObject<'a> {
     /// proceed with the result.
     fn recode_to_size(
         &mut self,
-        context: &Context,
-        mut blob_abs: PathBuf,
+        context: &'a Context,
         maybe_sticker: &mut bool,
         mut img_wh: u32,
         max_bytes: usize,
         strict_limits: bool,
-    ) -> Result<Option<String>> {
+    ) -> Result<()> {
+        let mut blob_abs = self.to_abs_path();
         // Add white background only to avatars to spare the CPU.
         let mut add_white_bg = img_wh <= constants::BALANCED_AVATAR_SIZE;
         let mut no_exif = false;
@@ -455,7 +437,6 @@ impl<'a> BlobObject<'a> {
             let mut img = imgreader.decode().context("image decode failure")?;
             let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
-            let mut changed_name = None;
 
             if *maybe_sticker {
                 let x_max = img.width().saturating_sub(1);
@@ -467,7 +448,7 @@ impl<'a> BlobObject<'a> {
                         || img.get_pixel(x_max, y_max).0[3] == 0);
             }
             if *maybe_sticker && exif.is_none() {
-                return Ok(None);
+                return Ok(());
             }
 
             img = match orientation {
@@ -565,9 +546,7 @@ impl<'a> BlobObject<'a> {
                     && matches!(ofmt, ImageOutputFormat::Jpeg { .. })
                 {
                     blob_abs = blob_abs.with_extension("jpg");
-                    let file_name = blob_abs.file_name().context("No image file name (???)")?;
-                    let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
-                    changed_name = Some(format!("$BLOBDIR/{file_name}"));
+                    *self = Self::from_path(context, &blob_abs)?;
                 }
 
                 if encoded.is_empty() {
@@ -580,8 +559,7 @@ impl<'a> BlobObject<'a> {
                 std::fs::write(&blob_abs, &encoded)
                     .context("failed to write recoded blob to file")?;
             }
-
-            Ok(changed_name)
+            Ok(())
         });
         match res {
             Ok(_) => res,
@@ -591,7 +569,7 @@ impl<'a> BlobObject<'a> {
                         context,
                         "Cannot recode image, using original data: {err:#}.",
                     );
-                    Ok(None)
+                    Ok(())
                 } else {
                     Err(err)
                 }
@@ -624,7 +602,7 @@ fn exif_orientation(exif: &exif::Exif, context: &Context) -> i32 {
 
 impl fmt::Display for BlobObject<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "$BLOBDIR/{}", self.name)
+        write!(f, "{}", self.name)
     }
 }
 
@@ -641,32 +619,36 @@ pub(crate) struct BlobDirContents<'a> {
 
 impl<'a> BlobDirContents<'a> {
     pub(crate) async fn new(context: &'a Context) -> Result<BlobDirContents<'a>> {
-        let readdir = fs::read_dir(context.get_blobdir()).await?;
-        let inner = ReadDirStream::new(readdir)
-            .filter_map(|entry| async move {
-                match entry {
-                    Ok(entry) => Some(entry),
+        let blobdir = context.get_blobdir();
+        let mut dirs = vec![blobdir.to_path_buf()];
+        let mut inner = Vec::<PathBuf>::new();
+        while let Some(d) = dirs.pop() {
+            let mut readdir = fs::read_dir(&d).await?;
+            loop {
+                let entry = match readdir.next_entry().await {
+                    Ok(Some(e)) => e,
+                    Ok(None) => break,
                     Err(err) => {
-                        error!(context, "Failed to read blob file: {err}.");
-                        None
+                        error!(context, "Failed to read next entry: {err}.");
+                        continue;
                     }
+                };
+                let Ok(file_type) = entry.file_type().await else {
+                    continue;
+                };
+                if file_type.is_file() {
+                    inner.push(entry.path());
+                } else if file_type.is_dir() && d == blobdir {
+                    dirs.push(entry.path());
+                } else {
+                    warn!(
+                        context,
+                        "Export: Found blob dir entry {} that is not a file or subdir, ignoring.",
+                        entry.path().display(),
+                    );
                 }
-            })
-            .filter_map(|entry| async move {
-                match entry.file_type().await.ok()?.is_file() {
-                    true => Some(entry.path()),
-                    false => {
-                        warn!(
-                            context,
-                            "Export: Found blob dir entry {} that is not a file, ignoring.",
-                            entry.path().display()
-                        );
-                        None
-                    }
-                }
-            })
-            .collect()
-            .await;
+            }
+        }
         Ok(Self { inner, context })
     }
 
@@ -761,6 +743,7 @@ fn add_white_bg(img: &mut DynamicImage) {
 #[cfg(test)]
 mod tests {
     use fs::File;
+    use regex::Regex;
 
     use super::*;
     use crate::chat::{self, create_group_chat, ProtectionStatus};
@@ -780,18 +763,21 @@ mod tests {
     async fn test_create() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
-        let fname = t.get_blobdir().join("foo");
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}/foo$").unwrap();
+        assert!(re.is_match(blob.as_name()));
+        assert_eq!(blob.as_file_name(), "foo");
+        let fname = t.get_blobdir().join(blob.as_rel_path());
         let data = fs::read(fname).await.unwrap();
         assert_eq!(data, b"hello");
-        assert_eq!(blob.as_name(), "$BLOBDIR/foo");
-        assert_eq!(blob.to_abs_path(), t.get_blobdir().join("foo"));
+        assert_eq!(blob.to_abs_path(), t.get_blobdir().join(blob.as_rel_path()));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
-        assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}/foo.txt$").unwrap();
+        assert!(re.is_match(blob.as_name()));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -805,7 +791,8 @@ mod tests {
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
+        let re = Regex::new("^[[:xdigit:]]{16}/foo.txt$").unwrap();
+        assert!(re.is_match(blob.as_rel_path().to_str().unwrap()));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -820,46 +807,40 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_dup() {
         let t = TestContext::new().await;
-        BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        let foo_path = t.get_blobdir().join("foo.txt");
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}/foo.txt$").unwrap();
+
+        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
+        assert!(re.is_match(blob.as_name()));
+        let foo_path = t.get_blobdir().join(blob.as_rel_path());
         assert!(foo_path.exists());
-        BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
-        let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
-        while let Ok(Some(dirent)) = dir.next_entry().await {
-            let fname = dirent.file_name();
-            if fname == foo_path.file_name().unwrap() {
-                assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
-            } else {
-                let name = fname.to_str().unwrap();
-                assert!(name.starts_with("foo"));
-                assert!(name.ends_with(".txt"));
-            }
-        }
+
+        let blob = BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
+        assert!(re.is_match(blob.as_name()));
+        let foo_path2 = t.get_blobdir().join(blob.as_rel_path());
+        assert!(foo_path2.exists());
+
+        assert!(foo_path != foo_path2);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_double_ext_preserved() {
         let t = TestContext::new().await;
-        BlobObject::create(&t, "foo.tar.gz", b"hello")
+        let blob = BlobObject::create(&t, "foo.tar.gz", b"hello")
             .await
             .unwrap();
-        let foo_path = t.get_blobdir().join("foo.tar.gz");
-        assert!(foo_path.exists());
-        BlobObject::create(&t, "foo.tar.gz", b"world")
+        assert_eq!(blob.as_file_name(), "foo.tar.gz");
+        let foo_path = t.get_blobdir().join(blob.as_rel_path());
+        assert_eq!(foo_path.file_name().unwrap(), OsStr::new("foo.tar.gz"));
+        assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
+
+        let blob = BlobObject::create(&t, "foo.tar.gz", b"world")
             .await
             .unwrap();
-        let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
-        while let Ok(Some(dirent)) = dir.next_entry().await {
-            let fname = dirent.file_name();
-            if fname == foo_path.file_name().unwrap() {
-                assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
-            } else {
-                let name = fname.to_str().unwrap();
-                println!("{name}");
-                assert!(name.starts_with("foo"));
-                assert!(name.ends_with(".tar.gz"));
-            }
-        }
+        assert_eq!(blob.as_file_name(), "foo.tar.gz");
+        let foo_path1 = t.get_blobdir().join(blob.as_rel_path());
+        assert_eq!(foo_path1.file_name().unwrap(), OsStr::new("foo.tar.gz"));
+        assert_eq!(fs::read(&foo_path1).await.unwrap(), b"world");
+        assert_ne!(foo_path, foo_path1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -877,7 +858,8 @@ mod tests {
         let src = t.dir.path().join("src");
         fs::write(&src, b"boo").await.unwrap();
         let blob = BlobObject::create_and_copy(&t, src.as_ref()).await.unwrap();
-        assert_eq!(blob.as_name(), "$BLOBDIR/src");
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}/src$").unwrap();
+        assert!(re.is_match(blob.as_name()));
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
@@ -898,17 +880,24 @@ mod tests {
         let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
             .await
             .unwrap();
-        assert_eq!(blob.as_name(), "$BLOBDIR/external");
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}/external$").unwrap();
+        assert!(re.is_match(blob.as_name()));
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
 
-        let src_int = t.get_blobdir().join("internal");
-        fs::write(&src_int, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t, &src_int).await.unwrap();
-        assert_eq!(blob.as_name(), "$BLOBDIR/internal");
-        let data = fs::read(blob.to_abs_path()).await.unwrap();
-        assert_eq!(data, b"boo");
+        fs::create_dir(t.get_blobdir().join("subdir"))
+            .await
+            .unwrap();
+        for rel_path in ["0", "subdir/0"] {
+            let src_int = t.get_blobdir().join(rel_path);
+            fs::write(&src_int, b"boo").await.unwrap();
+            let blob = BlobObject::new_from_path(&t, &src_int).await.unwrap();
+            assert_eq!(blob.as_name().strip_prefix("$BLOBDIR/").unwrap(), rel_path);
+            let data = fs::read(blob.to_abs_path()).await.unwrap();
+            assert_eq!(data, b"boo");
+        }
     }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_from_name_long() {
         let t = TestContext::new().await;
@@ -917,10 +906,10 @@ mod tests {
         let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
             .await
             .unwrap();
-        assert_eq!(
-            blob.as_name(),
-            "$BLOBDIR/autocrypt-setup-message-4137848473.html"
-        );
+        let re =
+            Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}/autocrypt-setup-message-4137848473.html$")
+                .unwrap();
+        assert!(re.is_match(blob.as_name()));
     }
 
     #[test]
@@ -928,7 +917,9 @@ mod tests {
         assert!(BlobObject::is_acceptible_blob_name("foo"));
         assert!(BlobObject::is_acceptible_blob_name("foo.txt"));
         assert!(BlobObject::is_acceptible_blob_name("f".repeat(128)));
-        assert!(!BlobObject::is_acceptible_blob_name("foo/bar"));
+        assert!(BlobObject::is_acceptible_blob_name("foo/bar"));
+        assert!(!BlobObject::is_acceptible_blob_name("/bar"));
+        assert!(!BlobObject::is_acceptible_blob_name("foo/"));
         assert!(!BlobObject::is_acceptible_blob_name("foo\\bar"));
         assert!(!BlobObject::is_acceptible_blob_name("foo\x00bar"));
     }
@@ -1001,15 +992,8 @@ mod tests {
             let img_wh = 128;
             let maybe_sticker = &mut false;
             let strict_limits = true;
-            blob.recode_to_size(
-                &t,
-                blob.to_abs_path(),
-                maybe_sticker,
-                img_wh,
-                20_000,
-                strict_limits,
-            )
-            .unwrap();
+            blob.recode_to_size(&t, maybe_sticker, img_wh, 20_000, strict_limits)
+                .unwrap();
             tokio::task::block_in_place(move || {
                 let img = image::open(blob.to_abs_path()).unwrap();
                 assert!(img.width() == img_wh);
@@ -1025,19 +1009,21 @@ mod tests {
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         fs::write(&avatar_src, avatar_bytes).await.unwrap();
-        let avatar_blob = t.get_blobdir().join("avatar.jpg");
-        assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
+        let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
+        let blobdir = t.get_blobdir().to_str().unwrap();
+        assert!(avatar_blob.starts_with(blobdir));
+        let re = Regex::new("[[:xdigit:]]{16}/avatar.jpg$").unwrap();
+        assert!(re.is_match(&avatar_blob));
+        let avatar_blob = Path::new(&avatar_blob);
         assert!(avatar_blob.exists());
         assert!(fs::metadata(&avatar_blob).await.unwrap().len() < avatar_bytes.len() as u64);
-        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
-        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
         check_image_size(avatar_src, 1000, 1000);
         check_image_size(
-            &avatar_blob,
+            avatar_blob,
             constants::BALANCED_AVATAR_SIZE,
             constants::BALANCED_AVATAR_SIZE,
         );
@@ -1047,20 +1033,13 @@ mod tests {
             file.metadata().await.unwrap().len()
         }
 
-        let mut blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
+        let mut blob = BlobObject::new_from_path(&t, avatar_blob).await.unwrap();
         let maybe_sticker = &mut false;
         let strict_limits = true;
-        blob.recode_to_size(
-            &t,
-            blob.to_abs_path(),
-            maybe_sticker,
-            1000,
-            3000,
-            strict_limits,
-        )
-        .unwrap();
-        assert!(file_size(&avatar_blob).await <= 3000);
-        assert!(file_size(&avatar_blob).await > 2000);
+        blob.recode_to_size(&t, maybe_sticker, 1000, 3000, strict_limits)
+            .unwrap();
+        assert!(file_size(avatar_blob).await <= 3000);
+        assert!(file_size(avatar_blob).await > 2000);
         tokio::task::block_in_place(move || {
             let img = image::open(avatar_blob).unwrap();
             assert!(img.width() > 130);
@@ -1100,18 +1079,19 @@ mod tests {
         let avatar_src = t.dir.path().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
         fs::write(&avatar_src, avatar_bytes).await.unwrap();
-        let avatar_blob = t.get_blobdir().join("avatar.png");
-        assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        assert!(avatar_blob.exists());
+        let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
+        let blobdir = t.get_blobdir().to_str().unwrap();
+        assert!(avatar_blob.starts_with(blobdir));
+        let re = Regex::new("[[:xdigit:]]{16}/avatar.png$").unwrap();
+        assert!(re.is_match(&avatar_blob));
+        assert!(Path::new(&avatar_blob).exists());
         assert_eq!(
             fs::metadata(&avatar_blob).await.unwrap().len(),
             avatar_bytes.len() as u64
         );
-        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
-        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
