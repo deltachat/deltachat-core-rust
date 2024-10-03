@@ -1228,6 +1228,7 @@ impl ChatId {
              AND ((state BETWEEN {} AND {}) OR (state >= {})) \
              AND NOT hidden \
              AND download_state={} \
+             AND from_id != {} \
              ORDER BY timestamp DESC, id DESC \
              LIMIT 1;",
             MessageState::InFresh as u32,
@@ -1236,6 +1237,9 @@ impl ChatId {
             // Do not reply to not fully downloaded messages. Such a message could be a group chat
             // message that we assigned to 1:1 chat.
             DownloadState::Done as u32,
+            // Do not reference info messages, they are not actually sent out
+            // and have Message-IDs unknown to other chat members.
+            ContactId::INFO.to_u32(),
         );
         sql.query_row_optional(&query, (self,), f).await
     }
@@ -4667,6 +4671,7 @@ mod tests {
     use super::*;
     use crate::chatlist::get_archived_cnt;
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
+    use crate::headerdef::HeaderDef;
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{sync, TestContext, TestContextManager};
@@ -7619,6 +7624,31 @@ mod tests {
         let alice_chat = alice.create_chat(&bob).await;
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
         let _msg = bob.recv_msg(&sent_msg).await;
+
+        Ok(())
+    }
+
+    /// Tests that info message is ignored when constructing `In-Reply-To`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_info_not_referenced() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let bob_received_message = tcm.send_recv_accept(alice, bob, "Hi!").await;
+        let bob_chat_id = bob_received_message.chat_id;
+        add_info_msg(bob, bob_chat_id, "Some info", create_smeared_timestamp(bob)).await?;
+
+        // Bob sends a message.
+        // This message should reference Alice's "Hi!" message and not the info message.
+        let sent = bob.send_text(bob_chat_id, "Hi hi!").await;
+        let mime_message = alice.parse_msg(&sent).await;
+
+        let in_reply_to = mime_message.get_header(HeaderDef::InReplyTo).unwrap();
+        assert_eq!(
+            in_reply_to,
+            format!("<{}>", bob_received_message.rfc724_mid)
+        );
 
         Ok(())
     }
