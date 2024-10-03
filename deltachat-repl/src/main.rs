@@ -30,7 +30,7 @@ use rustyline::{
 };
 use tokio::fs;
 use tokio::runtime::Handle;
-use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Layer};
+use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, EnvFilter, Layer};
 
 mod cmdline;
 use self::cmdline::*;
@@ -484,8 +484,7 @@ async fn main() -> Result<(), Error> {
     tracing::subscriber::set_global_default({
         let subscribers = tracing_subscriber::Registry::default().with(
             tracing_subscriber::fmt::layer().with_filter(
-                tracing_subscriber::EnvFilter::from_default_env()
-                    .add_directive("deltachat_repl=info".parse()?),
+                EnvFilter::from_default_env().add_directive("deltachat_repl=info".parse()?),
             ),
         );
         #[cfg(tokio_unstable)]
