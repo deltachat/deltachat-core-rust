@@ -708,6 +708,130 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
     Ok(())
 }
 
+/// Spawns a named asynchronous task if the `tokio_unstable` feature is enabled.
+///
+/// Spawns a new asynchronous task, returning a [tokio::task::JoinHandle] for it.
+/// The provided future will start running in the background immediately when spawn is called, even if you don't await the returned JoinHandle.
+/// See [tokio::task::spawn].
+///
+/// If the rustflag `tokio_unstable` is active, the task will be given the specified `name`
+/// for easier identification in monitoring tools (like tokio-console).
+/// If `tokio_unstable` is not set, the task is spawned normally without a name.
+///
+/// # Parameters
+///
+/// - `name`: The name of the task (used only if `tokio_unstable` is enabled).
+/// - `future`: The future to be executed, which must implement `Future`, be `Send`, and `'static`.
+///
+/// # Returns
+///
+/// A [tokio::task::JoinHandle] that can be awaited to retrieve the output of the future.
+///
+/// # Panics
+///
+/// Panics if the task fails to spawn when `tokio_unstable` is enabled.
+///
+/// # Example
+///
+/// ```
+/// use tokio::task;
+///
+/// let handle = spawn_named_task!("my_task", async {
+///     // Your async code here
+/// });
+///
+/// let result = handle.await.unwrap();
+/// ```
+#[macro_export]
+macro_rules! spawn_named_task {
+    ($name:expr, $future:expr) => {{
+        #[inline(always)]
+        pub fn __spawn_named_task<Fut>(
+            name: &str,
+            future: Fut,
+        ) -> ::tokio::task::JoinHandle<Fut::Output>
+        where
+            Fut: ::std::future::Future + Send + 'static,
+            Fut::Output: Send + 'static,
+        {
+            #[cfg(tokio_unstable)]
+            {
+                ::tokio::task::Builder::new()
+                    .name(name)
+                    .spawn(future)
+                    .expect("Failed to spawn task")
+            }
+            #[cfg(not(tokio_unstable))]
+            {
+                ::tokio::task::spawn(future)
+            }
+        }
+        __spawn_named_task($name, $future)
+    }};
+}
+
+/// Spawns a named blocking task if the `tokio_unstable` feature is enabled.
+///
+/// Spawns a new blocking task, returning a [tokio::task::JoinHandle] for it.
+/// The provided future will start running in the background immediately when spawn is called, even if you don't await the returned JoinHandle.
+/// See [tokio::task::spawn_blocking].
+///
+/// If the rustflag `tokio_unstable` is active, the task will be given the specified `name`
+/// for easier identification in monitoring tools (like tokio-console).
+/// If `tokio_unstable` is not set, the task is spawned normally without a name.
+///
+/// # Parameters
+///
+/// - `name`: The name of the task (used only if `tokio_unstable` is enabled).
+/// - `future`: The future to be executed, which must implement `Future`, be `Send`, and `'static`.
+///
+/// # Returns
+///
+/// A [tokio::task::JoinHandle] that can be awaited to retrieve the output of the future.
+///
+/// # Panics
+///
+/// Panics if the task fails to spawn when `tokio_unstable` is enabled.
+///
+/// # Example
+///
+/// ```
+/// use tokio::task;
+///
+/// let handle = spawn_named_blocking_task!("my_task", async {
+///     // Your async code here
+/// });
+///
+/// let result = handle.await.unwrap();
+/// ```
+#[macro_export]
+macro_rules! spawn_named_blocking_task {
+    ($name:expr, $future:expr) => {{
+        #[inline(always)]
+        pub fn __spawn_named_blocking_task<Fut, ReturnType>(
+            name: &str,
+            future: Fut,
+        ) -> ::tokio::task::JoinHandle<ReturnType>
+        where
+            Fut: FnOnce() -> ReturnType + Send + 'static,
+            ReturnType: Send + 'static,
+        {
+            #[cfg(tokio_unstable)]
+            {
+                ::tokio::task::Builder::new()
+                    .name(name)
+                    .spawn_blocking(future)
+                    .expect("Failed to spawn task")
+            }
+            #[cfg(not(tokio_unstable))]
+            {
+                ::tokio::task::spawn_blocking(future)
+            }
+        }
+        __spawn_named_blocking_task($name, $future)
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]
