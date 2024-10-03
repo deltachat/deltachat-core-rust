@@ -7711,6 +7711,53 @@ mod tests {
         self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
         let draft2 = self_chat.get_draft(&alice).await?.unwrap();
         assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
+
+        Ok(())
+    }
+
+    /// Test group consistency.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_add_member_bug() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let alice_bob_contact_id = Contact::create(alice, "Bob", "bob@example.net").await?;
+        let alice_fiona_contact_id = Contact::create(alice, "Fiona", "fiona@example.net").await?;
+
+        // Create a group.
+        let alice_chat_id =
+            create_group_chat(alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+
+        // Promote the group.
+        let alice_sent_msg = alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        let bob_received_msg = bob.recv_msg(&alice_sent_msg).await;
+
+        let bob_chat_id = bob_received_msg.get_chat_id();
+        bob_chat_id.accept(bob).await?;
+
+        // Alice removes Fiona from the chat.
+        remove_contact_from_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+        let _alice_sent_add_msg = alice.pop_sent_msg().await;
+
+        SystemTime::shift(Duration::from_secs(3600));
+
+        // Bob sends a message
+        // to Alice and Fiona because he still has not received
+        // a message about Fiona being removed.
+        let bob_sent_msg = bob.send_text(bob_chat_id, "Hi Alice!").await;
+
+        // Alice receives a message.
+        // This should not add Fiona back.
+        let _alice_received_msg = alice.recv_msg(&bob_sent_msg).await;
+
+        assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 2);
+
         Ok(())
     }
 }
