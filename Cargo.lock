@@ -1515,6 +1515,7 @@ name = "deltachat-rpc-server"
 version = "1.148.1"
 dependencies = [
  "anyhow",
+ "console-subscriber",
  "deltachat",
  "deltachat-jsonrpc",
  "futures-lite 2.3.0",
@@ -1523,6 +1524,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-util",
+ "tracing",
  "tracing-subscriber",
  "yerpc",
 ]

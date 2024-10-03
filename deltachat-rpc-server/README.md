@@ -35,3 +35,14 @@ languages other than Rust, for example:
 
 Run `deltachat-rpc-server --version` to check the version of the server.
 Run `deltachat-rpc-server --openrpc` to get [OpenRPC](https://open-rpc.org/) specification of the provided JSON-RPC API.
+
+
+## Usage with `tokio-console`
+
+When build with `RUSTFLAGS="--cfg tokio_unstable"` console-subscriber is enabled.
+That means that you can use [`tokio-console`](https://github.com/tokio-rs/console) to inspect active tokio tasks.
+You can install it via `cargo install tokio-console`.
+
+```
+RUSTFLAGS="--cfg tokio_unstable" cargo run
+```
