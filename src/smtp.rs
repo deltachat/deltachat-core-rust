@@ -6,7 +6,7 @@ pub mod send;
 use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::response::{Category, Code, Detail};
 use async_smtp::{EmailAddress, SmtpTransport};
-use tokio::task;
+
 
 use crate::chat::{add_info_msg_with_cmd, ChatId};
 use crate::config::Config;
@@ -21,9 +21,9 @@ use crate::mimefactory::MimeFactory;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionBufStream;
 use crate::scheduler::connectivity::ConnectivityStore;
-use crate::sql;
 use crate::stock_str::unencrypted_email;
 use crate::tools::{self, time_elapsed};
+use crate::{spawn_named_task, sql};
 
 #[derive(Default)]
 pub(crate) struct Smtp {
@@ -56,7 +56,7 @@ impl Smtp {
             // Closing connection with a QUIT command may take some time, especially if it's a
             // stale connection and an attempt to send the command times out. Send a command in a
             // separate task to avoid waiting for reply or timeout.
-            task::spawn(async move { transport.quit().await });
+            spawn_named_task!("disconnect SMTP", async move { transport.quit().await });
         }
         self.last_success = None;
     }

@@ -11,6 +11,7 @@ use crate::context::Context;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_rustls;
+use crate::spawn_named_task;
 
 /// HTTP(S) GET response.
 #[derive(Debug)]
@@ -85,7 +86,7 @@ where
 
     let io = TokioIo::new(stream);
     let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
-    tokio::task::spawn(conn);
+    spawn_named_task!("http_connection", conn);
 
     Ok(sender)
 }
