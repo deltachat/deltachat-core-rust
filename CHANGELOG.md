@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.146.0] - 2024-10-03
+
+### Fixes
+
+- download_msg: Do not fail if the message does not exist anymore.
+- Better log message for failed QR scan.
+
+### Features / Changes
+
+- Assign message to ad-hoc group with matching name and members ([#5385](https://github.com/deltachat/deltachat-core-rust/pull/5385)).
+- Use Rustls instead of native TLS for HTTPS requests.
+
+### Miscellaneous Tasks
+
+- cargo: Bump anyhow from 1.0.86 to 1.0.89.
+- cargo: Bump tokio-stream from 0.1.15 to 0.1.16.
+- cargo: Bump thiserror from 1.0.63 to 1.0.64.
+- cargo: Bump bytes from 1.7.1 to 1.7.2.
+- cargo: Bump libc from 0.2.158 to 0.2.159.
+- cargo: Bump tempfile from 3.10.1 to 3.13.0.
+- cargo: Bump pretty_assertions from 1.4.0 to 1.4.1.
+- cargo: Bump hyper-util from 0.1.7 to 0.1.9.
+- cargo: Bump rustls-pki-types from 1.8.0 to 1.9.0.
+- cargo: Bump quick-xml from 0.36.1 to 0.36.2.
+- cargo: Bump serde from 1.0.209 to 1.0.210.
+- cargo: Bump syn from 2.0.77 to 2.0.79.
+
+### Refactor
+
+- Move group name calculation out of create_adhoc_group().
+- Merge build_tls() function into wrap_tls().
+
 ## [1.145.0] - 2024-09-26
 
 ### Fixes
@@ -4913,3 +4945,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.143.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.12..v1.143.0
 [1.144.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.143.0..v1.144.0
 [1.145.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.144.0..v1.145.0
+[1.146.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.145.0..v1.146.0
