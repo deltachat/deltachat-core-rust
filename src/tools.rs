@@ -755,6 +755,7 @@ macro_rules! spawn_named_task {
             Fut: ::std::future::Future + Send + 'static,
             Fut::Output: Send + 'static,
         {
+            #[allow(unexpected_cfgs)]
             #[cfg(tokio_unstable)]
             {
                 ::tokio::task::Builder::new()
@@ -762,6 +763,7 @@ macro_rules! spawn_named_task {
                     .spawn(future)
                     .expect("Failed to spawn task")
             }
+            #[allow(unexpected_cfgs)]
             #[cfg(not(tokio_unstable))]
             {
                 ::tokio::task::spawn(future)
@@ -818,6 +820,7 @@ macro_rules! spawn_named_blocking_task {
             Fut: FnOnce() -> ReturnType + Send + 'static,
             ReturnType: Send + 'static,
         {
+            #[allow(unexpected_cfgs)]
             #[cfg(tokio_unstable)]
             {
                 ::tokio::task::Builder::new()
@@ -825,6 +828,7 @@ macro_rules! spawn_named_blocking_task {
                     .spawn_blocking(future)
                     .expect("Failed to spawn task")
             }
+            #[allow(unexpected_cfgs)]
             #[cfg(not(tokio_unstable))]
             {
                 ::tokio::task::spawn_blocking(future)
