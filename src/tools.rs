@@ -734,7 +734,7 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
 /// # Example
 ///
 /// ```
-/// use tokio::task;
+/// use deltachat::spawn_named_task; // or inside of core: crate::spawn_named_task
 ///
 /// let handle = spawn_named_task!("my_task", async {
 ///     // Your async code here
@@ -746,6 +746,7 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
 macro_rules! spawn_named_task {
     ($name:expr, $future:expr) => {{
         #[inline(always)]
+        #[allow(unused_variables)]
         pub fn __spawn_named_task<Fut>(
             name: &str,
             future: Fut,
@@ -796,7 +797,7 @@ macro_rules! spawn_named_task {
 /// # Example
 ///
 /// ```
-/// use tokio::task;
+/// use deltachat::spawn_named_blocking_task; // or inside of core: crate::spawn_named_blocking_task
 ///
 /// let handle = spawn_named_blocking_task!("my_task", async {
 ///     // Your async code here
@@ -808,6 +809,7 @@ macro_rules! spawn_named_task {
 macro_rules! spawn_named_blocking_task {
     ($name:expr, $future:expr) => {{
         #[inline(always)]
+        #[allow(unused_variables)]
         pub fn __spawn_named_blocking_task<Fut, ReturnType>(
             name: &str,
             future: Fut,
