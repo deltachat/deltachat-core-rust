@@ -13,7 +13,6 @@ use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
 use crate::chatlist::Chatlist;

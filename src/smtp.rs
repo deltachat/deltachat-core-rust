@@ -7,7 +7,6 @@ use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::response::{Category, Code, Detail};
 use async_smtp::{EmailAddress, SmtpTransport};
 
-
 use crate::chat::{add_info_msg_with_cmd, ChatId};
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
