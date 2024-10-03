@@ -261,15 +261,15 @@ pub async fn pk_encrypt(
             let mut rng = thread_rng();
 
             let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
-                let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
+                let signed_msg = lit_msg.sign(&mut rng, skey, || "".into(), HASH_ALGORITHM)?;
                 let compressed_msg = if compress {
                     signed_msg.compress(CompressionAlgorithm::ZLIB)?
                 } else {
                     signed_msg
                 };
-                compressed_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+                compressed_msg.encrypt_to_keys_seipdv1(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
             } else {
-                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+                lit_msg.encrypt_to_keys_seipdv1(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
             };
 
             let encoded_msg = encrypted_msg.to_armored_string(Default::default())?;
@@ -371,7 +371,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
         let mut rng = thread_rng();
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
-            lit_msg.encrypt_with_password(&mut rng, s2k, SYMMETRIC_KEY_ALGORITHM, || passphrase)?;
+            lit_msg.encrypt_with_password_seipdv1(&mut rng, s2k, SYMMETRIC_KEY_ALGORITHM, || passphrase)?;
 
         let encoded_msg = msg.to_armored_string(Default::default())?;
 
