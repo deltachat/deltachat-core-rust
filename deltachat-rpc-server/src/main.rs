@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context as _, Result};
-use deltachat::constants::DC_VERSION_STR;
+use deltachat::{constants::DC_VERSION_STR, spawn_named_task};
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{prelude::*, EnvFilter};
 use yerpc::RpcServer as _;
 
 #[cfg(target_family = "unix")]
@@ -67,10 +67,21 @@ async fn main_impl() -> Result<()> {
     // Logs from `log` crate and traces from `tracing` crate
     // are configurable with `RUST_LOG` environment variable
     // and go to stderr to avoid interferring with JSON-RPC using stdout.
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_writer(std::io::stderr)
-        .init();
+    tracing::subscriber::set_global_default({
+        let subscribers = tracing_subscriber::Registry::default().with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stderr)
+                .with_filter(EnvFilter::from_default_env()),
+        );
+        #[cfg(tokio_unstable)]
+        {
+            subscribers.with(console_subscriber::spawn())
+        }
+        #[cfg(not(tokio_unstable))]
+        {
+            subscribers
+        }
+    })?;
 
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());
     log::info!("Starting with accounts directory `{}`.", path);
@@ -87,7 +98,7 @@ async fn main_impl() -> Result<()> {
 
     // Send task prints JSON responses to stdout.
     let cancel = main_cancel.clone();
-    let send_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+    let send_task: JoinHandle<anyhow::Result<()>> = spawn_named_task!("send_task", async move {
         let _cancel_guard = cancel.clone().drop_guard();
         loop {
             let message = tokio::select! {
@@ -104,24 +115,25 @@ async fn main_impl() -> Result<()> {
     });
 
     let cancel = main_cancel.clone();
-    let sigterm_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-        #[cfg(target_family = "unix")]
-        {
-            let _cancel_guard = cancel.clone().drop_guard();
-            tokio::select! {
-                _ = cancel.cancelled() => (),
-                _ = sigterm.recv() => {
-                    log::info!("got SIGTERM");
+    let sigterm_task: JoinHandle<anyhow::Result<()>> =
+        spawn_named_task!("sigterm_task", async move {
+            #[cfg(target_family = "unix")]
+            {
+                let _cancel_guard = cancel.clone().drop_guard();
+                tokio::select! {
+                    _ = cancel.cancelled() => (),
+                    _ = sigterm.recv() => {
+                        log::info!("got SIGTERM");
+                    }
                 }
             }
-        }
-        let _ = cancel;
-        Ok(())
-    });
+            let _ = cancel;
+            Ok(())
+        });
 
     // Receiver task reads JSON requests from stdin.
     let cancel = main_cancel.clone();
-    let recv_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+    let recv_task: JoinHandle<anyhow::Result<()>> = spawn_named_task!("recv_task", async move {
         let _cancel_guard = cancel.clone().drop_guard();
         let stdin = io::stdin();
         let mut lines = BufReader::new(stdin).lines();
@@ -143,7 +155,7 @@ async fn main_impl() -> Result<()> {
             };
             log::trace!("RPC recv {}", message);
             let session = session.clone();
-            tokio::spawn(async move {
+            spawn_named_task!("handle_incoming", async move {
                 session.handle_incoming(&message).await;
             });
         }
