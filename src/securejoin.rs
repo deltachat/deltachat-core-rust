@@ -696,7 +696,10 @@ async fn could_not_establish_secure_connection(
     details: &str,
 ) -> Result<()> {
     let contact = Contact::get_by_id(context, contact_id).await?;
-    let msg = stock_str::contact_not_verified(context, &contact).await;
+    let mut msg = stock_str::contact_not_verified(context, &contact).await;
+    msg += " (";
+    msg += details;
+    msg += ")";
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
     warn!(
         context,
