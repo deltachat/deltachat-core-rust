@@ -755,7 +755,6 @@ macro_rules! spawn_named_task {
             Fut: ::std::future::Future + Send + 'static,
             Fut::Output: Send + 'static,
         {
-
             #[cfg(tokio_unstable)]
             {
                 ::tokio::task::Builder::new()
