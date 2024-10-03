@@ -18,7 +18,6 @@ use deltachat::constants::DC_MSG_ID_DAYMARKER;
 use deltachat::contact::{may_be_valid_addr, Contact, ContactId, Origin};
 use deltachat::context::get_info;
 use deltachat::ephemeral::Timer;
-use deltachat::location;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::message::{
     self, delete_msgs, markseen_msgs, Message, MessageState, MsgId, Viewtype,
@@ -35,6 +34,7 @@ use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::EventEmitter;
 use deltachat::{imex, info};
+use deltachat::{location, spawn_named_task};
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
@@ -1777,7 +1777,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let fut = send_webxdc_realtime_advertisement(&ctx, MsgId::new(instance_msg_id)).await?;
         if let Some(fut) = fut {
-            tokio::spawn(async move {
+            spawn_named_task!("send_webxdc_realtime_advertisement", async move {
                 fut.await.ok();
                 info!(ctx, "send_webxdc_realtime_advertisement done")
             });

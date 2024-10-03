@@ -19,12 +19,12 @@ use crate::download::{download_msg, DownloadState};
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::events::EventType;
 use crate::imap::{session::Session, FolderMeaning, Imap};
-use crate::location;
 use crate::log::LogExt;
 use crate::message::MsgId;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
 use crate::tools::{self, duration_to_str, maybe_add_time_based_warnings, time, time_elapsed};
+use crate::{location, spawn_named_task};
 
 pub(crate) mod connectivity;
 
@@ -164,7 +164,7 @@ impl SchedulerState {
         }
 
         let (tx, rx) = oneshot::channel();
-        tokio::spawn(async move {
+        spawn_named_task!("pause", async move {
             rx.await.ok();
             let mut inner = context.scheduler.inner.write().await;
             match *inner {
@@ -849,7 +849,10 @@ impl Scheduler {
         let (inbox_start_send, inbox_start_recv) = oneshot::channel();
         let handle = {
             let ctx = ctx.clone();
-            task::spawn(inbox_loop(ctx, inbox_start_send, inbox_handlers))
+            spawn_named_task!(
+                "inbox_loop",
+                inbox_loop(ctx, inbox_start_send, inbox_handlers)
+            )
         };
         let inbox = SchedBox {
             meaning: FolderMeaning::Inbox,
@@ -866,7 +869,10 @@ impl Scheduler {
                 let (conn_state, handlers) = ImapConnectionState::new(ctx).await?;
                 let (start_send, start_recv) = oneshot::channel();
                 let ctx = ctx.clone();
-                let handle = task::spawn(simple_imap_loop(ctx, start_send, handlers, meaning));
+                let handle = spawn_named_task!(
+                    "simple_imap_loop",
+                    simple_imap_loop(ctx, start_send, handlers, meaning)
+                );
                 oboxes.push(SchedBox {
                     meaning,
                     conn_state,
@@ -878,20 +884,20 @@ impl Scheduler {
 
         let smtp_handle = {
             let ctx = ctx.clone();
-            task::spawn(smtp_loop(ctx, smtp_start_send, smtp_handlers))
+            spawn_named_task!("smtp_loop", smtp_loop(ctx, smtp_start_send, smtp_handlers))
         };
         start_recvs.push(smtp_start_recv);
 
         let ephemeral_handle = {
             let ctx = ctx.clone();
-            task::spawn(async move {
+            spawn_named_task!("ephemeral_loop", async move {
                 ephemeral::ephemeral_loop(&ctx, ephemeral_interrupt_recv).await;
             })
         };
 
         let location_handle = {
             let ctx = ctx.clone();
-            task::spawn(async move {
+            spawn_named_task!("location_loop", async move {
                 location::location_loop(&ctx, location_interrupt_recv).await;
             })
         };

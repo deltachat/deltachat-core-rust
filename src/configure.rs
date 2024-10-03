@@ -21,7 +21,6 @@ use futures::FutureExt;
 use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use server_params::{expand_param_vector, ServerParams};
-use tokio::task;
 
 use crate::config::{self, Config};
 use crate::context::Context;
@@ -35,10 +34,10 @@ use crate::message::{Message, Viewtype};
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
-use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::time;
 use crate::{chat, e2ee, provider};
+use crate::{spawn_named_task, stock_str};
 use deltachat_contact_tools::addr_cmp;
 
 macro_rules! progress {
@@ -372,7 +371,9 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     progress!(ctx, 1);
 
     let ctx2 = ctx.clone();
-    let update_device_chats_handle = task::spawn(async move { ctx2.update_device_chats().await });
+    let update_device_chats_handle = spawn_named_task!("update_device_chats", async move {
+        ctx2.update_device_chats().await
+    });
 
     let configured_param = get_configured_param(ctx, param).await?;
     let strict_tls = configured_param.strict_tls();
@@ -387,7 +388,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     let smtp_addr = configured_param.addr.clone();
     let proxy_config = configured_param.proxy_config.clone();
 
-    let smtp_config_task = task::spawn(async move {
+    let smtp_config_task = spawn_named_task!("smtp_config", async move {
         let mut smtp = Smtp::new();
         smtp.connect(
             &context_smtp,
