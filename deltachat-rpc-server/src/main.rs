@@ -35,6 +35,7 @@ async fn main() {
     std::process::exit(if r.is_ok() { 0 } else { 1 });
 }
 
+#[allow(unexpected_cfgs)]
 async fn main_impl() -> Result<()> {
     let mut args = env::args_os();
     let _program_name = args.next().context("no command line arguments found")?;
@@ -73,6 +74,7 @@ async fn main_impl() -> Result<()> {
                 .with_writer(std::io::stderr)
                 .with_filter(EnvFilter::from_default_env()),
         );
+        
         #[cfg(tokio_unstable)]
         {
             subscribers.with(console_subscriber::spawn())
