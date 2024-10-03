@@ -20,6 +20,7 @@ use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
+use crate::spawn_named_blocking_task;
 
 #[allow(missing_docs)]
 #[cfg(test)]
@@ -250,6 +251,7 @@ pub async fn pk_encrypt(
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
+    // TODO? label this
     Handle::current()
         .spawn_blocking(move || {
             let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
@@ -367,7 +369,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let passphrase = passphrase.to_string();
 
-    tokio::task::spawn_blocking(move || {
+    spawn_named_blocking_task!("symm_encrypt", move || {
         let mut rng = thread_rng();
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
@@ -388,7 +390,7 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
 
     let passphrase = passphrase.to_string();
-    tokio::task::spawn_blocking(move || {
+    spawn_named_blocking_task!("symm_decrypt", move || {
         let msg = enc_msg.decrypt_with_password(|| passphrase)?;
 
         match msg.get_content()? {

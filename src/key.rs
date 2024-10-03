@@ -251,6 +251,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
             info!(context, "Generating keypair with type {}", keytype);
+            // TODO? add it here as well?
             let keypair = Handle::current()
                 .spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
                 .await??;
