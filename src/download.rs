@@ -135,7 +135,17 @@ pub(crate) async fn download_msg(
     msg_id: MsgId,
     session: &mut Session,
 ) -> Result<()> {
-    let msg = Message::load_from_db(context, msg_id).await?;
+    let Some(msg) = Message::load_from_db_optional(context, msg_id).await? else {
+        // If partially downloaded message was already deleted
+        // we do not know its Message-ID anymore
+        // so cannot download it.
+        //
+        // Probably the message expired due to `delete_device_after`
+        // setting or was otherwise removed from the device,
+        // so we don't want it to reappear anyway.
+        return Ok(());
+    };
+
     let row = context
         .sql
         .query_row_optional(
