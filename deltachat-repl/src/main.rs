@@ -30,7 +30,7 @@ use rustyline::{
 };
 use tokio::fs;
 use tokio::runtime::Handle;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Layer};
 
 mod cmdline;
 use self::cmdline::*;
@@ -317,7 +317,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         .await?;
 
     let events = context.get_event_emitter();
-    tokio::task::spawn(async move {
+    spawn_named_task!("repl:receive_event", async move {
         while let Some(event) = events.recv().await {
             receive_event(event.typ);
         }
@@ -333,7 +333,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
     let mut selected_chat = ChatId::default();
 
     let ctx = context.clone();
-    let input_loop = tokio::task::spawn_blocking(move || {
+    let input_loop = spawn_named_blocking_task!("repl:input_loop", move || {
         let h = DcHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -481,11 +481,22 @@ async fn handle_cmd(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env().add_directive("deltachat_repl=info".parse()?),
-        )
-        .init();
+    tracing::subscriber::set_global_default({
+        let subscribers = tracing_subscriber::Registry::default().with(
+            tracing_subscriber::fmt::layer().with_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive("deltachat_repl=info".parse()?),
+            ),
+        );
+        #[cfg(tokio_unstable)]
+        {
+            subscribers.with(console_subscriber::spawn())
+        }
+        #[cfg(not(tokio_unstable))]
+        {
+            subscribers
+        }
+    })?;
 
     let args = std::env::args().collect();
     start(args).await?;
