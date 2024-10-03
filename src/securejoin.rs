@@ -136,7 +136,7 @@ async fn get_self_fingerprint(context: &Context) -> Result<Fingerprint> {
     let key = load_self_public_key(context)
         .await
         .context("Failed to load key")?;
-    Ok(key.fingerprint())
+    Ok(key.dc_fingerprint())
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
@@ -298,9 +298,9 @@ pub(crate) async fn handle_securejoin_handshake(
 
     if !matches!(step, "vg-request" | "vc-request") {
         let mut self_found = false;
-        let self_fingerprint = load_self_public_key(context).await?.fingerprint();
+        let self_fingerprint = load_self_public_key(context).await?.dc_fingerprint();
         for (addr, key) in &mime_message.gossiped_keys {
-            if key.fingerprint() == self_fingerprint && context.is_self_addr(addr).await? {
+            if key.dc_fingerprint() == self_fingerprint && context.is_self_addr(addr).await? {
                 self_found = true;
                 break;
             }
@@ -936,7 +936,10 @@ mod tests {
             "vc-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = load_self_public_key(&bob.ctx).await.unwrap().fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx)
+            .await
+            .unwrap()
+            .dc_fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -1106,10 +1109,10 @@ mod tests {
             last_seen_autocrypt: 10,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(alice_pubkey.clone()),
-            public_key_fingerprint: Some(alice_pubkey.fingerprint()),
+            public_key_fingerprint: Some(alice_pubkey.dc_fingerprint()),
             gossip_key: Some(alice_pubkey.clone()),
             gossip_timestamp: 10,
-            gossip_key_fingerprint: Some(alice_pubkey.fingerprint()),
+            gossip_key_fingerprint: Some(alice_pubkey.dc_fingerprint()),
             verified_key: None,
             verified_key_fingerprint: None,
             verifier: None,
@@ -1157,7 +1160,7 @@ mod tests {
             "vc-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = load_self_public_key(&bob.ctx).await?.fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await?.dc_fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -1320,7 +1323,7 @@ mod tests {
             "vg-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = load_self_public_key(&bob.ctx).await?.fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await?.dc_fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()

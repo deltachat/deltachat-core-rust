@@ -182,7 +182,7 @@ pub(crate) async fn get_autocrypt_peerstate(
             // if the fingerprint is verified.
             peerstate = Peerstate::from_verified_fingerprint_or_addr(
                 context,
-                &header.public_key.fingerprint(),
+                &header.public_key.dc_fingerprint(),
                 from,
             )
             .await?;

@@ -121,7 +121,7 @@ impl Peerstate {
             last_seen_autocrypt: last_seen,
             prefer_encrypt,
             public_key: Some(public_key.clone()),
-            public_key_fingerprint: Some(public_key.fingerprint()),
+            public_key_fingerprint: Some(public_key.dc_fingerprint()),
             gossip_key: None,
             gossip_key_fingerprint: None,
             gossip_timestamp: 0,
@@ -153,7 +153,7 @@ impl Peerstate {
             public_key: None,
             public_key_fingerprint: None,
             gossip_key: Some(gossip_header.public_key.clone()),
-            gossip_key_fingerprint: Some(gossip_header.public_key.fingerprint()),
+            gossip_key_fingerprint: Some(gossip_header.public_key.dc_fingerprint()),
             gossip_timestamp: message_time,
             verified_key: None,
             verified_key_fingerprint: None,
@@ -308,7 +308,7 @@ impl Peerstate {
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
-            self.public_key_fingerprint = Some(public_key.fingerprint());
+            self.public_key_fingerprint = Some(public_key.dc_fingerprint());
 
             if old_public_fingerprint.is_some()
                 && old_public_fingerprint != self.public_key_fingerprint
@@ -319,7 +319,7 @@ impl Peerstate {
 
         if let Some(ref gossip_key) = self.gossip_key {
             let old_gossip_fingerprint = self.gossip_key_fingerprint.take();
-            self.gossip_key_fingerprint = Some(gossip_key.fingerprint());
+            self.gossip_key_fingerprint = Some(gossip_key.dc_fingerprint());
 
             if old_gossip_fingerprint.is_none()
                 || self.gossip_key_fingerprint.is_none()
@@ -506,7 +506,7 @@ impl Peerstate {
         fingerprint: Fingerprint,
         verifier: String,
     ) -> Result<()> {
-        if key.fingerprint() == fingerprint {
+        if key.dc_fingerprint() == fingerprint {
             self.verified_key = Some(key);
             self.verified_key_fingerprint = Some(fingerprint);
             self.verifier = Some(verifier);
@@ -524,7 +524,7 @@ impl Peerstate {
     /// do nothing to avoid overwriting secondary verified key
     /// which may be different.
     pub fn set_secondary_verified_key(&mut self, gossip_key: SignedPublicKey, verifier: String) {
-        let fingerprint = gossip_key.fingerprint();
+        let fingerprint = gossip_key.dc_fingerprint();
         if self.verified_key_fingerprint.as_ref() != Some(&fingerprint) {
             self.secondary_verified_key = Some(gossip_key);
             self.secondary_verified_key_fingerprint = Some(fingerprint);
@@ -888,12 +888,12 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: Some(pub_key.clone()),
             gossip_timestamp: 12,
-            gossip_key_fingerprint: Some(pub_key.fingerprint()),
+            gossip_key_fingerprint: Some(pub_key.dc_fingerprint()),
             verified_key: Some(pub_key.clone()),
-            verified_key_fingerprint: Some(pub_key.fingerprint()),
+            verified_key_fingerprint: Some(pub_key.dc_fingerprint()),
             verifier: None,
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
@@ -913,7 +913,7 @@ mod tests {
             .expect("no peerstate found in the database");
 
         assert_eq!(peerstate, peerstate_new);
-        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.fingerprint())
+        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.dc_fingerprint())
             .await
             .expect("failed to load peerstate from db")
             .expect("no peerstate found in the database");
@@ -932,7 +932,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,
@@ -969,7 +969,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,

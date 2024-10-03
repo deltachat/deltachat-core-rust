@@ -1252,15 +1252,15 @@ impl Contact {
 
         let fingerprint_self = load_self_public_key(context)
             .await?
-            .fingerprint()
+            .dc_fingerprint()
             .to_string();
         let fingerprint_other_verified = peerstate
             .peek_key(true)
-            .map(|k| k.fingerprint().to_string())
+            .map(|k| k.dc_fingerprint().to_string())
             .unwrap_or_default();
         let fingerprint_other_unverified = peerstate
             .peek_key(false)
-            .map(|k| k.fingerprint().to_string())
+            .map(|k| k.dc_fingerprint().to_string())
             .unwrap_or_default();
         if addr < peerstate.addr {
             cat_fingerprint(&mut ret, &addr, &fingerprint_self, "");
