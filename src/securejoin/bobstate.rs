@@ -389,7 +389,7 @@ async fn send_handshake_message(
             msg.param.set_int(Param::GuaranteeE2ee, 1);
 
             // Sends our own fingerprint in the Secure-Join-Fingerprint header.
-            let bob_fp = load_self_public_key(context).await?.fingerprint();
+            let bob_fp = load_self_public_key(context).await?.dc_fingerprint();
             msg.param.set(Param::Arg3, bob_fp.hex());
 
             // Sends the grpid in the Secure-Join-Group header.

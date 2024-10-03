@@ -1309,7 +1309,7 @@ mod tests {
             last_seen_autocrypt: 1,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: None,
             gossip_timestamp: 0,
             gossip_key_fingerprint: None,
@@ -1340,7 +1340,10 @@ mod tests {
 
         let qr = check_qr(
             &ctx.ctx,
-            &format!("OPENPGP4FPR:{}#a=alice@example.org", pub_key.fingerprint()),
+            &format!(
+                "OPENPGP4FPR:{}#a=alice@example.org",
+                pub_key.dc_fingerprint()
+            ),
         )
         .await?;
         if let Qr::FprOk { contact_id, .. } = qr {
