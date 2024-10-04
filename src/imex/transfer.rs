@@ -177,6 +177,7 @@ impl BackupProvider {
         }
 
         info!(context, "Received valid backup authentication token.");
+        context.emit_event(EventType::ImexProgress(5));
 
         let blobdir = BlobDirContents::new(&context).await?;
 
@@ -186,6 +187,7 @@ impl BackupProvider {
             file_size += blob.to_abs_path().metadata()?.len()
         }
 
+        context.emit_event(EventType::ImexProgress(10));
         send_stream.write_all(&file_size.to_be_bytes()).await?;
 
         export_backup_stream(&context, &dbfile, blobdir, send_stream)
