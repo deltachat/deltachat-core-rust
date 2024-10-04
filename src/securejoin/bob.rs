@@ -47,7 +47,7 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
         BobState::start_protocol(context, invite.clone(), chat_id).await?;
     for state in aborted_states {
         error!(context, "Aborting previously unfinished QR Join process.");
-        state.notify_aborted(context, "new QR scanned").await?;
+        state.notify_aborted(context, "New QR code scanned").await?;
         state.emit_progress(context, JoinerProgress::Error);
     }
     if matches!(stage, BobHandshakeStage::RequestWithAuthSent) {
@@ -194,7 +194,10 @@ impl BobState {
     /// This creates an info message in the chat being joined.
     async fn notify_aborted(&self, context: &Context, why: &str) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
-        let msg = stock_str::contact_not_verified(context, &contact).await;
+        let mut msg = stock_str::contact_not_verified(context, &contact).await;
+        msg += " (";
+        msg += why;
+        msg += ")";
         let chat_id = self.joining_chat_id(context).await?;
         chat::add_info_msg(context, chat_id, &msg, time()).await?;
         warn!(
