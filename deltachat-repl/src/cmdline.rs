@@ -1,7 +1,9 @@
 #![allow(clippy::format_push_string)]
 extern crate dirs;
 
+use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -487,8 +489,14 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "send-backup" => {
             let provider = BackupProvider::prepare(&context).await?;
-            let qr = provider.qr();
-            println!("QR code: {}", format_backup(&qr)?);
+            let qr = format_backup(&provider.qr())?;
+            println!("QR code: {}", qr);
+            let output = Command::new("qrencode")
+                .args(["-t", "ansiutf8", qr.as_str(), "-o", "-"])
+                .output()
+                .expect("failed to execute process");
+            std::io::stdout().write_all(&output.stdout).unwrap();
+            std::io::stderr().write_all(&output.stderr).unwrap();
             provider.await?;
         }
         "receive-backup" => {
