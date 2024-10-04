@@ -168,9 +168,10 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     let (signing_key_type, encryption_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
-        KeyGenType::Ed25519 | KeyGenType::Default => {
-            (PgpKeyType::EdDSA, PgpKeyType::ECDH(ECCCurve::Curve25519))
-        }
+        KeyGenType::Ed25519 | KeyGenType::Default => (
+            PgpKeyType::EdDSALegacy,
+            PgpKeyType::ECDH(ECCCurve::Curve25519),
+        ),
     };
 
     let user_id = format!("<{addr}>");
