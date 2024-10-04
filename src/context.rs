@@ -515,8 +515,11 @@ impl Context {
         Ok(val)
     }
 
-    /// Does a background fetch
-    /// pauses the scheduler and does one imap fetch, then unpauses and returns
+    /// Does a single round of fetching from IMAP and returns.
+    ///
+    /// Can be used even if I/O is currently stopped.
+    /// If I/O is currently stopped, starts a new IMAP connection
+    /// and fetches from Inbox and DeltaChat folders.
     pub async fn background_fetch(&self) -> Result<()> {
         if !(self.is_configured().await?) {
             return Ok(());
@@ -524,35 +527,61 @@ impl Context {
 
         let address = self.get_primary_self_addr().await?;
         let time_start = tools::Time::now();
-        info!(self, "background_fetch started fetching {address}");
+        info!(self, "background_fetch started fetching {address}.");
 
-        let _pause_guard = self.scheduler.pause(self.clone()).await?;
+        if self.scheduler.is_running().await {
+            self.scheduler.maybe_network().await;
 
-        // connection
-        let mut connection = Imap::new_configured(self, channel::bounded(1).1).await?;
-        let mut session = connection.prepare(self).await?;
+            // Wait until fetching is finished.
+            // Ideally we could wait for connectivity change events,
+            // but sleep loop is good enough.
 
-        // fetch imap folders
-        for folder_meaning in [FolderMeaning::Inbox, FolderMeaning::Mvbox] {
-            let (_, watch_folder) = convert_folder_meaning(self, folder_meaning).await?;
-            connection
-                .fetch_move_delete(self, &mut session, &watch_folder, folder_meaning)
-                .await?;
-        }
+            // First 100 ms sleep in chunks of 10 ms.
+            for _ in 0..10 {
+                if self.all_work_done().await {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
 
-        // update quota (to send warning if full) - but only check it once in a while
-        if self
-            .quota_needs_update(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
-            .await
-        {
-            if let Err(err) = self.update_recent_quota(&mut session).await {
-                warn!(self, "Failed to update quota: {err:#}.");
+            // If we are not finished in 100 ms, keep waking up every 100 ms.
+            while !self.all_work_done().await {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+        } else {
+            // Pause the scheduler to ensure another connection does not start
+            // while we are fetching on a dedicated connection.
+            let _pause_guard = self.scheduler.pause(self.clone()).await?;
+
+            // Start a new dedicated connection.
+            let mut connection = Imap::new_configured(self, channel::bounded(1).1).await?;
+            let mut session = connection.prepare(self).await?;
+
+            // Fetch IMAP folders.
+            // Inbox is fetched before Mvbox because fetching from Inbox
+            // may result in moving some messages to Mvbox.
+            for folder_meaning in [FolderMeaning::Inbox, FolderMeaning::Mvbox] {
+                let (_folder_config, watch_folder) =
+                    convert_folder_meaning(self, folder_meaning).await?;
+                connection
+                    .fetch_move_delete(self, &mut session, &watch_folder, folder_meaning)
+                    .await?;
+            }
+
+            // Update quota (to send warning if full) - but only check it once in a while.
+            if self
+                .quota_needs_update(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
+                .await
+            {
+                if let Err(err) = self.update_recent_quota(&mut session).await {
+                    warn!(self, "Failed to update quota: {err:#}.");
+                }
             }
         }
 
         info!(
             self,
-            "background_fetch done for {address} took {:?}",
+            "background_fetch done for {address} took {:?}.",
             time_elapsed(&time_start),
         );
 
