@@ -561,11 +561,13 @@ impl Context {
             // Inbox is fetched before Mvbox because fetching from Inbox
             // may result in moving some messages to Mvbox.
             for folder_meaning in [FolderMeaning::Inbox, FolderMeaning::Mvbox] {
-                let (_folder_config, watch_folder) =
-                    convert_folder_meaning(self, folder_meaning).await?;
-                connection
-                    .fetch_move_delete(self, &mut session, &watch_folder, folder_meaning)
-                    .await?;
+                if let Some((_folder_config, watch_folder)) =
+                    convert_folder_meaning(self, folder_meaning).await?
+                {
+                    connection
+                        .fetch_move_delete(self, &mut session, &watch_folder, folder_meaning)
+                        .await?;
+                }
             }
 
             // Update quota (to send warning if full) - but only check it once in a while.

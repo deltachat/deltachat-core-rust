@@ -433,36 +433,33 @@ async fn inbox_loop(
 }
 
 /// Convert folder meaning
-/// used internally by [fetch_idle] and [Context::background_fetch]
+/// used internally by [fetch_idle] and [Context::background_fetch].
+///
+/// Returns folder configuration key and folder name
+/// if such folder is configured, `Ok(None)` otherwise.
 pub async fn convert_folder_meaning(
     ctx: &Context,
     folder_meaning: FolderMeaning,
-) -> Result<(Config, String)> {
+) -> Result<Option<(Config, String)>> {
     let folder_config = match folder_meaning.to_config() {
         Some(c) => c,
         None => {
-            bail!("Bad folder meaning: {}", folder_meaning);
+            // Such folder cannot be configured,
+            // e.g. a `FolderMeaning::Spam` folder.
+            return Ok(None);
         }
     };
 
-    let folder = match ctx.get_config(folder_config).await {
-        Ok(folder) => folder,
-        Err(err) => {
-            bail!(
-                "Can not watch {} folder, failed to retrieve config: {:#}",
-                folder_config,
-                err
-            );
-        }
-    };
+    let folder = ctx
+        .get_config(folder_config)
+        .await
+        .with_context(|| format!("Failed to retrieve {folder_config} folder"))?;
 
-    let watch_folder = if let Some(watch_folder) = folder {
-        watch_folder
+    if let Some(watch_folder) = folder {
+        Ok(Some((folder_config, watch_folder)))
     } else {
-        bail!("Can not watch {} folder, not set", folder_config);
-    };
-
-    Ok((folder_config, watch_folder))
+        Ok(None)
+    }
 }
 
 async fn inbox_fetch_idle(ctx: &Context, imap: &mut Imap, mut session: Session) -> Result<Session> {
@@ -554,17 +551,14 @@ async fn fetch_idle(
     mut session: Session,
     folder_meaning: FolderMeaning,
 ) -> Result<Session> {
-    let (folder_config, watch_folder) = match convert_folder_meaning(ctx, folder_meaning).await {
-        Ok(meaning) => meaning,
-        Err(err) => {
-            // Warning instead of error because the folder may not be configured.
-            // For example, this happens if the server does not have Sent folder
-            // but watching Sent folder is enabled.
-            warn!(ctx, "Error converting IMAP Folder name: {err:#}.");
-            connection.connectivity.set_not_configured(ctx).await;
-            connection.idle_interrupt_receiver.recv().await.ok();
-            return Err(err);
-        }
+    let Some((folder_config, watch_folder)) = convert_folder_meaning(ctx, folder_meaning).await?
+    else {
+        // The folder is not configured.
+        // For example, this happens if the server does not have Sent folder
+        // but watching Sent folder is enabled.
+        connection.connectivity.set_not_configured(ctx).await;
+        connection.idle_interrupt_receiver.recv().await.ok();
+        bail!("Cannot fetch folder {folder_meaning} because it is not configured");
     };
 
     if folder_config == Config::ConfiguredInboxFolder {
