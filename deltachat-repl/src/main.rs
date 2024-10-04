@@ -168,7 +168,7 @@ const IMEX_COMMANDS: [&str; 13] = [
     "stop",
 ];
 
-const DB_COMMANDS: [&str; 10] = [
+const DB_COMMANDS: [&str; 11] = [
     "info",
     "set",
     "get",
@@ -176,6 +176,7 @@ const DB_COMMANDS: [&str; 10] = [
     "configure",
     "connect",
     "disconnect",
+    "fetch",
     "connectivity",
     "maybenetwork",
     "housekeeping",
@@ -416,6 +417,9 @@ async fn handle_cmd(
         }
         "disconnect" => {
             ctx.stop_io().await;
+        }
+        "fetch" => {
+            ctx.background_fetch().await?;
         }
         "configure" => {
             ctx.configure().await?;

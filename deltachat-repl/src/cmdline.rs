@@ -355,6 +355,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  configure\n\
                  connect\n\
                  disconnect\n\
+                 fetch\n\
                  connectivity\n\
                  maybenetwork\n\
                  housekeeping\n\
