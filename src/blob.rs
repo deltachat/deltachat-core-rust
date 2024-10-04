@@ -666,10 +666,6 @@ impl<'a> BlobDirContents<'a> {
     pub(crate) fn iter(&self) -> BlobDirIter<'_> {
         BlobDirIter::new(self.context, self.inner.iter())
     }
-
-    pub(crate) fn len(&self) -> usize {
-        self.inner.len()
-    }
 }
 
 /// A iterator over all the [`BlobObject`]s in the blobdir.

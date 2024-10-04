@@ -1315,6 +1315,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "pgp",
+ "pin-project",
  "pretty_assertions",
  "proptest",
  "qrcodegen",

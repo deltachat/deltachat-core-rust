@@ -109,6 +109,7 @@ impl BackupProvider {
             .get_blobdir()
             .parent()
             .context("Context dir not found")?;
+
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
@@ -124,7 +125,6 @@ impl BackupProvider {
         export_database(context, &dbfile, passphrase, time())
             .await
             .context("Database export failed")?;
-        context.emit_event(EventType::ImexProgress(300));
 
         let drop_token = CancellationToken::new();
         let handle = {
@@ -178,6 +178,7 @@ impl BackupProvider {
         }
 
         info!(context, "Received valid backup authentication token.");
+        context.emit_event(EventType::ImexProgress(1));
 
         let blobdir = BlobDirContents::new(&context).await?;
 
@@ -189,7 +190,7 @@ impl BackupProvider {
 
         send_stream.write_all(&file_size.to_be_bytes()).await?;
 
-        export_backup_stream(&context, &dbfile, blobdir, send_stream)
+        export_backup_stream(&context, &dbfile, blobdir, send_stream, file_size)
             .await
             .context("Failed to write backup into QUIC stream")?;
         info!(context, "Finished writing backup into QUIC stream.");
