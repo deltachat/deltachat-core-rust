@@ -210,7 +210,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
 
     let mut rng = thread_rng();
     let secret_key = key_params
-        .generate()
+        .generate(&mut rng)
         .context("failed to generate the key")?
         .sign(&mut rng, || "".into())
         .context("failed to sign secret key")?;

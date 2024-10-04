@@ -12,6 +12,7 @@ use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
+use rand::thread_rng;
 use tokio::runtime::Handle;
 
 use crate::config::Config;
@@ -233,7 +234,8 @@ impl DcSecretKey for SignedSecretKey {
     fn split_public_key(&self) -> Result<SignedPublicKey> {
         self.verify()?;
         let unsigned_pubkey = SecretKeyTrait::public_key(self);
-        let signed_pubkey = unsigned_pubkey.sign(self, || "".into())?;
+        let mut rng = thread_rng();
+        let signed_pubkey = unsigned_pubkey.sign(&mut rng, self, || "".into())?;
         Ok(signed_pubkey)
     }
 }
