@@ -345,7 +345,17 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         Qr::Backup2 {
             node_addr,
             auth_token,
-        } => get_backup2(context, node_addr, auth_token).await?,
+        } => {
+            let cancel_token = context.alloc_ongoing().await?;
+            let res = get_backup2(context, node_addr, auth_token)
+                .race(async {
+                    cancel_token.recv().await.ok();
+                    Err(format_err!("Backup reception cancelled"))
+                })
+                .await;
+            context.free_ongoing().await;
+            res?;
+        }
         _ => bail!("QR code for backup must be of type DCBACKUP2"),
     }
     Ok(())
