@@ -11,7 +11,8 @@ use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
-use pgp::types::{KeyTrait, SecretKeyTrait};
+use pgp::types::{PublicKeyTrait, SecretKeyTrait};
+use rand::thread_rng;
 use tokio::runtime::Handle;
 
 use crate::config::Config;
@@ -26,7 +27,7 @@ use crate::tools::{self, time_elapsed};
 /// This trait is implemented for rPGP's [SignedPublicKey] and
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
-pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
+pub(crate) trait DcKey: Serialize + Deserializable + Clone {
     /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self> {
         Ok(<Self as Deserializable>::from_bytes(Cursor::new(bytes))?)
@@ -91,11 +92,6 @@ pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     // Since .to_armored_string() are actual methods on SignedPublicKey and
     // SignedSecretKey we can not generically implement this.
     fn to_asc(&self, header: Option<(&str, &str)>) -> String;
-
-    /// The fingerprint for the key.
-    fn fingerprint(&self) -> Fingerprint {
-        Fingerprint::new(KeyTrait::fingerprint(self))
-    }
 
     fn is_private() -> bool;
 }
@@ -233,7 +229,8 @@ impl DcSecretKey for SignedSecretKey {
     fn split_public_key(&self) -> Result<SignedPublicKey> {
         self.verify()?;
         let unsigned_pubkey = SecretKeyTrait::public_key(self);
-        let signed_pubkey = unsigned_pubkey.sign(self, || "".into())?;
+        let mut rng = thread_rng();
+        let signed_pubkey = unsigned_pubkey.sign(&mut rng, self, || "".into())?;
         Ok(signed_pubkey)
     }
 }
