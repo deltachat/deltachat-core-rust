@@ -191,7 +191,7 @@ impl BackupProvider {
         context.emit_event(EventType::ImexProgress(10));
         send_stream.write_all(&file_size.to_be_bytes()).await?;
 
-        export_backup_stream(&context, &dbfile, blobdir, send_stream)
+        export_backup_stream(&context, &dbfile, blobdir, send_stream, file_size)
             .await
             .context("Failed to write backup into QUIC stream")?;
         info!(context, "Finished writing backup into QUIC stream.");
