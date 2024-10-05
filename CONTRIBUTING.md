@@ -32,6 +32,8 @@ on the contributing page: <https://github.com/deltachat/deltachat-core-rust/cont
 We format the code using `rustfmt`. Run `cargo fmt` prior to committing the code.
 Run `scripts/clippy.sh` to check the code for common mistakes with [Clippy].
 
+### SQL
+
 Multi-line SQL statements should be formatted using string literals,
 for example
 ```
@@ -64,6 +66,23 @@ is prone to errors like this if space before backslash is missing:
 ```
 Literal above results in `SELECT fooFROM bar` string.
 This style also does not allow using `--` comments.
+
+---
+
+Declare new SQL tables with [`STRICT`](https://sqlite.org/stricttables.html) keyword
+to make SQLite check column types.
+
+Declare primary keys with [`AUTOINCREMENT`](https://www.sqlite.org/autoinc.html) keyword.
+This avoids reuse of the row IDs and can avoid dangerous bugs
+like forwarding wrong message because the message was deleted
+and another message took its row ID.
+
+Declare all new columns as `NOT NULL`
+and set the `DEFAULT` value if it is optional so the column can be skipped in `INSERT` statements.
+Dealing with `NULL` values both in SQL and in Rust is tricky and we try to avoid it.
+If column is already declared without `NOT NULL`, use `IFNULL` function to provide default value when selecting it.
+Use `HAVING COUNT(*) > 0` clause
+to [prevent aggregate functions such as `MIN` and `MAX` from returning `NULL`](https://stackoverflow.com/questions/66527856/aggregate-functions-max-etc-return-null-instead-of-no-rows).
 
 ### Commit messages
 
