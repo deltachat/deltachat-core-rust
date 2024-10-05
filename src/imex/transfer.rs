@@ -233,6 +233,7 @@ impl BackupProvider {
                         let dbfile = dbfile.clone();
                         if let Err(err) = Self::handle_connection(context.clone(), conn, auth_token, dbfile).await {
                             warn!(context, "Error while handling backup connection: {err:#}.");
+                            break;
                         } else {
                             info!(context, "Backup transfer finished successfully.");
                             break;
