@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.147.0] - 2024-10-05
+
+### API-Changes
+
+- [**breaking**] Remove deprecated get_next_media() APIs.
+
+### Features / Changes
+
+- Reuse existing connections in background_fetch() if I/O is started.
+- MsgId::get_info(): Report original filename as well.
+- More context for the "Cannot establish guaranteed..." info message ([#6022](https://github.com/deltachat/deltachat-core-rust/pull/6022)).
+- deltachat-repl: Add `fetch` command to test `background_fetch()`.
+- deltachat-repl: Print send-backup QR code to the terminal.
+
+### Fixes
+
+- Do not attempt to reference info messages.
+- query_row_optional: Do not treat rows with NULL as missing rows.
+- Skip unconfigured folders in `background_fetch()`.
+- Break out of accept() loop if there is an error transferring backup.
+- Make it possible to cancel ongoing backup transfer.
+- Make backup reception cancellable by stopping ongoing process.
+- Smooth progress bar for backup transfer.
+- Emit progress 0 if get_backup() fails.
+
+### Documentation
+
+- CONTRIBUTING.md: Add more SQL advices.
+
 ## [1.146.0] - 2024-10-03
 
 ### Fixes
@@ -4946,3 +4975,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.144.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.143.0..v1.144.0
 [1.145.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.144.0..v1.145.0
 [1.146.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.145.0..v1.146.0
+[1.147.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.146.0..v1.147.0
