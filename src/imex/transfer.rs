@@ -31,7 +31,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Poll;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
+use futures_lite::FutureExt;
 use iroh_net::relay::RelayMode;
 use iroh_net::Endpoint;
 use tokio::fs;
@@ -231,8 +232,19 @@ impl BackupProvider {
                         let context = context.clone();
                         let auth_token = auth_token.clone();
                         let dbfile = dbfile.clone();
-                        if let Err(err) = Self::handle_connection(context.clone(), conn, auth_token, dbfile).await {
+                        if let Err(err) = Self::handle_connection(context.clone(), conn, auth_token, dbfile).race(
+                            async {
+                                cancel_token.recv().await.ok();
+                                Err(format_err!("Backup transfer cancelled"))
+                            }
+                        ).race(
+                            async {
+                                drop_token.cancelled().await;
+                                Err(format_err!("Backup provider dropped"))
+                            }
+                        ).await {
                             warn!(context, "Error while handling backup connection: {err:#}.");
+                            context.emit_event(EventType::ImexProgress(0));
                             break;
                         } else {
                             info!(context, "Backup transfer finished successfully.");
@@ -243,10 +255,12 @@ impl BackupProvider {
                     }
                 },
                 _ = cancel_token.recv() => {
+                    info!(context, "Backup transfer cancelled by the user, stopping accept loop.");
                     context.emit_event(EventType::ImexProgress(0));
                     break;
                 }
                 _ = drop_token.cancelled() => {
+                    info!(context, "Backup transfer cancelled by dropping the provider, stopping accept loop.");
                     context.emit_event(EventType::ImexProgress(0));
                     break;
                 }
