@@ -481,6 +481,7 @@ async fn handle_cmd(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    #[allow(unexpected_cfgs)]
     tracing::subscriber::set_global_default({
         let subscribers = tracing_subscriber::Registry::default().with(
             tracing_subscriber::fmt::layer().with_filter(
