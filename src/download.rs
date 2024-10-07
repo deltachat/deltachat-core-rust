@@ -98,19 +98,26 @@ impl MsgId {
         Ok(())
     }
 
+    /// Updates the message download state. Returns `Ok` if the message doesn't exist anymore.
     pub(crate) async fn update_download_state(
         self,
         context: &Context,
         download_state: DownloadState,
     ) -> Result<()> {
-        let msg = Message::load_from_db(context, self).await?;
-        context
+        if context
             .sql
             .execute(
                 "UPDATE msgs SET download_state=? WHERE id=?;",
                 (download_state, self),
             )
-            .await?;
+            .await?
+            == 0
+        {
+            return Ok(());
+        }
+        let Some(msg) = Message::load_from_db_optional(context, self).await? else {
+            return Ok(());
+        };
         context.emit_event(EventType::MsgsChanged {
             chat_id: msg.chat_id,
             msg_id: self,
@@ -322,11 +329,17 @@ mod tests {
             DownloadState::InProgress,
             DownloadState::Failure,
             DownloadState::Done,
+            DownloadState::Done,
         ] {
             msg_id.update_download_state(&t, *s).await?;
             let msg = Message::load_from_db(&t, msg_id).await?;
             assert_eq!(msg.download_state(), *s);
         }
+        msg_id.delete_from_db(&t).await?;
+        // Nothing to do is ok.
+        msg_id
+            .update_download_state(&t, DownloadState::Done)
+            .await?;
 
         Ok(())
     }
