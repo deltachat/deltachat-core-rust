@@ -211,9 +211,9 @@ jobs:
         include:
           # Currently used Rust version.
           - os: ubuntu-latest
-            python: 3.12
+            python: 3.13
           - os: macos-latest
-            python: 3.12
+            python: 3.13
 
           # PyPy tests
           - os: ubuntu-latest
@@ -263,11 +263,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            python: 3.12
+            python: 3.13
           - os: macos-latest
-            python: 3.12
+            python: 3.13
           - os: windows-latest
-            python: 3.12
+            python: 3.13
 
           # PyPy tests
           - os: ubuntu-latest
