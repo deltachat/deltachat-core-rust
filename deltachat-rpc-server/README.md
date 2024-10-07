@@ -38,8 +38,8 @@ Run `deltachat-rpc-server --openrpc` to get [OpenRPC](https://open-rpc.org/) spe
 
 ## Usage with `tokio-console`
 
-When build with `RUSTFLAGS="--cfg tokio_unstable"` console-subscriber is enabled.
-That means that you can use [`tokio-console`](https://github.com/tokio-rs/console) to inspect active tokio tasks.
+When built with `RUSTFLAGS="--cfg tokio_unstable"`, console-subscriber is enabled.
+That means that you can use [`tokio-console`](https://github.com/tokio-rs/console) to inspect active Tokio tasks.
 You can install it via `cargo install tokio-console`.
 
 ```sh

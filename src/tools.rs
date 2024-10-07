@@ -711,7 +711,7 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
 /// Spawns a named asynchronous task if the `tokio_unstable` feature is enabled.
 ///
 /// Spawns a new asynchronous task, returning a [tokio::task::JoinHandle] for it.
-/// The provided future will start running in the background immediately when spawn is called, even if you don't await the returned JoinHandle.
+/// The provided future will start running in the background immediately when the function is called, even if you don't await the returned JoinHandle.
 /// See [tokio::task::spawn].
 ///
 /// If the rustflag `tokio_unstable` is active, the task will be given the specified `name`
@@ -720,7 +720,7 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
 ///
 /// # Parameters
 ///
-/// - `name`: The name of the task (used only if `tokio_unstable` is enabled).
+/// - `name`: The name of the task.
 /// - `future`: The future to be executed, which must implement `Future`, be `Send`, and `'static`.
 ///
 /// # Returns
@@ -774,7 +774,7 @@ macro_rules! spawn_named_task {
 /// Spawns a named blocking task if the `tokio_unstable` feature is enabled.
 ///
 /// Spawns a new blocking task, returning a [tokio::task::JoinHandle] for it.
-/// The provided future will start running in the background immediately when spawn is called, even if you don't await the returned JoinHandle.
+/// The provided future will start running in the background immediately when the function is called, even if you don't await the returned JoinHandle.
 /// See [tokio::task::spawn_blocking].
 ///
 /// If the rustflag `tokio_unstable` is active, the task will be given the specified `name`
@@ -783,7 +783,7 @@ macro_rules! spawn_named_task {
 ///
 /// # Parameters
 ///
-/// - `name`: The name of the task (used only if `tokio_unstable` is enabled).
+/// - `name`: The name of the task
 /// - `future`: The future to be executed, which must implement `Future`, be `Send`, and `'static`.
 ///
 /// # Returns
