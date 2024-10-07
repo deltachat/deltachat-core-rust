@@ -35,7 +35,6 @@ async fn main() {
     std::process::exit(if r.is_ok() { 0 } else { 1 });
 }
 
-#[allow(unexpected_cfgs)]
 async fn main_impl() -> Result<()> {
     let mut args = env::args_os();
     let _program_name = args.next().context("no command line arguments found")?;
@@ -68,6 +67,7 @@ async fn main_impl() -> Result<()> {
     // Logs from `log` crate and traces from `tracing` crate
     // are configurable with `RUST_LOG` environment variable
     // and go to stderr to avoid interferring with JSON-RPC using stdout.
+    #[allow(unexpected_cfgs)]
     tracing::subscriber::set_global_default({
         let subscribers = tracing_subscriber::Registry::default().with(
             tracing_subscriber::fmt::layer()
