@@ -4810,6 +4810,40 @@ async fn test_protected_group_add_remove_member_missing_key() -> Result<()> {
     Ok(())
 }
 
+/// Alice is offline for some time.
+/// When she comes online, first her sentbox is synced and then her inbox.
+/// This tests that the messages are still in the right order.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_sync_sentbox_then_inbox() -> Result<()> {
+    let alice = &TestContext::new_alice().await;
+    let msg_sent = receive_imf(
+        alice,
+        b"From: alice@example.org\n\
+          To: Bob <bob@example.net>\n\
+          Message-ID: <1234-2-4@example.org>\n\
+          Date: Sat, 09 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Thanks, Bob!\n",
+        true,
+    )
+    .await?
+    .unwrap();
+    let msg_incoming = receive_imf(
+        alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2-3@example.org>\n\
+          Date: Sun, 08 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Happy birthday, Alice!\n",
+        true,
+    )
+    .await?
+    .unwrap();
+    assert!(msg_incoming.sort_timestamp < msg_sent.sort_timestamp);
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dont_create_adhoc_group_on_member_removal() -> Result<()> {
     let mut tcm = TestContextManager::new();
