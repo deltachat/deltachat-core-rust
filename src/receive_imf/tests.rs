@@ -3163,20 +3163,21 @@ Reply from different address
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_long_and_duplicated_filenames() -> Result<()> {
+async fn test_weird_and_duplicated_filenames() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
     for filename_sent in &[
         "foo.bar very long file name test baz.tar.gz",
-        "foobarabababababababbababababverylongfilenametestbaz.tar.gz",
+        "foo.barabababababababbababababverylongfilenametestbaz.tar.gz",
         "fooo...tar.gz",
         "foo. .tar.gz",
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
         "a.tar.gz",
         "a.tar.gz",
         "a.a..a.a.a.a.tar.gz",
+        "a. tar.tar.gz",
     ] {
         let attachment = alice.blobdir.join(filename_sent);
         let content = format!("File content of {filename_sent}");

@@ -253,16 +253,16 @@ impl<'a> BlobObject<'a> {
     ///
     /// The extension part will always be lowercased.
     fn sanitise_name(name: &str) -> (String, String) {
-        let mut name = name.to_string();
+        let mut name = name;
         for part in name.rsplit('/') {
             if !part.is_empty() {
-                name = part.to_string();
+                name = part;
                 break;
             }
         }
         for part in name.rsplit('\\') {
             if !part.is_empty() {
-                name = part.to_string();
+                name = part;
                 break;
             }
         }
@@ -272,32 +272,39 @@ impl<'a> BlobObject<'a> {
             replacement: "",
         };
 
-        let clean = sanitize_filename::sanitize_with_options(name, opts);
-        // Let's take the tricky filename
+        let name = sanitize_filename::sanitize_with_options(name, opts);
+        // Let's take a tricky filename,
         // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
-        // Split it into "file" and "with_lots_of_characters_behind_point_and_double_ending.tar.gz":
-        let mut iter = clean.splitn(2, '.');
-
-        let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
-        // stem == "file"
-
-        let ext_chars = iter.next().unwrap_or_default().chars();
-        let ext: String = ext_chars
+        // Assume that the extension is 32 chars maximum.
+        let ext: String = name
+            .chars()
             .rev()
-            .take(32)
+            .take_while(|c| !c.is_whitespace())
+            .take(33)
             .collect::<Vec<_>>()
             .iter()
             .rev()
             .collect();
-        // ext == "d_point_and_double_ending.tar.gz"
+        // ext == "nd_point_and_double_ending.tar.gz"
 
-        if ext.is_empty() {
-            (stem, "".to_string())
+        // Split it into "nd_point_and_double_ending" and "tar.gz":
+        let mut iter = ext.splitn(2, '.');
+        iter.next();
+
+        let ext = iter.next().unwrap_or_default();
+        let ext = if ext.is_empty() {
+            String::new()
         } else {
-            (stem, format!(".{ext}").to_lowercase())
-            // Return ("file", ".d_point_and_double_ending.tar.gz")
-            // which is not perfect but acceptable.
-        }
+            format!(".{ext}")
+            // ".tar.gz"
+        };
+        let stem = name
+            .strip_suffix(&ext)
+            .unwrap_or_default()
+            .chars()
+            .take(64)
+            .collect();
+        (stem, ext.to_lowercase())
     }
 
     /// Checks whether a name is a valid blob name.
@@ -963,6 +970,19 @@ mod tests {
         assert!(!stem.contains(':'));
         assert!(!stem.contains('*'));
         assert!(!stem.contains('?'));
+
+        let (stem, ext) = BlobObject::sanitise_name(
+            "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz",
+        );
+        assert_eq!(
+            stem,
+            "file.with_lots_of_characters_behind_point_and_double_ending"
+        );
+        assert_eq!(ext, ".tar.gz");
+
+        let (stem, ext) = BlobObject::sanitise_name("a. tar.tar.gz");
+        assert_eq!(stem, "a. tar");
+        assert_eq!(ext, ".tar.gz");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
