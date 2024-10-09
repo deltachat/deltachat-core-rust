@@ -88,7 +88,7 @@ pub(crate) struct Imap {
 
     oauth2: bool,
 
-    login_failed_once: bool,
+    pub(crate) login_failed_once: Option<bool>,
 
     pub(crate) connectivity: ConnectivityStore,
 
@@ -253,7 +253,7 @@ impl Imap {
             proxy_config,
             strict_tls,
             oauth2,
-            login_failed_once: false,
+            login_failed_once: Some(false),
             connectivity: Default::default(),
             conn_last_try: UNIX_EPOCH,
             conn_backoff_ms: 0,
@@ -381,7 +381,7 @@ impl Imap {
                     let mut lock = context.server_id.write().await;
                     lock.clone_from(&session.capabilities.server_id);
 
-                    self.login_failed_once = false;
+                    self.login_failed_once = self.login_failed_once.map(|_| false);
                     context.emit_event(EventType::ImapConnected(format!(
                         "IMAP-LOGIN as {}",
                         lp.user
@@ -399,19 +399,11 @@ impl Imap {
                     warn!(context, "IMAP failed to login: {err:#}.");
                     first_error.get_or_insert(format_err!("{message} ({err:#})"));
 
-                    let lock = context.wrong_pw_warning_mutex.lock().await;
-                    if self.login_failed_once
+                    let _lock = context.wrong_pw_warning_mutex.lock().await;
+                    if self.login_failed_once.unwrap_or(false)
                         && err_str.to_lowercase().contains("authentication")
                         && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                     {
-                        if let Err(e) = context
-                            .set_config_internal(Config::NotifyAboutWrongPw, None)
-                            .await
-                        {
-                            warn!(context, "{e:#}.");
-                        }
-                        drop(lock);
-
                         let mut msg = Message::new(Viewtype::Text);
                         msg.text.clone_from(&message);
                         if let Err(e) = chat::add_device_msg_with_importance(
@@ -423,9 +415,15 @@ impl Imap {
                         .await
                         {
                             warn!(context, "Failed to add device message: {e:#}.");
+                        } else {
+                            context
+                                .set_config_internal(Config::NotifyAboutWrongPw, None)
+                                .await
+                                .log_err(context)
+                                .ok();
                         }
                     } else {
-                        self.login_failed_once = true;
+                        self.login_failed_once = self.login_failed_once.map(|_| true);
                     }
                 }
             }
