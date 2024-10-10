@@ -282,15 +282,16 @@ dependencies = [
  "futures-io",
  "memchr",
  "pin-project-lite",
+ "tokio",
 ]
 
 [[package]]
 name = "async-imap"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2162818f7b394e342a6591864bfc960824ed13e3f6609fee0d19e770ebcd99e1"
+source = "git+https://github.com/async-email/async-imap.git?branch=link2xt/imap-compress#8fd4d3cc490d960835f21d40668bf099fad4f483"
 dependencies = [
  "async-channel 2.3.1",
+ "async-compression",
  "base64 0.21.7",
  "bytes",
  "chrono",
@@ -299,6 +300,7 @@ dependencies = [
  "log",
  "nom",
  "once_cell",
+ "pin-project",
  "pin-utils",
  "self_cell",
  "stop-token",

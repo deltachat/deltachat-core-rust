@@ -7,7 +7,6 @@ use async_imap::Session as ImapSession;
 use tokio::io::BufWriter;
 
 use super::capabilities::Capabilities;
-use super::session::Session;
 use crate::context::Context;
 use crate::login_param::{ConnectionCandidate, ConnectionSecurity};
 use crate::net::dns::{lookup_host_with_cache, update_connect_timestamp};
@@ -51,7 +50,7 @@ fn alpn(port: u16) -> &'static [&'static str] {
 /// Determine server capabilities.
 ///
 /// If server supports ID capability, send our client ID.
-async fn determine_capabilities(
+pub(crate) async fn determine_capabilities(
     session: &mut ImapSession<Box<dyn SessionStream>>,
 ) -> Result<Capabilities> {
     let caps = session
@@ -69,6 +68,7 @@ async fn determine_capabilities(
         can_check_quota: caps.has_str("QUOTA"),
         can_condstore: caps.has_str("CONDSTORE"),
         can_metadata: caps.has_str("METADATA"),
+        can_compress: caps.has_str("COMPRESS=DEFLATE"),
         can_push: caps.has_str("XDELTAPUSH"),
         is_chatmail: caps.has_str("XCHATMAIL"),
         server_id,
@@ -83,28 +83,31 @@ impl Client {
         }
     }
 
-    pub(crate) async fn login(self, username: &str, password: &str) -> Result<Session> {
+    pub(crate) async fn login(
+        self,
+        username: &str,
+        password: &str,
+    ) -> Result<ImapSession<Box<dyn SessionStream>>> {
         let Client { inner, .. } = self;
-        let mut session = inner
+
+        let session = inner
             .login(username, password)
             .await
             .map_err(|(err, _client)| err)?;
-        let capabilities = determine_capabilities(&mut session).await?;
-        Ok(Session::new(session, capabilities))
+        Ok(session)
     }
 
     pub(crate) async fn authenticate(
         self,
         auth_type: &str,
         authenticator: impl async_imap::Authenticator,
-    ) -> Result<Session> {
+    ) -> Result<ImapSession<Box<dyn SessionStream>>> {
         let Client { inner, .. } = self;
-        let mut session = inner
+        let session = inner
             .authenticate(auth_type, authenticator)
             .await
             .map_err(|(err, _client)| err)?;
-        let capabilities = determine_capabilities(&mut session).await?;
-        Ok(Session::new(session, capabilities))
+        Ok(session)
     }
 
     async fn connection_attempt(
