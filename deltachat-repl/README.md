@@ -4,7 +4,7 @@ This is a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93
 Its purpose is to help with quick testing during development, it is not meant for end users.
 
 Dependencies:
-- if you want to use `getqr` you need `qrencode` (macOS: `brew install qrencode`)
+- if you want to use `getqr` you need `qrencode` (To install use your systems package manager)
 
 ## Usage
 
