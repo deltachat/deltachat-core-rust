@@ -273,15 +273,15 @@ dependencies = [
 
 [[package]]
 name = "async-compression"
-version = "0.3.15"
+version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "942c7cd7ae39e91bde4820d74132e9862e62c2f386c3aa90ccf55949f5bad63a"
+checksum = "998282f8f49ccd6116b0ed8a4de0fbd3151697920e7c7533416d6e25e76434a7"
 dependencies = [
  "flate2",
  "futures-core",
+ "futures-io",
  "memchr",
  "pin-project-lite",
- "tokio",
 ]
 
 [[package]]
@@ -368,16 +368,17 @@ dependencies = [
 
 [[package]]
 name = "async_zip"
-version = "0.0.12"
+version = "0.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2105142db9c6203b9dadc83b0553394589a6cb31b1449a3b46b42f47c3434d0"
+checksum = "00b9f7252833d5ed4b00aa9604b563529dd5e11de9c23615de2dcdf91eb87b52"
 dependencies = [
  "async-compression",
  "crc32fast",
- "log",
+ "futures-lite 2.3.0",
  "pin-project",
  "thiserror",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -6074,6 +6075,7 @@ checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
 dependencies = [
  "bytes",
  "futures-core",
+ "futures-io",
  "futures-sink",
  "futures-util",
  "hashbrown",
