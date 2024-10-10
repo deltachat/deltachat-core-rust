@@ -251,7 +251,7 @@ pub async fn pk_encrypt(
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
-    spawn_named_blocking_task("pk_encrypt", move || {
+    spawn_named_blocking_task!("pk_encrypt", move || {
         let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
             .iter()
             .filter_map(select_pk_for_encryption)
