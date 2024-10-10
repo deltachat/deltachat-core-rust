@@ -251,34 +251,32 @@ pub async fn pk_encrypt(
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
-    // TODO? label this
-    Handle::current()
-        .spawn_blocking(move || {
-            let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
-                .iter()
-                .filter_map(select_pk_for_encryption)
-                .collect();
-            let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+    spawn_named_blocking_task("pk_encrypt", move || {
+        let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
+            .iter()
+            .filter_map(select_pk_for_encryption)
+            .collect();
+        let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
 
-            let mut rng = thread_rng();
+        let mut rng = thread_rng();
 
-            let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
-                let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
-                let compressed_msg = if compress {
-                    signed_msg.compress(CompressionAlgorithm::ZLIB)?
-                } else {
-                    signed_msg
-                };
-                compressed_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+        let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
+            let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
+            let compressed_msg = if compress {
+                signed_msg.compress(CompressionAlgorithm::ZLIB)?
             } else {
-                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+                signed_msg
             };
+            compressed_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+        } else {
+            lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+        };
 
-            let encoded_msg = encrypted_msg.to_armored_string(Default::default())?;
+        let encoded_msg = encrypted_msg.to_armored_string(Default::default())?;
 
-            Ok(encoded_msg)
-        })
-        .await?
+        Ok(encoded_msg)
+    })
+    .await?
 }
 
 /// Signs `plain` text using `private_key_for_signing`.

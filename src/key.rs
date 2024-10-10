@@ -12,13 +12,13 @@ use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
-use tokio::runtime::Handle;
 
 use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::log::LogExt;
 use crate::pgp::KeyPair;
+use crate::spawn_named_blocking_task;
 use crate::tools::{self, time_elapsed};
 
 /// Convenience trait for working with keys.
@@ -251,9 +251,10 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
             info!(context, "Generating keypair with type {}", keytype);
-            // TODO? add it here as well?
-            let keypair = Handle::current()
-                .spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
+            let keypair =
+                spawn_named_blocking_task!("generate_keypair", move || crate::pgp::create_keypair(
+                    addr, keytype
+                ))
                 .await??;
 
             store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
