@@ -151,7 +151,7 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
                         let (sender, debug_logging_recv) = channel::bounded(1000);
                         let loop_handle = {
                             let ctx = ctx.clone();
-                            spawn_named_task!("debug_logging_loop", async move {
+                            spawn_named_task!("xdc_debug_logging_loop", async move {
                                 debug_logging_loop(&ctx, debug_logging_recv).await
                             })
                         };
