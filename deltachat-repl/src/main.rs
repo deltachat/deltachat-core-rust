@@ -354,7 +354,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
             match readline {
                 Ok(line) => {
                     rl.add_history_entry(line.as_str())?;
-                    let should_continue = spawn_named_blocking_task!("repl:handle_cmd", async {
+                    let should_continue = Handle::current().block_on(async {
                         match handle_cmd(line.trim(), ctx.clone(), &mut selected_chat).await {
                             Ok(ExitResult::Continue) => true,
                             Ok(ExitResult::Exit) => {
