@@ -13,7 +13,7 @@ mod auto_mozilla;
 mod auto_outlook;
 pub(crate) mod server_params;
 
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
 use deltachat_contact_tools::EmailAddress;
@@ -80,10 +80,7 @@ impl Context {
 
         let res = self
             .inner_configure()
-            .race(cancel_channel.recv().map(|_| {
-                progress!(self, 0);
-                Ok(())
-            }))
+            .race(cancel_channel.recv().map(|_| Err(format_err!("Cancelled"))))
             .await;
 
         self.free_ongoing().await;
