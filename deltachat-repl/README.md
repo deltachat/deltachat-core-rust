@@ -1,7 +1,7 @@
 # Delta Chat REPL
 
-This is a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) frontend built on top of Delta Chat core.
-Its purpose is to help with quick testing during development, it is not meant for end users.
+This is a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) frontend built on top of Delta Chat core.
+Its purpose is to help with testing during development, it is not meant for end users.
 
 Dependencies:
 - if you want to use `getqr` you need `qrencode` (To install use your systems package manager)
@@ -12,7 +12,7 @@ Dependencies:
 cargo run <path to deltachat db>
 ```
 
-Type in `help` to learn about what comands are available.
+Type in `help` to learn about what commands are available.
 
 ## Usage with `tokio-console`
 
@@ -30,9 +30,9 @@ RUSTFLAGS="--cfg tokio_unstable" cargo run <path to deltachat db>
 ```
 
 Then in a new console window start [`tokio-console`](https://github.com/tokio-rs/console).
-You can install it via `cargo install tokio-console`.
+You can install it via `cargo install --locked tokio-console`.
 
-### Quick Example
+### Example
 
 An example session in the REPL tool:
 
