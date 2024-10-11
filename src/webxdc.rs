@@ -23,13 +23,13 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
+use async_zip::tokio::read::fs::ZipFileReader as FsZipFileReader;
 use deltachat_contact_tools::sanitize_bidi_characters;
 use deltachat_derive::FromSql;
 use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::io::AsyncReadExt;
 
 use crate::chat::{self, Chat};
 use crate::constants::Chattype;
@@ -195,7 +195,7 @@ fn find_zip_entry<'a>(
     name: &str,
 ) -> Option<(usize, &'a async_zip::StoredZipEntry)> {
     for (i, ent) in file.entries().iter().enumerate() {
-        if ent.entry().filename() == name {
+        if ent.filename().as_bytes() == name.as_bytes() {
             return Some((i, ent));
         }
     }
@@ -212,7 +212,7 @@ impl Context {
             return Ok(false);
         }
 
-        let archive = match async_zip::read::mem::ZipFileReader::new(file.to_vec()).await {
+        let archive = match async_zip::base::read::mem::ZipFileReader::new(file.to_vec()).await {
             Ok(archive) => archive,
             Err(_) => {
                 info!(self, "{} cannot be opened as zip-file", &filename);
@@ -235,7 +235,7 @@ impl Context {
             bail!("{} is not a valid webxdc file", filename);
         }
 
-        let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
+        let valid = match FsZipFileReader::new(path).await {
             Ok(archive) => {
                 if find_zip_entry(archive.file(), "index.html").is_none() {
                     warn!(self, "{} misses index.html", filename);
@@ -791,27 +791,24 @@ fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
     Ok(manifest)
 }
 
-async fn get_blob(archive: &async_zip::read::fs::ZipFileReader, name: &str) -> Result<Vec<u8>> {
+async fn get_blob(archive: &FsZipFileReader, name: &str) -> Result<Vec<u8>> {
     let (i, _) = find_zip_entry(archive.file(), name)
         .ok_or_else(|| anyhow!("no entry found for {}", name))?;
-    let mut reader = archive.entry(i).await?;
+    let mut reader = archive.reader_with_entry(i).await?;
     let mut buf = Vec::new();
-    reader.read_to_end(&mut buf).await?;
+    reader.read_to_end_checked(&mut buf).await?;
     Ok(buf)
 }
 
 impl Message {
     /// Get handle to a webxdc ZIP-archive.
     /// To check for file existence use archive.by_name(), to read a file, use get_blob(archive).
-    async fn get_webxdc_archive(
-        &self,
-        context: &Context,
-    ) -> Result<async_zip::read::fs::ZipFileReader> {
+    async fn get_webxdc_archive(&self, context: &Context) -> Result<FsZipFileReader> {
         let path = self
             .get_file(context)
             .ok_or_else(|| format_err!("No webxdc instance file."))?;
         let path_abs = get_abs_path(context, &path);
-        let archive = async_zip::read::fs::ZipFileReader::new(path_abs).await?;
+        let archive = FsZipFileReader::new(path_abs).await?;
         Ok(archive)
     }
 
