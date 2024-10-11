@@ -1826,8 +1826,8 @@ pub(crate) async fn update_msg_state(
     context
         .sql
         .execute(
-            &format!("UPDATE msgs SET state=?1 {error_subst} WHERE id=?2 AND (?1!=?3 OR state<?3)"),
-            (state, msg_id, MessageState::OutDelivered),
+            &format!("UPDATE msgs SET state=? {error_subst} WHERE id=?"),
+            (state, msg_id),
         )
         .await?;
     Ok(())
