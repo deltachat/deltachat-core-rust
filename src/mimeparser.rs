@@ -3805,7 +3805,7 @@ Message.
         )
         .await?;
         let msg = alice.get_last_msg().await;
-        assert_eq!(msg.state, MessageState::OutDelivered);
+        assert_eq!(msg.state, MessageState::OutRcvd);
 
         // Due to a bug in the old version running on the other device, Alice receives a read
         // receipt from self.
@@ -3844,7 +3844,7 @@ Message.
 
         // Check that the state has not changed to `MessageState::OutMdnRcvd`.
         let msg = Message::load_from_db(&alice, msg.id).await?;
-        assert_eq!(msg.state, MessageState::OutDelivered);
+        assert_eq!(msg.state, MessageState::OutRcvd);
 
         Ok(())
     }

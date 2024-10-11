@@ -1031,9 +1031,7 @@ async fn add_parts(
     } else {
         // Outgoing
 
-        // the mail is on the IMAP server, probably it is also delivered.
-        // We cannot recreate other states (read, error).
-        state = MessageState::OutDelivered;
+        state = MessageState::OutRcvd;
         to_id = to_ids.first().copied().unwrap_or_default();
 
         let self_sent = to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);
