@@ -1037,6 +1037,15 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 122)?;
+    if dbversion < migration_version {
+        sql.execute_migration(
+            "ALTER TABLE tokens ADD COLUMN foreign_id INTEGER NOT NULL DEFAULT 0",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
