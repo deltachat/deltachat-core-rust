@@ -13,7 +13,7 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
 use deltachat_contact_tools::ContactAddress;
@@ -517,10 +517,13 @@ impl Imap {
             return Ok(false);
         }
 
-        session
-            .select_with_uidvalidity(context, folder)
+        if !session
+            .select_with_uidvalidity(context, folder, false)
             .await
-            .with_context(|| format!("Failed to select folder {folder:?}"))?;
+            .with_context(|| format!("Failed to select folder {folder:?}"))?
+        {
+            return Ok(false);
+        }
 
         if !session.new_mail && !fetch_existing_msgs {
             info!(context, "No new emails in folder {folder:?}.");
@@ -812,44 +815,47 @@ impl Session {
         folder: &str,
         folder_meaning: FolderMeaning,
     ) -> Result<()> {
+        let uid_validity;
         // Collect pairs of UID and Message-ID.
         let mut msgs = BTreeMap::new();
 
-        self.select_with_uidvalidity(context, folder).await?;
+        if self.select_with_uidvalidity(context, folder, false).await? {
+            let mut list = self
+                .uid_fetch("1:*", RFC724MID_UID)
+                .await
+                .with_context(|| format!("can't resync folder {folder}"))?;
+            while let Some(fetch) = list.try_next().await? {
+                let headers = match get_fetch_headers(&fetch) {
+                    Ok(headers) => headers,
+                    Err(err) => {
+                        warn!(context, "Failed to parse FETCH headers: {}", err);
+                        continue;
+                    }
+                };
+                let message_id = prefetch_get_message_id(&headers);
 
-        let mut list = self
-            .uid_fetch("1:*", RFC724MID_UID)
-            .await
-            .with_context(|| format!("can't resync folder {folder}"))?;
-        while let Some(fetch) = list.try_next().await? {
-            let headers = match get_fetch_headers(&fetch) {
-                Ok(headers) => headers,
-                Err(err) => {
-                    warn!(context, "Failed to parse FETCH headers: {}", err);
-                    continue;
+                if let (Some(uid), Some(rfc724_mid)) = (fetch.uid, message_id) {
+                    msgs.insert(
+                        uid,
+                        (
+                            rfc724_mid,
+                            target_folder(context, folder, folder_meaning, &headers).await?,
+                        ),
+                    );
                 }
-            };
-            let message_id = prefetch_get_message_id(&headers);
-
-            if let (Some(uid), Some(rfc724_mid)) = (fetch.uid, message_id) {
-                msgs.insert(
-                    uid,
-                    (
-                        rfc724_mid,
-                        target_folder(context, folder, folder_meaning, &headers).await?,
-                    ),
-                );
             }
+
+            info!(
+                context,
+                "resync_folder_uids: Collected {} message IDs in {folder}.",
+                msgs.len(),
+            );
+
+            uid_validity = get_uidvalidity(context, folder).await?;
+        } else {
+            warn!(context, "resync_folder_uids: No folder {folder}.");
+            uid_validity = 0;
         }
-
-        info!(
-            context,
-            "Resync: collected {} message IDs in folder {}",
-            msgs.len(),
-            folder,
-        );
-
-        let uid_validity = get_uidvalidity(context, folder).await?;
 
         // Write collected UIDs to SQLite database.
         context
@@ -1016,7 +1022,10 @@ impl Session {
             // MOVE/DELETE operations. This does not result in multiple SELECT commands
             // being sent because `select_folder()` does nothing if the folder is already
             // selected.
-            self.select_with_uidvalidity(context, folder).await?;
+            ensure!(
+                self.select_with_uidvalidity(context, folder, false).await?,
+                "No folder {folder}"
+            );
 
             // Empty target folder name means messages should be deleted.
             if target.is_empty() {
@@ -1110,29 +1119,39 @@ impl Session {
             .await?;
 
         for (folder, rowid_set, uid_set) in UidGrouper::from(rows) {
-            if let Err(err) = self.select_with_uidvalidity(context, &folder).await {
-                warn!(context, "store_seen_flags_on_imap: Failed to select {folder}, will retry later: {err:#}.");
+            let is_ok = match self.select_with_uidvalidity(context, &folder, false).await {
+                Err(err) => {
+                    warn!(
+                        context,
+                        "store_seen_flags_on_imap: Failed to select {folder}, will retry later: {err:#}.");
+                    continue;
+                }
+                Ok(is_ok) => is_ok,
+            };
+            if !is_ok {
+                warn!(context, "store_seen_flags_on_imap: No folder {folder}.");
             } else if let Err(err) = self.add_flag_finalized_with_set(&uid_set, "\\Seen").await {
                 warn!(
                     context,
                     "Cannot mark messages {uid_set} in {folder} as seen, will retry later: {err:#}.");
+                continue;
             } else {
                 info!(
                     context,
                     "Marked messages {} in folder {} as seen.", uid_set, folder
                 );
-                context
-                    .sql
-                    .execute(
-                        &format!(
-                            "DELETE FROM imap_markseen WHERE id IN ({})",
-                            sql::repeat_vars(rowid_set.len())
-                        ),
-                        rusqlite::params_from_iter(rowid_set),
-                    )
-                    .await
-                    .context("cannot remove messages marked as seen from imap_markseen table")?;
             }
+            context
+                .sql
+                .execute(
+                    &format!(
+                        "DELETE FROM imap_markseen WHERE id IN ({})",
+                        sql::repeat_vars(rowid_set.len())
+                    ),
+                    rusqlite::params_from_iter(rowid_set),
+                )
+                .await
+                .context("cannot remove messages marked as seen from imap_markseen table")?;
         }
 
         Ok(())
@@ -1148,9 +1167,13 @@ impl Session {
             return Ok(());
         }
 
-        self.select_with_uidvalidity(context, folder)
+        if !self
+            .select_with_uidvalidity(context, folder, false)
             .await
-            .context("failed to select folder")?;
+            .context("failed to select folder")?
+        {
+            return Ok(());
+        }
 
         let mailbox = self
             .selected_mailbox
@@ -1549,7 +1572,7 @@ impl Session {
 impl Session {
     /// Returns success if we successfully set the flag or we otherwise
     /// think add_flag should not be retried: Disconnection during setting
-    /// the flag, or other imap-errors, returns true as well.
+    /// the flag, or other imap-errors, returns Ok as well.
     ///
     /// Returning error means that the operation can be retried.
     async fn add_flag_finalized_with_set(&mut self, uid_set: &str, flag: &str) -> Result<()> {
@@ -1596,7 +1619,11 @@ impl Session {
                 self.close().await?;
                 // Before moving emails to the mvbox we need to remember its UIDVALIDITY, otherwise
                 // emails moved before that wouldn't be fetched but considered "old" instead.
-                self.select_with_uidvalidity(context, folder).await?;
+                ensure!(
+                    self.select_with_uidvalidity(context, folder, false).await?,
+                    "No MVBOX folder {:?}??",
+                    &folder
+                );
                 return Ok(Some(folder));
             }
         }
@@ -1607,7 +1634,10 @@ impl Session {
         // Some servers require namespace-style folder names like "INBOX.DeltaChat", so we try all
         // the variants here.
         for folder in folders {
-            match self.select_with_uidvalidity(context, folder).await {
+            match self
+                .select_with_uidvalidity(context, folder, create_mvbox)
+                .await
+            {
                 Ok(_) => {
                     info!(context, "MVBOX-folder {} created.", folder);
                     return Ok(Some(folder));
@@ -2444,10 +2474,13 @@ async fn add_all_recipients_as_contacts(
         );
         return Ok(());
     };
-    session
-        .select_with_uidvalidity(context, &mailbox)
+    if !session
+        .select_with_uidvalidity(context, &mailbox, false)
         .await
-        .with_context(|| format!("could not select {mailbox}"))?;
+        .with_context(|| format!("could not select {mailbox}"))?
+    {
+        return Ok(());
+    }
 
     let recipients = session
         .get_all_recipients(context)
