@@ -84,6 +84,12 @@ If column is already declared without `NOT NULL`, use `IFNULL` function to provi
 Use `HAVING COUNT(*) > 0` clause
 to [prevent aggregate functions such as `MIN` and `MAX` from returning `NULL`](https://stackoverflow.com/questions/66527856/aggregate-functions-max-etc-return-null-instead-of-no-rows).
 
+Don't delete unused columns too early, but maybe after several months/releases, unused columns are
+still used by older versions, so deleting them breaks downgrading the core or importing a backup in
+an older version. Also don't change the column type, consider adding a new column with another name
+instead. Finally, never change column semantics, this is especially dangerous because the `STRICT`
+keyword doesn't help here.
+
 ### Commit messages
 
 Commit messages follow the [Conventional Commits] notation.
