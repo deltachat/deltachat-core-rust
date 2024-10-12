@@ -4,7 +4,7 @@ This is a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_l
 Its purpose is to help with testing during development, it is not meant for end users.
 
 Dependencies:
-- if you want to use `getqr` you need `qrencode` (To install use your systems package manager)
+- If you want to use `getqr` you need `qrencode` (To install, use your system's package manager)
 
 ## Usage
 
@@ -22,7 +22,7 @@ Core uses Tokio tasks, which are something similar to threads.
 
 Examples of tasks:
 - The event loop in the REPL tool which processes events received from core
-- The repl loop itself which waits for and executes user commands
+- The REPL loop itself which waits for and executes user commands
 - The IMAP task that manages IMAP connection in core
 
 ```
@@ -49,7 +49,7 @@ If it crashes you can just start it again and use the openpgp4fpr URL instead of
 Or install `qrencode` to fix the crash and run `getqr` again.
 
 Use the qrcode/openpgp4fpr link to setup the contact on Delta Chat.
-Then write a message to that new contact, after that we can accept the chat in the repl tool and send a reply:
+Then write a message to that new contact, after that you can accept the chat in the REPL tool and send a reply:
 
 ```
 listchats
