@@ -4239,7 +4239,7 @@ pub(crate) async fn save_copy_in_self_talk(
     src_msg_id: &MsgId,
     dest_rfc724_mid: &String,
 ) -> Result<String> {
-    let chat_id = ChatId::create_for_contact(context, ContactId::SELF).await?;
+    let dest_chat_id = ChatId::create_for_contact(context, ContactId::SELF).await?;
     let mut msg = Message::load_from_db(context, *src_msg_id).await?;
     msg.param.remove(Param::Cmd);
     msg.param.remove(Param::WebxdcDocument);
@@ -4265,7 +4265,7 @@ pub(crate) async fn save_copy_in_self_talk(
                             FROM msgs WHERE id=?;"
             ),
             (
-                chat_id,
+                dest_chat_id,
                 dest_rfc724_mid,
                 if msg.from_id == ContactId::SELF {
                     MessageState::OutDelivered
@@ -4279,7 +4279,11 @@ pub(crate) async fn save_copy_in_self_talk(
             ),
         )
         .await?;
-    context.emit_msgs_changed(chat_id, MsgId::new(row_id.try_into()?));
+    let dest_msg_id = MsgId::new(row_id.try_into()?);
+
+    context.emit_msgs_changed(msg.chat_id, *src_msg_id);
+    context.emit_msgs_changed(dest_chat_id, dest_msg_id);
+
     Ok(msg.rfc724_mid)
 }
 
