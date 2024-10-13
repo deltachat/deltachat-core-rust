@@ -1278,12 +1278,14 @@ impl Message {
     /// Returns original message object for message from "Saved Messages".
     pub async fn get_original_msg(&self, context: &Context) -> Result<Option<Message>> {
         if !self.original_msg_id.is_special() {
-            let msg = Message::load_from_db(context, self.original_msg_id).await?;
-            return if msg.chat_id.is_trash() {
-                Ok(None)
-            } else {
-                Ok(Some(msg))
-            };
+            if let Some(msg) = Message::load_from_db_optional(context, self.original_msg_id).await?
+            {
+                return if msg.chat_id.is_trash() {
+                    Ok(None)
+                } else {
+                    Ok(Some(msg))
+                };
+            }
         }
         Ok(None)
     }
