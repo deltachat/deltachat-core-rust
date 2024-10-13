@@ -1288,6 +1288,18 @@ impl Message {
         Ok(None)
     }
 
+    /// Returns original chat id for message from "Saved Messages".
+    /// This may work although get_original_msg() returns None as the message was deleted.
+    pub async fn get_original_chat_id(&self, context: &Context) -> Result<Option<ChatId>> {
+        if let Some(chat_id) = self.param.get_int(Param::OriginalChatId) {
+            let chat_id = ChatId::new(u32::try_from(chat_id)?);
+            if Chat::load_from_db(context, chat_id).await.is_ok() {
+                return Ok(Some(chat_id));
+            }
+        }
+        Ok(None)
+    }
+
     /// Force the message to be sent in plain text.
     pub fn force_plaintext(&mut self) {
         self.param.set_int(Param::ForcePlaintext, 1);
