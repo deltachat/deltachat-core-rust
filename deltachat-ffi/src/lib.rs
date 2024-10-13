@@ -4026,6 +4026,27 @@ pub unsafe extern "C" fn dc_msg_get_original_chat_id(msg: *const dc_msg_t) -> u3
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_saved_msg_id(msg: *const dc_msg_t) -> u32 {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_saved_msg_id()");
+        return 0;
+    }
+    let ffi_msg: &MessageWrapper = &*msg;
+    let context = &*ffi_msg.context;
+    block_on(async move {
+        ffi_msg
+            .message
+            .get_saved_msg_id(context)
+            .await
+            .context("failed to get original message")
+            .log_err(context)
+            .unwrap_or_default()
+            .map(|id| id.to_u32())
+            .unwrap_or(0)
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_force_plaintext(msg: *mut dc_msg_t) {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_force_plaintext()");

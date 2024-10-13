@@ -4898,6 +4898,19 @@ uint32_t       dc_msg_get_original_chat_id   (const dc_msg_t* msg);
 
 
 /**
+ * Check if a message was saved and return its ID inside "Saved Messages".
+ *
+ * The returned ID can be used to un-save a message.
+ * The state "is saved" can be used to show some icon to indicate that a message was saved.
+ *
+ * @param msg The message object.
+ * @return The message ID inside "Saved Messages", if any.
+ *     0 if the given message object is not saved.
+ */
+uint32_t        dc_msg_get_saved_msg_id     (const dc_msg_t* msg);
+
+
+/**
  * Force the message to be sent in plain text.
  *
  * This API is for bots, there is no need to expose it in the UI.

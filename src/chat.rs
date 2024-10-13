@@ -6918,54 +6918,71 @@ mod tests {
 
         let sent = alice.send_text(alice_chat.get_id(), "hi, bob").await;
         let sent_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert!(sent_msg.get_saved_msg_id(&alice).await?.is_none());
+        assert!(sent_msg.get_original_msg(&alice).await?.is_none());
+        assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
+
         let self_chat = alice.get_self_chat().await;
         forward_msgs(&alice, &[sent.sender_msg_id], self_chat.id).await?;
-        let msg = alice.get_last_msg_in(self_chat.id).await;
-        assert_ne!(msg.get_id(), sent.sender_msg_id);
+
+        let saved_msg = alice.get_last_msg_in(self_chat.id).await;
+        assert_ne!(saved_msg.get_id(), sent.sender_msg_id);
+        assert!(saved_msg.get_saved_msg_id(&alice).await?.is_none());
         assert_eq!(
-            msg.get_original_msg(&alice).await?.unwrap().id,
+            saved_msg.get_original_msg(&alice).await?.unwrap().id,
             sent.sender_msg_id
         );
         assert_eq!(
-            msg.get_original_chat_id(&alice).await?.unwrap(),
+            saved_msg.get_original_chat_id(&alice).await?.unwrap(),
             sent_msg.chat_id
         );
-        assert_eq!(msg.get_text(), "hi, bob");
-        assert!(!msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
-        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
-        assert_eq!(msg.get_from_id(), ContactId::SELF);
-        assert_eq!(msg.get_state(), MessageState::OutDelivered);
-        assert_ne!(msg.rfc724_mid(), sent_msg.rfc724_mid());
+        assert_eq!(saved_msg.get_text(), "hi, bob");
+        assert!(!saved_msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
+        assert_eq!(saved_msg.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(saved_msg.get_from_id(), ContactId::SELF);
+        assert_eq!(saved_msg.get_state(), MessageState::OutDelivered);
+        assert_ne!(saved_msg.rfc724_mid(), sent_msg.rfc724_mid());
+
+        let sent_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert_eq!(
+            sent_msg.get_saved_msg_id(&alice).await?.unwrap(),
+            saved_msg.id
+        );
+        assert!(sent_msg.get_original_msg(&alice).await?.is_none());
+        assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
 
         let rcvd_msg = bob.recv_msg(&sent).await;
         let self_chat = bob.get_self_chat().await;
         forward_msgs(&bob, &[rcvd_msg.id], self_chat.id).await?;
-        let msg = bob.get_last_msg_in(self_chat.id).await;
-        assert_ne!(msg.get_id(), rcvd_msg.id);
-        assert_eq!(msg.get_original_msg(&bob).await?.unwrap().id, rcvd_msg.id);
+        let saved_msg = bob.get_last_msg_in(self_chat.id).await;
+        assert_ne!(saved_msg.get_id(), rcvd_msg.id);
         assert_eq!(
-            msg.get_original_chat_id(&bob).await?.unwrap(),
+            saved_msg.get_original_msg(&bob).await?.unwrap().id,
+            rcvd_msg.id
+        );
+        assert_eq!(
+            saved_msg.get_original_chat_id(&bob).await?.unwrap(),
             rcvd_msg.chat_id
         );
-        assert_eq!(msg.get_text(), "hi, bob");
-        assert!(!msg.is_forwarded());
-        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
-        assert_ne!(msg.get_from_id(), ContactId::SELF);
-        assert_eq!(msg.get_state(), MessageState::InSeen);
-        assert_ne!(msg.rfc724_mid(), rcvd_msg.rfc724_mid());
+        assert_eq!(saved_msg.get_text(), "hi, bob");
+        assert!(!saved_msg.is_forwarded());
+        assert_eq!(saved_msg.is_dc_message, MessengerMessage::Yes);
+        assert_ne!(saved_msg.get_from_id(), ContactId::SELF);
+        assert_eq!(saved_msg.get_state(), MessageState::InSeen);
+        assert_ne!(saved_msg.rfc724_mid(), rcvd_msg.rfc724_mid());
 
         // delete original message
         rcvd_msg.id.delete_from_db(&bob).await?;
-        let msg = Message::load_from_db(&bob, msg.id).await?;
-        assert!(msg.get_original_msg(&bob).await?.is_none());
+        let saved_msg = Message::load_from_db(&bob, saved_msg.id).await?;
+        assert!(saved_msg.get_original_msg(&bob).await?.is_none());
         assert_eq!(
-            msg.get_original_chat_id(&bob).await?.unwrap(),
+            saved_msg.get_original_chat_id(&bob).await?.unwrap(),
             rcvd_msg.chat_id
         );
 
         // delete original chat
         rcvd_msg.chat_id.delete(&bob).await?;
-        let msg = Message::load_from_db(&bob, msg.id).await?;
+        let msg = Message::load_from_db(&bob, saved_msg.id).await?;
         assert!(msg.get_original_chat_id(&bob).await?.is_none());
 
         Ok(())
