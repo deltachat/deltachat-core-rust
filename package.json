@@ -55,5 +55,5 @@
     "test:mocha": "mocha node/test/test.mjs --growl --reporter=spec --bail --exit"
   },
   "types": "node/dist/index.d.ts",
-  "version": "1.147.0"
+  "version": "1.147.1"
 }

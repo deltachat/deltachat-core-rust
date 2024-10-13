@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.147.1] - 2024-10-13
+
+### Build system
+
+- Build Python 3.13 wheels.
+- deltachat-rpc-client: Add classifiers for all supported Python versions.
+
+### CI
+
+- Update to Python 3.13.
+
+### Documentation
+
+- CONTRIBUTING.md: Add a note on deleting/changing db columns.
+
+### Fixes
+
+- Reset quota on configured address change ([#5908](https://github.com/deltachat/deltachat-core-rust/pull/5908)).
+- Do not emit progress 1000 when configuration is cancelled.
+- Assume file extensions are 32 chars max and don't contain whitespace ([#5338](https://github.com/deltachat/deltachat-core-rust/pull/5338)).
+- Readd tokens.foreign_id column ([#6038](https://github.com/deltachat/deltachat-core-rust/pull/6038)).
+
+### Miscellaneous Tasks
+
+- cargo: Bump futures-* from 0.3.30 to 0.3.31.
+- cargo: Upgrade async_zip to 0.0.17 ([#6035](https://github.com/deltachat/deltachat-core-rust/pull/6035)).
+
+### Refactor
+
+- MsgId::update_download_state: Don't fail if the message doesn't exist anymore.
+
 ## [1.147.0] - 2024-10-05
 
 ### API-Changes
@@ -4976,3 +5007,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.145.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.144.0..v1.145.0
 [1.146.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.145.0..v1.146.0
 [1.147.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.146.0..v1.147.0
+[1.147.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.0..v1.147.1
