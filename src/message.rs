@@ -1302,6 +1302,20 @@ impl Message {
         Ok(None)
     }
 
+    /// Check if the message was saved and returns the corresponding message inside "Saved Messages".
+    /// UI can use this to show a symbol beside the message, indicating it was saved.
+    /// The message can be un-saved by deleting the returned message.
+    pub async fn get_saved_msg_id(&self, context: &Context) -> Result<Option<MsgId>> {
+        let res: Option<MsgId> = context
+            .sql
+            .query_get_value(
+                "SELECT id FROM msgs WHERE starred=? AND chat_id!=?",
+                (self.id, DC_CHAT_ID_TRASH),
+            )
+            .await?;
+        Ok(res)
+    }
+
     /// Force the message to be sent in plain text.
     pub fn force_plaintext(&mut self) {
         self.param.set_int(Param::ForcePlaintext, 1);
