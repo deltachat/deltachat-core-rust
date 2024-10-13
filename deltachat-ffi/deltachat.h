@@ -4873,12 +4873,29 @@ dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
  * For messages from the "Saved Messages" chat,
  * this function returns the original message ID, if possible.
  *
+ * If this function returns NULL, try dc_msg_get_original_chat_id().
+ *
  * @param msg The message object as returned for the "Saved Messages" chat.
  * @return The message object of the original message.
- *     NULL of the given message object is not a "Saved Message"
- *     or if the original does no longer exist.
+ *     NULL if the given message object is not a "Saved Message"
+ *     or if the original message does no longer exist.
  */
 dc_msg_t*       dc_msg_get_original_msg       (const dc_msg_t* msg);
+
+
+/**
+ * Get original chat ID for a saved message.
+ *
+ * This may succeed even if the original message was deleted
+ * and dc_msg_get_original_msg() return NULL.
+ *
+ * @param msg The message object as returned for the "Saved Messages" chat.
+ * @return The chat ID  of the original message.
+ *     0 if the given message object is not a "Saved Message"
+ *     or if the original chat does no longer exist.
+ */
+uint32_t       dc_msg_get_original_chat_id   (const dc_msg_t* msg);
+
 
 /**
  * Force the message to be sent in plain text.
