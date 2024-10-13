@@ -4241,6 +4241,9 @@ async fn save_copies_in_self_talk_and_sync(context: &Context, msg_ids: &[MsgId])
 }
 
 /// Saves a copy of the given message in "Saved Messages" using the given RFC724 id.
+/// To allow UIs to have a "show in context" button,
+/// the copy contains a reference to the original message
+/// as well as to the original chat in case the original message gets deleted.
 /// Returns data needed to add a `SaveMessage` sync item.
 pub(crate) async fn save_copy_in_self_talk(
     context: &Context,
@@ -4254,11 +4257,14 @@ pub(crate) async fn save_copy_in_self_talk(
     msg.param.remove(Param::WebxdcDocumentTimestamp);
     msg.param.remove(Param::WebxdcSummary);
     msg.param.remove(Param::WebxdcSummaryTimestamp);
+    msg.param
+        .set_int(Param::OriginalChatId, msg.chat_id.to_u32() as i32);
     let original_msg_id = if !msg.original_msg_id.is_special() {
         msg.original_msg_id
     } else {
         *src_msg_id
     };
+
     let copy_fields = "from_id, to_id, timestamp_sent, timestamp_rcvd, type, txt, txt_raw, \
                              mime_modified, mime_headers, mime_compressed, mime_in_reply_to, subject, msgrmsg";
     let row_id = context
@@ -6942,6 +6948,7 @@ mod tests {
             msg.get_original_msg(&alice).await?.unwrap().id,
             sent.sender_msg_id
         );
+        assert_eq!(msg.get_original_chat_id(&alice).await?.unwrap(), sent_msg.chat_id);
         assert_eq!(msg.get_text(), "hi, bob");
         assert!(!msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -6955,6 +6962,10 @@ mod tests {
         let msg = bob.get_last_msg_in(self_chat.id).await;
         assert_ne!(msg.get_id(), rcvd_msg.id);
         assert_eq!(msg.get_original_msg(&bob).await?.unwrap().id, rcvd_msg.id);
+        assert_eq!(
+            msg.get_original_chat_id(&bob).await?.unwrap(),
+            rcvd_msg.chat_id
+        );
         assert_eq!(msg.get_text(), "hi, bob");
         assert!(!msg.is_forwarded());
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
