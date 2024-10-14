@@ -392,7 +392,6 @@ impl From<CoreEventType> for EventType {
             },
             CoreEventType::ChatlistChanged => ChatlistChanged,
             CoreEventType::EventChannelOverflow { n } => EventChannelOverflow { n },
-            CoreEventType::Test => todo!(),
         }
     }
 }
