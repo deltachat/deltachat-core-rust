@@ -488,7 +488,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         let saved_msg = alice.get_last_msg_in(self_chat.get_id()).await;
         assert_ne!(saved_msg.id, msg.id);
         assert_eq!(
-            saved_msg.get_original_msg(&alice).await?.unwrap().id,
+            saved_msg.get_original_msg_id(&alice).await?.unwrap(),
             msg.id
         );
         assert!(!saved_msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
