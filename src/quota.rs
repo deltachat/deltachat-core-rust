@@ -73,7 +73,7 @@ async fn get_unique_quota_roots_and_usage(
 
 fn get_highest_usage<'t>(
     unique_quota_roots: &'t BTreeMap<String, Vec<QuotaResource>>,
-) -> Result<(u64, &'t String, &QuotaResource)> {
+) -> Result<(u64, &'t String, &'t QuotaResource)> {
     let mut highest: Option<(u64, &'t String, &QuotaResource)> = None;
     for (name, resources) in unique_quota_roots {
         for r in resources {
