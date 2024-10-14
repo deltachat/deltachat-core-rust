@@ -292,7 +292,7 @@ pub enum EventType {
     /// This can be used by bots to initial peer-to-peer communication from their side.
     WebxdcRealtimeAdvertisementReceived {
         /// Message ID of the webxdc instance.
-        msg_id: MsgId
+        msg_id: MsgId,
     },
 
     /// Inform that a message containing a webxdc instance has been deleted.
