@@ -6284,6 +6284,15 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_WEBXDC_REALTIME_DATA             2150
 
 /**
+ * Advertisement received over an ephemeral peer channel.
+ * This can be used by bots to initial peer-to-peer communication from their side.
+ * @param data1 (int) msg_id
+ * @param data2 0
+ */
+
+#define DC_EVENT_WEBXDC_REALTIME_ADVERTISEMENT    2151
+
+/**
  * Tells that the Background fetch was completed (or timed out).
  *
  * This event acts as a marker, when you reach this event you can be sure

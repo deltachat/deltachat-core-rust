@@ -576,6 +576,13 @@ mod tests {
             .unwrap();
 
         bob.recv_msg_trash(&alice.pop_sent_msg().await).await;
+        loop {
+            let event = bob.evtracker.recv().await.unwrap();
+            if let EventType::WebxdcRealtimeAdvertisementReceived { msg_id } = event.typ {
+                assert!(msg_id == alice_webxdc.id);
+                break;
+            }
+        }
         let bob_iroh = bob.get_or_try_init_peer_channel().await.unwrap();
 
         // Bob adds alice to gossip peers.
