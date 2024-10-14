@@ -622,7 +622,7 @@ fn exif_orientation(exif: &exif::Exif, context: &Context) -> i32 {
     0
 }
 
-impl<'a> fmt::Display for BlobObject<'a> {
+impl fmt::Display for BlobObject<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "$BLOBDIR/{}", self.name)
     }
