@@ -578,7 +578,7 @@ impl ChatId {
         Ok(())
     }
 
-    /// Sets protection and sends or adds a message.
+    /// Sets protection and adds a message.
     ///
     /// `timestamp_sort` is used as the timestamp of the added message
     /// and should be the timestamp of the change happening.
