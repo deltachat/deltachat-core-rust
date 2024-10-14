@@ -589,20 +589,16 @@ impl ChatId {
         timestamp_sort: i64,
         contact_id: Option<ContactId>,
     ) -> Result<()> {
-        match self.inner_set_protection(context, protect).await {
-            Ok(protection_status_modified) => {
-                if protection_status_modified {
-                    self.add_protection_msg(context, protect, contact_id, timestamp_sort)
-                        .await?;
-                    chatlist_events::emit_chatlist_item_changed(context, self);
-                }
-                Ok(())
-            }
-            Err(e) => {
-                error!(context, "Cannot set protection: {e:#}."); // make error user-visible
-                Err(e)
-            }
+        let protection_status_modified = self
+            .inner_set_protection(context, protect)
+            .await
+            .with_context(|| format!("Cannot set protection for {self}"))?;
+        if protection_status_modified {
+            self.add_protection_msg(context, protect, contact_id, timestamp_sort)
+                .await?;
+            chatlist_events::emit_chatlist_item_changed(context, self);
         }
+        Ok(())
     }
 
     /// Sets protection and sends or adds a message.
