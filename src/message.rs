@@ -1259,28 +1259,28 @@ impl Message {
         Ok(None)
     }
 
-    /// Returns original message object for message from "Saved Messages".
-    pub async fn get_original_msg(&self, context: &Context) -> Result<Option<Message>> {
+    /// Returns original chat ID for message from "Saved Messages".
+    /// This may work although get_original_msg_id() returns 0 as the message was deleted.
+    pub async fn get_original_chat_id(&self, context: &Context) -> Result<Option<ChatId>> {
+        if let Some(chat_id) = self.param.get_int(Param::OriginalChatId) {
+            let chat_id = ChatId::new(u32::try_from(chat_id)?);
+            if Chat::load_from_db(context, chat_id).await.is_ok() {
+                return Ok(Some(chat_id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Returns original message ID for message from "Saved Messages".
+    pub async fn get_original_msg_id(&self, context: &Context) -> Result<Option<MsgId>> {
         if !self.original_msg_id.is_special() {
             if let Some(msg) = Message::load_from_db_optional(context, self.original_msg_id).await?
             {
                 return if msg.chat_id.is_trash() {
                     Ok(None)
                 } else {
-                    Ok(Some(msg))
+                    Ok(Some(msg.id))
                 };
-            }
-        }
-        Ok(None)
-    }
-
-    /// Returns original chat id for message from "Saved Messages".
-    /// This may work although get_original_msg() returns None as the message was deleted.
-    pub async fn get_original_chat_id(&self, context: &Context) -> Result<Option<ChatId>> {
-        if let Some(chat_id) = self.param.get_int(Param::OriginalChatId) {
-            let chat_id = ChatId::new(u32::try_from(chat_id)?);
-            if Chat::load_from_db(context, chat_id).await.is_ok() {
-                return Ok(Some(chat_id));
             }
         }
         Ok(None)
@@ -2523,7 +2523,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_original_msg() -> Result<()> {
+    async fn test_get_original_msg_id() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
@@ -2531,7 +2531,7 @@ mod tests {
         let one2one_chat = alice.create_chat(&bob).await;
         let sent = alice.send_text(one2one_chat.id, "foo").await;
         let orig_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
-        assert!(orig_msg.get_original_msg(&alice).await?.is_none());
+        assert!(orig_msg.get_original_msg_id(&alice).await?.is_none());
         assert!(orig_msg.parent(&alice).await?.is_none());
         assert!(orig_msg.quoted_message(&alice).await?.is_none());
 
@@ -2541,7 +2541,7 @@ mod tests {
         let saved_msg = alice.get_last_msg_in(self_chat.get_id()).await;
         assert_ne!(saved_msg.get_id(), orig_msg.get_id());
         assert_eq!(
-            saved_msg.get_original_msg(&alice).await?.unwrap().get_id(),
+            saved_msg.get_original_msg_id(&alice).await?.unwrap(),
             orig_msg.get_id()
         );
         assert!(saved_msg.parent(&alice).await?.is_none());
@@ -2552,7 +2552,7 @@ mod tests {
         let forwarded_msg = alice.get_last_msg_in(one2one_chat.get_id()).await;
         assert_ne!(forwarded_msg.get_id(), saved_msg.get_id());
         assert_ne!(forwarded_msg.get_id(), orig_msg.get_id());
-        assert!(forwarded_msg.get_original_msg(&alice).await?.is_none());
+        assert!(forwarded_msg.get_original_msg_id(&alice).await?.is_none());
 
         Ok(())
     }

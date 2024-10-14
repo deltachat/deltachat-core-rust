@@ -4868,33 +4868,33 @@ dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
 
 
 /**
- * Get original message for a saved message.
+ * Get original chat ID for a saved message from the "Saved Messages" chat.
  *
- * For messages from the "Saved Messages" chat,
- * this function returns the original message ID, if possible.
+ * Additionally, you can use dc_msg_get_original_msg_id() to find out the original message,
+ * which, however, may be deleted.
  *
- * If this function returns NULL, try dc_msg_get_original_chat_id().
+ * To save a message, use dc_forward_msgs().
+ * To check if a message is saved, use dc_msgs_get_saved_msg_id().
  *
- * @param msg The message object as returned for the "Saved Messages" chat.
- * @return The message object of the original message.
- *     NULL if the given message object is not a "Saved Message"
- *     or if the original message does no longer exist.
- */
-dc_msg_t*       dc_msg_get_original_msg       (const dc_msg_t* msg);
-
-
-/**
- * Get original chat ID for a saved message.
- *
- * This may succeed even if the original message was deleted
- * and dc_msg_get_original_msg() return NULL.
- *
- * @param msg The message object as returned for the "Saved Messages" chat.
+ * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
  * @return The chat ID  of the original message.
  *     0 if the given message object is not a "Saved Message"
  *     or if the original chat does no longer exist.
  */
-uint32_t       dc_msg_get_original_chat_id   (const dc_msg_t* msg);
+uint32_t        dc_msg_get_original_chat_id   (const dc_msg_t* msg);
+
+
+/**
+ * Get original message ID for a saved message from the "Saved Messages" chat.
+ *
+ * Usually, UI will check dc_msg_get_original_chat_id() as well.
+ *
+ * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
+ * @return The message ID of the original message.
+ *     0 if the given message object is not a "Saved Message"
+ *     or if the original message does no longer exist.
+ */
+uint32_t        dc_msg_get_original_msg_id    (const dc_msg_t* msg);
 
 
 /**
@@ -4903,7 +4903,7 @@ uint32_t       dc_msg_get_original_chat_id   (const dc_msg_t* msg);
  * The returned ID can be used to un-save a message.
  * The state "is saved" can be used to show some icon to indicate that a message was saved.
  *
- * @param msg The message object.
+ * @param msg The message object. Usually, this refers to a a message outside "Saved Messages".
  * @return The message ID inside "Saved Messages", if any.
  *     0 if the given message object is not saved.
  */

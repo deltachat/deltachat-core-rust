@@ -3981,30 +3981,6 @@ pub unsafe extern "C" fn dc_msg_get_parent(msg: *const dc_msg_t) -> *mut dc_msg_
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_original_msg(msg: *const dc_msg_t) -> *mut dc_msg_t {
-    if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_get_original_msg()");
-        return ptr::null_mut();
-    }
-    let ffi_msg: &MessageWrapper = &*msg;
-    let context = &*ffi_msg.context;
-    let res = block_on(async move {
-        ffi_msg
-            .message
-            .get_original_msg(context)
-            .await
-            .context("failed to get original message")
-            .log_err(context)
-            .unwrap_or(None)
-    });
-
-    match res {
-        Some(message) => Box::into_raw(Box::new(MessageWrapper { context, message })),
-        None => ptr::null_mut(),
-    }
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_original_chat_id(msg: *const dc_msg_t) -> u32 {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_original_chat_id()");
@@ -4016,6 +3992,27 @@ pub unsafe extern "C" fn dc_msg_get_original_chat_id(msg: *const dc_msg_t) -> u3
         ffi_msg
             .message
             .get_original_chat_id(context)
+            .await
+            .context("failed to get original chat")
+            .log_err(context)
+            .unwrap_or_default()
+            .map(|id| id.to_u32())
+            .unwrap_or(0)
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_original_msg_id(msg: *const dc_msg_t) -> u32 {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_original_msg_id()");
+        return 0;
+    }
+    let ffi_msg: &MessageWrapper = &*msg;
+    let context = &*ffi_msg.context;
+    block_on(async move {
+        ffi_msg
+            .message
+            .get_original_msg_id(context)
             .await
             .context("failed to get original message")
             .log_err(context)

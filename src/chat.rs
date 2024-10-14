@@ -6923,7 +6923,7 @@ mod tests {
         let sent = alice.send_text(alice_chat.get_id(), "hi, bob").await;
         let sent_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
         assert!(sent_msg.get_saved_msg_id(&alice).await?.is_none());
-        assert!(sent_msg.get_original_msg(&alice).await?.is_none());
+        assert!(sent_msg.get_original_msg_id(&alice).await?.is_none());
         assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
 
         let self_chat = alice.get_self_chat().await;
@@ -6933,7 +6933,7 @@ mod tests {
         assert_ne!(saved_msg.get_id(), sent.sender_msg_id);
         assert!(saved_msg.get_saved_msg_id(&alice).await?.is_none());
         assert_eq!(
-            saved_msg.get_original_msg(&alice).await?.unwrap().id,
+            saved_msg.get_original_msg_id(&alice).await?.unwrap(),
             sent.sender_msg_id
         );
         assert_eq!(
@@ -6952,7 +6952,7 @@ mod tests {
             sent_msg.get_saved_msg_id(&alice).await?.unwrap(),
             saved_msg.id
         );
-        assert!(sent_msg.get_original_msg(&alice).await?.is_none());
+        assert!(sent_msg.get_original_msg_id(&alice).await?.is_none());
         assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
 
         let rcvd_msg = bob.recv_msg(&sent).await;
@@ -6961,7 +6961,7 @@ mod tests {
         let saved_msg = bob.get_last_msg_in(self_chat.id).await;
         assert_ne!(saved_msg.get_id(), rcvd_msg.id);
         assert_eq!(
-            saved_msg.get_original_msg(&bob).await?.unwrap().id,
+            saved_msg.get_original_msg_id(&bob).await?.unwrap(),
             rcvd_msg.id
         );
         assert_eq!(
@@ -6978,7 +6978,7 @@ mod tests {
         // delete original message
         rcvd_msg.id.delete_from_db(&bob).await?;
         let saved_msg = Message::load_from_db(&bob, saved_msg.id).await?;
-        assert!(saved_msg.get_original_msg(&bob).await?.is_none());
+        assert!(saved_msg.get_original_msg_id(&bob).await?.is_none());
         assert_eq!(
             saved_msg.get_original_chat_id(&bob).await?.unwrap(),
             rcvd_msg.chat_id
@@ -7028,14 +7028,14 @@ mod tests {
         forward_msgs(&bob, &[orig.id], self_chat.id).await?;
         let saved1 = bob.get_last_msg().await;
         assert_eq!(
-            saved1.get_original_msg(&bob).await?.unwrap().id,
+            saved1.get_original_msg_id(&bob).await?.unwrap(),
             sent.sender_msg_id
         );
 
         forward_msgs(&bob, &[saved1.id], self_chat.id).await?;
         let saved2 = bob.get_last_msg().await;
         assert_eq!(
-            saved2.get_original_msg(&bob).await?.unwrap().id,
+            saved2.get_original_msg_id(&bob).await?.unwrap(),
             sent.sender_msg_id
         );
 
