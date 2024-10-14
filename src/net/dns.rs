@@ -597,9 +597,14 @@ pub(crate) async fn lookup_host_with_cache(
     load_cache: bool,
 ) -> Result<Vec<SocketAddr>> {
     let now = time();
-    let mut resolved_addrs = match lookup_host_and_update_cache(context, hostname, port, now).await
-    {
-        Ok(res) => res,
+    let resolved_addrs = match lookup_host_and_update_cache(context, hostname, port, now).await {
+        Ok(res) => {
+            if alpn.is_empty() {
+                res
+            } else {
+                sort_by_connection_timestamp(context, res, alpn, hostname).await?
+            }
+        }
         Err(err) => {
             warn!(
                 context,
@@ -608,29 +613,43 @@ pub(crate) async fn lookup_host_with_cache(
             Vec::new()
         }
     };
-    if !alpn.is_empty() {
-        resolved_addrs =
-            sort_by_connection_timestamp(context, resolved_addrs, alpn, hostname).await?;
-    }
 
     if load_cache {
-        for addr in lookup_cache(context, hostname, port, alpn, now).await? {
-            if !resolved_addrs.contains(&addr) {
-                resolved_addrs.push(addr);
-            }
-        }
-
+        let mut cache = lookup_cache(context, hostname, port, alpn, now).await?;
         if let Some(ips) = DNS_PRELOAD.get(hostname) {
             for ip in ips {
                 let addr = SocketAddr::new(*ip, port);
-                if !resolved_addrs.contains(&addr) {
-                    resolved_addrs.push(addr);
+                if !cache.contains(&addr) {
+                    cache.push(addr);
                 }
+            }
+        }
+
+        Ok(merge_with_cache(resolved_addrs, cache))
+    } else {
+        Ok(resolved_addrs)
+    }
+}
+
+/// Merges results received from DNS with cached results.
+///
+/// At most 10 results are returned.
+fn merge_with_cache(
+    mut resolved_addrs: Vec<SocketAddr>,
+    cache: Vec<SocketAddr>,
+) -> Vec<SocketAddr> {
+    let rest = resolved_addrs.split_off(std::cmp::min(resolved_addrs.len(), 2));
+
+    for addr in cache.into_iter().chain(rest.into_iter()) {
+        if !resolved_addrs.contains(&addr) {
+            resolved_addrs.push(addr);
+            if resolved_addrs.len() >= 10 {
+                break;
             }
         }
     }
 
-    Ok(resolved_addrs)
+    resolved_addrs
 }
 
 #[cfg(test)]
@@ -865,5 +884,132 @@ mod tests {
                 SocketAddr::new(ipv4_addr, 993)
             ],
         );
+    }
+
+    #[test]
+    fn test_merge_with_cache() {
+        let first_addr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1));
+        let second_addr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2));
+
+        // If there is no cache, just return resolved addresses.
+        {
+            let resolved_addrs = vec![
+                SocketAddr::new(first_addr, 993),
+                SocketAddr::new(second_addr, 993),
+            ];
+            let cache = vec![];
+            assert_eq!(
+                merge_with_cache(resolved_addrs.clone(), cache),
+                resolved_addrs
+            );
+        }
+
+        // If cache contains address that is not in resolution results,
+        // it is inserted in the merged result.
+        {
+            let resolved_addrs = vec![SocketAddr::new(first_addr, 993)];
+            let cache = vec![SocketAddr::new(second_addr, 993)];
+            assert_eq!(
+                merge_with_cache(resolved_addrs, cache),
+                vec![
+                    SocketAddr::new(first_addr, 993),
+                    SocketAddr::new(second_addr, 993),
+                ]
+            );
+        }
+
+        // If cache contains address that is already in resolution results,
+        // it is not duplicated.
+        {
+            let resolved_addrs = vec![
+                SocketAddr::new(first_addr, 993),
+                SocketAddr::new(second_addr, 993),
+            ];
+            let cache = vec![SocketAddr::new(second_addr, 993)];
+            assert_eq!(
+                merge_with_cache(resolved_addrs, cache),
+                vec![
+                    SocketAddr::new(first_addr, 993),
+                    SocketAddr::new(second_addr, 993),
+                ]
+            );
+        }
+
+        // If DNS resolvers returns a lot of results,
+        // we should try cached results before going through all
+        // the resolver results.
+        {
+            let resolved_addrs = vec![
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 5)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 6)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 7)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 8)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 9)), 993),
+            ];
+            let cache = vec![SocketAddr::new(second_addr, 993)];
+            assert_eq!(
+                merge_with_cache(resolved_addrs, cache),
+                vec![
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 993),
+                    SocketAddr::new(second_addr, 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 5)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 6)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 7)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 8)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 9)), 993),
+                ]
+            );
+        }
+
+        // Even if cache already contains all the incorrect results
+        // that resolver returns, this should not result in them being sorted to the top.
+        // Cache has known to work result returned first,
+        // so we should try it after the second result.
+        {
+            let resolved_addrs = vec![
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 5)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 6)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 7)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 8)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 9)), 993),
+            ];
+            let cache = vec![
+                SocketAddr::new(second_addr, 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 9)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 8)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 7)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 6)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 5)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 993),
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 993),
+            ];
+            assert_eq!(
+                merge_with_cache(resolved_addrs, cache),
+                vec![
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 993),
+                    SocketAddr::new(second_addr, 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 9)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 8)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 7)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 6)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 5)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)), 993),
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 993),
+                ]
+            );
+        }
     }
 }
