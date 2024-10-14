@@ -41,7 +41,7 @@ enum SignedPublicKeyOrSubkey<'a> {
     Subkey(&'a SignedPublicSubKey),
 }
 
-impl<'a> KeyTrait for SignedPublicKeyOrSubkey<'a> {
+impl KeyTrait for SignedPublicKeyOrSubkey<'_> {
     fn fingerprint(&self) -> Vec<u8> {
         match self {
             Self::Key(k) => k.fingerprint(),
@@ -64,7 +64,7 @@ impl<'a> KeyTrait for SignedPublicKeyOrSubkey<'a> {
     }
 }
 
-impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
+impl PublicKeyTrait for SignedPublicKeyOrSubkey<'_> {
     fn verify_signature(
         &self,
         hash: HashAlgorithm,
