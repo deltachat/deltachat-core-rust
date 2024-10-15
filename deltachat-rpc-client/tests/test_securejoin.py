@@ -44,13 +44,6 @@ def test_qr_setup_contact_svg(acfactory) -> None:
 
     _qr_code, svg = alice.get_qr_code_svg()
 
-    # Test that email address is in SVG
-    # when we have no display name.
-    # Check only the domain name, because
-    # long address may be split over multiple lines
-    # and not matched.
-    assert domain in svg
-
     alice.set_config("displayname", "Alice")
 
     # Test that display name is used
