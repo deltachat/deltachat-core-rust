@@ -82,7 +82,10 @@ pub struct MimeFactory {
     /// as needed.
     references: String,
 
+    /// True if the message requests Message Disposition Notification
+    /// using `Chat-Disposition-Notification-To` header.
     req_mdn: bool,
+
     last_added_location_id: Option<u32>,
 
     /// If the created mime-structure contains sync-items,
