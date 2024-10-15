@@ -613,7 +613,9 @@ impl MimeFactory {
             // because replies to "Disposition-Notification-To" are weird in many cases
             // eg. are just freetext and/or do not follow any standard.
             headers.push(Header::new(
-                "Chat-Disposition-Notification-To".into(),
+                HeaderDef::ChatDispositionNotificationTo
+                    .get_headername()
+                    .to_string(),
                 self.from_addr.clone(),
             ));
         }
