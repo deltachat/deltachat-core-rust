@@ -1014,15 +1014,16 @@ async fn add_parts(
             }
         }
 
-        state = if (seen && replace_msg_id.is_none())
+        state = if replace_msg_id.is_some() {
+            // TODO a comment explaining why we're doing this would be nice
+            MessageState::InNoticed
+        } else if seen
             || fetching_existing_messages
             || is_mdn
             || is_reaction
             || chat_id_blocked == Blocked::Yes
         {
             MessageState::InSeen
-        } else if seen {
-            MessageState::InNoticed
         } else {
             MessageState::InFresh
         };
@@ -1564,7 +1565,7 @@ INSERT INTO msgs
 ON CONFLICT (id) DO UPDATE
 SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
-    type=excluded.type, state=min(state,max(?,13)), msgrmsg=excluded.msgrmsg,
+    type=excluded.type, state=min(state,excluded.state), msgrmsg=excluded.msgrmsg,
     txt=excluded.txt, txt_normalized=excluded.txt_normalized, subject=excluded.subject,
     txt_raw=excluded.txt_raw, param=excluded.param,
     hidden=excluded.hidden,bytes=excluded.bytes, mime_headers=excluded.mime_headers,
@@ -1616,7 +1617,6 @@ RETURNING id
                         DownloadState::Done
                     },
                     mime_parser.hop_info,
-                    state,
                 ],
                 |row| {
                     let msg_id: MsgId = row.get(0)?;
