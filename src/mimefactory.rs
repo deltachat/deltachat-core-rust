@@ -352,7 +352,11 @@ impl MimeFactory {
                     // beside key- and member-changes, force a periodic re-gossip.
                     let gossiped_timestamp = chat.id.get_gossiped_timestamp(context).await?;
                     let gossip_period = context.get_config_i64(Config::GossipPeriod).await?;
-                    if time() >= gossiped_timestamp + gossip_period {
+                    // `gossip_period == 0` is a special case for testing,
+                    // enabling gossip in every message.
+                    // Othewise "smeared timestamps" may result in the condition
+                    // to fail even if the clock is monotonic.
+                    if gossip_period == 0 || time() >= gossiped_timestamp + gossip_period {
                         Ok(true)
                     } else {
                         Ok(false)
