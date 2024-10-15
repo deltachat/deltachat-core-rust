@@ -37,7 +37,7 @@ use crate::peerstate::Peerstate;
 use crate::sql::{self, params_iter};
 use crate::sync::{self, Sync::*};
 use crate::tools::{duration_to_str, get_abs_path, smeared_time, time, SystemTime};
-use crate::{chat, chatlist_events, stock_str};
+use crate::{chat, chatlist_events, spawn_named_task, stock_str};
 
 /// Time during which a contact is considered as seen recently.
 const SEEN_RECENTLY_SECONDS: i64 = 600;
@@ -1791,7 +1791,7 @@ impl RecentlySeenLoop {
     pub(crate) fn new(context: Context) -> Self {
         let (interrupt_send, interrupt_recv) = channel::bounded(1);
 
-        let handle = task::spawn(Self::run(context, interrupt_recv));
+        let handle = spawn_named_task!("recently_seen_loop", Self::run(context, interrupt_recv));
         Self {
             handle,
             interrupt_send,
