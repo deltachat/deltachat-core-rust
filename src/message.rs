@@ -1698,6 +1698,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                     m.id AS id,
                     m.chat_id AS chat_id,
                     m.state AS state,
+                    m.download_state as download_state,
                     m.ephemeral_timer AS ephemeral_timer,
                     m.param AS param,
                     m.from_id AS from_id,
@@ -1713,6 +1714,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                 let id: MsgId = row.get("id")?;
                 let chat_id: ChatId = row.get("chat_id")?;
                 let state: MessageState = row.get("state")?;
+                let download_state: DownloadState = row.get("download_state")?;
                 let param: Params = row.get::<_, String>("param")?.parse().unwrap_or_default();
                 let from_id: ContactId = row.get("from_id")?;
                 let rfc724_mid: String = row.get("rfc724_mid")?;
@@ -1724,6 +1726,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                         id,
                         chat_id,
                         state,
+                        download_state,
                         param,
                         from_id,
                         rfc724_mid,
@@ -1753,6 +1756,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             id,
             curr_chat_id,
             curr_state,
+            curr_download_state,
             curr_param,
             curr_from_id,
             curr_rfc724_mid,
@@ -1762,7 +1766,14 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         _curr_ephemeral_timer,
     ) in msgs
     {
-        if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
+        if curr_download_state != DownloadState::Done {
+            if curr_state == MessageState::InFresh {
+                // Don't mark partially downloaded messages as seen or send a read receipt since
+                // they are not really seen by the user.
+                update_msg_state(context, id, MessageState::InNoticed).await?;
+                updated_chat_ids.insert(curr_chat_id);
+            }
+        } else if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
             update_msg_state(context, id, MessageState::InSeen).await?;
             info!(context, "Seen message {}.", id);
 
@@ -2609,8 +2620,28 @@ mod tests {
         assert!(!msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
         assert_eq!(msg.state, MessageState::InFresh);
         markseen_msgs(alice, vec![msg.id]).await?;
-        let msg = Message::load_from_db(alice, msg.id).await?;
-        assert_eq!(msg.state, MessageState::InSeen);
+        // A not downloaded message can be seen only if it's seen on another device.
+        assert_eq!(msg.id.get_state(alice).await?, MessageState::InNoticed);
+        // Marking the message as seen again is a no op.
+        markseen_msgs(alice, vec![msg.id]).await?;
+        assert_eq!(msg.id.get_state(alice).await?, MessageState::InNoticed);
+
+        msg.id
+            .update_download_state(alice, DownloadState::InProgress)
+            .await?;
+        markseen_msgs(alice, vec![msg.id]).await?;
+        assert_eq!(msg.id.get_state(alice).await?, MessageState::InNoticed);
+        msg.id
+            .update_download_state(alice, DownloadState::Failure)
+            .await?;
+        markseen_msgs(alice, vec![msg.id]).await?;
+        assert_eq!(msg.id.get_state(alice).await?, MessageState::InNoticed);
+        msg.id
+            .update_download_state(alice, DownloadState::Undecipherable)
+            .await?;
+        markseen_msgs(alice, vec![msg.id]).await?;
+        assert_eq!(msg.id.get_state(alice).await?, MessageState::InNoticed);
+
         assert!(
             !alice
                 .sql
@@ -2619,12 +2650,32 @@ mod tests {
         );
 
         alice.set_config(Config::DownloadLimit, None).await?;
-        let msg = alice.recv_msg(&sent_msg).await;
+        // Let's assume that Alice and Bob resolved the problem with encryption. Also simulate that
+        // the message is even marked as `\Seen` on IMAP.
+        let rcvd_msg = receive_imf(alice, sent_msg.payload().as_bytes(), true)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(rcvd_msg.chat_id, msg.chat_id);
+        let msg = Message::load_from_db(alice, *rcvd_msg.msg_ids.last().unwrap())
+            .await
+            .unwrap();
         assert_eq!(msg.download_state, DownloadState::Done);
         assert!(msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
         assert!(msg.get_showpadlock());
+        // If a message is seen on IMAP, it must be `InSeen`. But let's record the current
+        // behaviour.
+        assert_eq!(msg.state, MessageState::InNoticed);
+        markseen_msgs(alice, vec![msg.id]).await?;
+        let msg = Message::load_from_db(alice, msg.id).await?;
         assert_eq!(msg.state, MessageState::InSeen);
-
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM smtp_mdns", ())
+                .await?,
+            1
+        );
         Ok(())
     }
 
