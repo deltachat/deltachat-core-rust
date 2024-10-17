@@ -459,7 +459,10 @@ def test_qr_new_group_unblocked(acfactory):
 
 def test_aeap_flow_verified(acfactory):
     """Test that a new address is added to a contact when it changes its address."""
-    ac1, ac2, ac1new = acfactory.get_online_accounts(3)
+    ac1, ac2 = acfactory.get_online_accounts(2)
+
+    # ac1new is only used to get a new address.
+    ac1new = acfactory.new_preconfigured_account()
 
     logging.info("ac1: create verified-group QR, ac2 scans and joins")
     chat = ac1.create_group("hello", protect=True)
