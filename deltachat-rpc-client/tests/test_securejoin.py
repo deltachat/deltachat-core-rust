@@ -325,7 +325,6 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
 
     ac3_contact_ac2 = ac3.get_contact_by_addr(ac2.get_config("addr"))
     ac3_chat.remove_contact(ac3_contact_ac2)
-    ac3_chat.add_contact(ac3_contact_ac2)
 
     msg_id = ac2.wait_for_incoming_msg_event().msg_id
     message = ac2.get_message_by_id(msg_id)
@@ -334,6 +333,8 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
 
     snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert "removed" in snapshot.text
+
+    ac3_chat.add_contact(ac3_contact_ac2)
 
     event = ac2.wait_for_incoming_msg_event()
     msg_id = event.msg_id
