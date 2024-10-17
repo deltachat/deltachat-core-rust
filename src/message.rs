@@ -2650,21 +2650,14 @@ mod tests {
         );
 
         alice.set_config(Config::DownloadLimit, None).await?;
-        // Let's assume that Alice and Bob resolved the problem with encryption. Also simulate that
-        // the message is even marked as `\Seen` on IMAP.
-        let rcvd_msg = receive_imf(alice, sent_msg.payload().as_bytes(), true)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(rcvd_msg.chat_id, msg.chat_id);
-        let msg = Message::load_from_db(alice, *rcvd_msg.msg_ids.last().unwrap())
-            .await
-            .unwrap();
+        // Let's assume that Alice and Bob resolved the problem with encryption.
+        let old_msg = msg;
+        let msg = alice.recv_msg(&sent_msg).await;
+        assert_eq!(msg.chat_id, old_msg.chat_id);
         assert_eq!(msg.download_state, DownloadState::Done);
         assert!(msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
         assert!(msg.get_showpadlock());
-        // If a message is seen on IMAP, it must be `InSeen`. But let's record the current
-        // behaviour.
+        // The message state mustn't be downgraded to `InFresh`.
         assert_eq!(msg.state, MessageState::InNoticed);
         markseen_msgs(alice, vec![msg.id]).await?;
         let msg = Message::load_from_db(alice, msg.id).await?;
@@ -2676,6 +2669,40 @@ mod tests {
                 .await?,
             1
         );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_msg_seen_on_imap_when_downloaded() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        alice.set_config(Config::DownloadLimit, Some("1")).await?;
+        let bob = &tcm.bob().await;
+        let bob_chat_id = tcm.send_recv_accept(alice, bob, "hi").await.chat_id;
+
+        let file_bytes = include_bytes!("../test-data/image/screenshot.png");
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)
+            .await?;
+        let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
+        let msg = alice.recv_msg(&sent_msg).await;
+        assert_eq!(msg.download_state, DownloadState::Available);
+        assert_eq!(msg.state, MessageState::InFresh);
+
+        alice.set_config(Config::DownloadLimit, None).await?;
+        let seen = true;
+        let rcvd_msg = receive_imf(alice, sent_msg.payload().as_bytes(), seen)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(rcvd_msg.chat_id, msg.chat_id);
+        let msg = Message::load_from_db(alice, *rcvd_msg.msg_ids.last().unwrap())
+            .await
+            .unwrap();
+        assert_eq!(msg.download_state, DownloadState::Done);
+        assert!(msg.param.get_bool(Param::WantsMdn).unwrap_or_default());
+        assert!(msg.get_showpadlock());
+        assert_eq!(msg.state, MessageState::InSeen);
         Ok(())
     }
 
