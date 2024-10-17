@@ -148,21 +148,6 @@ impl MsgId {
         Ok(())
     }
 
-    /// Deletes a message, corresponding MDNs and unsent SMTP messages from the database.
-    pub(crate) async fn delete_from_db(self, context: &Context) -> Result<()> {
-        context
-            .sql
-            .transaction(move |transaction| {
-                transaction.execute("DELETE FROM smtp WHERE msg_id=?", (self,))?;
-                transaction.execute("DELETE FROM msgs_mdns WHERE msg_id=?", (self,))?;
-                transaction.execute("DELETE FROM msgs_status_updates WHERE msg_id=?", (self,))?;
-                transaction.execute("DELETE FROM msgs WHERE id=?", (self,))?;
-                Ok(())
-            })
-            .await?;
-        Ok(())
-    }
-
     pub(crate) async fn set_delivered(self, context: &Context) -> Result<()> {
         update_msg_state(context, self, MessageState::OutDelivered).await?;
         let chat_id: ChatId = context
