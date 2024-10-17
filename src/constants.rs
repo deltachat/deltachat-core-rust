@@ -179,7 +179,9 @@ pub const DC_DESIRED_TEXT_LEN: usize = DC_DESIRED_TEXT_LINE_LEN * DC_DESIRED_TEX
 // and may be set together with the username, password etc.
 // via dc_set_config() using the key "server_flags".
 
-/// Force OAuth2 authorization. This flag does not skip automatic configuration.
+/// Force OAuth2 authorization.
+///
+/// This flag does not skip automatic configuration.
 /// Before calling configure() with DC_LP_AUTH_OAUTH2 set,
 /// the user has to confirm access at the URL returned by dc_get_oauth2_url().
 pub const DC_LP_AUTH_OAUTH2: i32 = 0x2;

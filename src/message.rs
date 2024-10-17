@@ -1915,6 +1915,7 @@ pub async fn get_request_msg_cnt(context: &Context) -> usize {
 
 /// Estimates the number of messages that will be deleted
 /// by the options `delete_device_after` or `delete_server_after`.
+///
 /// This is typically used to show the estimated impact to the user
 /// before actually enabling deletion of old messages.
 ///
