@@ -866,13 +866,14 @@ impl ChatId {
     ///
     /// Returns `true`, if message was deleted, `false` otherwise.
     async fn maybe_delete_draft(self, context: &Context) -> Result<bool> {
-        match self.get_draft_msg_id(context).await? {
-            Some(msg_id) => {
-                msg_id.delete_from_db(context).await?;
-                Ok(true)
-            }
-            None => Ok(false),
-        }
+        Ok(context
+            .sql
+            .execute(
+                "DELETE FROM msgs WHERE chat_id=? AND state=?",
+                (self, MessageState::OutDraft),
+            )
+            .await?
+            > 0)
     }
 
     /// Set provided message as draft message for specified chat.
