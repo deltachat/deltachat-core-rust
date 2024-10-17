@@ -45,9 +45,6 @@ listchats
 getqr
 ```
 
-If it crashes you can just start it again and use the openpgp4fpr URL instead of scanning the code from the terminal.
-Or install `qrencode` to fix the crash and run `getqr` again.
-
 Use the qrcode/openpgp4fpr link to setup the contact on Delta Chat.
 Then write a message to that new contact, after that you can accept the chat in the REPL tool and send a reply:
 
