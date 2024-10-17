@@ -25,6 +25,7 @@ pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 95;
 
 /// if quota is below this value (again),
 /// QuotaExceeding is cleared.
+///
 /// This value should be a bit below QUOTA_WARN_THRESHOLD_PERCENTAGE to
 /// avoid jittering and lots of warnings when quota is exactly at the warning threshold.
 ///
