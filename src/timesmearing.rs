@@ -17,7 +17,7 @@
 use std::cmp::{max, min};
 use std::sync::atomic::{AtomicI64, Ordering};
 
-pub(crate) const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
+pub(crate) const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 30;
 
 /// Smeared timestamp generator.
 #[derive(Debug)]
@@ -157,11 +157,11 @@ mod tests {
         // because there were not enough timestamps in the past.
         assert_eq!(smeared_timestamp.current(), now + 4);
 
-        // Forward another 7 messages.
-        // We cannot use more than 5 timestamps from the future,
-        // so we use 5 timestamps from the future,
+        // Forward another 32 messages.
+        // We cannot use more than 30 timestamps from the future,
+        // so we use 30 timestamps from the future,
         // the current timestamp and one timestamp from the past.
-        assert_eq!(smeared_timestamp.create_n(now, forwarded_messages), now - 1);
+        assert_eq!(smeared_timestamp.create_n(now, 32), now - 1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
