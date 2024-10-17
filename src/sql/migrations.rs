@@ -1046,6 +1046,30 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 123)?;
+    if dbversion < migration_version {
+        // Add FOREIGN KEY(msg_id).
+        sql.execute_migration(
+            "CREATE TABLE new_msgs_status_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                msg_id INTEGER,
+                update_item TEXT DEFAULT '',
+                uid TEXT UNIQUE,
+                FOREIGN KEY(msg_id) REFERENCES msgs(id) ON DELETE CASCADE
+            );
+            INSERT OR IGNORE INTO new_msgs_status_updates SELECT
+                id, msg_id, update_item, uid
+            FROM msgs_status_updates;
+            DROP TABLE msgs_status_updates;
+            ALTER TABLE new_msgs_status_updates RENAME TO msgs_status_updates;
+            CREATE INDEX msgs_status_updates_index1 ON msgs_status_updates (msg_id);
+            CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
+            ",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
