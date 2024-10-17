@@ -467,6 +467,7 @@ def test_aeap_flow_verified(acfactory):
     logging.info("ac2: start QR-code based join-group protocol")
     ac2.secure_join(qr_code)
     ac1.wait_for_securejoin_inviter_success()
+    ac2.wait_for_securejoin_joiner_success()
 
     logging.info("sending first message")
     msg_out = chat.send_text("old address").get_snapshot()
