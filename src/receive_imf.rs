@@ -1446,6 +1446,9 @@ async fn add_parts(
             Ok(node_addr) => {
                 info!(context, "Adding iroh peer with address {node_addr:?}.");
                 let instance_id = parent.context("Failed to get parent message")?.id;
+                context.emit_event(EventType::WebxdcRealtimeAdvertisementReceived {
+                    msg_id: instance_id,
+                });
                 if let Some(topic) = get_iroh_topic_for_msg(context, instance_id).await? {
                     let node_id = node_addr.node_id;
                     let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
