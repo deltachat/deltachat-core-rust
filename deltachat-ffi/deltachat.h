@@ -6285,7 +6285,7 @@ void dc_event_unref(dc_event_t* event);
 
 /**
  * Advertisement for ephemeral peer channel communication received.
- * This can be used by bots to initialize peer-to-peer communication from their side.
+ * This can be used by bots to initiate peer-to-peer communication from their side.
  * @param data1 (int) msg_id
  * @param data2 0
  */
