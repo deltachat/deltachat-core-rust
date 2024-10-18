@@ -313,7 +313,7 @@ pub(crate) async fn get_autocrypt_peerstate(
         if let Some(ref mut peerstate) = peerstate {
             if addr_cmp(&peerstate.addr, from) {
                 if allow_change {
-                    peerstate.apply_header(header, message_time);
+                    peerstate.apply_header(context, header, message_time);
                     peerstate.save_to_db(&context.sql).await?;
                 } else {
                     info!(
