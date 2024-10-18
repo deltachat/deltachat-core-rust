@@ -335,7 +335,9 @@ mod tests {
             let msg = Message::load_from_db(&t, msg_id).await?;
             assert_eq!(msg.download_state(), *s);
         }
-        msg_id.delete_from_db(&t).await?;
+        t.sql
+            .execute("DELETE FROM msgs WHERE id=?", (msg_id,))
+            .await?;
         // Nothing to do is ok.
         msg_id
             .update_download_state(&t, DownloadState::Done)
