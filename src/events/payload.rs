@@ -289,7 +289,7 @@ pub enum EventType {
     },
 
     /// Advertisement received over an ephemeral peer channel.
-    /// This can be used by bots to initial peer-to-peer communication from their side.
+    /// This can be used by bots to initiate peer-to-peer communication from their side.
     WebxdcRealtimeAdvertisementReceived {
         /// Message ID of the webxdc instance.
         msg_id: MsgId,
