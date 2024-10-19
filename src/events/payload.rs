@@ -94,6 +94,18 @@ pub enum EventType {
         contact_id: ContactId,
     },
 
+    /// Reactions for the message changed.
+    IncomingReaction {
+        /// ID of the contact whose reaction set is changed.
+        contact_id: ContactId,
+
+        /// ID of the message for which reactions were changed.
+        msg_id: MsgId,
+
+        /// The reaction.
+        reaction: String,
+    },
+
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///

@@ -1483,7 +1483,13 @@ async fn add_parts(
             )
             .await?;
             if mime_parser.incoming && in_fresh {
-                // TODO: emit DC_EVENT_INCOMING_REACTION
+                if let Some((msg_id, _)) = rfc724_mid_exists(context, mime_in_reply_to).await? {
+                    context.emit_event(EventType::IncomingReaction {
+                        contact_id: from_id,
+                        msg_id,
+                        reaction: reaction_str,
+                    });
+                }
             }
         }
 
