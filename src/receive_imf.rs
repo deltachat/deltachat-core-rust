@@ -1482,6 +1482,9 @@ async fn add_parts(
                 Reaction::from(reaction_str.as_str()),
             )
             .await?;
+            if mime_parser.incoming && in_fresh {
+                // TODO: emit DC_EVENT_INCOMING_REACTION
+            }
         }
 
         let mut param = part.param.clone();

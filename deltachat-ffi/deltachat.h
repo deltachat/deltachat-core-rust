@@ -6032,6 +6032,21 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
+ * Message reaction to one's own sent message received.
+ * Typically, the UI will show a notification for that.
+ *
+ * In addition to this event, DC_EVENT_REACTIONS_CHANGED is emitted.
+ *
+ * @param data1 (int) contact_id ID of the contact sending this reaction.
+ * @param data2 (int) msg_id + (chat*) reaction.
+ *      ID of the message for which a reaction was received in dc_event_get_data2_int(),
+ *      and the reaction as dc_event_get_data2_str().
+ *      string must be passed to dc_str_unref() afterwards.
+ */
+#define DC_EVENT_INCOMING_REACTION        2002
+
+
+/**
  * There is a fresh message. Typically, the user will show an notification
  * when receiving this message.
  *
