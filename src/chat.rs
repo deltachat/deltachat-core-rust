@@ -3949,12 +3949,19 @@ pub async fn remove_contact_from_chat(
                 }
                 msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                 msg.param.set(Param::Arg, contact.get_addr().to_lowercase());
-                let res = send_msg(context, chat_id, &mut msg).await;
+                let res = send_msg(context, chat_id, &mut msg)
+                    .await
+                    .context("Failed to send member removed message");
                 if contact_id == ContactId::SELF {
                     res?;
-                    set_group_explicitly_left(context, &chat.grpid).await?;
+                    set_group_explicitly_left(context, &chat.grpid)
+                        .await
+                        .context("Failed to mark group as explicitly left")?;
                 } else if let Err(e) = res {
-                    warn!(context, "remove_contact_from_chat({chat_id}, {contact_id}): send_msg() failed: {e:#}.");
+                    warn!(
+                        context,
+                        "remove_contact_from_chat({chat_id}, {contact_id}): {e:#}."
+                    );
                 }
             } else {
                 sync = Sync;
@@ -3971,7 +3978,9 @@ pub async fn remove_contact_from_chat(
         // in order to correctly determine encryption so if we
         // removed it first, it would complicate the
         // check/encryption logic.
-        remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+        remove_from_chat_contacts_table(context, chat_id, contact_id)
+            .await
+            .context("Failed to remove contact from chats_contacts table")?;
         context.emit_event(EventType::ChatModified(chat_id));
         if sync.into() {
             chat.sync_contacts(context).await.log_err(context).ok();
