@@ -2941,7 +2941,10 @@ async fn prepare_send_msg(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
-    create_send_msg_jobs(context, msg).await
+    let row_ids = create_send_msg_jobs(context, msg)
+        .await
+        .context("Failed to create send jobs")?;
+    Ok(row_ids)
 }
 
 /// Constructs jobs for sending a message and inserts them into the appropriate table.
