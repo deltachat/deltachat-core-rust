@@ -605,16 +605,13 @@ impl MessageData {
             message.set_location(latitude, longitude);
         }
         if let Some(id) = self.quoted_message_id {
+            let quoted_message = Message::load_from_db(context, MsgId::new(id))
+                .await
+                .context("Failed to load quoted message")?;
             message
-                .set_quote(
-                    context,
-                    Some(
-                        &Message::load_from_db(context, MsgId::new(id))
-                            .await
-                            .context("message to quote could not be loaded")?,
-                    ),
-                )
-                .await?;
+                .set_quote(context, Some(&quoted_message))
+                .await
+                .context("Failed to set quote")?;
         } else if let Some(text) = self.quoted_text {
             let protect = false;
             message.set_quote_text(Some((text, protect)));
