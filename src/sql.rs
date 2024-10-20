@@ -446,7 +446,8 @@ impl Sql {
         G: Send + FnMut(rusqlite::MappedRows<F>) -> Result<H>,
         H: Send + 'static,
     {
-        self.call(true, move |conn| {
+        let query_only = true;
+        self.call(query_only, move |conn| {
             let mut stmt = conn.prepare(sql)?;
             let res = stmt.query_map(params, f)?;
             g(res)
