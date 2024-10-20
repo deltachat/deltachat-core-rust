@@ -1473,21 +1473,23 @@ async fn add_parts(
     for part in &mime_parser.parts {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
+            let reaction = Reaction::from(reaction_str.as_str());
             set_msg_reaction(
                 context,
                 mime_in_reply_to,
                 orig_chat_id.unwrap_or_default(),
                 from_id,
                 sort_timestamp,
-                Reaction::from(reaction_str.as_str()),
+                reaction.clone(),
             )
             .await?;
-            if mime_parser.incoming && in_fresh {
+            let is_fresh_reaction = !seen && !fetching_existing_messages;
+            if mime_parser.incoming && is_fresh_reaction {
                 if let Some((msg_id, _)) = rfc724_mid_exists(context, mime_in_reply_to).await? {
                     context.emit_event(EventType::IncomingReaction {
                         contact_id: from_id,
                         msg_id,
-                        reaction: reaction_str,
+                        reaction: reaction.as_str().to_string(),
                     });
                 }
             }
