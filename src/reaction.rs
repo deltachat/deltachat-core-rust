@@ -563,6 +563,31 @@ Here's my footer -- bob@example.net"
         Ok(())
     }
 
+    async fn expect_incoming_reactions_event(
+        t: &TestContext,
+        expected_msg_id: MsgId,
+        expected_contact_id: ContactId,
+        expected_reaction: String,
+    ) -> Result<()> {
+        let event = t
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::IncomingReaction { .. }))
+            .await;
+        match event {
+            EventType::IncomingReaction {
+                msg_id,
+                contact_id,
+                reaction,
+            } => {
+                assert_eq!(msg_id, expected_msg_id);
+                assert_eq!(contact_id, expected_contact_id);
+                assert_eq!(reaction, expected_reaction);
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_send_reaction() -> Result<()> {
         let alice = TestContext::new_alice().await;
@@ -609,6 +634,8 @@ Here's my footer -- bob@example.net"
         assert_eq!(bob_reaction.emojis(), vec!["👍"]);
         assert_eq!(bob_reaction.as_str(), "👍");
         expect_reactions_changed_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id)
+            .await?;
+        expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍".to_string())
             .await?;
 
         // Alice reacts to own message.
