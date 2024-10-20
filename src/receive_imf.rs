@@ -1484,7 +1484,7 @@ async fn add_parts(
             )
             .await?;
             let is_fresh_reaction = !seen && !fetching_existing_messages;
-            if mime_parser.incoming && is_fresh_reaction {
+            if mime_parser.incoming && is_fresh_reaction && !reaction.is_empty() {
                 if let Some((msg_id, _)) = rfc724_mid_exists(context, mime_in_reply_to).await? {
                     let msg = Message::load_from_db(context, msg_id).await?;
                     if msg.state.is_outgoing() {
