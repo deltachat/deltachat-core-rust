@@ -6248,7 +6248,7 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * webxdc status update received.
+ * Webxdc status update received.
  * To get the received status update, use dc_get_webxdc_status_updates() with
  * `serial` set to the last known update
  * (in case of special bots, `status_update_serial` from `data2`
@@ -6282,6 +6282,15 @@ void dc_event_unref(dc_event_t* event);
  */
 
 #define DC_EVENT_WEBXDC_REALTIME_DATA             2150
+
+/**
+ * Advertisement for ephemeral peer channel communication received.
+ * This can be used by bots to initiate peer-to-peer communication from their side.
+ * @param data1 (int) msg_id
+ * @param data2 0
+ */
+
+#define DC_EVENT_WEBXDC_REALTIME_ADVERTISEMENT    2151
 
 /**
  * Tells that the Background fetch was completed (or timed out).

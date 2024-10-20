@@ -244,6 +244,11 @@ pub enum EventType {
     #[serde(rename_all = "camelCase")]
     WebxdcRealtimeData { msg_id: u32, data: Vec<u8> },
 
+    /// Advertisement received over an ephemeral peer channel.
+    /// This can be used by bots to initiate peer-to-peer communication from their side.
+    #[serde(rename_all = "camelCase")]
+    WebxdcRealtimeAdvertisementReceived { msg_id: u32 },
+
     /// Inform that a message containing a webxdc instance has been deleted
     #[serde(rename_all = "camelCase")]
     WebxdcInstanceDeleted { msg_id: u32 },
@@ -373,6 +378,11 @@ impl From<CoreEventType> for EventType {
                 msg_id: msg_id.to_u32(),
                 data,
             },
+            CoreEventType::WebxdcRealtimeAdvertisementReceived { msg_id } => {
+                WebxdcRealtimeAdvertisementReceived {
+                    msg_id: msg_id.to_u32(),
+                }
+            }
             CoreEventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
