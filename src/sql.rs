@@ -516,7 +516,8 @@ impl Sql {
 
     /// Query the database if the requested table already exists.
     pub async fn table_exists(&self, name: &str) -> Result<bool> {
-        self.call(true, move |conn| {
+        let query_only = true;
+        self.call(query_only, move |conn| {
             let mut exists = false;
             conn.pragma(None, "table_info", name.to_string(), |_row| {
                 // will only be executed if the info was found
