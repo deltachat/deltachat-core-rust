@@ -180,6 +180,7 @@ impl Client {
                     Client::connect_insecure_proxy(context, host, port, proxy_config).await?
                 }
             };
+            update_connection_history(context, "imap", host, port, host, time()).await?;
             Ok(client)
         } else {
             let load_cache = match security {

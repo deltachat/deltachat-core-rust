@@ -168,6 +168,7 @@ async fn connect_stream(
                 connect_insecure_proxy(context, host, port, proxy_config.clone()).await?
             }
         };
+        update_connection_history(context, "smtp", host, port, host, time()).await?;
         Ok(stream)
     } else {
         let load_cache = match security {
