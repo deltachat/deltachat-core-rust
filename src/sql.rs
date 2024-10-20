@@ -1101,6 +1101,7 @@ mod tests {
     async fn test_auto_vacuum() -> Result<()> {
         let t = TestContext::new().await;
 
+        let query_only = true;
         let auto_vacuum = t
             .sql
             .call(true, |conn| {
