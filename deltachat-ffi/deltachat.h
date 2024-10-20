@@ -6038,7 +6038,7 @@ void dc_event_unref(dc_event_t* event);
  * In addition to this event, DC_EVENT_REACTIONS_CHANGED is emitted.
  *
  * @param data1 (int) contact_id ID of the contact sending this reaction.
- * @param data2 (int) msg_id + (chat*) reaction.
+ * @param data2 (int) msg_id + (char*) reaction.
  *      ID of the message for which a reaction was received in dc_event_get_data2_int(),
  *      and the reaction as dc_event_get_data2_str().
  *      string must be passed to dc_str_unref() afterwards.
