@@ -532,7 +532,8 @@ impl Sql {
 
     /// Check if a column exists in a given table.
     pub async fn col_exists(&self, table_name: &str, col_name: &str) -> Result<bool> {
-        self.call(true, move |conn| {
+        let query_only = true;
+        self.call(query_only, move |conn| {
             let mut exists = false;
             // `PRAGMA table_info` returns one row per column,
             // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
