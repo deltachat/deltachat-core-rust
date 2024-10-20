@@ -568,6 +568,9 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::ChatlistChanged => 2300,
         EventType::ChatlistItemChanged { .. } => 2301,
         EventType::EventChannelOverflow { .. } => 2400,
+        #[allow(unreachable_patterns)]
+        #[cfg(test)]
+        _ => unreachable!("This is just to silence a rust_analyzer false-positive"),
     }
 }
 
@@ -628,6 +631,9 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
             chat_id.unwrap_or_default().to_u32() as libc::c_int
         }
         EventType::EventChannelOverflow { n } => *n as libc::c_int,
+        #[allow(unreachable_patterns)]
+        #[cfg(test)]
+        _ => unreachable!("This is just to silence a rust_analyzer false-positive"),
     }
 }
 
@@ -685,6 +691,9 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
             ..
         } => status_update_serial.to_u32() as libc::c_int,
         EventType::WebxdcRealtimeData { data, .. } => data.len() as libc::c_int,
+        #[allow(unreachable_patterns)]
+        #[cfg(test)]
+        _ => unreachable!("This is just to silence a rust_analyzer false-positive"),
     }
 }
 
@@ -758,6 +767,9 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             libc::memcpy(ptr, data.as_ptr() as *mut libc::c_void, data.len());
             ptr as *mut libc::c_char
         }
+        #[allow(unreachable_patterns)]
+        #[cfg(test)]
+        _ => unreachable!("This is just to silence a rust_analyzer false-positive"),
     }
 }
 
