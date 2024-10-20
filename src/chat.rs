@@ -4142,7 +4142,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     chat_id
         .unarchive_if_not_muted(context, MessageState::Undefined)
         .await?;
-    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    let mut chat = Chat::load_from_db(context, chat_id)
+        .await
+        .context("Failed to load chat from the database")?;
     if let Some(reason) = chat.why_cant_send(context).await? {
         bail!("cannot send to {}: {}", chat_id, reason);
     }
@@ -4158,7 +4160,8 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             |row| row.get::<_, MsgId>(0),
             |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
-        .await?;
+        .await
+        .context("Failed to sort forwarded messages by timestamp")?;
 
     for id in ids {
         let src_msg_id: MsgId = id;
@@ -4213,9 +4216,14 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             msg.state = MessageState::OutPending;
             new_msg_id = chat
                 .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
-                .await?;
+                .await
+                .context("Failed to prepare forwarded message")?;
             curr_timestamp += 1;
-            if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
+            if !create_send_msg_jobs(context, &mut msg)
+                .await
+                .context("Failed to create send jobs for the forwarded message")?
+                .is_empty()
+            {
                 context.scheduler.interrupt_smtp().await;
             }
         }
