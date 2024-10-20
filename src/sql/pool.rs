@@ -93,7 +93,13 @@ impl Pool {
     }
 
     /// Retrieves a connection from the pool.
-    pub async fn get(&self) -> Result<PooledConnection> {
+    ///
+    /// Sets `query_only` pragma to the provided value
+    /// to prevent accidentaly misuse of connection
+    /// for writing when reading is intended.
+    /// Only pass `query_only=false` if you want
+    /// to use the connection for writing.
+    pub async fn get(&self, query_only: bool) -> Result<PooledConnection> {
         let permit = self.inner.semaphore.clone().acquire_owned().await?;
         let mut connections = self.inner.connections.lock();
         let conn = connections
@@ -104,6 +110,15 @@ impl Pool {
             conn: Some(conn),
             _permit: permit,
         };
+        conn.pragma_update(
+            None,
+            "query_only",
+            if query_only {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            },
+        )?;
         Ok(conn)
     }
 }
