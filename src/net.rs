@@ -47,6 +47,14 @@ pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {
     Ok(())
 }
 
+/// Update the timestamp of the last successfull connection
+/// to the given `host` and `port`
+/// with the given application protocol `alpn`.
+///
+/// `addr` is the string representation of IP address.
+/// If connection is made over a proxy which does
+/// its own DNS resolution,
+/// `addr` should be the same as `host`.
 pub(crate) async fn update_connection_history(
     context: &Context,
     alpn: &str,
