@@ -1486,11 +1486,14 @@ async fn add_parts(
             let is_fresh_reaction = !seen && !fetching_existing_messages;
             if mime_parser.incoming && is_fresh_reaction {
                 if let Some((msg_id, _)) = rfc724_mid_exists(context, mime_in_reply_to).await? {
-                    context.emit_event(EventType::IncomingReaction {
-                        contact_id: from_id,
-                        msg_id,
-                        reaction: reaction.as_str().to_string(),
-                    });
+                    let msg = Message::load_from_db(context, msg_id).await?;
+                    if msg.state.is_outgoing() {
+                        context.emit_event(EventType::IncomingReaction {
+                            contact_id: from_id,
+                            msg_id,
+                            reaction: reaction.as_str().to_string(),
+                        });
+                    }
                 }
             }
         }
