@@ -1104,7 +1104,7 @@ mod tests {
         let query_only = true;
         let auto_vacuum = t
             .sql
-            .call(true, |conn| {
+            .call(query_only, |conn| {
                 let auto_vacuum = conn.pragma_query_value(None, "auto_vacuum", |row| {
                     let auto_vacuum: i32 = row.get(0)?;
                     Ok(auto_vacuum)
