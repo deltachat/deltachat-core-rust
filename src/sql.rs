@@ -561,7 +561,8 @@ impl Sql {
         F: Send + FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
         T: Send + 'static,
     {
-        self.call(true, move |conn| {
+        let query_only = true;
+        self.call(query_only, move |conn| {
             match conn.query_row(sql.as_ref(), params, f) {
                 Ok(res) => Ok(Some(res)),
                 Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
