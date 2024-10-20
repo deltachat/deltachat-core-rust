@@ -6032,7 +6032,7 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * Message reaction to one's own sent message received.
+ * A reaction to one's own sent message received.
  * Typically, the UI will show a notification for that.
  *
  * In addition to this event, DC_EVENT_REACTIONS_CHANGED is emitted.
