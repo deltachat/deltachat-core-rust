@@ -89,13 +89,13 @@ impl InnerPool {
     /// to use the connection for writing.
     pub async fn get(self: Arc<Self>, query_only: bool) -> Result<PooledConnection> {
         let permit = self.semaphore.clone().acquire_owned().await?;
-        let conn = {
-            let mut connections = self.connections.lock();
-            connections
-                .pop()
-                .context("got a permit when there are no connections in the pool")?
-        };
         if query_only {
+            let conn = {
+                let mut connections = self.connections.lock();
+                connections
+                    .pop()
+                    .context("Got a permit when there are no connections in the pool")?
+            };
             conn.pragma_update(None, "query_only", "1")?;
             let conn = PooledConnection {
                 pool: Arc::downgrade(&self),
@@ -106,6 +106,12 @@ impl InnerPool {
             Ok(conn)
         } else {
             let write_mutex_guard = Arc::clone(&self.write_mutex).lock_owned().await;
+            let conn = {
+                let mut connections = self.connections.lock();
+                connections.pop().context(
+                    "Got a permit and write lock when there are no connections in the pool",
+                )?
+            };
             conn.pragma_update(None, "query_only", "0")?;
             let conn = PooledConnection {
                 pool: Arc::downgrade(&self),
