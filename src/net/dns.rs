@@ -93,6 +93,14 @@ pub(crate) async fn prune_dns_cache(context: &Context) -> Result<()> {
 static LOOKUP_HOST_CACHE: Lazy<parking_lot::RwLock<HashMap<String, Vec<IpAddr>>>> =
     Lazy::new(Default::default);
 
+/// Wrapper for `lookup_host` that returns IP addresses.
+async fn lookup_ips(host: impl tokio::net::ToSocketAddrs) -> Result<impl Iterator<Item = IpAddr>> {
+    Ok(lookup_host(host)
+        .await
+        .context("DNS lookup failure")?
+        .map(|addr| addr.ip()))
+}
+
 async fn lookup_host_with_memory_cache(
     context: &Context,
     hostname: &str,
@@ -108,13 +116,9 @@ async fn lookup_host_with_memory_cache(
             let context = context.clone();
             let hostname = hostname.to_string();
             tokio::spawn(async move {
-                match lookup_host((hostname.clone(), port))
-                    .await
-                    .context("DNS lookup failure")
-                {
+                match lookup_ips((hostname.clone(), port)).await {
                     Ok(res) => {
-                        let res = res.into_iter().map(|addr| addr.ip()).collect();
-                        LOOKUP_HOST_CACHE.write().insert(hostname, res);
+                        LOOKUP_HOST_CACHE.write().insert(hostname, res.collect());
                     }
                     Err(err) => {
                         warn!(
@@ -136,11 +140,7 @@ async fn lookup_host_with_memory_cache(
             context,
             "No memory-cached DNS resolution for {hostname} available, waiting for the resolver."
         );
-        let res: Vec<IpAddr> = lookup_host((hostname, port))
-            .await
-            .context("DNS lookup failure")?
-            .map(|addr| addr.ip())
-            .collect();
+        let res: Vec<IpAddr> = lookup_ips((hostname, port)).await?.collect();
 
         // Insert initial result into the cache.
         //
