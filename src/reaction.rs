@@ -275,16 +275,36 @@ pub(crate) async fn set_msg_reaction(
     contact_id: ContactId,
     timestamp: i64,
     reaction: Reaction,
+    is_incoming_fresh: bool,
 ) -> Result<()> {
     if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
-        set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, reaction).await
+        set_msg_id_reaction(
+            context,
+            msg_id,
+            chat_id,
+            contact_id,
+            timestamp,
+            reaction.clone(),
+        )
+        .await?;
+
+        if is_incoming_fresh && contact_id != ContactId::SELF && !reaction.is_empty() {
+            let msg = Message::load_from_db(context, msg_id).await?;
+            if msg.state.is_outgoing() {
+                context.emit_event(EventType::IncomingReaction {
+                    contact_id,
+                    msg_id,
+                    reaction: reaction.as_str().to_string(),
+                });
+            }
+        }
     } else {
         info!(
             context,
             "Can't assign reaction to unknown message with Message-ID {}", in_reply_to
         );
-        Ok(())
     }
+    Ok(())
 }
 
 /// Get our own reaction for a given message.
