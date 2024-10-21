@@ -263,7 +263,7 @@ pub fn new_html_mimepart(html: String) -> PartBuilder {
 mod tests {
     use super::*;
     use crate::chat;
-    use crate::chat::forward_msgs;
+    use crate::chat::{forward_msgs, ProtectionStatus};
     use crate::config::Config;
     use crate::contact::ContactId;
     use crate::message::{MessengerMessage, Viewtype};
@@ -476,6 +476,38 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_html_forward_to_saved_messages() -> Result<()> {
+        // Alice receives a non-delta html-message
+        let alice = TestContext::new_alice().await;
+        let chat = alice
+            .create_chat_with_contact("", "sender@testrun.org")
+            .await;
+        let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
+        receive_imf(&alice, raw, false).await?;
+        let msg = alice.get_last_msg_in(chat.get_id()).await;
+
+        // Alice forwards the message to "Saved Messages"
+        let self_chat = alice.get_self_chat().await;
+        forward_msgs(&alice, &[msg.id], self_chat.id).await?;
+        let saved_msg = alice.get_last_msg_in(self_chat.get_id()).await;
+        assert_ne!(saved_msg.id, msg.id);
+        assert_eq!(
+            saved_msg.get_original_msg_id(&alice).await?.unwrap(),
+            msg.id
+        );
+        assert!(!saved_msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
+        assert_ne!(saved_msg.get_from_id(), ContactId::SELF);
+        assert_eq!(saved_msg.get_from_id(), msg.get_from_id());
+        assert_eq!(saved_msg.is_dc_message, MessengerMessage::No);
+        assert!(saved_msg.get_text().contains("this is plain"));
+        assert!(saved_msg.has_html());
+        let html = saved_msg.get_id().get_html(&alice).await?.unwrap();
+        assert!(html.contains("this is <b>html</b>"));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_html_forwarding_encrypted() {
         // Alice receives a non-delta html-message
         // (`ShowEmails=AcceptedContacts` lets Alice actually receive non-delta messages for known
@@ -494,8 +526,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // forward the message to saved-messages,
         // this will encrypt the message as new_alice() has set up keys
-        let chat = alice.get_self_chat().await;
-        forward_msgs(&alice, &[msg.get_id()], chat.get_id())
+        let chat_id = alice
+            .create_group_with_members(ProtectionStatus::Protected, "foo", &[])
+            .await;
+        forward_msgs(&alice, &[msg.get_id()], chat_id)
             .await
             .unwrap();
         let msg = alice.pop_sent_msg().await;
@@ -507,7 +541,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .await
             .unwrap();
         let msg = alice.recv_msg(&msg).await;
-        assert_eq!(msg.chat_id, alice.get_self_chat().await.id);
         assert_eq!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.get_showpadlock());
