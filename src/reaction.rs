@@ -282,7 +282,6 @@ pub(crate) async fn set_msg_reaction(
         set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, &reaction).await?;
 
         if is_incoming_fresh
-            && contact_id != ContactId::SELF
             && !reaction.is_empty()
             && msg_id.get_state(context).await?.is_outgoing()
         {
