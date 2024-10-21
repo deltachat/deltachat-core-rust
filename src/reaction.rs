@@ -281,14 +281,16 @@ pub(crate) async fn set_msg_reaction(
     if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
         set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, &reaction).await?;
 
-        if is_incoming_fresh && contact_id != ContactId::SELF && !reaction.is_empty() {
-            if msg_id.get_state(context).await?.is_outgoing() {
-                context.emit_event(EventType::IncomingReaction {
-                    contact_id,
-                    msg_id,
-                    reaction,
-                });
-            }
+        if is_incoming_fresh
+            && contact_id != ContactId::SELF
+            && !reaction.is_empty()
+            && msg_id.get_state(context).await?.is_outgoing()
+        {
+            context.emit_event(EventType::IncomingReaction {
+                contact_id,
+                msg_id,
+                reaction,
+            });
         }
     } else {
         info!(
