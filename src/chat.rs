@@ -6976,7 +6976,7 @@ mod tests {
         assert_ne!(saved_msg.rfc724_mid(), rcvd_msg.rfc724_mid());
 
         // delete original message
-        rcvd_msg.id.delete_from_db(&bob).await?;
+        delete_msgs(&bob, &[rcvd_msg.id]).await?;
         let saved_msg = Message::load_from_db(&bob, saved_msg.id).await?;
         assert!(saved_msg.get_original_msg_id(&bob).await?.is_none());
         assert_eq!(
