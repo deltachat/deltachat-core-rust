@@ -1,5 +1,6 @@
 //! # Account manager module.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -262,7 +263,11 @@ impl Accounts {
     }
 
     fn sort_accounts(a: &(&u32, &Context), b: &(&u32, &Context)) -> std::cmp::Ordering {
-        a.1.id.cmp(&b.1.id)
+        match a.1.priority.cmp(&b.1.priority) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Equal => a.1.id.cmp(&b.1.id),
+            Ordering::Greater => Ordering::Greater
+        }
     }
 
     /// Get a list of all account ids.
