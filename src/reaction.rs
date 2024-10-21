@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::chat::{send_msg, Chat, ChatId};
 use crate::chatlist_events;
@@ -31,7 +32,7 @@ use crate::param::Param;
 /// A single reaction consisting of multiple emoji sequences.
 ///
 /// It is guaranteed to have all emojis sorted and deduplicated inside.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Reaction {
     /// Canonical representation of reaction as a string of space-separated emojis.
     reaction: String,
@@ -173,7 +174,7 @@ async fn set_msg_id_reaction(
     chat_id: ChatId,
     contact_id: ContactId,
     timestamp: i64,
-    reaction: Reaction,
+    reaction: &Reaction,
 ) -> Result<()> {
     if reaction.is_empty() {
         // Simply remove the record instead of setting it to empty string.
@@ -244,7 +245,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
         msg.chat_id,
         ContactId::SELF,
         reaction_msg.timestamp_sort,
-        reaction,
+        &reaction,
     )
     .await?;
     Ok(reaction_msg_id)
@@ -275,16 +276,28 @@ pub(crate) async fn set_msg_reaction(
     contact_id: ContactId,
     timestamp: i64,
     reaction: Reaction,
+    is_incoming_fresh: bool,
 ) -> Result<()> {
     if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
-        set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, reaction).await
+        set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, &reaction).await?;
+
+        if is_incoming_fresh
+            && !reaction.is_empty()
+            && msg_id.get_state(context).await?.is_outgoing()
+        {
+            context.emit_event(EventType::IncomingReaction {
+                contact_id,
+                msg_id,
+                reaction,
+            });
+        }
     } else {
         info!(
             context,
             "Can't assign reaction to unknown message with Message-ID {}", in_reply_to
         );
-        Ok(())
     }
+    Ok(())
 }
 
 /// Get our own reaction for a given message.
@@ -563,6 +576,38 @@ Here's my footer -- bob@example.net"
         Ok(())
     }
 
+    async fn expect_incoming_reactions_event(
+        t: &TestContext,
+        expected_msg_id: MsgId,
+        expected_contact_id: ContactId,
+        expected_reaction: &str,
+    ) -> Result<()> {
+        let event = t
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::IncomingReaction { .. }))
+            .await;
+        match event {
+            EventType::IncomingReaction {
+                msg_id,
+                contact_id,
+                reaction,
+            } => {
+                assert_eq!(msg_id, expected_msg_id);
+                assert_eq!(contact_id, expected_contact_id);
+                assert_eq!(reaction, Reaction::from(expected_reaction));
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    async fn has_incoming_reactions_event(t: &TestContext) -> bool {
+        t.evtracker
+            .get_matching_opt(t, |evt| matches!(evt, EventType::IncomingReaction { .. }))
+            .await
+            .is_some()
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_send_reaction() -> Result<()> {
         let alice = TestContext::new_alice().await;
@@ -593,6 +638,7 @@ Here's my footer -- bob@example.net"
 
         send_reaction(&bob, bob_msg.id, "👍").await.unwrap();
         expect_reactions_changed_event(&bob, bob_msg.chat_id, bob_msg.id, ContactId::SELF).await?;
+        assert!(!has_incoming_reactions_event(&bob).await);
         assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
@@ -610,6 +656,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(bob_reaction.as_str(), "👍");
         expect_reactions_changed_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id)
             .await?;
+        expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍").await?;
 
         // Alice reacts to own message.
         send_reaction(&alice, alice_msg.sender_msg_id, "👍 😀")
@@ -650,6 +697,7 @@ Here's my footer -- bob@example.net"
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
         alice.recv_msg_trash(&bob_send_reaction).await;
+        assert!(has_incoming_reactions_event(&alice).await);
 
         let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
         let summary = chatlist.get_summary(&bob, 0, None).await?;
@@ -665,6 +713,7 @@ Here's my footer -- bob@example.net"
         send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
         bob.recv_msg_opt(&alice_send_reaction).await;
+        assert!(!has_incoming_reactions_event(&bob).await);
 
         assert_summary(&alice, "You reacted 🍿 to \"Party?\"").await;
         assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;

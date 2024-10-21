@@ -1106,6 +1106,24 @@ impl EventTracker {
         .expect("timeout waiting for event match")
     }
 
+    /// Consumes emitted events returning the first matching one if any.
+    pub async fn get_matching_opt<F: Fn(&EventType) -> bool>(
+        &self,
+        ctx: &Context,
+        event_matcher: F,
+    ) -> Option<EventType> {
+        ctx.emit_event(EventType::Test);
+        loop {
+            let event = self.recv().await.unwrap();
+            if event_matcher(&event.typ) {
+                return Some(event.typ);
+            }
+            if let EventType::Test = event.typ {
+                return None;
+            }
+        }
+    }
+
     /// Consumes events looking for an [`EventType::Info`] with substring matching.
     pub async fn get_info_contains(&self, s: &str) -> EventType {
         self.get_matching(|evt| match evt {
