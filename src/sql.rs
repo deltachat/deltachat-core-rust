@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
 use rusqlite::{config::DbConfig, types::ValueRef, Connection, OpenFlags, Row};
-use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -60,11 +60,6 @@ pub struct Sql {
     /// Database file path
     pub(crate) dbfile: PathBuf,
 
-    /// Write transactions mutex.
-    ///
-    /// See [`Self::write_lock`].
-    write_mtx: Mutex<()>,
-
     /// SQL connection pool.
     pool: RwLock<Option<Pool>>,
 
@@ -81,7 +76,6 @@ impl Sql {
     pub fn new(dbfile: PathBuf) -> Sql {
         Self {
             dbfile,
-            write_mtx: Mutex::new(()),
             pool: Default::default(),
             is_encrypted: Default::default(),
             config_cache: Default::default(),
@@ -147,7 +141,8 @@ impl Sql {
         let mut config_cache = self.config_cache.write().await;
         config_cache.clear();
 
-        self.call_write(move |conn| {
+        let query_only = false;
+        self.call(query_only, move |conn| {
             // Check that backup passphrase is correct before resetting our database.
             conn.execute("ATTACH DATABASE ? AS backup KEY ?", (path_str, passphrase))
                 .context("failed to attach backup database")?;
@@ -338,49 +333,10 @@ impl Sql {
         Ok(())
     }
 
-    /// Locks the write transactions mutex in order to make sure that there never are
-    /// multiple write transactions at once.
+    /// Allocates a connection and calls `function` with the connection.
     ///
-    /// Doing the locking ourselves instead of relying on SQLite has these reasons:
-    ///
-    /// - SQLite's locking mechanism is non-async, blocking a thread
-    /// - SQLite's locking mechanism just sleeps in a loop, which is really inefficient
-    ///
-    /// ---
-    ///
-    /// More considerations on alternatives to the current approach:
-    ///
-    /// We use [DEFERRED](https://www.sqlite.org/lang_transaction.html#deferred_immediate_and_exclusive_transactions) transactions.
-    ///
-    /// In order to never get concurrency issues, we could make all transactions IMMEDIATE,
-    /// but this would mean that there can never be two simultaneous transactions.
-    ///
-    /// Read transactions can simply be made DEFERRED to run in parallel w/o any drawbacks.
-    ///
-    /// DEFERRED write transactions without doing the locking ourselves would have these drawbacks:
-    ///
-    /// 1. As mentioned above, SQLite's locking mechanism is non-async and sleeps in a loop.
-    /// 2. If there are other write transactions, we block the db connection until
-    ///    upgraded. If some reader comes then, it has to get the next, less used connection with a
-    ///    worse per-connection page cache (SQLite allows one write and any number of reads in parallel).
-    /// 3. If a transaction is blocked for more than `busy_timeout`, it fails with SQLITE_BUSY.
-    /// 4. If upon a successful upgrade to a write transaction the db has been modified,
-    ///    the transaction has to be rolled back and retried, which means extra work in terms of
-    ///    CPU/battery.
-    ///
-    /// The only pro of making write transactions DEFERRED w/o the external locking would be some
-    /// parallelism between them.
-    ///
-    /// Another option would be to make write transactions IMMEDIATE, also
-    /// w/o the external locking. But then cons 1. - 3. above would still be valid.
-    pub async fn write_lock(&self) -> MutexGuard<'_, ()> {
-        self.write_mtx.lock().await
-    }
-
-    /// Allocates a connection and calls `function` with the connection. If `function` does write
-    /// queries,
-    /// - either first take a lock using `write_lock()`
-    /// - or use `call_write()` instead.
+    /// If `query_only` is true, allocates read-only connection,
+    /// otherwise allocates write connection.
     ///
     /// Returns the result of the function.
     async fn call<'a, F, R>(&'a self, query_only: bool, function: F) -> Result<R>
@@ -404,7 +360,6 @@ impl Sql {
         F: 'a + FnOnce(&mut Connection) -> Result<R> + Send,
         R: Send + 'static,
     {
-        let _lock = self.write_lock().await;
         let query_only = false;
         self.call(query_only, function).await
     }
