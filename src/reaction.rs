@@ -174,7 +174,7 @@ async fn set_msg_id_reaction(
     chat_id: ChatId,
     contact_id: ContactId,
     timestamp: i64,
-    reaction: Reaction,
+    reaction: &Reaction,
 ) -> Result<()> {
     if reaction.is_empty() {
         // Simply remove the record instead of setting it to empty string.
@@ -245,7 +245,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
         msg.chat_id,
         ContactId::SELF,
         reaction_msg.timestamp_sort,
-        reaction,
+        &reaction,
     )
     .await?;
     Ok(reaction_msg_id)
@@ -279,15 +279,7 @@ pub(crate) async fn set_msg_reaction(
     is_incoming_fresh: bool,
 ) -> Result<()> {
     if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
-        set_msg_id_reaction(
-            context,
-            msg_id,
-            chat_id,
-            contact_id,
-            timestamp,
-            reaction.clone(),
-        )
-        .await?;
+        set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, &reaction).await?;
 
         if is_incoming_fresh && contact_id != ContactId::SELF && !reaction.is_empty() {
             let msg = Message::load_from_db(context, msg_id).await?;
