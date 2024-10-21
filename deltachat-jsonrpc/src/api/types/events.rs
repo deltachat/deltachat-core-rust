@@ -317,7 +317,7 @@ impl From<CoreEventType> for EventType {
             } => IncomingReaction {
                 contact_id: contact_id.to_u32(),
                 msg_id: msg_id.to_u32(),
-                reaction,
+                reaction: reaction.as_str().to_string(),
             },
             CoreEventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),

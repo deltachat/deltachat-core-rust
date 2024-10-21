@@ -770,9 +770,11 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             libc::memcpy(ptr, data.as_ptr() as *mut libc::c_void, data.len());
             ptr as *mut libc::c_char
         }
-        EventType::IncomingReaction { reaction, .. } => {
-            reaction.to_c_string().unwrap_or_default().into_raw()
-        }
+        EventType::IncomingReaction { reaction, .. } => reaction
+            .as_str()
+            .to_c_string()
+            .unwrap_or_default()
+            .into_raw(),
         #[allow(unreachable_patterns)]
         #[cfg(test)]
         _ => unreachable!("This is just to silence a rust_analyzer false-positive"),

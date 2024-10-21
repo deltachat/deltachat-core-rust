@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::chat::{send_msg, Chat, ChatId};
 use crate::chatlist_events;
@@ -31,7 +32,7 @@ use crate::param::Param;
 /// A single reaction consisting of multiple emoji sequences.
 ///
 /// It is guaranteed to have all emojis sorted and deduplicated inside.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Reaction {
     /// Canonical representation of reaction as a string of space-separated emojis.
     reaction: String,
@@ -294,7 +295,7 @@ pub(crate) async fn set_msg_reaction(
                 context.emit_event(EventType::IncomingReaction {
                     contact_id,
                     msg_id,
-                    reaction: reaction.as_str().to_string(),
+                    reaction,
                 });
             }
         }
@@ -587,7 +588,7 @@ Here's my footer -- bob@example.net"
         t: &TestContext,
         expected_msg_id: MsgId,
         expected_contact_id: ContactId,
-        expected_reaction: String,
+        expected_reaction: &str,
     ) -> Result<()> {
         let event = t
             .evtracker
@@ -601,7 +602,7 @@ Here's my footer -- bob@example.net"
             } => {
                 assert_eq!(msg_id, expected_msg_id);
                 assert_eq!(contact_id, expected_contact_id);
-                assert_eq!(reaction, expected_reaction);
+                assert_eq!(reaction, Reaction::from(expected_reaction));
             }
             _ => unreachable!(),
         }
@@ -669,8 +670,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(bob_reaction.as_str(), "👍");
         expect_reactions_changed_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id)
             .await?;
-        expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍".to_string())
-            .await?;
+        expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍").await?;
 
         // Alice reacts to own message.
         send_reaction(&alice, alice_msg.sender_msg_id, "👍 😀")
