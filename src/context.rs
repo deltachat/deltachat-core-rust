@@ -857,7 +857,12 @@ impl Context {
             "is_muted",
             self.get_config_bool(Config::IsMuted).await?.to_string(),
         );
-
+        res.insert(
+            "personal_label",
+            self.get_config(Config::PersonalLabel)
+                .await?
+                .unwrap_or_else(|| "<unset>".to_string()),
+        );
         if let Some(metadata) = &*self.metadata.read().await {
             if let Some(comment) = &metadata.comment {
                 res.insert("imap_server_comment", format!("{comment:?}"));
