@@ -261,9 +261,15 @@ impl Accounts {
         }
     }
 
+    fn sort_accounts(a: &(&u32, &Context), b: &(&u32, &Context)) -> std::cmp::Ordering {
+        a.1.id.cmp(&b.1.id)
+    }
+
     /// Get a list of all account ids.
     pub fn get_all(&self) -> Vec<u32> {
-        self.accounts.keys().copied().collect()
+        let mut accounts_vec: Vec<_> = self.accounts.iter().collect();
+        accounts_vec.sort_by(Accounts::sort_accounts);
+        return accounts_vec.into_iter().map(|(&k, _)| k).collect();
     }
 
     /// Starts background tasks such as IMAP and SMTP loops for all accounts.
