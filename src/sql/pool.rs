@@ -88,8 +88,8 @@ impl InnerPool {
     /// Only pass `query_only=false` if you want
     /// to use the connection for writing.
     pub async fn get(self: Arc<Self>, query_only: bool) -> Result<PooledConnection> {
-        let permit = self.semaphore.clone().acquire_owned().await?;
         if query_only {
+            let permit = self.semaphore.clone().acquire_owned().await?;
             let conn = {
                 let mut connections = self.connections.lock();
                 connections
@@ -105,7 +105,15 @@ impl InnerPool {
             };
             Ok(conn)
         } else {
+            // We get write guard first to avoid taking a permit
+            // and not using it, blocking a reader from getting a connection
+            // while being ourselves blocked by another wrtier.
             let write_mutex_guard = Arc::clone(&self.write_mutex).lock_owned().await;
+
+            // We may still have to wait for a connection
+            // to be returned by some reader, but at this point
+            // there are no writers holding a connection.
+            let permit = self.semaphore.clone().acquire_owned().await?;
             let conn = {
                 let mut connections = self.connections.lock();
                 connections.pop().context(
