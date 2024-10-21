@@ -308,7 +308,7 @@ class Chat:
         msg = as_dc_charpointer(text)
         msg_id = lib.dc_send_text_msg(self.account._dc_context, self.id, msg)
         if msg_id == 0:
-            raise ValueError("message could not be send, does chat exist?")
+            raise ValueError("The message could not be sent. Does the chat exist?")
         return Message.from_db(self.account, msg_id)
 
     def send_file(self, path, mime_type="application/octet-stream"):
