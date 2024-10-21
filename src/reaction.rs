@@ -601,12 +601,11 @@ Here's my footer -- bob@example.net"
         Ok(())
     }
 
-    async fn has_incoming_reactions_event(t: &TestContext) -> bool {
+    fn has_incoming_reactions_event(t: &TestContext) -> bool {
         loop {
             if let Ok(event) = t.evtracker.try_recv() {
-                match event.typ {
-                    EventType::IncomingReaction { .. } => return true,
-                    _ => {}
+                if let EventType::IncomingReaction { .. } = event.typ {
+                    return true;
                 }
             } else {
                 return false;
@@ -644,7 +643,7 @@ Here's my footer -- bob@example.net"
 
         send_reaction(&bob, bob_msg.id, "👍").await.unwrap();
         expect_reactions_changed_event(&bob, bob_msg.chat_id, bob_msg.id, ContactId::SELF).await?;
-        assert!(!has_incoming_reactions_event(&bob).await);
+        assert!(!has_incoming_reactions_event(&bob));
         assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
@@ -703,7 +702,7 @@ Here's my footer -- bob@example.net"
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
         alice.recv_msg_trash(&bob_send_reaction).await;
-        assert!(has_incoming_reactions_event(&alice).await);
+        assert!(has_incoming_reactions_event(&alice));
 
         let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
         let summary = chatlist.get_summary(&bob, 0, None).await?;
@@ -719,7 +718,7 @@ Here's my footer -- bob@example.net"
         send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
         bob.recv_msg_opt(&alice_send_reaction).await;
-        assert!(!has_incoming_reactions_event(&bob).await);
+        assert!(!has_incoming_reactions_event(&bob));
 
         assert_summary(&alice, "You reacted 🍿 to \"Party?\"").await;
         assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
