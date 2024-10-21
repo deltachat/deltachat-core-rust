@@ -84,9 +84,9 @@ pub(crate) async fn prune_dns_cache(context: &Context) -> Result<()> {
 
 /// Map from hostname to IP addresses.
 ///
-/// NOTE: sync mutex is used, so it must not be held across `.await`
+/// NOTE: sync RwLock is used, so it must not be held across `.await`
 /// to avoid deadlocks.
-static LOOKUP_HOST_CACHE: Lazy<std::sync::Mutex<HashMap<String, Vec<IpAddr>>>> =
+static LOOKUP_HOST_CACHE: Lazy<parking_lot::RwLock<HashMap<String, Vec<IpAddr>>>> =
     Lazy::new(Default::default);
 
 async fn lookup_host_with_memory_cache(
@@ -95,8 +95,8 @@ async fn lookup_host_with_memory_cache(
     port: u16,
 ) -> Result<Vec<IpAddr>> {
     let stale_result = {
-        let mutex_guard = LOOKUP_HOST_CACHE.lock().unwrap();
-        mutex_guard.get(hostname).cloned()
+        let rwlock_read_guard = LOOKUP_HOST_CACHE.read();
+        rwlock_read_guard.get(hostname).cloned()
     };
     if let Some(stale_result) = stale_result {
         // Revalidate the cache in the background.
@@ -110,7 +110,7 @@ async fn lookup_host_with_memory_cache(
                 {
                     Ok(res) => {
                         let res = res.into_iter().map(|addr| addr.ip()).collect();
-                        LOOKUP_HOST_CACHE.lock().unwrap().insert(hostname, res);
+                        LOOKUP_HOST_CACHE.write().insert(hostname, res);
                     }
                     Err(err) => {
                         warn!(
@@ -143,8 +143,7 @@ async fn lookup_host_with_memory_cache(
         // There may already be a result from a parallel
         // task stored, overwriting it is not a problem.
         LOOKUP_HOST_CACHE
-            .lock()
-            .unwrap()
+            .write()
             .insert(hostname.to_string(), res.clone());
         Ok(res)
     }
