@@ -98,6 +98,14 @@ pub enum EventType {
         contact_id: u32,
     },
 
+    /// Incoming reaction, should be notified.
+    #[serde(rename_all = "camelCase")]
+    IncomingReaction {
+        contact_id: u32,
+        msg_id: u32,
+        reaction: String,
+    },
+
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///
@@ -301,6 +309,15 @@ impl From<CoreEventType> for EventType {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
                 contact_id: contact_id.to_u32(),
+            },
+            CoreEventType::IncomingReaction {
+                contact_id,
+                msg_id,
+                reaction,
+            } => IncomingReaction {
+                contact_id: contact_id.to_u32(),
+                msg_id: msg_id.to_u32(),
+                reaction: reaction.as_str().to_string(),
             },
             CoreEventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),

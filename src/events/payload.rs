@@ -8,6 +8,7 @@ use crate::config::Config;
 use crate::contact::ContactId;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
+use crate::reaction::Reaction;
 use crate::webxdc::StatusUpdateSerial;
 
 /// Event payload.
@@ -92,6 +93,18 @@ pub enum EventType {
 
         /// ID of the contact whose reaction set is changed.
         contact_id: ContactId,
+    },
+
+    /// Reactions for the message changed.
+    IncomingReaction {
+        /// ID of the contact whose reaction set is changed.
+        contact_id: ContactId,
+
+        /// ID of the message for which reactions were changed.
+        msg_id: MsgId,
+
+        /// The reaction.
+        reaction: Reaction,
     },
 
     /// There is a fresh message. Typically, the user will show an notification

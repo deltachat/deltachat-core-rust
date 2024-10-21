@@ -1473,6 +1473,7 @@ async fn add_parts(
     for part in &mime_parser.parts {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
+            let is_incoming_fresh = mime_parser.incoming && !seen && !fetching_existing_messages;
             set_msg_reaction(
                 context,
                 mime_in_reply_to,
@@ -1480,6 +1481,7 @@ async fn add_parts(
                 from_id,
                 sort_timestamp,
                 Reaction::from(reaction_str.as_str()),
+                is_incoming_fresh,
             )
             .await?;
         }
