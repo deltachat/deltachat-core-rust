@@ -522,6 +522,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    In contrast to `dc_set_chat_mute_duration()`,
  *                    fresh message and badge counters are not changed by this setting,
  *                    but should be tuned down where appropriate.
+ * - `private_tag`  = Optional tag as "Work", "Family".
+ *                    Meant to help profile owner to differ between profiles with similar names.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.

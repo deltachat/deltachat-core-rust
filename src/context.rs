@@ -857,6 +857,12 @@ impl Context {
             "is_muted",
             self.get_config_bool(Config::IsMuted).await?.to_string(),
         );
+        res.insert(
+            "private_tag",
+            self.get_config(Config::PrivateTag)
+                .await?
+                .unwrap_or_else(|| "<unset>".to_string()),
+        );
 
         if let Some(metadata) = &*self.metadata.read().await {
             if let Some(comment) = &metadata.comment {

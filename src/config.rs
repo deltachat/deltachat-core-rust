@@ -321,6 +321,10 @@ pub enum Config {
     /// True if account is muted.
     IsMuted,
 
+    /// Optional tag as "Work", "Family".
+    /// Meant to help profile owner to differ between profiles with similar names.
+    PrivateTag,
+
     /// All secondary self addresses separated by spaces
     /// (`addr1@example.org addr2@example.org addr3@example.org`)
     SecondaryAddrs,
