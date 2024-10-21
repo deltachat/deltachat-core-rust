@@ -1,5 +1,6 @@
 //! # Account manager module.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -116,6 +117,12 @@ impl Accounts {
     pub async fn select_account(&mut self, id: u32) -> Result<()> {
         self.config.select_account(id).await?;
 
+        Ok(())
+    }
+
+    /// Move an account and change the ordering returned by get_all().
+    pub async fn move_below(&mut self, _to_move_id: u32, _predecessor_id: Option<u32>) -> Result<()> {
+        // TODO: change priority of affected accounts
         Ok(())
     }
 
@@ -261,9 +268,19 @@ impl Accounts {
         }
     }
 
+    fn sort_accounts(a: &(&u32, &Context), b: &(&u32, &Context)) -> std::cmp::Ordering {
+        match a.1.sort_number.cmp(&b.1.sort_number) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Equal => a.1.id.cmp(&b.1.id),
+            Ordering::Greater => Ordering::Greater,
+        }
+    }
+
     /// Get a list of all account ids.
     pub fn get_all(&self) -> Vec<u32> {
-        self.accounts.keys().copied().collect()
+        let mut accounts_vec: Vec<_> = self.accounts.iter().collect();
+        accounts_vec.sort_by(Accounts::sort_accounts);
+        return accounts_vec.into_iter().map(|(&k, _)| k).collect();
     }
 
     /// Starts background tasks such as IMAP and SMTP loops for all accounts.

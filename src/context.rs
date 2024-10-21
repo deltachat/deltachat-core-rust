@@ -272,6 +272,9 @@ pub struct InnerContext {
 
     creation_time: tools::Time,
 
+    /// Accounts with higher numbers are returned at beginning of get_all().
+    pub(crate) sort_number: u32,
+
     /// The text of the last error logged and emitted as an event.
     /// If the ui wants to display an error after a failure,
     /// `last_error` should be used to avoid races with the event thread.
@@ -427,6 +430,7 @@ impl Context {
 
         let inner = InnerContext {
             id,
+            sort_number: 0,
             blobdir,
             running_state: RwLock::new(Default::default()),
             sql: Sql::new(dbfile),

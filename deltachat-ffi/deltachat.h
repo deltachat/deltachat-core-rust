@@ -3120,6 +3120,18 @@ int            dc_accounts_select_account       (dc_accounts_t* accounts, uint32
 
 
 /**
+ * Move an account and change the order returned by dc_accounts_get_all().
+ *
+ * @param accounts
+ * @param to_move_id The account ID to move.
+ * @param predecessor_id `to_move_id` will be sorted below `predecessor_id`.
+ *      Set to 0 to move `to_move_id` to the top of the list returned by dc_accounts_get_all().
+ * @return 1=success, 0=error
+ */
+int            dc_accounts_move_below           (dc_accounts_t* accounts, uint32_t to_move_id, uint32_t predecessor_id);
+
+
+/**
  * Start job and IMAP/SMTP tasks for all accounts managed by the account manager.
  * If IO is already running, nothing happens.
  * This is similar to dc_start_io(), which, however,

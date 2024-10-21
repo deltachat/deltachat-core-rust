@@ -4704,6 +4704,35 @@ pub unsafe extern "C" fn dc_accounts_select_account(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_accounts_move_below(
+    accounts: *mut dc_accounts_t,
+    to_move_id: u32,
+    predecessor_id: u32,
+) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_move_below()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    let predecessor_id = if predecessor_id == 0 {
+        None
+    } else {
+        Some(predecessor_id)
+    };
+    block_on(async move {
+        let mut accounts = accounts.write().await;
+        match accounts.move_below(to_move_id, predecessor_id).await {
+            Ok(()) => 1,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!("Failed to move account: {err:#}")));
+                0
+            }
+        }
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -> u32 {
     if accounts.is_null() {
         eprintln!("ignoring careless call to dc_accounts_add_account()");
