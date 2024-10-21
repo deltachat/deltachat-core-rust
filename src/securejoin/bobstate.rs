@@ -270,7 +270,7 @@ impl BobState {
             context,
             "Bob Step 4 - handling {{vc,vg}}-auth-required message."
         );
-        if !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint())) {
+        if !encrypted_and_signed(context, mime_message, self.invite.fingerprint()) {
             let reason = if mime_message.was_encrypted() {
                 "Valid signature missing"
             } else {

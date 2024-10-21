@@ -1,6 +1,6 @@
 //! Implementation of [SecureJoin protocols](https://securejoin.delta.chat/).
 
-use anyhow::{bail, ensure, Context as _, Error, Result};
+use anyhow::{ensure, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
@@ -89,12 +89,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
         .await?
         .unwrap_or_default();
 
-    let fingerprint: Fingerprint = match get_self_fingerprint(context).await {
-        Some(fp) => fp,
-        None => {
-            bail!("No fingerprint, cannot generate QR code.");
-        }
-    };
+    let fingerprint = get_self_fingerprint(context).await?;
 
     let self_addr_urlencoded =
         utf8_percent_encode(&self_addr, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
@@ -140,14 +135,11 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
     Ok(qr)
 }
 
-async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
-    match load_self_public_key(context).await {
-        Ok(key) => Some(key.fingerprint()),
-        Err(_) => {
-            warn!(context, "get_self_fingerprint(): failed to load key");
-            None
-        }
-    }
+async fn get_self_fingerprint(context: &Context) -> Result<Fingerprint> {
+    let key = load_self_public_key(context)
+        .await
+        .context("Failed to load key")?;
+    Ok(key.fingerprint())
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
@@ -388,7 +380,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 return Ok(HandshakeMessage::Ignore);
             };
             let fingerprint: Fingerprint = fp.parse()?;
-            if !encrypted_and_signed(context, mime_message, Some(&fingerprint)) {
+            if !encrypted_and_signed(context, mime_message, &fingerprint) {
                 warn!(
                     context,
                     "Ignoring {step} message because the message is not encrypted."
@@ -577,11 +569,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         return Ok(HandshakeMessage::Ignore);
     };
 
-    if !encrypted_and_signed(
-        context,
-        mime_message,
-        get_self_fingerprint(context).await.as_ref(),
-    ) {
+    if !encrypted_and_signed(context, mime_message, &get_self_fingerprint(context).await?) {
         could_not_establish_secure_connection(
             context,
             contact_id,
@@ -740,24 +728,19 @@ async fn mark_peer_as_verified(
 fn encrypted_and_signed(
     context: &Context,
     mimeparser: &MimeMessage,
-    expected_fingerprint: Option<&Fingerprint>,
+    expected_fingerprint: &Fingerprint,
 ) -> bool {
     if !mimeparser.was_encrypted() {
         warn!(context, "Message not encrypted.",);
         false
-    } else if let Some(expected_fingerprint) = expected_fingerprint {
-        if !mimeparser.signatures.contains(expected_fingerprint) {
-            warn!(
-                context,
-                "Message does not match expected fingerprint {}.", expected_fingerprint,
-            );
-            false
-        } else {
-            true
-        }
-    } else {
-        warn!(context, "Fingerprint for comparison missing.");
+    } else if !mimeparser.signatures.contains(expected_fingerprint) {
+        warn!(
+            context,
+            "Message does not match expected fingerprint {}.", expected_fingerprint,
+        );
         false
+    } else {
+        true
     }
 }
 
