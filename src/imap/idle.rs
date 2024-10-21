@@ -30,7 +30,9 @@ impl Session {
     ) -> Result<Self> {
         use futures::future::FutureExt;
 
-        self.select_with_uidvalidity(context, folder).await?;
+        let create = true;
+        self.select_with_uidvalidity(context, folder, create)
+            .await?;
 
         if self.server_sent_unsolicited_exists(context)? {
             self.new_mail = true;
