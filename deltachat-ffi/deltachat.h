@@ -2791,6 +2791,22 @@ dc_array_t* dc_get_locations                (dc_context_t* context, uint32_t cha
 void        dc_delete_all_locations         (dc_context_t* context);
 
 
+// misc
+
+/**
+ * Create a QR code from any input data.
+ *
+ * The QR code is returned as a square SVG image.
+ *
+ * @memberof dc_context_t
+ * @param payload The content for the QR code.
+ * @return SVG image with the QR code.
+ *     On errors, an empty string is returned.
+ *     The returned string must be released using dc_str_unref() after usage.
+ */
+char*           dc_create_qr_svg             (const char* payload);
+
+
 /**
  * Get last error string.
  *

@@ -240,12 +240,13 @@ const CONTACT_COMMANDS: [&str; 9] = [
     "unblock",
     "listblocked",
 ];
-const MISC_COMMANDS: [&str; 11] = [
+const MISC_COMMANDS: [&str; 12] = [
     "getqr",
     "getqrsvg",
     "getbadqr",
     "checkqr",
     "joinqr",
+    "createqrsvg",
     "fileinfo",
     "clear",
     "exit",
