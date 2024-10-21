@@ -86,6 +86,10 @@ pub(crate) async fn prune_dns_cache(context: &Context) -> Result<()> {
 ///
 /// NOTE: sync RwLock is used, so it must not be held across `.await`
 /// to avoid deadlocks.
+/// See
+/// <https://docs.rs/tokio/1.40.0/tokio/sync/struct.Mutex.html#which-kind-of-mutex-should-you-use>
+/// and
+/// <https://stackoverflow.com/questions/63712823/why-do-i-get-a-deadlock-when-using-tokio-with-a-stdsyncmutex>.
 static LOOKUP_HOST_CACHE: Lazy<parking_lot::RwLock<HashMap<String, Vec<IpAddr>>>> =
     Lazy::new(Default::default);
 
