@@ -1,4 +1,44 @@
 //! DNS resolution and cache.
+//!
+//! DNS cache in Delta Chat has two layers:
+//! in-memory cache and persistent `dns_cache` SQL table.
+//!
+//! In-memory cache is using a "stale-while-revalidate" strategy.
+//! If there is a cached value, it is returned immediately
+//! and revalidation task is started in the background
+//! to replace old cached IP addresses with new ones.
+//! If there is no cached value yet,
+//! lookup only finishes when `lookup_host` returns first results.
+//! In-memory cache is shared between all accounts
+//! and is never stored on the disk.
+//! It can be thought of as an extension
+//! of the system resolver.
+//!
+//! Persistent `dns_cache` SQL table is used to collect
+//! all IP addresses ever seen for the hostname
+//! together with the timestamp
+//! of the last time IP address has been seen.
+//! Note that this timestamp reflects the time
+//! IP address was returned by the in-memory cache
+//! rather than the underlying system resolver.
+//! Unused entries are removed after 30 days
+//! (`CACHE_TTL` constant) to avoid having
+//! old non-working IP addresses in the cache indefinitely.
+//!
+//! When Delta Chat needs an IP address for the host,
+//! it queries in-memory cache for the next result
+//! and merges the list of IP addresses
+//! with the list of IP addresses from persistent cache.
+//! Resulting list is constructed
+//! by taking the first two results from the resolver
+//! followed up by persistent cache results
+//! and terminated by the rest of resolver results.
+//!
+//! Persistent cache results are sorted
+//! by the time of the most recent successful connection
+//! using the result. For results that have never been
+//! used for successful connection timestamp of
+//! retrieving them from in-memory cache is used.
 
 use anyhow::{Context as _, Result};
 use std::collections::HashMap;
@@ -42,33 +82,110 @@ pub(crate) async fn prune_dns_cache(context: &Context) -> Result<()> {
     Ok(())
 }
 
-/// Looks up the hostname and updates DNS cache
-/// on success.
+/// Map from hostname to IP addresses.
+///
+/// NOTE: sync RwLock is used, so it must not be held across `.await`
+/// to avoid deadlocks.
+/// See
+/// <https://docs.rs/tokio/1.40.0/tokio/sync/struct.Mutex.html#which-kind-of-mutex-should-you-use>
+/// and
+/// <https://stackoverflow.com/questions/63712823/why-do-i-get-a-deadlock-when-using-tokio-with-a-stdsyncmutex>.
+static LOOKUP_HOST_CACHE: Lazy<parking_lot::RwLock<HashMap<String, Vec<IpAddr>>>> =
+    Lazy::new(Default::default);
+
+/// Wrapper for `lookup_host` that returns IP addresses.
+async fn lookup_ips(host: impl tokio::net::ToSocketAddrs) -> Result<impl Iterator<Item = IpAddr>> {
+    Ok(lookup_host(host)
+        .await
+        .context("DNS lookup failure")?
+        .map(|addr| addr.ip()))
+}
+
+async fn lookup_host_with_memory_cache(
+    context: &Context,
+    hostname: &str,
+    port: u16,
+) -> Result<Vec<IpAddr>> {
+    let stale_result = {
+        let rwlock_read_guard = LOOKUP_HOST_CACHE.read();
+        rwlock_read_guard.get(hostname).cloned()
+    };
+    if let Some(stale_result) = stale_result {
+        // Revalidate the cache in the background.
+        {
+            let context = context.clone();
+            let hostname = hostname.to_string();
+            tokio::spawn(async move {
+                match lookup_ips((hostname.clone(), port)).await {
+                    Ok(res) => {
+                        LOOKUP_HOST_CACHE.write().insert(hostname, res.collect());
+                    }
+                    Err(err) => {
+                        warn!(
+                            context,
+                            "Failed to revalidate results for {hostname:?}: {err:#}."
+                        );
+                    }
+                }
+            });
+        }
+
+        info!(
+            context,
+            "Using memory-cached DNS resolution for {hostname}."
+        );
+        Ok(stale_result)
+    } else {
+        info!(
+            context,
+            "No memory-cached DNS resolution for {hostname} available, waiting for the resolver."
+        );
+        let res: Vec<IpAddr> = lookup_ips((hostname, port)).await?.collect();
+
+        // Insert initial result into the cache.
+        //
+        // There may already be a result from a parallel
+        // task stored, overwriting it is not a problem.
+        LOOKUP_HOST_CACHE
+            .write()
+            .insert(hostname.to_string(), res.clone());
+        Ok(res)
+    }
+}
+
+/// Looks up the hostname and updates
+/// persistent DNS cache on success.
 async fn lookup_host_and_update_cache(
     context: &Context,
     hostname: &str,
     port: u16,
     now: i64,
 ) -> Result<Vec<SocketAddr>> {
-    let res: Vec<SocketAddr> = timeout(super::TIMEOUT, lookup_host((hostname, port)))
-        .await
-        .context("DNS lookup timeout")?
-        .context("DNS lookup failure")?
-        .collect();
+    let res: Vec<IpAddr> = timeout(
+        super::TIMEOUT,
+        lookup_host_with_memory_cache(context, hostname, port),
+    )
+    .await
+    .context("DNS lookup timeout")?
+    .context("DNS lookup with memory cache failure")?;
 
-    for addr in &res {
-        let ip_string = addr.ip().to_string();
+    for ip in &res {
+        let ip_string = ip.to_string();
         if ip_string == hostname {
             // IP address resolved into itself, not interesting to cache.
             continue;
         }
 
-        info!(context, "Resolved {hostname}:{port} into {addr}.");
+        info!(context, "Resolved {hostname} into {ip}.");
 
         // Update the cache.
         update_cache(context, hostname, &ip_string, now).await?;
     }
 
+    let res = res
+        .into_iter()
+        .map(|ip| SocketAddr::new(ip, port))
+        .collect();
     Ok(res)
 }
 
