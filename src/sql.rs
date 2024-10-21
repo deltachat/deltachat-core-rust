@@ -681,6 +681,36 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
     Ok(conn)
 }
 
+// Tries to clear the freelist to free some space on the disk.
+//
+// This only works if auto_vacuum is enabled.
+async fn incremental_vacuum(context: &Context) -> Result<()> {
+    context
+        .sql
+        .call_write(move |conn| {
+            let mut stmt = conn
+                .prepare("PRAGMA incremental_vacuum")
+                .context("Failed to prepare incremental_vacuum statement")?;
+
+            // It is important to step the statement until it returns no more rows.
+            // Otherwise it will not free as many pages as it can:
+            // <https://stackoverflow.com/questions/53746807/sqlite-incremental-vacuum-removing-only-one-free-page>.
+            let mut rows = stmt
+                .query(())
+                .context("Failed to run incremental_vacuum statement")?;
+            let mut row_count = 0;
+            while let Some(_row) = rows
+                .next()
+                .context("Failed to step incremental_vacuum statement")?
+            {
+                row_count += 1;
+            }
+            info!(context, "Incremental vacuum freed {row_count} pages.");
+            Ok(())
+        })
+        .await
+}
+
 /// Cleanup the account to restore some storage and optimize the database.
 pub async fn housekeeping(context: &Context) -> Result<()> {
     // Setting `Config::LastHousekeeping` at the beginning avoids endless loops when things do not
@@ -713,24 +743,8 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         );
     }
 
-    // Try to clear the freelist to free some space on the disk. This
-    // only works if auto_vacuum is enabled.
-    match context
-        .sql
-        .query_row_optional("PRAGMA incremental_vacuum", (), |_row| Ok(()))
-        .await
-    {
-        Err(err) => {
-            warn!(context, "Failed to run incremental vacuum: {err:#}.");
-        }
-        Ok(Some(())) => {
-            // Incremental vacuum returns a zero-column result if it did anything.
-            info!(context, "Successfully ran incremental vacuum.");
-        }
-        Ok(None) => {
-            // Incremental vacuum returned `SQLITE_DONE` immediately,
-            // there were no pages to remove.
-        }
+    if let Err(err) = incremental_vacuum(context).await {
+        warn!(context, "Failed to run incremental vacuum: {err:#}.");
     }
 
     context
@@ -1367,6 +1381,16 @@ mod tests {
             })
             .await;
         assert_eq!(res.unwrap(), 3);
+
+        Ok(())
+    }
+
+    /// Tests that incremental_vacuum does not fail.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_incremental_vacuum() -> Result<()> {
+        let t = TestContext::new().await;
+
+        incremental_vacuum(&t).await?;
 
         Ok(())
     }
