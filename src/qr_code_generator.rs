@@ -364,6 +364,14 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_create_qr_svg() -> Result<()> {
+        let svg = create_qr_svg("this is a test QR code \" < > &")?;
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_svg_escaping() {
         let svg = inner_generate_secure_join_qr_code(
             "descr123 \" < > &",
