@@ -930,15 +930,11 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // try to create a normal chat
-            let create_blocked = if from_id == ContactId::SELF {
-                Blocked::Not
-            } else {
-                let contact = Contact::get_by_id(context, from_id).await?;
-                match contact.is_blocked() {
-                    true => Blocked::Yes,
-                    false if is_bot => Blocked::Not,
-                    false => Blocked::Request,
-                }
+            let contact = Contact::get_by_id(context, from_id).await?;
+            let create_blocked = match contact.is_blocked() {
+                true => Blocked::Yes,
+                false if is_bot => Blocked::Not,
+                false => Blocked::Request,
             };
 
             if let Some(chat) = test_normal_chat {
@@ -1032,8 +1028,7 @@ async fn add_parts(
         state = MessageState::OutDelivered;
         to_id = to_ids.first().copied().unwrap_or_default();
 
-        let self_sent =
-            from_id == ContactId::SELF && to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);
+        let self_sent = to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);
 
         if mime_parser.sync_items.is_some() && self_sent {
             chat_id = Some(DC_CHAT_ID_TRASH);
