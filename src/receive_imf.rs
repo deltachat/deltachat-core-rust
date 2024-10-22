@@ -762,6 +762,7 @@ async fn add_parts(
     let state: MessageState;
     let mut hidden = false;
     let mut needs_delete_job = false;
+    let mut restore_protection = false;
 
     // if contact renaming is prevented (for mailinglists and bots),
     // we use name from From:-header as override name
@@ -1005,6 +1006,13 @@ async fn add_parts(
                                 Some(from_id),
                             )
                             .await?;
+                    }
+                    if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+                        restore_protection = new_protection != ProtectionStatus::Protected
+                            && peerstate.prefer_encrypt == EncryptPreference::Mutual
+                            // Check that the contact still has the Autocrypt key same as the
+                            // verified key, see also `Peerstate::is_using_verified_key()`.
+                            && contact.is_verified(context).await?;
                     }
                 }
             }
@@ -1741,7 +1749,16 @@ RETURNING id
         // delete it.
         needs_delete_job = true;
     }
-
+    if restore_protection {
+        chat_id
+            .set_protection(
+                context,
+                ProtectionStatus::Protected,
+                mime_parser.timestamp_rcvd,
+                Some(from_id),
+            )
+            .await?;
+    }
     Ok(ReceivedMsg {
         chat_id,
         state,
