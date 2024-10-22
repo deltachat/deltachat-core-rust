@@ -73,7 +73,7 @@ pub fn create_qr_svg(qrcode_content: &str) -> Result<String> {
             d.attr(
                 "transform",
                 format!(
-                    "translate({},{}) scale(2)",
+                    "translate({},{}) scale(2)", // data in qr_overlay_delta.svg-part are 48 x 48, scaling by 2 results in desired logo_size of 96
                     (all_size - logo_size) / 2.0,
                     (all_size - logo_size) / 2.0
                 ),
