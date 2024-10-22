@@ -30,7 +30,7 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::imex::BackupProvider;
 use deltachat::key::preconfigure_keypair;
 use deltachat::message::MsgId;
-use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
+use deltachat::qr_code_generator::{create_qr_svg, generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::*;
@@ -2592,6 +2592,18 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
             .log_err(ctx)
             .ok()
     });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_create_qr_svg(payload: *const libc::c_char) -> *mut libc::c_char {
+    if payload.is_null() {
+        eprintln!("ignoring careless call to dc_create_qr_svg()");
+        return "".strdup();
+    }
+
+    create_qr_svg(&to_string_lossy(payload))
+        .unwrap_or_else(|_| "".to_string())
+        .strdup()
 }
 
 #[no_mangle]

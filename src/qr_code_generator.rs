@@ -14,6 +14,65 @@ use crate::qr::{self, Qr};
 use crate::securejoin;
 use crate::stock_str::{self, backup_transfer_qr};
 
+/// Create a QR code from any input data.
+pub fn create_qr_svg(qrcode_content: &str) -> Result<String> {
+    let all_size = 512.0;
+    let qr_code_size = 416.0;
+
+    let qr = QrCode::encode_text(qrcode_content, QrCodeEcc::Medium)?;
+    let mut svg = String::with_capacity(28000);
+    let mut w = tagger::new(&mut svg);
+
+    w.elem("svg", |d| {
+        d.attr("xmlns", "http://www.w3.org/2000/svg")?;
+        d.attr("viewBox", format_args!("0 0 {all_size} {all_size}"))?;
+        d.attr("xmlns:xlink", "http://www.w3.org/1999/xlink")?; // required for enabling xlink:href on browsers
+        Ok(())
+    })?
+    .build(|w| {
+        // background
+        w.single("rect", |d| {
+            d.attr("x", 0)?;
+            d.attr("y", 0)?;
+            d.attr("width", all_size)?;
+            d.attr("height", all_size)?;
+            d.attr("style", "fill:#ffffff")?;
+            Ok(())
+        })?;
+        // QR code
+        w.elem("g", |d| {
+            d.attr(
+                "transform",
+                format!(
+                    "translate({},{})",
+                    (all_size - qr_code_size) / 2.0,
+                    ((all_size - qr_code_size) / 2.0)
+                ),
+            )
+        })?
+        .build(|w| {
+            w.single("path", |d| {
+                let mut path_data = String::with_capacity(0);
+                let scale = qr_code_size / qr.size() as f32;
+
+                for y in 0..qr.size() {
+                    for x in 0..qr.size() {
+                        if qr.get_module(x, y) {
+                            path_data += &format!("M{x},{y}h1v1h-1z");
+                        }
+                    }
+                }
+
+                d.attr("style", "fill:#000000")?;
+                d.attr("d", path_data)?;
+                d.attr("transform", format!("scale({scale})"))
+            })
+        })
+    })?;
+
+    Ok(svg)
+}
+
 /// Returns SVG of the QR code to join the group or verify contact.
 ///
 /// If `chat_id` is `None`, returns verification QR code.
@@ -303,6 +362,14 @@ mod tests {
     use crate::test_utils::TestContextManager;
 
     use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_create_qr_svg() -> Result<()> {
+        let svg = create_qr_svg("this is a test QR code \" < > &")?;
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
+        Ok(())
+    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_svg_escaping() {
