@@ -297,6 +297,7 @@ async fn test_verified_oneonone_chat_enable_disable() -> Result<()> {
     assert!(chat.is_protected());
 
     for alice_accepts_breakage in [true, false] {
+        SystemTime::shift(std::time::Duration::from_secs(300));
         // Bob uses Thunderbird to send a message
         receive_imf(
             &alice,
@@ -760,10 +761,14 @@ async fn test_message_from_old_dc_setup() -> Result<()> {
     // The outdated Bob's Autocrypt header isn't applied, so the verification preserves.
     assert!(contact.is_verified(alice).await.unwrap());
     let chat = alice.get_chat(bob).await;
-    // But the chat protection is broken because the old message is sorted to the bottom as it
-    // mustn't be sorted over the protection info message (which is `InNoticed` moreover).
-    assert_eq!(chat.is_protected(), false);
-    assert_eq!(chat.is_protection_broken(), true);
+    assert!(chat.is_protected());
+    assert_eq!(chat.is_protection_broken(), false);
+    let protection_msg = alice.get_last_msg().await;
+    assert_eq!(
+        protection_msg.param.get_cmd(),
+        SystemMessage::ChatProtectionEnabled
+    );
+    assert!(protection_msg.timestamp_sort >= msg.timestamp_rcvd);
     alice
         .golden_test_chat(msg.chat_id, "verified_chats_message_from_old_dc_setup")
         .await;
