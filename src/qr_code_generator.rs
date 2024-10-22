@@ -18,6 +18,7 @@ use crate::stock_str::{self, backup_transfer_qr};
 pub fn create_qr_svg(qrcode_content: &str) -> Result<String> {
     let all_size = 512.0;
     let qr_code_size = 416.0;
+    let logo_size = 96.0;
 
     let qr = QrCode::encode_text(qrcode_content, QrCodeEcc::Medium)?;
     let mut svg = String::with_capacity(28000);
@@ -67,7 +68,18 @@ pub fn create_qr_svg(qrcode_content: &str) -> Result<String> {
                 d.attr("d", path_data)?;
                 d.attr("transform", format!("scale({scale})"))
             })
-        })
+        })?;
+        w.elem("g", |d| {
+            d.attr(
+                "transform",
+                format!(
+                    "translate({},{}) scale(2)", // data in qr_overlay_delta.svg-part are 48 x 48, scaling by 2 results in desired logo_size of 96
+                    (all_size - logo_size) / 2.0,
+                    (all_size - logo_size) / 2.0
+                ),
+            )
+        })?
+        .build(|w| w.put_raw_escapable(include_str!("../assets/qr_overlay_delta.svg-part")))
     })?;
 
     Ok(svg)
