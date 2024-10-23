@@ -208,3 +208,28 @@ def test_no_reordering(acfactory, path_to_webxdc):
                 if event.data[0] == i:
                     break
                 pytest.fail("Reordering detected")
+
+
+def test_advertisement_after_chatting(acfactory, path_to_webxdc):
+    """Test that realtime advertisement is assigned to the correct message after chatting."""
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1.set_config("webxdc_realtime_enabled", "1")
+    ac2.set_config("webxdc_realtime_enabled", "1")
+
+    ac1_ac2_chat = ac1.create_chat(ac2)
+    ac1_webxdc_msg = ac1_ac2_chat.send_message(text="WebXDC", file=path_to_webxdc)
+    ac2_webxdc_msg = ac2.wait_for_incoming_msg()
+    assert ac2_webxdc_msg.get_snapshot().text == "WebXDC"
+
+    ac1_ac2_chat.send_text("Hello!")
+    ac2_hello_msg = ac2.wait_for_incoming_msg()
+    ac2_hello_msg_snapshot = ac2_hello_msg.get_snapshot()
+    assert ac2_hello_msg_snapshot.text == "Hello!"
+    ac2_hello_msg_snapshot.chat.accept()
+
+    ac2_webxdc_msg.send_webxdc_realtime_advertisement()
+    while 1:
+        event = ac1.wait_for_event()
+        if event.kind == EventType.WEBXDC_REALTIME_ADVERTISEMENT_RECEIVED:
+            assert event.msg_id == ac1_webxdc_msg.id
+            break
