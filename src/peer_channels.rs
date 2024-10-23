@@ -232,6 +232,7 @@ impl ChannelState {
 impl Context {
     /// Create iroh endpoint and gossip.
     async fn init_peer_channels(&self) -> Result<Iroh> {
+        info!(self, "Initializing peer channels.");
         let secret_key = SecretKey::generate();
         let public_key = secret_key.public();
 
