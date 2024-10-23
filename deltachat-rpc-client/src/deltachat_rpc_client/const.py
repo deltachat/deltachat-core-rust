@@ -63,6 +63,7 @@ class EventType(str, Enum):
     CHATLIST_ITEM_CHANGED = "ChatlistItemChanged"
     CONFIG_SYNCED = "ConfigSynced"
     WEBXDC_REALTIME_DATA = "WebxdcRealtimeData"
+    WEBXDC_REALTIME_ADVERTISEMENT_RECEIVED = "WebxdcRealtimeAdvertisementReceived"
 
 
 class ChatId(IntEnum):
