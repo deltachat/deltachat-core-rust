@@ -1070,6 +1070,15 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 124)?;
+    if dbversion < migration_version {
+        sql.execute_migration(
+            "INSERT INTO contacts (name, addr, origin, authname, is_bot) VALUES ('xstore', 'xstore@testrun.org', 67108864, '', true);",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
@@ -1131,5 +1140,29 @@ impl Sql {
         .with_context(|| format!("execute_migration failed for version {version}"))?;
 
         self.set_db_version_in_cache(version).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{contact, test_utils::TestContext};
+    use anyhow::Result;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_name() -> Result<()> {
+        let bob = TestContext::new_bob().await;
+        let xstore_id = contact::Contact::lookup_id_by_addr(
+            &bob,
+            "xstore@testrun.org",
+            contact::Origin::Unknown,
+        )
+        .await?
+        .expect("Expect xstore contact");
+        let xstore = contact::Contact::get_by_id(&bob, xstore_id).await?;
+        assert_eq!(xstore.get_name(), "xstore");
+        assert_eq!(xstore.get_addr(), "xstore@testrun.org");
+        assert_eq!(xstore.origin, contact::Origin::ManuallyCreated);
+        assert_eq!(xstore.is_bot(), true);
+        Ok(())
     }
 }
