@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.148.2] - 2024-10-23
+
+### Fixes
+
+- Never initialize Iroh if realtime is disabled.
+
+### Features / Changes
+
+- Add more logging for iroh initialization and peer addition.
+
+### Build system
+
+- `nix flake update nixpkgs`.
+- `nix flake update fenix`.
+
 ## [1.148.1] - 2024-10-23
 
 ### Build system
@@ -5084,3 +5099,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.147.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.0..v1.147.1
 [1.148.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.1..v1.148.0
 [1.148.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.0..v1.148.1
+[1.148.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.1..v1.148.2

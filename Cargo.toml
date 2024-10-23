@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.148.1"
+version = "1.148.2"
 edition = "2021"
 license = "MPL-2.0"
 rust-version = "1.77"
