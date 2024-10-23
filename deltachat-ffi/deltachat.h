@@ -2533,8 +2533,8 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   ask the user if they want to use the given service for video chats;
  *   if so, call dc_set_config_from_qr().
  *
- * - DC_QR_SOCKS5_PROXY with dc_lot_t::text1=host, dc_lot_t::text2=port:
- *   ask the user if they want to use the given proxy and overwrite the previous one, if any.
+ * - DC_QR_PROXY with dc_lot_t::text1=address:
+ *   ask the user if they want to use the given proxy.
  *   if so, call dc_set_config_from_qr() and restart I/O.
  *
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
