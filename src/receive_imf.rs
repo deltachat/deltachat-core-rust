@@ -1454,8 +1454,13 @@ async fn add_parts(
                     let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
                     iroh_add_peer_for_topic(context, instance_id, topic, node_id, relay_server)
                         .await?;
-                    let iroh = context.get_or_try_init_peer_channel().await?;
-                    iroh.maybe_add_gossip_peers(topic, vec![node_addr]).await?;
+                    if context
+                        .get_config_bool(Config::WebxdcRealtimeEnabled)
+                        .await?
+                    {
+                        let iroh = context.get_or_try_init_peer_channel().await?;
+                        iroh.maybe_add_gossip_peers(topic, vec![node_addr]).await?;
+                    }
                 } else {
                     warn!(
                         context,
