@@ -20,6 +20,7 @@ use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::headerdef::HeaderDef;
 use crate::html::new_html_mimepart;
+use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -32,7 +33,6 @@ use crate::tools::{
     create_outgoing_rfc724_mid, create_smeared_timestamp, remove_subject_prefix, time,
 };
 use crate::webxdc::StatusUpdateSerial;
-use crate::{location, peer_channels};
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -1387,8 +1387,7 @@ impl MimeFactory {
             let json = msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json));
         } else if msg.viewtype == Viewtype::Webxdc {
-            let topic = peer_channels::create_random_topic();
-            headers.push(create_iroh_header(context, topic, msg.id).await?);
+            headers.push(create_iroh_header(context, msg.id).await?);
             if let (Some(json), _) = context
                 .render_webxdc_status_update_object(
                     msg.id,

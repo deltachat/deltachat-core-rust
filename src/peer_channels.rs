@@ -419,15 +419,15 @@ pub async fn leave_webxdc_realtime(ctx: &Context, msg_id: MsgId) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn create_random_topic() -> TopicId {
+/// Creates a new random gossip topic.
+fn create_random_topic() -> TopicId {
     TopicId::from_bytes(rand::random())
 }
 
-pub(crate) async fn create_iroh_header(
-    ctx: &Context,
-    topic: TopicId,
-    msg_id: MsgId,
-) -> Result<Header> {
+/// Creates `Iroh-Gossip-Header` with a new random topic
+/// and stores the topic for the message.
+pub(crate) async fn create_iroh_header(ctx: &Context, msg_id: MsgId) -> Result<Header> {
+    let topic = create_random_topic();
     insert_topic_stub(ctx, msg_id, topic).await?;
     Ok(Header::new(
         HeaderDef::IrohGossipTopic.get_headername().to_string(),
