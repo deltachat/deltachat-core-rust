@@ -23,7 +23,7 @@
 //!    (scoped per WebXDC app instance/message-id). The other peers can then join the gossip with `joinRealtimeChannel().setListener()`
 //!    and `joinRealtimeChannel().send()` just like the other peers.
 
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use email::Header;
 use futures_lite::StreamExt;
 use iroh_gossip::net::{Event, Gossip, GossipEvent, JoinOptions, GOSSIP_ALPN};
@@ -277,6 +277,10 @@ impl Context {
 
     /// Get or initialize the iroh peer channel.
     pub async fn get_or_try_init_peer_channel(&self) -> Result<&Iroh> {
+        if !self.get_config_bool(Config::WebxdcRealtimeEnabled).await? {
+            bail!("Attempt to get Iroh when realtime is disabled");
+        }
+
         let ctx = self.clone();
         self.iroh
             .get_or_try_init(|| async { ctx.init_peer_channels().await })
@@ -949,6 +953,10 @@ mod tests {
         // creates iroh endpoint as side effect
         leave_webxdc_realtime(alice, MsgId::new(1)).await.unwrap();
 
-        assert!(alice.ctx.iroh.get().is_none())
+        assert!(alice.ctx.iroh.get().is_none());
+
+        // This internal function should return error
+        // if accidentally called with the setting disabled.
+        assert!(alice.ctx.get_or_try_init_peer_channel().await.is_err());
     }
 }
