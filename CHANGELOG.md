@@ -1,5 +1,71 @@
 # Changelog
 
+## [1.148.0] - 2024-10-22
+
+### API-Changes
+
+- Create QR codes from any data ([#6090](https://github.com/deltachat/deltachat-core-rust/pull/6090)).
+- Add delta chat logo to QR codes ([#6093](https://github.com/deltachat/deltachat-core-rust/pull/6093)).
+- Add realtime advertisement received event ([#6043](https://github.com/deltachat/deltachat-core-rust/pull/6043)).
+- Notify adding reactions ([#6072](https://github.com/deltachat/deltachat-core-rust/pull/6072))
+- Internal profile names ([#6088](https://github.com/deltachat/deltachat-core-rust/pull/6088)).
+
+### Features / Changes
+
+- IMAP COMPRESS support.
+- Sort received outgoing message down if it's fresher than all non fresh messages.
+- Prioritize cached results if DNS resolver returns many results.
+- Add in-memory cache for DNS.
+- deltachat-repl: Built-in QR code printer.
+- Log the logic for (not) doing AEAP.
+- Log when late Autocrypt header is ignored.
+- Add more context to `send_msg` errors.
+
+### Fixes
+
+- Replace old draft with a new one atomically.
+- ChatId::maybe_delete_draft: Don't delete message if it's not a draft anymore ([#6053](https://github.com/deltachat/deltachat-core-rust/pull/6053)).
+- Call update_connection_history for proxified connections.
+- sql: Set PRAGMA query_only to avoid writing on read-only connections.
+- sql: Run `PRAGMA incremental_vacuum` on a write connection.
+- Increase MAX_SECONDS_TO_LEND_FROM_FUTURE to 30.
+
+### Build system
+
+- Nix flake update.
+- Resolve warning about default-features, and make it possible to disable vendoring ([#6079](https://github.com/deltachat/deltachat-core-rust/pull/6079)).
+- Silence a rust-analyzer false-positive ([#6077](https://github.com/deltachat/deltachat-core-rust/pull/6077)).
+
+### CI
+
+- Update Rust to 1.82.0.
+
+### Documentation
+
+- Set_protection_for_timestamp_sort does not send messages.
+- Document MimeFactory.req_mdn.
+- Fix `too_long_first_doc_paragraph` clippy lint.
+
+### Refactor
+
+- Update_msg_state: Don't avoid downgrading OutMdnRcvd to OutDelivered.
+- Fix elided_named_lifetimes warning.
+- set_protection_for_timestamp_sort: Do not log bubbled up errors.
+- Fix clippy::needless_lifetimes warnings.
+- Use `HeaderDef` constant for Chat-Disposition-Notification-To.
+- Resultify get_self_fingerprint().
+- sql: Move write mutex into connection pool.
+
+### Tests
+
+- test_qr_setup_contact_svg: Stop testing for no display name.
+- Always gossip if gossip_period is set to 0.
+- test_aeap_flow_verified: Wait for "member added" before sending messages ([#6057](https://github.com/deltachat/deltachat-core-rust/pull/6057)).
+- Make test_verified_group_member_added_recovery more reliable.
+- test_aeap_flow_verified: Do not start ac1new.
+- Fix `test_securejoin_after_contact_resetup` flakiness.
+- Message from old setup preserves contact verification, but breaks 1:1 protection.
+
 ## [1.147.1] - 2024-10-13
 
 ### Build system
@@ -5008,3 +5074,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.146.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.145.0..v1.146.0
 [1.147.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.146.0..v1.147.0
 [1.147.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.0..v1.147.1
+[1.148.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.1..v1.148.0
