@@ -24,7 +24,6 @@ use rand::Rng;
 use ratelimit::Ratelimit;
 use url::Url;
 
-use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::chatlist_events;
 use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails};
@@ -48,6 +47,10 @@ use crate::scheduler::connectivity::ConnectivityStore;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{self, create_id, duration_to_str};
+use crate::{
+    chat::{self, ChatId, ChatIdBlocked},
+    spawn_named_task,
+};
 
 pub(crate) mod capabilities;
 mod client;
@@ -1556,7 +1559,9 @@ impl Session {
         } else if !context.push_subscriber.heartbeat_subscribed().await {
             let context = context.clone();
             // Subscribe for heartbeat notifications.
-            tokio::spawn(async move { context.push_subscriber.subscribe(&context).await });
+            spawn_named_task!("subscribe_to_heartbeat_notifications", async move {
+                context.push_subscriber.subscribe(&context).await
+            });
         }
 
         Ok(())
