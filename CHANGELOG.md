@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.148.4] - 2024-10-24
+
+### Features / Changes
+
+- Jsonrpc: add `private_tag` to `Account::Configured` Object ([#6107](https://github.com/deltachat/deltachat-core-rust/pull/6107)).
+
+### Fixes
+
+- Normalize proxy URLs before saving into proxy_url.
+- Do not wait for connections in maybe_add_gossip_peers().
+
 ## [1.148.3] - 2024-10-24
 
 ### Fixes
@@ -5127,3 +5138,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.0..v1.148.1
 [1.148.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.1..v1.148.2
 [1.148.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.2..v1.148.3
+[1.148.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.3..v1.148.4
