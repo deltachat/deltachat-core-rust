@@ -143,9 +143,10 @@ impl Iroh {
                 self.endpoint.add_node_addr(peer.clone())?;
             }
 
-            self.gossip
-                .join(topic, peers.into_iter().map(|peer| peer.node_id).collect())
-                .await?;
+            self.gossip.join_with_opts(
+                topic,
+                JoinOptions::with_bootstrap(peers.into_iter().map(|peer| peer.node_id)),
+            );
         }
         Ok(())
     }
