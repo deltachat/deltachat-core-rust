@@ -1,13 +1,13 @@
 //! Implementation of [SecureJoin protocols](https://securejoin.delta.chat/).
 
 use anyhow::{ensure, Context as _, Error, Result};
-use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, get_chat_id_by_grpid, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::chatlist_events;
 use crate::config::Config;
-use crate::constants::{Blocked, Chattype};
+use crate::constants::{Blocked, Chattype, NON_ALPHANUMERIC_WITHOUT_DOT};
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
@@ -33,9 +33,6 @@ pub(crate) use bobstate::BobState;
 use qrinvite::QrInvite;
 
 use crate::token::Namespace;
-
-/// Set of characters to percent-encode in email addresses and names.
-pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
 fn inviter_progress(context: &Context, contact_id: ContactId, progress: usize) {
     debug_assert!(

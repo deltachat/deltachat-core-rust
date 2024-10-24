@@ -4,11 +4,15 @@
 
 use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
 
 use crate::chat::ChatId;
 
 pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION").to_string());
+
+/// Set of characters to percent-encode in email addresses and names.
+pub(crate) const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
 #[derive(
     Debug,

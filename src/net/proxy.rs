@@ -12,13 +12,14 @@ use fast_socks5::client::Socks5Stream;
 use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
 use fast_socks5::Socks5Command;
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{percent_encode, utf8_percent_encode, NON_ALPHANUMERIC};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
 use url::Url;
 
 use crate::config::Config;
+use crate::constants::NON_ALPHANUMERIC_WITHOUT_DOT;
 use crate::context::Context;
 use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
@@ -40,6 +41,12 @@ impl PartialEq for ShadowsocksConfig {
 }
 
 impl Eq for ShadowsocksConfig {}
+
+impl ShadowsocksConfig {
+    fn to_url(&self) -> String {
+        self.server_config.to_url()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpConfig {
@@ -84,6 +91,17 @@ impl HttpConfig {
         };
         Ok(http_config)
     }
+
+    fn to_url(&self, scheme: &str) -> String {
+        let host = utf8_percent_encode(&self.host, NON_ALPHANUMERIC_WITHOUT_DOT);
+        if let Some((user, password)) = &self.user_password {
+            let user = utf8_percent_encode(user, NON_ALPHANUMERIC);
+            let password = utf8_percent_encode(password, NON_ALPHANUMERIC);
+            format!("{scheme}://{user}:{password}@{host}:{}", self.port)
+        } else {
+            format!("{scheme}://{host}:{}", self.port)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,6 +140,17 @@ impl Socks5Config {
             .await?;
 
         Ok(socks_stream)
+    }
+
+    fn to_url(&self) -> String {
+        let host = utf8_percent_encode(&self.host, NON_ALPHANUMERIC_WITHOUT_DOT);
+        if let Some((user, password)) = &self.user_password {
+            let user = utf8_percent_encode(user, NON_ALPHANUMERIC);
+            let password = utf8_percent_encode(password, NON_ALPHANUMERIC);
+            format!("socks5://{user}:{password}@{host}:{}", self.port)
+        } else {
+            format!("socks5://{host}:{}", self.port)
+        }
     }
 }
 
@@ -217,7 +246,7 @@ where
 
 impl ProxyConfig {
     /// Creates a new proxy configuration by parsing given proxy URL.
-    fn from_url(url: &str) -> Result<Self> {
+    pub(crate) fn from_url(url: &str) -> Result<Self> {
         let url = Url::parse(url).context("Cannot parse proxy URL")?;
         match url.scheme() {
             "http" => {
@@ -269,6 +298,19 @@ impl ProxyConfig {
                 Ok(Self::Socks5(socks5_config))
             }
             scheme => Err(format_err!("Unknown URL scheme {scheme:?}")),
+        }
+    }
+
+    /// Serializes proxy config into an URL.
+    ///
+    /// This function can be used to normalize proxy URL
+    /// by parsing it and serializing back.
+    pub(crate) fn to_url(&self) -> String {
+        match self {
+            Self::Http(http_config) => http_config.to_url("http"),
+            Self::Https(http_config) => http_config.to_url("https"),
+            Self::Socks5(socks5_config) => socks5_config.to_url(),
+            Self::Shadowsocks(shadowsocks_config) => shadowsocks_config.to_url(),
         }
     }
 
