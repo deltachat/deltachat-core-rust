@@ -20,7 +20,7 @@ use crate::events::EventType;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::net::http::post_empty;
-use crate::net::proxy::DEFAULT_SOCKS_PORT;
+use crate::net::proxy::{ProxyConfig, DEFAULT_SOCKS_PORT};
 use crate::peerstate::Peerstate;
 use crate::token;
 use crate::tools::validate_id;
@@ -723,6 +723,10 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
                 .get_config(Config::ProxyUrl)
                 .await?
                 .unwrap_or_default();
+
+            // Normalize the URL.
+            let url = ProxyConfig::from_url(&url)?.to_url();
+
             let proxy_urls: Vec<&str> = std::iter::once(url.as_str())
                 .chain(
                     old_proxy_url_value
@@ -1783,6 +1787,17 @@ mod tests {
             t.get_config(Config::ProxyUrl).await?,
             Some(
                 "ss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888#Example1\nsocks5://foo:666\nsocks5://Da:x%26%25%24X@jau:1080\nsocks5://1.2.3.4:1080"
+                    .to_string()
+            )
+        );
+
+        // SOCKS5 config does not have port 1080 explicitly specified,
+        // but should bring `socks5://1.2.3.4:1080` to the top instead of creating another entry.
+        set_config_from_qr(&t, "socks5://1.2.3.4").await?;
+        assert_eq!(
+            t.get_config(Config::ProxyUrl).await?,
+            Some(
+                "socks5://1.2.3.4:1080\nss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888#Example1\nsocks5://foo:666\nsocks5://Da:x%26%25%24X@jau:1080"
                     .to_string()
             )
         );
