@@ -41,7 +41,7 @@ impl Account {
                 addr,
                 profile_image,
                 color,
-                private_tag
+                private_tag,
             })
         } else {
             Ok(Account::Unconfigured { id })
