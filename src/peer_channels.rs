@@ -314,6 +314,47 @@ pub(crate) async fn iroh_add_peer_for_topic(
     Ok(())
 }
 
+/// Add gossip peer from `Iroh-Node-Addr` header to WebXDC message identified by `instance_id`.
+pub async fn add_gossip_peer_from_header(
+    context: &Context,
+    instance_id: MsgId,
+    node_addr: &str,
+) -> Result<()> {
+    if !context
+        .get_config_bool(Config::WebxdcRealtimeEnabled)
+        .await?
+    {
+        return Ok(());
+    }
+
+    info!(
+        context,
+        "Adding iroh peer with address {node_addr:?} to the topic of {instance_id}."
+    );
+    let node_addr =
+        serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address")?;
+
+    context.emit_event(EventType::WebxdcRealtimeAdvertisementReceived {
+        msg_id: instance_id,
+    });
+
+    let Some(topic) = get_iroh_topic_for_msg(context, instance_id).await? else {
+        warn!(
+            context,
+            "Could not add iroh peer because {instance_id} has no topic."
+        );
+        return Ok(());
+    };
+
+    let node_id = node_addr.node_id;
+    let relay_server = node_addr.relay_url().map(|relay| relay.as_str());
+    iroh_add_peer_for_topic(context, instance_id, topic, node_id, relay_server).await?;
+
+    let iroh = context.get_or_try_init_peer_channel().await?;
+    iroh.maybe_add_gossip_peers(topic, vec![node_addr]).await?;
+    Ok(())
+}
+
 /// Insert topicId into the database so that we can use it to retrieve the topic.
 pub(crate) async fn insert_topic_stub(ctx: &Context, msg_id: MsgId, topic: TopicId) -> Result<()> {
     ctx.sql
