@@ -17,6 +17,9 @@ pub enum Account {
         // size: u32,
         profile_image: Option<String>, // TODO: This needs to be converted to work with blob http server.
         color: String,
+        /// Optional tag as "Work", "Family".
+        /// Meant to help profile owner to differ between profiles with similar names.
+        private_tag: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
     Unconfigured { id: u32 },
@@ -31,12 +34,14 @@ impl Account {
             let color = color_int_to_hex_string(
                 Contact::get_by_id(ctx, ContactId::SELF).await?.get_color(),
             );
+            let private_tag = ctx.get_config(Config::PrivateTag).await?;
             Ok(Account::Configured {
                 id,
                 display_name,
                 addr,
                 profile_image,
                 color,
+                private_tag,
             })
         } else {
             Ok(Account::Unconfigured { id })
