@@ -259,7 +259,14 @@ impl Context {
 
         // create gossip
         let my_addr = endpoint.node_addr().await?;
-        let gossip = Gossip::from_endpoint(endpoint.clone(), Default::default(), &my_addr.info);
+        let gossip_config = iroh_gossip::proto::topic::Config {
+            // Allow messages up to 128 KB in size.
+            // We set the limit to 128 KiB to account for internal overhead,
+            // but only guarantee 128 KB of payload to WebXDC developers.
+            max_message_size: 128 * 1024,
+            ..Default::default()
+        };
+        let gossip = Gossip::from_endpoint(endpoint.clone(), gossip_config, &my_addr.info);
 
         // spawn endpoint loop that forwards incoming connections to the gossiper
         let context = self.clone();
