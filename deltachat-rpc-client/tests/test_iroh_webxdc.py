@@ -7,6 +7,7 @@ If you want to debug iroh at rust-trace/log level set
     RUST_LOG=iroh_net=trace,iroh_gossip=trace
 """
 
+import os
 import sys
 import threading
 import time
@@ -107,13 +108,15 @@ def test_realtime_sequentially(acfactory, path_to_webxdc):
     assert snapshot.text == "ping2"
 
     log("sending realtime data ac1 -> ac2")
-    ac1_webxdc_msg.send_webxdc_realtime_data(b"foo")
+    # Test that 128 KB of data can be sent in a single message.
+    data = os.urandom(128000)
+    ac1_webxdc_msg.send_webxdc_realtime_data(data)
 
     log("ac2: waiting for realtime data")
     while 1:
         event = ac2.wait_for_event()
         if event.kind == EventType.WEBXDC_REALTIME_DATA:
-            assert event.data == list(b"foo")
+            assert event.data == list(data)
             break
 
 
