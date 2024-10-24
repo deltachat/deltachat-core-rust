@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.148.3] - 2024-10-24
+
+### Fixes
+
+- Fix reception of realtime advertisements.
+
+### Features / Changes
+
+- Allow sending realtime messages up to 128 KB in size.
+
+### API-Changes
+
+- deltachat-rpc-client: Add EventType.WEBXDC_REALTIME_ADVERTISEMENT_RECEIVED.
+
+### Documentation
+
+- Fix DC_QR_PROXY docs ([#6099](https://github.com/deltachat/deltachat-core-rust/pull/6099)).
+
+### Refactor
+
+- Generate topic inside create_iroh_header().
+
+### Tests
+
+- Test that realtime advertisements work after chatting.
+
 ## [1.148.2] - 2024-10-23
 
 ### Fixes
@@ -5100,3 +5126,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.1..v1.148.0
 [1.148.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.0..v1.148.1
 [1.148.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.1..v1.148.2
+[1.148.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.2..v1.148.3
