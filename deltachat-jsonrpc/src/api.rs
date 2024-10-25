@@ -254,11 +254,12 @@ impl CommandApi {
     /// Process all events until you get this one and you can safely return to the background
     /// without forgetting to create notifications caused by timing race conditions.
     async fn accounts_background_fetch(&self, timeout_in_seconds: f64) -> Result<()> {
-        self.accounts
-            .write()
-            .await
-            .background_fetch(std::time::Duration::from_secs_f64(timeout_in_seconds))
-            .await;
+        let future = {
+            let lock = self.accounts.read().await;
+            lock.background_fetch(std::time::Duration::from_secs_f64(timeout_in_seconds))
+        };
+        // At this point account manager is not locked anymore.
+        future.await;
         Ok(())
     }
 

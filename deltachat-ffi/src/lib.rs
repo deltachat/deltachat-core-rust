@@ -4882,12 +4882,12 @@ pub unsafe extern "C" fn dc_accounts_background_fetch(
     }
 
     let accounts = &*accounts;
-    block_on(async move {
-        let accounts = accounts.read().await;
-        accounts
-            .background_fetch(Duration::from_secs(timeout_in_seconds))
-            .await;
-    });
+    let background_fetch_future = {
+        let lock = block_on(accounts.read());
+        lock.background_fetch(Duration::from_secs(timeout_in_seconds))
+    };
+    // At this point account manager is not locked anymore.
+    block_on(background_fetch_future);
     1
 }
 
