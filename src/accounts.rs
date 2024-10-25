@@ -344,7 +344,7 @@ impl Accounts {
     }
 
     /// Sets notification token for Apple Push Notification service.
-    pub async fn set_push_device_token(&mut self, token: &str) -> Result<()> {
+    pub async fn set_push_device_token(&self, token: &str) -> Result<()> {
         self.push_subscriber.set_device_token(token).await;
         Ok(())
     }
