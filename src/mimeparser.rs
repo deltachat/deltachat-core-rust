@@ -3598,11 +3598,25 @@ On 2020-10-25, Bob wrote:
             assert!(mimemsg.parts[0].msg.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
         }
 
-        {
+        for draft in [false, true] {
             let chat = t.get_self_chat().await;
-            t.send_text(chat.id, &long_txt).await;
+            let mut msg = Message::new(Viewtype::Text);
+            msg.set_text(long_txt.clone());
+            if draft {
+                chat.id.set_draft(&t, Some(&mut msg)).await?;
+            }
+            t.send_msg(chat.id, &mut msg).await;
             let msg = t.get_last_msg_in(chat.id).await;
             assert!(msg.has_html());
+            assert_eq!(
+                msg.id
+                    .get_html(&t)
+                    .await?
+                    .unwrap()
+                    .matches("just repeated")
+                    .count(),
+                REPEAT_CNT
+            );
             assert!(
                 msg.text.matches("just repeated").count() <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
             );
@@ -3610,7 +3624,6 @@ On 2020-10-25, Bob wrote:
         }
 
         t.set_config(Config::Bot, Some("1")).await?;
-
         {
             let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref(), None).await?;
             assert!(!mimemsg.is_mime_modified);
