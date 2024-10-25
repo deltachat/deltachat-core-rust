@@ -379,7 +379,7 @@ def test_import_export_backup(acfactory, tmp_path) -> None:
     alice = acfactory.new_configured_account()
     alice.export_backup(tmp_path)
 
-    files = list(tmp_path.glob("*.tar"))
+    files = list(tmp_path.glob("*.tar.gz"))
     alice2 = acfactory.get_unconfigured_account()
     alice2.import_backup(files[0])
 
@@ -630,7 +630,7 @@ def test_markseen_contact_request(acfactory, tmp_path):
 
     # Bob sets up a second device.
     bob.export_backup(tmp_path)
-    files = list(tmp_path.glob("*.tar"))
+    files = list(tmp_path.glob("*.tar.gz"))
     bob2 = acfactory.get_unconfigured_account()
     bob2.import_backup(files[0])
     bob2.start_io()

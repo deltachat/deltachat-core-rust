@@ -36,12 +36,13 @@ use futures_lite::FutureExt;
 use iroh_net::relay::RelayMode;
 use iroh_net::Endpoint;
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::chat::add_device_msg;
 use crate::context::Context;
-use crate::imex::BlobDirContents;
+use crate::imex::{BlobDirContents, ProgressReader};
 use crate::message::{Message, Viewtype};
 use crate::qr::Qr;
 use crate::stock_str::backup_transfer_msg_body;
@@ -190,9 +191,11 @@ impl BackupProvider {
 
         send_stream.write_all(&file_size.to_be_bytes()).await?;
 
-        export_backup_stream(&context, &dbfile, blobdir, send_stream, file_size)
-            .await
-            .context("Failed to write backup into QUIC stream")?;
+        let mut send_stream =
+            export_backup_stream(&context, &dbfile, blobdir, send_stream, file_size)
+                .await
+                .context("Failed to write backup into QUIC stream")?;
+        send_stream.shutdown().await?;
         info!(context, "Finished writing backup into QUIC stream.");
         let mut buf = [0u8; 1];
         info!(context, "Waiting for acknowledgment.");
@@ -310,7 +313,8 @@ pub async fn get_backup2(
     let mut file_size_buf = [0u8; 8];
     recv_stream.read_exact(&mut file_size_buf).await?;
     let file_size = u64::from_be_bytes(file_size_buf);
-    import_backup_stream(context, recv_stream, file_size, passphrase)
+    let recv_stream = ProgressReader::new(recv_stream, context.clone(), file_size);
+    import_backup_stream(context, recv_stream, passphrase)
         .await
         .context("Failed to import backup from QUIC stream")?;
     info!(context, "Finished importing backup from the stream.");

@@ -61,7 +61,7 @@ def test_qr_securejoin(acfactory, protect, tmp_path):
     # Setup second device for Alice
     # to test observing securejoin protocol.
     alice.export_backup(tmp_path)
-    files = list(tmp_path.glob("*.tar"))
+    files = list(tmp_path.glob("*.tar.gz"))
     alice2 = acfactory.get_unconfigured_account()
     alice2.import_backup(files[0])
 
