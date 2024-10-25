@@ -31,7 +31,7 @@ impl PushSubscriber {
     }
 
     /// Sets device token for Apple Push Notification service.
-    pub(crate) async fn set_device_token(&mut self, token: &str) {
+    pub(crate) async fn set_device_token(&self, token: &str) {
         self.inner.write().await.device_token = Some(token.to_string());
     }
 

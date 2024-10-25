@@ -4868,7 +4868,7 @@ pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accoun
     }
 
     let accounts = &*accounts;
-    block_on(async move { accounts.write().await.maybe_network_lost().await });
+    block_on(async move { accounts.read().await.maybe_network_lost().await });
 }
 
 #[no_mangle]
@@ -4905,7 +4905,7 @@ pub unsafe extern "C" fn dc_accounts_set_push_device_token(
     let token = to_string_lossy(token);
 
     block_on(async move {
-        let mut accounts = accounts.write().await;
+        let accounts = accounts.read().await;
         if let Err(err) = accounts.set_push_device_token(&token).await {
             accounts.emit_event(EventType::Error(format!(
                 "Failed to set notify token: {err:#}."
