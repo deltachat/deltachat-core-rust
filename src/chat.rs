@@ -2092,28 +2092,31 @@ impl Chat {
             EphemeralTimer::Enabled { duration } => time().saturating_add(duration.into()),
         };
 
+        let (msg_text, was_truncated) = truncate_msg_text(context, msg.text.clone()).await?;
         let new_mime_headers = if msg.has_html() {
-            let html = if msg.param.exists(Param::Forwarded) {
+            if msg.param.exists(Param::Forwarded) {
                 msg.get_id().get_html(context).await?
             } else {
                 msg.param.get(Param::SendHtml).map(|s| s.to_string())
-            };
-            match html {
-                Some(html) => Some(tokio::task::block_in_place(move || {
-                    buf_compress(new_html_mimepart(html).build().as_string().as_bytes())
-                })?),
-                None => None,
             }
         } else {
             None
+        };
+        let new_mime_headers = new_mime_headers.or_else(|| match was_truncated {
+            true => Some(msg.text.clone()),
+            false => None,
+        });
+        let new_mime_headers = match new_mime_headers {
+            Some(h) => Some(tokio::task::block_in_place(move || {
+                buf_compress(new_html_mimepart(h).build().as_string().as_bytes())
+            })?),
+            None => None,
         };
 
         msg.chat_id = self.id;
         msg.from_id = ContactId::SELF;
         msg.rfc724_mid = new_rfc724_mid;
         msg.timestamp_sort = timestamp;
-        let (msg_text, was_truncated) = truncate_msg_text(context, msg.text.clone()).await?;
-        let mime_modified = new_mime_headers.is_some() | was_truncated;
 
         // add message to the database
         if let Some(update_msg_id) = update_msg_id {
@@ -2142,7 +2145,7 @@ impl Chat {
                         msg.hidden,
                         msg.in_reply_to.as_deref().unwrap_or_default(),
                         new_references,
-                        mime_modified,
+                        new_mime_headers.is_some(),
                         new_mime_headers.unwrap_or_default(),
                         location_id as i32,
                         ephemeral_timer,
@@ -2193,7 +2196,7 @@ impl Chat {
                         msg.hidden,
                         msg.in_reply_to.as_deref().unwrap_or_default(),
                         new_references,
-                        mime_modified,
+                        new_mime_headers.is_some(),
                         new_mime_headers.unwrap_or_default(),
                         location_id as i32,
                         ephemeral_timer,
