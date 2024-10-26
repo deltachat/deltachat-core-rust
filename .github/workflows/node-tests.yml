@@ -64,5 +64,5 @@ jobs:
         working-directory: node
         run: npm run test
         env:
-          CHATMAIL_DOMAIN: ${{ secrets.CHATMAIL_DOMAIN }}
+          CHATMAIL_DOMAIN: ${{ vars.CHATMAIL_DOMAIN }}
           NODE_OPTIONS: "--force-node-api-uncaught-exceptions-policy=true"
