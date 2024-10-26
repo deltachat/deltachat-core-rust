@@ -3743,10 +3743,10 @@ pub(crate) async fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.is_protected() && !contact.is_verified(context).await? {
+        if chat.is_protected() && !contact.is_forward_verified(context).await? {
             error!(
                 context,
-                "Cannot add non-bidirectionally verified contact {contact_id} to protected chat {chat_id}."
+                "Cannot add non-forward verified contact {contact_id} to protected chat {chat_id}."
             );
             return Ok(false);
         }
