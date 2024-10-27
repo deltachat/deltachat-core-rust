@@ -314,6 +314,7 @@ pub async fn get_backup2(
         .context("Failed to import backup from QUIC stream")?;
     info!(context, "Finished importing backup from the stream.");
     context.emit_event(EventType::ImexProgress(1000));
+    context.emit_event(EventType::AccountsItemChanged);
 
     // Send an acknowledgement, but ignore the errors.
     // We have imported backup successfully already.

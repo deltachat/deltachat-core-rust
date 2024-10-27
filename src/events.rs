@@ -3,6 +3,7 @@
 use anyhow::Result;
 use tokio::sync::Mutex;
 
+pub(crate) mod account_events;
 pub(crate) mod chatlist_events;
 mod payload;
 

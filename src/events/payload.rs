@@ -336,7 +336,7 @@ pub enum EventType {
     ///
     /// This event is only emitted by the account manager
     AccountsChanged,
-    
+
     /// Inform that an account property that might be shown in the account list changed, namely:
     /// - is_configured
     /// - displayname

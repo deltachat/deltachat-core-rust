@@ -712,6 +712,14 @@ impl Context {
         if key == Config::SentboxWatch {
             self.last_full_folder_scan.lock().await.take();
         }
+
+        if matches!(
+            key,
+            Config::Configured | Config::Displayname | Config::Selfavatar | Config::PrivateTag
+        ) {
+            self.emit_event(EventType::AccountsItemChanged);
+        }
+
         Ok(())
     }
 
