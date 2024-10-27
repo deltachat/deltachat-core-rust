@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.148.5] - 2024-10-27
+
+### Fixes
+
+- Set Config::NotifyAboutWrongPw before saving configuration ([#5896](https://github.com/deltachat/deltachat-core-rust/pull/5896)).
+- Do not take write lock for maybe_network_lost() and set_push_device_token().
+- Do not lock the account manager for the whole duration of background_fetch.
+
+### Features / Changes
+
+- Auto-restore 1:1 chat protection after receiving old unverified message.
+
+### CI
+
+- Take `CHATMAIL_DOMAIN` from variables instead of secrets.
+
+### Other
+
+- Revert "build: nix flake update fenix" to fix `nix build .#deltachat-rpc-server-armeabi-v7a-android`.
+
+### Refactor
+
+- Receive_imf::add_parts: Remove excessive `from_id == ContactId::SELF` checks.
+- Factor out `add_gossip_peer_from_header()`.
+
 ## [1.148.4] - 2024-10-24
 
 ### Features / Changes
@@ -5139,3 +5164,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.1..v1.148.2
 [1.148.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.2..v1.148.3
 [1.148.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.3..v1.148.4
+[1.148.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.4..v1.148.5
