@@ -332,6 +332,20 @@ pub enum EventType {
         chat_id: Option<ChatId>,
     },
 
+    /// Inform that the list of accounts has changed (account removed or added or (not yet implemented) the order changes)
+    ///
+    /// This event is only emitted by the account manager
+    AccountsChanged,
+    
+    /// Inform that an account property that might be shown in the account list changed, namely:
+    /// - is_configured
+    /// - displayname
+    /// - selfavatar
+    /// - private_tag
+    ///
+    /// This event is emitted from the account whose item it describes.
+    AccountsItemChanged,
+
     /// Event for using in tests, e.g. as a fence between normally generated events.
     #[cfg(test)]
     Test,

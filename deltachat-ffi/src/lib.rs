@@ -568,6 +568,8 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::AccountsBackgroundFetchDone => 2200,
         EventType::ChatlistChanged => 2300,
         EventType::ChatlistItemChanged { .. } => 2301,
+        EventType::AccountsChanged => 2302,
+        EventType::AccountsItemChanged => 2303,
         EventType::EventChannelOverflow { .. } => 2400,
         #[allow(unreachable_patterns)]
         #[cfg(test)]
@@ -600,8 +602,10 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::ConfigSynced { .. }
         | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_)
-        | EventType::AccountsBackgroundFetchDone => 0,
-        EventType::ChatlistChanged => 0,
+        | EventType::AccountsBackgroundFetchDone
+        | EventType::ChatlistChanged
+        | EventType::AccountsChanged
+        | EventType::AccountsItemChanged => 0,
         EventType::IncomingReaction { contact_id, .. } => contact_id.to_u32() as libc::c_int,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
@@ -674,6 +678,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatlistChanged
         | EventType::ChatlistItemChanged { .. }
+        | EventType::AccountsChanged
+        | EventType::AccountsItemChanged
         | EventType::ConfigSynced { .. }
         | EventType::ChatModified(_)
         | EventType::WebxdcRealtimeAdvertisementReceived { .. }
@@ -748,6 +754,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::IncomingMsgBunch { .. }
         | EventType::ChatlistItemChanged { .. }
         | EventType::ChatlistChanged
+        | EventType::AccountsChanged
+        | EventType::AccountsItemChanged
         | EventType::WebxdcRealtimeAdvertisementReceived { .. }
         | EventType::EventChannelOverflow { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
