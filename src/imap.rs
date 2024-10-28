@@ -89,7 +89,7 @@ pub(crate) struct Imap {
 
     oauth2: bool,
 
-    login_failed_once: bool,
+    authentication_failed_once: bool,
 
     pub(crate) connectivity: ConnectivityStore,
 
@@ -254,7 +254,7 @@ impl Imap {
             proxy_config,
             strict_tls,
             oauth2,
-            login_failed_once: false,
+            authentication_failed_once: false,
             connectivity: Default::default(),
             conn_last_try: UNIX_EPOCH,
             conn_backoff_ms: 0,
@@ -402,7 +402,7 @@ impl Imap {
                     let mut lock = context.server_id.write().await;
                     lock.clone_from(&session.capabilities.server_id);
 
-                    self.login_failed_once = false;
+                    self.authentication_failed_once = false;
                     context.emit_event(EventType::ImapConnected(format!(
                         "IMAP-LOGIN as {}",
                         lp.user
@@ -422,7 +422,7 @@ impl Imap {
                     // If it looks like the password is wrong, send a notification:
                     let _lock = context.wrong_pw_warning_mutex.lock().await;
                     if err.to_string().to_lowercase().contains("authentication") {
-                        if self.login_failed_once
+                        if self.authentication_failed_once
                             && !configuring
                             && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                         {
@@ -444,10 +444,10 @@ impl Imap {
                                     .ok();
                             }
                         } else {
-                            self.login_failed_once = true;
+                            self.authentication_failed_once = true;
                         }
                     } else {
-                        self.login_failed_once = false;
+                        self.authentication_failed_once = false;
                     }
                 }
             }
