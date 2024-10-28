@@ -416,35 +416,38 @@ impl Imap {
                     let imap_user = lp.user.to_owned();
                     let message = stock_str::cannot_login(context, &imap_user).await;
 
-                    let err_str = err.to_string();
                     warn!(context, "IMAP failed to login: {err:#}.");
                     first_error.get_or_insert(format_err!("{message} ({err:#})"));
 
+                    // If it looks like the password is wrong, send a notification:
                     let _lock = context.wrong_pw_warning_mutex.lock().await;
-                    if !configuring
-                        && self.login_failed_once
-                        && err_str.to_lowercase().contains("authentication")
-                        && context.get_config_bool(Config::NotifyAboutWrongPw).await?
-                    {
-                        let mut msg = Message::new_text(message);
-                        if let Err(e) = chat::add_device_msg_with_importance(
-                            context,
-                            None,
-                            Some(&mut msg),
-                            true,
-                        )
-                        .await
+                    if err.to_string().to_lowercase().contains("authentication") {
+                        if self.login_failed_once
+                            && !configuring
+                            && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                         {
-                            warn!(context, "Failed to add device message: {e:#}.");
+                            let mut msg = Message::new_text(message);
+                            if let Err(e) = chat::add_device_msg_with_importance(
+                                context,
+                                None,
+                                Some(&mut msg),
+                                true,
+                            )
+                            .await
+                            {
+                                warn!(context, "Failed to add device message: {e:#}.");
+                            } else {
+                                context
+                                    .set_config_internal(Config::NotifyAboutWrongPw, None)
+                                    .await
+                                    .log_err(context)
+                                    .ok();
+                            }
                         } else {
-                            context
-                                .set_config_internal(Config::NotifyAboutWrongPw, None)
-                                .await
-                                .log_err(context)
-                                .ok();
+                            self.login_failed_once = true;
                         }
                     } else {
-                        self.login_failed_once = true;
+                        self.login_failed_once = false;
                     }
                 }
             }
