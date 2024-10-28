@@ -126,6 +126,7 @@ impl Smtp {
 
         let login_params =
             prioritize_server_login_params(&context.sql, login_params, "smtp").await?;
+        let mut first_error = None;
         for lp in login_params {
             info!(context, "SMTP trying to connect to {}.", &lp.connection);
             let transport = match connect::connect_and_auth(
@@ -143,6 +144,7 @@ impl Smtp {
                 Ok(transport) => transport,
                 Err(err) => {
                     warn!(context, "SMTP failed to connect and authenticate: {err:#}.");
+                    first_error.get_or_insert(err);
                     continue;
                 }
             };
@@ -157,7 +159,7 @@ impl Smtp {
             return Ok(());
         }
 
-        Err(format_err!("SMTP failed to connect"))
+        Err(first_error.unwrap_or_else(|| format_err!("No SMTP connection candidates provided")))
     }
 }
 
