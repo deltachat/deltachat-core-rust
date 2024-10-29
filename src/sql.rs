@@ -154,7 +154,7 @@ impl Sql {
             // don't have main database passphrase at this point.
             // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
             // Without resetting import may fail due to existing tables.
-            let res = res
+            res
                 .and_then(|_| {
                     conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
                         .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")
@@ -176,8 +176,7 @@ impl Sql {
                 .and(
                     conn.execute("DETACH DATABASE backup", [])
                         .context("failed to detach backup database"),
-                );
-            res?;
+                )?;
             Ok(())
         })
         .await
