@@ -9,6 +9,7 @@
     "@types/chai": "^4.2.21",
     "@types/chai-as-promised": "^7.1.5",
     "@types/mocha": "^9.0.0",
+    "@types/node": "^18.19.60",
     "@types/ws": "^7.2.4",
     "c8": "^7.10.0",
     "chai": "^4.3.4",
