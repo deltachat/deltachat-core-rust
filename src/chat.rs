@@ -797,8 +797,7 @@ impl ChatId {
         context.scheduler.interrupt_inbox().await;
 
         if chat.is_self_talk() {
-            let mut msg = Message::new(Viewtype::Text);
-            msg.text = stock_str::self_deleted_msg_body(context).await;
+            let mut msg = Message::new_text(stock_str::self_deleted_msg_body(context).await);
             add_device_msg(context, None, Some(&mut msg)).await?;
         }
         chatlist_events::emit_chatlist_changed(context);
@@ -3106,8 +3105,7 @@ pub async fn send_text_msg(
         chat_id
     );
 
-    let mut msg = Message::new(Viewtype::Text);
-    msg.text = text_to_send;
+    let mut msg = Message::new_text(text_to_send);
     send_msg(context, chat_id, &mut msg).await
 }
 
@@ -4780,8 +4778,7 @@ mod tests {
     async fn test_get_draft() {
         let t = TestContext::new().await;
         let chat_id = &t.get_self_chat().await.id;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hello".to_string());
+        let mut msg = Message::new_text("hello".to_string());
 
         chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
         let draft = chat_id.get_draft(&t).await.unwrap().unwrap();
@@ -4795,13 +4792,11 @@ mod tests {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hi!".to_string());
+        let mut msg = Message::new_text("hi!".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         assert!(chat_id.get_draft(&t).await?.is_some());
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("another".to_string());
+        let mut msg = Message::new_text("another".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         assert!(chat_id.get_draft(&t).await?.is_some());
 
@@ -4815,8 +4810,7 @@ mod tests {
     async fn test_forwarding_draft_failing() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = &t.get_self_chat().await.id;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hello".to_string());
+        let mut msg = Message::new_text("hello".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         assert_eq!(msg.id, chat_id.get_draft(&t).await?.unwrap().id);
 
@@ -4829,8 +4823,7 @@ mod tests {
     async fn test_draft_stable_ids() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = &t.get_self_chat().await.id;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hello".to_string());
+        let mut msg = Message::new_text("hello".to_string());
         assert_eq!(msg.id, MsgId::new_unset());
         assert!(chat_id.get_draft_msg_id(&t).await?.is_none());
 
@@ -4876,11 +4869,7 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
 
         let msgs: Vec<message::Message> = (1..=1000)
-            .map(|i| {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.set_text(i.to_string());
-                msg
-            })
+            .map(|i| Message::new_text(i.to_string()))
             .collect();
         let mut tasks = Vec::new();
         for mut msg in msgs {
@@ -4913,8 +4902,7 @@ mod tests {
                 .await?;
 
         // save a draft
-        let mut draft = Message::new(Viewtype::Text);
-        draft.set_text("draft text".to_string());
+        let mut draft = Message::new_text("draft text".to_string());
         chat_id.set_draft(&t, Some(&mut draft)).await?;
 
         let test = Message::load_from_db(&t, draft.id).await?;
@@ -4967,29 +4955,25 @@ mod tests {
         let one2one_msg = Message::load_from_db(&alice, one2one_msg_id).await?;
 
         // quoting messages in same chat is okay
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("baz".to_string());
+        let mut msg = Message::new_text("baz".to_string());
         msg.set_quote(&alice, Some(&grp_msg)).await?;
         let result = send_msg(&alice, grp_chat_id, &mut msg).await;
         assert!(result.is_ok());
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("baz".to_string());
+        let mut msg = Message::new_text("baz".to_string());
         msg.set_quote(&alice, Some(&one2one_msg)).await?;
         let result = send_msg(&alice, one2one_chat_id, &mut msg).await;
         assert!(result.is_ok());
         let one2one_quote_reply_msg_id = result.unwrap();
 
         // quoting messages from groups to one-to-ones is okay ("reply privately")
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("baz".to_string());
+        let mut msg = Message::new_text("baz".to_string());
         msg.set_quote(&alice, Some(&grp_msg)).await?;
         let result = send_msg(&alice, one2one_chat_id, &mut msg).await;
         assert!(result.is_ok());
 
         // quoting messages from one-to-one chats in groups is an error; usually this is also not allowed by UI at all ...
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("baz".to_string());
+        let mut msg = Message::new_text("baz".to_string());
         msg.set_quote(&alice, Some(&one2one_msg)).await?;
         let result = send_msg(&alice, grp_chat_id, &mut msg).await;
         assert!(result.is_err());
@@ -5481,13 +5465,11 @@ mod tests {
         let t = TestContext::new().await;
 
         // add two device-messages
-        let mut msg1 = Message::new(Viewtype::Text);
-        msg1.set_text("first message".to_string());
+        let mut msg1 = Message::new_text("first message".to_string());
         let msg1_id = add_device_msg(&t, None, Some(&mut msg1)).await;
         assert!(msg1_id.is_ok());
 
-        let mut msg2 = Message::new(Viewtype::Text);
-        msg2.set_text("second message".to_string());
+        let mut msg2 = Message::new_text("second message".to_string());
         let msg2_id = add_device_msg(&t, None, Some(&mut msg2)).await;
         assert!(msg2_id.is_ok());
         assert_ne!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
@@ -5516,14 +5498,12 @@ mod tests {
         let t = TestContext::new().await;
 
         // add two device-messages with the same label (second attempt is not added)
-        let mut msg1 = Message::new(Viewtype::Text);
-        msg1.text = "first message".to_string();
+        let mut msg1 = Message::new_text("first message".to_string());
         let msg1_id = add_device_msg(&t, Some("any-label"), Some(&mut msg1)).await;
         assert!(msg1_id.is_ok());
         assert!(!msg1_id.as_ref().unwrap().is_unset());
 
-        let mut msg2 = Message::new(Viewtype::Text);
-        msg2.text = "second message".to_string();
+        let mut msg2 = Message::new_text("second message".to_string());
         let msg2_id = add_device_msg(&t, Some("any-label"), Some(&mut msg2)).await;
         assert!(msg2_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
@@ -5570,8 +5550,7 @@ mod tests {
         let res = add_device_msg(&t, Some("some-label"), None).await;
         assert!(res.is_ok());
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("message text".to_string());
+        let mut msg = Message::new_text("message text".to_string());
 
         let msg_id = add_device_msg(&t, Some("some-label"), Some(&mut msg)).await;
         assert!(msg_id.is_ok());
@@ -5588,8 +5567,7 @@ mod tests {
         add_device_msg(&t, Some("some-label"), None).await.ok();
         assert!(was_device_msg_ever_added(&t, "some-label").await.unwrap());
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("message text".to_string());
+        let mut msg = Message::new_text("message text".to_string());
         add_device_msg(&t, Some("another-label"), Some(&mut msg))
             .await
             .ok();
@@ -5606,8 +5584,7 @@ mod tests {
     async fn test_delete_device_chat() {
         let t = TestContext::new().await;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("message text".to_string());
+        let mut msg = Message::new_text("message text".to_string());
         add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .ok();
@@ -5630,8 +5607,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("message text".to_string());
+        let mut msg = Message::new_text("message text".to_string());
         assert!(send_msg(&t, device_chat_id, &mut msg).await.is_err());
         assert!(prepare_msg(&t, device_chat_id, &mut msg).await.is_err());
 
@@ -5642,8 +5618,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_delete_and_reset_all_device_msgs() {
         let t = TestContext::new().await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("message text".to_string());
+        let mut msg = Message::new_text("message text".to_string());
         let msg_id1 = add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .unwrap();
@@ -5675,8 +5650,7 @@ mod tests {
     async fn test_archive() {
         // create two chats
         let t = TestContext::new().await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("foo".to_string());
+        let mut msg = Message::new_text("foo".to_string());
         let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
         let chat_id1 = message::Message::load_from_db(&t, msg_id)
             .await

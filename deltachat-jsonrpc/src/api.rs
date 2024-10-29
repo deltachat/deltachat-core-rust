@@ -2118,8 +2118,7 @@ impl CommandApi {
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(text);
+        let mut msg = Message::new_text(text);
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
         Ok(message_id.to_u32())

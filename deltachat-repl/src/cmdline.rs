@@ -1004,8 +1004,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             if !arg1.is_empty() {
-                let mut draft = Message::new(Viewtype::Text);
-                draft.set_text(arg1.to_string());
+                let mut draft = Message::new_text(arg1.to_string());
                 sel_chat
                     .as_ref()
                     .unwrap()
@@ -1028,8 +1027,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 !arg1.is_empty(),
                 "Please specify text to add as device message."
             );
-            let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(arg1.to_string());
+            let mut msg = Message::new_text(arg1.to_string());
             chat::add_device_msg(&context, None, Some(&mut msg)).await?;
         }
         "listmedia" => {

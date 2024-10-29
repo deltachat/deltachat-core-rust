@@ -491,6 +491,15 @@ impl Message {
         }
     }
 
+    /// Creates a new message with Viewtype::Text.
+    pub fn new_text(text: String) -> Self {
+        Message {
+            viewtype: Viewtype::Text,
+            text,
+            ..Default::default()
+        }
+    }
+
     /// Loads message with given ID from the database.
     ///
     /// Returns an error if the message does not exist.
