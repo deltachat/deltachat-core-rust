@@ -63,7 +63,7 @@ mod test {
         let context = test_context.clone();
         let configure_handle =
             tokio::spawn(async move { test_context.configure_addr("delta@example.com").await });
-        
+
         // TODO online test - real configuration - otherwise we won't reproduce the race.
 
         assert!(!context.is_configured().await?);
