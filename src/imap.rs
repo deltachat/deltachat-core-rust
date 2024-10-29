@@ -1200,6 +1200,8 @@ impl Session {
             .await
             .context("failed to fetch flags")?;
 
+        let mut got_unsolicited_fetch = false;
+
         while let Some(fetch) = list
             .try_next()
             .await
@@ -1209,6 +1211,7 @@ impl Session {
                 uid
             } else {
                 info!(context, "FETCH result contains no UID, skipping");
+                got_unsolicited_fetch = true;
                 continue;
             };
             let is_seen = fetch.flags().any(|flag| flag == Flag::Seen);
@@ -1230,6 +1233,15 @@ impl Session {
             } else {
                 warn!(context, "FETCH result contains no MODSEQ");
             }
+        }
+        drop(list);
+
+        if got_unsolicited_fetch {
+            // We got unsolicited FETCH, which means some flags
+            // have been modified while our request was in progress.
+            // We may or may not have these new flags as a part of the response,
+            // so better skip next IDLE and do another round of flag synchronization.
+            self.new_mail = true;
         }
 
         set_modseq(context, folder, highest_modseq)
@@ -1716,17 +1728,21 @@ impl Imap {
 }
 
 impl Session {
-    /// Return whether the server sent an unsolicited EXISTS response.
+    /// Return whether the server sent an unsolicited EXISTS or FETCH response.
+    ///
     /// Drains all responses from `session.unsolicited_responses` in the process.
-    /// If this returns `true`, this means that new emails arrived and you should
-    /// fetch again, even if you just fetched.
-    fn server_sent_unsolicited_exists(&self, context: &Context) -> Result<bool> {
+    ///
+    /// If this returns `true`, this means that new emails arrived
+    /// or flags have been changed.
+    /// In this case we may want to skip next IDLE and do a round
+    /// of fetching new messages and synchronizing seen flags.
+    fn drain_unsolicited_responses(&self, context: &Context) -> Result<bool> {
         use async_imap::imap_proto::Response;
         use async_imap::imap_proto::ResponseCode;
         use UnsolicitedResponse::*;
 
         let folder = self.selected_folder.as_deref().unwrap_or_default();
-        let mut unsolicited_exists = false;
+        let mut should_refetch = false;
         while let Ok(response) = self.unsolicited_responses.try_recv() {
             match response {
                 Exists(_) => {
@@ -1734,28 +1750,34 @@ impl Session {
                         context,
                         "Need to refetch {folder:?}, got unsolicited EXISTS {response:?}"
                     );
-                    unsolicited_exists = true;
+                    should_refetch = true;
                 }
 
-                // We are not interested in the following responses and they are are
-                // sent quite frequently, so, we ignore them without logging them
                 Expunge(_) | Recent(_) => {}
-                Other(response_data)
-                    if matches!(
-                        response_data.parsed(),
-                        Response::Fetch { .. }
-                            | Response::Done {
-                                code: Some(ResponseCode::CopyUid(_, _, _)),
-                                ..
-                            }
-                    ) => {}
+                Other(ref response_data) => {
+                    match response_data.parsed() {
+                        Response::Fetch { .. } => {
+                            should_refetch = true;
+                        }
 
+                        // We are not interested in the following responses and they are are
+                        // sent quite frequently, so, we ignore them without logging them.
+                        Response::Done {
+                            code: Some(ResponseCode::CopyUid(_, _, _)),
+                            ..
+                        } => {}
+
+                        _ => {
+                            info!(context, "{folder:?}: got unsolicited response {response:?}")
+                        }
+                    }
+                }
                 _ => {
                     info!(context, "{folder:?}: got unsolicited response {response:?}")
                 }
             }
         }
-        Ok(unsolicited_exists)
+        Ok(should_refetch)
     }
 }
 
