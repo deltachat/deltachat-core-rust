@@ -730,8 +730,7 @@ impl TestContext {
     /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
     /// the message.
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage<'_> {
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = txt.to_string();
+        let mut msg = Message::new_text(txt.to_string());
         self.send_msg(chat_id, &mut msg).await
     }
 

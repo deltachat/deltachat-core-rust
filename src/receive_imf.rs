@@ -1093,8 +1093,8 @@ async fn add_parts(
                 .await?;
             let now = tools::time();
             let update_config = if last_time.saturating_add(24 * 60 * 60) <= now {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text = stock_str::cant_decrypt_outgoing_msgs(context).await;
+                let mut msg =
+                    Message::new_text(stock_str::cant_decrypt_outgoing_msgs(context).await);
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .log_err(context)

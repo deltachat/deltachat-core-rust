@@ -2342,8 +2342,7 @@ mod tests {
 
         let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("Quoted message".to_string());
+        let mut msg = Message::new_text("Quoted message".to_string());
 
         // Prepare message for sending, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
@@ -2409,9 +2408,8 @@ mod tests {
         add_contact_to_chat(alice, alice_group, alice_flubby_contact_id).await?;
 
         // Alice quotes encrypted message in unencrypted chat.
-        let mut msg = Message::new(Viewtype::Text);
+        let mut msg = Message::new_text("unencrypted".to_string());
         msg.set_quote(alice, Some(&alice_received_message)).await?;
-        msg.set_text("unencrypted".to_string());
         chat::send_msg(alice, alice_group, &mut msg).await?;
 
         let bob_received_message = bob.recv_msg(&alice.pop_sent_msg().await).await;
@@ -2469,8 +2467,7 @@ mod tests {
             .unwrap();
         let contact = Contact::get_by_id(&alice, contact_id).await.unwrap();
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("bla blubb".to_string());
+        let mut msg = Message::new_text("bla blubb".to_string());
         msg.set_override_sender_name(Some("over ride".to_string()));
         assert_eq!(
             msg.get_override_sender_name(),
@@ -2517,8 +2514,7 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("this is the text!".to_string());
+        let mut msg = Message::new_text("this is the text!".to_string());
 
         // alice sends to bob,
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
@@ -2603,8 +2599,7 @@ mod tests {
         }
 
         // check outgoing messages states on sender side
-        let mut alice_msg = Message::new(Viewtype::Text);
-        alice_msg.set_text("hi!".to_string());
+        let mut alice_msg = Message::new_text("hi!".to_string());
         assert_eq!(alice_msg.get_state(), MessageState::Undefined); // message not yet in db, assert_state() won't work
 
         alice_chat
@@ -2787,8 +2782,7 @@ def hello():
         let chat = alice
             .create_chat_with_contact("Bob", "bob@example.org")
             .await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hi".to_string());
+        let mut msg = Message::new_text("hi".to_string());
         assert!(chat::send_msg_sync(&alice, chat.id, &mut msg)
             .await
             .is_err());

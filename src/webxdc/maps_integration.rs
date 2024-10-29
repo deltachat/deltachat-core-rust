@@ -36,7 +36,7 @@ use crate::{chat, location};
 use std::collections::{hash_map, HashMap};
 
 use crate::context::Context;
-use crate::message::{Message, MsgId, Viewtype};
+use crate::message::{Message, MsgId};
 
 use crate::chat::ChatId;
 use crate::color::color_int_to_hex_string;
@@ -85,8 +85,7 @@ pub(crate) async fn intercept_send_update(
             ChatId::create_for_contact(context, ContactId::SELF).await?
         };
 
-        let mut poi_msg = Message::new(Viewtype::Text);
-        poi_msg.text = label;
+        let mut poi_msg = Message::new_text(label);
         poi_msg.set_location(lat, lng);
         chat::send_msg(context, chat_id, &mut poi_msg).await?;
     } else {

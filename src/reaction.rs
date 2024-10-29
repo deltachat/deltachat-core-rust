@@ -26,7 +26,7 @@ use crate::chatlist_events;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
-use crate::message::{rfc724_mid_exists, Message, MsgId, Viewtype};
+use crate::message::{rfc724_mid_exists, Message, MsgId};
 use crate::param::Param;
 
 /// A single reaction consisting of multiple emoji sequences.
@@ -229,8 +229,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
     let chat_id = msg.chat_id;
 
     let reaction: Reaction = reaction.into();
-    let mut reaction_msg = Message::new(Viewtype::Text);
-    reaction_msg.text = reaction.as_str().to_string();
+    let mut reaction_msg = Message::new_text(reaction.as_str().to_string());
     reaction_msg.set_reaction();
     reaction_msg.in_reply_to = Some(msg.rfc724_mid);
     reaction_msg.hidden = true;

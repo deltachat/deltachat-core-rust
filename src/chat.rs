@@ -5950,8 +5950,7 @@ mod tests {
         let t = TestContext::new().await;
 
         // create 3 chats, wait 1 second in between to get a reliable order (we order by time)
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("foo".to_string());
+        let mut msg = Message::new_text("foo".to_string());
         let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
         let chat_id1 = message::Message::load_from_db(&t, msg_id)
             .await
@@ -6028,8 +6027,7 @@ mod tests {
             ChatVisibility::Pinned,
         );
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hi!".into());
+        let mut msg = Message::new_text("hi!".into());
         let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
         let msg = alice.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, alice_chat_id);
@@ -6668,8 +6666,7 @@ mod tests {
         let alice_chat = alice.create_chat(&bob).await;
         let bob_chat = bob.create_chat(&alice).await;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("Hi Bob".to_owned());
+        let mut msg = Message::new_text("Hi Bob".to_owned());
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
 
@@ -6720,8 +6717,7 @@ mod tests {
         let received_msg = bob.recv_msg(&sent_msg).await;
 
         // Bob quotes received message and sends a reply to Alice.
-        let mut reply = Message::new(Viewtype::Text);
-        reply.set_text("Reply".to_owned());
+        let mut reply = Message::new_text("Reply".to_owned());
         reply.set_quote(&bob, Some(&received_msg)).await?;
         let sent_reply = bob.send_msg(bob_chat.id, &mut reply).await;
         let received_reply = alice.recv_msg(&sent_reply).await;
@@ -6804,8 +6800,7 @@ mod tests {
         let group_id =
             create_group_chat(&alice, ProtectionStatus::Unprotected, "secretgrpname").await?;
         add_contact_to_chat(&alice, group_id, bob_id).await?;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("bla foo".to_owned());
+        let mut msg = Message::new_text("bla foo".to_owned());
         let sent_msg = alice.send_msg(group_id, &mut msg).await;
         assert!(sent_msg.payload().contains("secretgrpname"));
         assert!(sent_msg.payload().contains("secretname"));

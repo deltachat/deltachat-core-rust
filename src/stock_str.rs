@@ -1419,8 +1419,7 @@ impl Context {
         msg.param.set(Param::File, blob.as_name());
         chat::add_device_msg(self, Some("core-welcome-image"), Some(&mut msg)).await?;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = welcome_message(self).await;
+        let mut msg = Message::new_text(welcome_message(self).await);
         chat::add_device_msg(self, Some("core-welcome"), Some(&mut msg)).await?;
         Ok(())
     }

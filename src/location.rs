@@ -290,8 +290,7 @@ pub async fn send_locations_to_chat(
         )
         .await?;
     if 0 != seconds && !is_sending_locations_before {
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = stock_str::msg_location_enabled(context).await;
+        let mut msg = Message::new_text(stock_str::msg_location_enabled(context).await);
         msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
         chat::send_msg(context, chat_id, &mut msg)
             .await

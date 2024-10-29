@@ -6,7 +6,7 @@ use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::{Chattype, DC_GCL_FOR_FORWARDING};
 use crate::contact::{Contact, ContactId, Origin};
-use crate::message::{Message, Viewtype};
+use crate::message::Message;
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
@@ -716,8 +716,7 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
         assert!(!alice_bob_chat.can_send(&alice).await?);
 
         // Alice's UI should still be able to save a draft, which Alice started to type right when she got Bob's message:
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("Draftttt".to_string());
+        let mut msg = Message::new_text("Draftttt".to_string());
         alice_bob_chat.id.set_draft(&alice, Some(&mut msg)).await?;
         assert_eq!(
             alice_bob_chat.id.get_draft(&alice).await?.unwrap().text,

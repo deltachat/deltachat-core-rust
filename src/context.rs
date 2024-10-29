@@ -28,7 +28,7 @@ use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::{ConfiguredLoginParam, EnteredLoginParam};
-use crate::message::{self, Message, MessageState, MsgId, Viewtype};
+use crate::message::{self, Message, MessageState, MsgId};
 use crate::param::{Param, Params};
 use crate::peer_channels::Iroh;
 use crate::peerstate::Peerstate;
@@ -1178,8 +1178,7 @@ impl Context {
             .set_protection(self, ProtectionStatus::Protected, time(), Some(contact_id))
             .await?;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = self.get_self_report().await?;
+        let mut msg = Message::new_text(self.get_self_report().await?);
 
         chat_id.set_draft(self, Some(&mut msg)).await?;
 
@@ -1778,12 +1777,10 @@ mod tests {
         assert!(res.is_empty());
 
         // Add messages to chat with Bob.
-        let mut msg1 = Message::new(Viewtype::Text);
-        msg1.set_text("foobar".to_string());
+        let mut msg1 = Message::new_text("foobar".to_string());
         send_msg(&alice, chat.id, &mut msg1).await?;
 
-        let mut msg2 = Message::new(Viewtype::Text);
-        msg2.set_text("barbaz".to_string());
+        let mut msg2 = Message::new_text("barbaz".to_string());
         send_msg(&alice, chat.id, &mut msg2).await?;
 
         alice.send_text(chat.id, "Δ-Chat").await;
@@ -1886,8 +1883,7 @@ mod tests {
             .await;
 
         // Add 999 messages
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("foobar".to_string());
+        let mut msg = Message::new_text("foobar".to_string());
         for _ in 0..999 {
             send_msg(&alice, chat.id, &mut msg).await?;
         }
