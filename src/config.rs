@@ -712,14 +712,6 @@ impl Context {
         if key == Config::SentboxWatch {
             self.last_full_folder_scan.lock().await.take();
         }
-
-        if matches!(
-            key,
-            Config::Configured | Config::Displayname | Config::Selfavatar | Config::PrivateTag
-        ) {
-            self.emit_event(EventType::AccountsItemChanged);
-        }
-
         Ok(())
     }
 
@@ -792,6 +784,12 @@ impl Context {
             _ => {
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
+        }
+        if matches!(
+            key,
+            Config::Displayname | Config::Selfavatar | Config::PrivateTag
+        ) {
+            self.emit_event(EventType::AccountsItemChanged);
         }
         if key.is_synced() {
             self.emit_event(EventType::ConfigSynced { key });

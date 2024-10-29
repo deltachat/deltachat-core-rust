@@ -9,8 +9,9 @@ mod test {
     use tempfile::tempdir;
 
     use crate::accounts::Accounts;
+    use crate::config::Config;
     use crate::imex::{get_backup, has_backup, imex, BackupProvider, ImexMode};
-    use crate::test_utils::{EventTracker, TestContext, TestContextManager};
+    use crate::test_utils::{sync, EventTracker, TestContext, TestContextManager};
     use crate::EventType;
 
     async fn wait_for_item_changed(context: &TestContext) {
@@ -47,34 +48,7 @@ mod test {
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_configuration() -> Result<()> {
-        let mut tcm = TestContextManager::new();
-        let context = tcm.unconfigured().await;
-        context.configure_addr("delta@example.com").await;
-        wait_for_item_changed(&context).await;
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_configuration_race() -> Result<()> {
-        let mut tcm = TestContextManager::new();
-        let test_context = tcm.unconfigured().await;
-        let context = test_context.clone();
-        let configure_handle =
-            tokio::spawn(async move { test_context.configure_addr("delta@example.com").await });
-
-        // TODO online test - real configuration - otherwise we won't reproduce the race.
-
-        assert!(!context.is_configured().await?);
-        EventTracker::new(context.get_event_emitter())
-            .get_matching(|evt| matches!(evt, EventType::AccountsItemChanged))
-            .await;
-        assert!(context.is_configured().await?);
-
-        configure_handle.await?;
-        Ok(())
-    }
+    // configuration is tested by python tests in deltachat-rpc-client/tests/test_account_events.py
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_displayname() -> Result<()> {
@@ -157,5 +131,37 @@ mod test {
         wait_for_item_changed(&ctx1).await;
     }
 
-    // TODO: test receiving synced config from second device
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync() -> Result<()> {
+        let alice0 = TestContext::new_alice().await;
+        let alice1 = TestContext::new_alice().await;
+        for a in [&alice0, &alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+
+        let new_name = "new name";
+        alice0
+            .set_config(Config::Displayname, Some(new_name))
+            .await?;
+        alice1.evtracker.clear_events();
+        sync(&alice0, &alice1).await;
+        wait_for_item_changed(&alice1).await;
+        assert_eq!(
+            alice1.get_config(Config::Displayname).await?,
+            Some(new_name.to_owned())
+        );
+
+        assert!(alice0.get_config(Config::Selfavatar).await?.is_none());
+        let file = alice0.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../../test-data/image/avatar64x64.png");
+        tokio::fs::write(&file, bytes).await?;
+        alice0
+            .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await?;
+        alice1.evtracker.clear_events();
+        sync(&alice0, &alice1).await;
+        wait_for_item_changed(&alice1).await;
+
+        Ok(())
+    }
 }
