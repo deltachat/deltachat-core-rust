@@ -277,18 +277,18 @@ pub enum EventType {
     #[serde(rename_all = "camelCase")]
     ChatlistItemChanged { chat_id: Option<u32> },
 
-    /// Inform that the list of accounts has changed (account removed or added or (not yet implemented) the order changes)
+    /// Inform that the list of accounts has changed (an account removed or added or (not yet implemented) the account order changes)
     ///
     /// This event is only emitted by the account manager
     AccountsChanged,
 
     /// Inform that an account property that might be shown in the account list changed, namely:
-    /// - is_configured
+    /// - is_configured (see is_configured())
     /// - displayname
     /// - selfavatar
     /// - private_tag
     ///
-    /// This event is emitted from the account whose item it describes.
+    /// This event is emitted from the account whose property changed.
     AccountsItemChanged,
 
     /// Inform than some events have been skipped due to event channel overflow.
