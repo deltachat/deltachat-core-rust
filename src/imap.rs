@@ -1757,6 +1757,10 @@ impl Session {
                 Other(ref response_data) => {
                     match response_data.parsed() {
                         Response::Fetch { .. } => {
+                            info!(
+                                context,
+                                "Need to refetch {folder:?}, got unsolicited FETCH {response:?}"
+                            );
                             should_refetch = true;
                         }
 
