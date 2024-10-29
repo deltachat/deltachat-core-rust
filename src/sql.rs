@@ -154,29 +154,28 @@ impl Sql {
             // don't have main database passphrase at this point.
             // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
             // Without resetting import may fail due to existing tables.
-            let res = res.and_then(|_| {
+            res.and_then(|_| {
                 conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
                     .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")
-            });
-            let res = res.and_then(|_| {
+            })
+            .and_then(|_| {
                 conn.execute("VACUUM", [])
                     .context("failed to vacuum the database")
-            });
-            let res = res.and(
+            })
+            .and(
                 conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
                     .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE"),
-            );
-            let res = res.and_then(|_| {
+            )
+            .and_then(|_| {
                 conn.query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
                     Ok(())
                 })
                 .context("failed to import from attached backup database")
-            });
-            let res = res.and(
+            })
+            .and(
                 conn.execute("DETACH DATABASE backup", [])
                     .context("failed to detach backup database"),
-            );
-            res?;
+            )?;
             Ok(())
         })
         .await
