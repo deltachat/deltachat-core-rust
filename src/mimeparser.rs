@@ -2253,7 +2253,7 @@ async fn handle_ndn(
         set_msg_failed(
             context,
             &mut message,
-            prev_error.as_ref().unwrap_or(&err_msg),
+            prev_error.as_ref().unwrap_or(err_msg),
         )
         .await?;
         if first {
