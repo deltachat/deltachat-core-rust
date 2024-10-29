@@ -409,6 +409,9 @@ impl From<CoreEventType> for EventType {
             },
             CoreEventType::ChatlistChanged => ChatlistChanged,
             CoreEventType::EventChannelOverflow { n } => EventChannelOverflow { n },
+            #[allow(unreachable_patterns)]
+            #[cfg(test)]
+            _ => unreachable!("This is just to silence a rust_analyzer false-positive"),
         }
     }
 }
