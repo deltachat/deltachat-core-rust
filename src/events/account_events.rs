@@ -57,6 +57,26 @@ mod test {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_configuration_race() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let test_context = tcm.unconfigured().await;
+        let context = test_context.clone();
+        let configure_handle =
+            tokio::spawn(async move { test_context.configure_addr("delta@example.com").await });
+        
+        // TODO online test - real configuration - otherwise we won't reproduce the race.
+
+        assert!(!context.is_configured().await?);
+        EventTracker::new(context.get_event_emitter())
+            .get_matching(|evt| matches!(evt, EventType::AccountsItemChanged))
+            .await;
+        assert!(context.is_configured().await?);
+
+        configure_handle.await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_displayname() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let context = tcm.alice().await;
