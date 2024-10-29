@@ -1154,7 +1154,13 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
- * @param json program-readable data, the actual payload
+ * @param json program-readable data, this is create in JS land as:
+ *     - `payload`: any JS object or primitive.
+ *     - `info`: optional informational message. will be shown in chat an may be added as system notification.
+ *     - `notifyUsers`: optional array of user `addr` that should be notified eg. by a sound.
+ *       note that still all users get the update payload and the `info` message shown in a chat.
+ *     - `document`: optional document name. shown eg. in title bar.
+ *     - `summary`: optional summary. shown beside app icon.
  * @param descr The user-visible description of JSON data,
  *     in case of a chess game, e.g. the move.
  * @return 1=success, 0=error
@@ -6078,6 +6084,17 @@ void dc_event_unref(dc_event_t* event);
  */
 #define DC_EVENT_INCOMING_REACTION        2002
 
+
+/**
+ * A webxdc added an info message that should be notified.
+ *
+ * @param data1 0
+ * @param data2 (int) msg_id + (char*) info text to notify.
+ *      ID of the message for which a webxdc notification was received in dc_event_get_data2_int(),
+ *      and the text to notify in dc_event_get_data2_str().
+ *      string must be passed to dc_str_unref() afterwards.
+ */
+#define DC_EVENT_INCOMING_WEBXDC_INFO     2003
 
 /**
  * There is a fresh message. Typically, the user will show an notification
