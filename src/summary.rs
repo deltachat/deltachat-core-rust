@@ -305,8 +305,7 @@ mod tests {
             .unwrap();
         let some_text = " bla \t\n\tbla\n\t".to_string();
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(some_text.to_string());
+        let msg = Message::new_text(some_text.to_string());
         assert_summary_texts(&msg, ctx, "bla bla").await; // for simple text, the type is not added to the summary
 
         let mut msg = Message::new(Viewtype::Image);
@@ -415,8 +414,7 @@ mod tests {
         }
 
         // Forwarded
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(some_text.clone());
+        let mut msg = Message::new_text(some_text.clone());
         msg.param.set_int(Param::Forwarded, 1);
         assert_eq!(msg.get_summary_text(ctx).await, "Forwarded: bla bla"); // for simple text, the type is not added to the summary
         assert_eq!(msg.get_summary_text_without_prefix(ctx).await, "bla bla"); // skipping prefix used for reactions summaries

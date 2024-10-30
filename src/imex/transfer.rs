@@ -42,7 +42,7 @@ use tokio_util::sync::CancellationToken;
 use crate::chat::add_device_msg;
 use crate::context::Context;
 use crate::imex::BlobDirContents;
-use crate::message::{Message, Viewtype};
+use crate::message::Message;
 use crate::qr::Qr;
 use crate::stock_str::backup_transfer_msg_body;
 use crate::tools::{create_id, time, TempPathGuard};
@@ -200,8 +200,7 @@ impl BackupProvider {
         info!(context, "Received backup reception acknowledgement.");
         context.emit_event(EventType::ImexProgress(1000));
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = backup_transfer_msg_body(&context).await;
+        let mut msg = Message::new_text(backup_transfer_msg_body(&context).await);
         add_device_msg(&context, None, Some(&mut msg)).await?;
 
         Ok(())
@@ -369,6 +368,7 @@ mod tests {
     use std::time::Duration;
 
     use crate::chat::{get_chat_msgs, send_msg, ChatItem};
+    use crate::message::Viewtype;
     use crate::test_utils::TestContextManager;
 
     use super::*;
@@ -382,8 +382,7 @@ mod tests {
 
         // Write a message in the self chat
         let self_chat = ctx0.get_self_chat().await;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hi there".to_string());
+        let mut msg = Message::new_text("hi there".to_string());
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 
         // Send an attachment in the self chat

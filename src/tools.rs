@@ -250,8 +250,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
 
 async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time: i64) {
     if now > approx_compile_time + DC_OUTDATED_WARNING_DAYS * 24 * 60 * 60 {
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = stock_str::update_reminder_msg_body(context).await;
+        let mut msg = Message::new_text(stock_str::update_reminder_msg_body(context).await);
         if let Some(timestamp) = chrono::DateTime::<chrono::Utc>::from_timestamp(now, 0) {
             add_device_msg(
                 context,

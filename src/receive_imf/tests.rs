@@ -2178,8 +2178,7 @@ async fn test_no_smtp_job_for_self_chat() -> Result<()> {
     let bob = &tcm.bob().await;
     bob.set_config_bool(Config::BccSelf, false).await?;
     let chat_id = bob.get_self_chat().await.id;
-    let mut msg = Message::new(Viewtype::Text);
-    msg.text = "Happy birthday to me".to_string();
+    let mut msg = Message::new_text("Happy birthday to me".to_string());
     chat::send_msg(bob, chat_id, &mut msg).await?;
     assert!(bob.pop_sent_msg_opt(Duration::ZERO).await.is_none());
     Ok(())
@@ -3298,8 +3297,7 @@ async fn test_outgoing_private_reply_multidevice() -> Result<()> {
     assert_eq!(received_group.name, "Group");
     assert_eq!(received_group.can_send(&alice1).await?, false); // Can't send because it's Blocked::Request
 
-    let mut msg_out = Message::new(Viewtype::Text);
-    msg_out.set_text("Private reply".to_string());
+    let mut msg_out = Message::new_text("Private reply".to_string());
 
     assert_eq!(received_group.blocked, Blocked::Request);
     msg_out.set_quote(&alice1, Some(&received)).await?;
@@ -3506,8 +3504,7 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     let received_group = Chat::load_from_db(&alice, received.chat_id).await?;
     assert_eq!(received_group.typ, Chattype::Group);
 
-    let mut msg_out = Message::new(Viewtype::Text);
-    msg_out.set_text("Private reply".to_string());
+    let mut msg_out = Message::new_text("Private reply".to_string());
     msg_out.set_quote(&alice, Some(&received)).await?;
 
     let alice_bob_chat = alice.create_chat(&bob).await;

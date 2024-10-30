@@ -31,7 +31,7 @@ use crate::login_param::{
     ConfiguredCertificateChecks, ConfiguredLoginParam, ConfiguredServerLoginParam,
     ConnectionCandidate, EnteredCertificateChecks, EnteredLoginParam,
 };
-use crate::message::{Message, Viewtype};
+use crate::message::Message;
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
@@ -142,8 +142,7 @@ async fn on_configure_completed(
         }
 
         if !provider.after_login_hint.is_empty() {
-            let mut msg = Message::new(Viewtype::Text);
-            msg.text = provider.after_login_hint.to_string();
+            let mut msg = Message::new_text(provider.after_login_hint.to_string());
             if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg))
                 .await
                 .is_err()
@@ -156,9 +155,9 @@ async fn on_configure_completed(
     if let Some(new_addr) = context.get_config(Config::ConfiguredAddr).await? {
         if let Some(old_addr) = old_addr {
             if !addr_cmp(&new_addr, &old_addr) {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text =
-                    stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await;
+                let mut msg = Message::new_text(
+                    stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await,
+                );
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .context("Cannot add AEAP explanation")

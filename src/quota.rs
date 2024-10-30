@@ -11,7 +11,7 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::session::Session as ImapSession;
-use crate::message::{Message, Viewtype};
+use crate::message::Message;
 use crate::tools::{self, time_elapsed};
 use crate::{stock_str, EventType};
 
@@ -142,8 +142,8 @@ impl Context {
                             Some(&highest.to_string()),
                         )
                         .await?;
-                        let mut msg = Message::new(Viewtype::Text);
-                        msg.text = stock_str::quota_exceeding(self, highest).await;
+                        let mut msg =
+                            Message::new_text(stock_str::quota_exceeding(self, highest).await);
                         add_device_msg_with_importance(self, None, Some(&mut msg), true).await?;
                     } else if highest <= QUOTA_ALLCLEAR_PERCENTAGE {
                         self.set_config_internal(Config::QuotaExceeding, None)

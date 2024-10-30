@@ -3600,8 +3600,7 @@ On 2020-10-25, Bob wrote:
 
         for draft in [false, true] {
             let chat = t.get_self_chat().await;
-            let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(long_txt.clone());
+            let mut msg = Message::new_text(long_txt.clone());
             if draft {
                 chat.id.set_draft(&t, Some(&mut msg)).await?;
             }

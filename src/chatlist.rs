@@ -476,7 +476,6 @@ mod tests {
         add_contact_to_chat, create_group_chat, get_chat_contacts, remove_contact_from_chat,
         send_text_msg, ProtectionStatus,
     };
-    use crate::message::Viewtype;
     use crate::receive_imf::receive_imf;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
@@ -510,8 +509,7 @@ mod tests {
         // Instead of setting drafts for chat_id1 and chat_id3, we could also sleep
         // 2s here.
         for chat_id in &[chat_id1, chat_id3, chat_id2] {
-            let mut msg = Message::new(Viewtype::Text);
-            msg.set_text("hello".to_string());
+            let mut msg = Message::new_text("hello".to_string());
             chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
         }
 
@@ -755,8 +753,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("foo:\nbar \r\n test".to_string());
+        let mut msg = Message::new_text("foo:\nbar \r\n test".to_string());
         chat_id1.set_draft(&t, Some(&mut msg)).await.unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();

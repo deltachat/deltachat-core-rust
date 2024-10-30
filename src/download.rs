@@ -318,8 +318,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         let chat = t.create_chat_with_contact("Bob", "bob@example.org").await;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("Hi Bob".to_owned());
+        let mut msg = Message::new_text("Hi Bob".to_owned());
         let msg_id = send_msg(&t, chat.id, &mut msg).await?;
         let msg = Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.download_state(), DownloadState::Done);

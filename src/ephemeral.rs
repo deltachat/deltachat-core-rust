@@ -223,8 +223,9 @@ impl ChatId {
         self.inner_set_ephemeral_timer(context, timer).await?;
 
         if self.is_promoted(context).await? {
-            let mut msg = Message::new(Viewtype::Text);
-            msg.text = stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await;
+            let mut msg = Message::new_text(
+                stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await,
+            );
             msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
             if let Err(err) = send_msg(context, self, &mut msg).await {
                 error!(
@@ -1362,8 +1363,7 @@ mod tests {
         chat.id
             .set_ephemeral_timer(&alice, Timer::Enabled { duration })
             .await?;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("hi".to_string());
+        let mut msg = Message::new_text("hi".to_string());
         assert!(chat::send_msg_sync(&alice, chat.id, &mut msg)
             .await
             .is_err());
@@ -1393,8 +1393,7 @@ mod tests {
         let sent = alice.pop_sent_msg().await;
         bob.recv_msg(&sent).await;
 
-        let mut poi_msg = Message::new(Viewtype::Text);
-        poi_msg.text = "Here".to_string();
+        let mut poi_msg = Message::new_text("Here".to_string());
         poi_msg.set_location(10.0, 20.0);
 
         let alice_sent_message = alice.send_msg(chat.id, &mut poi_msg).await;

@@ -525,8 +525,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // alice sends a message with html-part to bob
         let chat_id = alice.create_chat(&bob).await.id;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text("plain text".to_string());
+        let mut msg = Message::new_text("plain text".to_string());
         msg.set_html(Some("<b>html</b> text".to_string()));
         assert!(msg.mime_modified);
         chat::send_msg(&alice, chat_id, &mut msg).await.unwrap();

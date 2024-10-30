@@ -36,7 +36,7 @@ use crate::log::LogExt;
 use crate::login_param::{
     prioritize_server_login_params, ConfiguredLoginParam, ConfiguredServerLoginParam,
 };
-use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
+use crate::message::{self, Message, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
@@ -426,8 +426,7 @@ impl Imap {
                         && err_str.to_lowercase().contains("authentication")
                         && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                     {
-                        let mut msg = Message::new(Viewtype::Text);
-                        msg.text.clone_from(&message);
+                        let mut msg = Message::new_text(message);
                         if let Err(e) = chat::add_device_msg_with_importance(
                             context,
                             None,
