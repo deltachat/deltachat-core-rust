@@ -32,7 +32,7 @@ impl Session {
 
         self.select_with_uidvalidity(context, folder).await?;
 
-        if self.server_sent_unsolicited_exists(context)? {
+        if self.drain_unsolicited_responses(context)? {
             self.new_mail = true;
         }
 

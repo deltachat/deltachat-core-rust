@@ -66,21 +66,11 @@ impl Imap {
                 && folder_meaning != FolderMeaning::Drafts
                 && folder_meaning != FolderMeaning::Trash
             {
-                // Drain leftover unsolicited EXISTS messages
-                session.server_sent_unsolicited_exists(context)?;
-
-                loop {
-                    self.fetch_move_delete(context, session, folder.name(), folder_meaning)
-                        .await
-                        .context("Can't fetch new msgs in scanned folder")
-                        .log_err(context)
-                        .ok();
-
-                    // If the server sent an unsocicited EXISTS during the fetch, we need to fetch again
-                    if !session.server_sent_unsolicited_exists(context)? {
-                        break;
-                    }
-                }
+                self.fetch_move_delete(context, session, folder.name(), folder_meaning)
+                    .await
+                    .context("Can't fetch new msgs in scanned folder")
+                    .log_err(context)
+                    .ok();
             }
         }
 
