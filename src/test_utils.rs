@@ -41,6 +41,7 @@ use crate::peerstate::Peerstate;
 use crate::pgp::KeyPair;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
+use crate::spawn_named_task;
 use crate::stock_str::StockStrings;
 
 #[allow(non_upper_case_globals)]
@@ -968,7 +969,7 @@ impl InnerLogSink {
     /// Subscribes this log sink to event emitter.
     pub fn subscribe(&self, event_emitter: EventEmitter) {
         let sender = self.sender.clone();
-        task::spawn(async move {
+        spawn_named_task!("InnerLogSink", async move {
             while let Some(event) = event_emitter.recv().await {
                 sender.try_send(LogEvent::Event(event.clone())).ok();
             }

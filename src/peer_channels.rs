@@ -45,7 +45,7 @@ use crate::context::Context;
 use crate::headerdef::HeaderDef;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
-use crate::EventType;
+use crate::{spawn_named_task, EventType};
 
 /// The length of an ed25519 `PublicKey`, in bytes.
 const PUBLIC_KEY_LENGTH: usize = 32;
@@ -125,7 +125,7 @@ impl Iroh {
             .split();
 
         let ctx = ctx.clone();
-        let subscribe_loop = tokio::spawn(async move {
+        let subscribe_loop = spawn_named_task!("subscribe_loop", async move {
             if let Err(e) = subscribe_loop(&ctx, gossip_receiver, topic, msg_id, join_tx).await {
                 warn!(ctx, "subscribe_loop failed: {e}")
             }
@@ -273,7 +273,10 @@ impl Context {
         let context = self.clone();
 
         // Shuts down on deltachat shutdown
-        tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
+        spawn_named_task!(
+            "endpoint_loop",
+            endpoint_loop(context, endpoint.clone(), gossip.clone())
+        );
 
         Ok(Iroh {
             endpoint,
@@ -496,7 +499,7 @@ async fn endpoint_loop(context: Context, endpoint: Endpoint, gossip: Gossip) {
         info!(context, "IROH_REALTIME: accepting iroh connection");
         let gossip = gossip.clone();
         let context = context.clone();
-        tokio::spawn(async move {
+        spawn_named_task!("handle_connection", async move {
             if let Err(err) = handle_connection(&context, conn, gossip).await {
                 warn!(context, "IROH_REALTIME: iroh connection error: {err}");
             }

@@ -16,10 +16,10 @@ use pgp::crypto::hash::HashAlgorithm;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, StringToKey};
 use rand::{thread_rng, CryptoRng, Rng};
-use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
+use crate::spawn_named_blocking_task;
 
 #[allow(missing_docs)]
 #[cfg(test)]
@@ -250,33 +250,32 @@ pub async fn pk_encrypt(
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
-    Handle::current()
-        .spawn_blocking(move || {
-            let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
-                .iter()
-                .filter_map(select_pk_for_encryption)
-                .collect();
-            let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+    spawn_named_blocking_task!("pk_encrypt", move || {
+        let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
+            .iter()
+            .filter_map(select_pk_for_encryption)
+            .collect();
+        let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
 
-            let mut rng = thread_rng();
+        let mut rng = thread_rng();
 
-            let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
-                let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
-                let compressed_msg = if compress {
-                    signed_msg.compress(CompressionAlgorithm::ZLIB)?
-                } else {
-                    signed_msg
-                };
-                compressed_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+        let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
+            let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
+            let compressed_msg = if compress {
+                signed_msg.compress(CompressionAlgorithm::ZLIB)?
             } else {
-                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+                signed_msg
             };
+            compressed_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+        } else {
+            lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
+        };
 
-            let encoded_msg = encrypted_msg.to_armored_string(Default::default())?;
+        let encoded_msg = encrypted_msg.to_armored_string(Default::default())?;
 
-            Ok(encoded_msg)
-        })
-        .await?
+        Ok(encoded_msg)
+    })
+    .await?
 }
 
 /// Signs `plain` text using `private_key_for_signing`.
@@ -367,7 +366,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let passphrase = passphrase.to_string();
 
-    tokio::task::spawn_blocking(move || {
+    spawn_named_blocking_task!("symm_encrypt", move || {
         let mut rng = thread_rng();
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
@@ -388,7 +387,7 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
 
     let passphrase = passphrase.to_string();
-    tokio::task::spawn_blocking(move || {
+    spawn_named_blocking_task!("symm_decrypt", move || {
         let msg = enc_msg.decrypt_with_password(|| passphrase)?;
 
         match msg.get_content()? {

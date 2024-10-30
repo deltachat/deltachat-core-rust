@@ -427,36 +427,39 @@ impl Config {
 
     #[cfg(not(target_os = "ios"))]
     async fn create_lock_task(dir: PathBuf) -> Result<Option<JoinHandle<anyhow::Result<()>>>> {
+        use crate::spawn_named_task;
+
         let lockfile = dir.join(LOCKFILE_NAME);
         let mut lock = fd_lock::RwLock::new(fs::File::create(lockfile).await?);
         let (locked_tx, locked_rx) = oneshot::channel();
-        let lock_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-            let mut timeout = Duration::from_millis(100);
-            let _guard = loop {
-                match lock.try_write() {
-                    Ok(guard) => break Ok(guard),
-                    Err(err) => {
-                        if timeout.as_millis() > 1600 {
-                            break Err(err);
-                        }
-                        // We need to wait for the previous lock_task to be aborted thus unlocking
-                        // the lockfile. We don't open configs for writing often outside of the
-                        // tests, so this adds delays to the tests, but otherwise ok.
-                        sleep(timeout).await;
-                        if err.kind() == std::io::ErrorKind::WouldBlock {
-                            timeout *= 2;
+        let lock_task: JoinHandle<anyhow::Result<()>> =
+            spawn_named_task!("lock_task", async move {
+                let mut timeout = Duration::from_millis(100);
+                let _guard = loop {
+                    match lock.try_write() {
+                        Ok(guard) => break Ok(guard),
+                        Err(err) => {
+                            if timeout.as_millis() > 1600 {
+                                break Err(err);
+                            }
+                            // We need to wait for the previous lock_task to be aborted thus unlocking
+                            // the lockfile. We don't open configs for writing often outside of the
+                            // tests, so this adds delays to the tests, but otherwise ok.
+                            sleep(timeout).await;
+                            if err.kind() == std::io::ErrorKind::WouldBlock {
+                                timeout *= 2;
+                            }
                         }
                     }
-                }
-            }?;
-            locked_tx
-                .send(())
-                .ok()
-                .context("Cannot notify about lockfile locking")?;
-            let (_tx, rx) = oneshot::channel();
-            rx.await?;
-            Ok(())
-        });
+                }?;
+                locked_tx
+                    .send(())
+                    .ok()
+                    .context("Cannot notify about lockfile locking")?;
+                let (_tx, rx) = oneshot::channel();
+                rx.await?;
+                Ok(())
+            });
         locked_rx.await?;
         Ok(Some(lock_task))
     }

@@ -12,12 +12,10 @@ use deltachat_contact_tools::{sanitize_bidi_characters, sanitize_single_line, Co
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
-use tokio::task;
 
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
 use crate::chatlist::Chatlist;
-use crate::chatlist_events;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
@@ -50,6 +48,7 @@ use crate::tools::{
     truncate_msg_text, IsNoneOrEmpty, SystemTime,
 };
 use crate::webxdc::StatusUpdateSerial;
+use crate::{chatlist_events, spawn_named_task};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -1475,7 +1474,7 @@ impl ChatId {
     /// and otherwise notifying the user accordingly.
     pub(crate) fn spawn_securejoin_wait(self, context: &Context, timeout: u64) {
         let context = context.clone();
-        task::spawn(async move {
+        spawn_named_task!("securejoin_wait", async move {
             tokio::time::sleep(Duration::from_secs(timeout)).await;
             let chat = Chat::load_from_db(&context, self).await?;
             chat.check_securejoin_wait(&context, 0).await?;

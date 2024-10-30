@@ -46,7 +46,7 @@ use crate::message::Message;
 use crate::qr::Qr;
 use crate::stock_str::backup_transfer_msg_body;
 use crate::tools::{create_id, time, TempPathGuard};
-use crate::EventType;
+use crate::{spawn_named_task, EventType};
 
 use super::{export_backup_stream, export_database, import_backup_stream, DBFILE_BACKUP_NAME};
 
@@ -132,7 +132,7 @@ impl BackupProvider {
             let drop_token = drop_token.clone();
             let endpoint = endpoint.clone();
             let auth_token = auth_token.clone();
-            tokio::spawn(async move {
+            spawn_named_task!("accept_loop", async move {
                 Self::accept_loop(
                     context.clone(),
                     endpoint,
