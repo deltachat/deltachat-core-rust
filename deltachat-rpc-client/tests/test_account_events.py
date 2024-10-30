@@ -15,11 +15,10 @@ def test_event_on_configuration(acfactory: ACFactory) -> None:
 
     account = acfactory.new_preconfigured_account()
     account.clear_all_events()
-    future = account.configure.future()
     assert not account.is_configured()
+    future = account.configure.future()
     while True:
         event = account.wait_for_event()
-        print(event)
         if event.kind == EventType.ACCOUNTS_ITEM_CHANGED:
             break
     assert account.is_configured()
