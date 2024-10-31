@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.148.6] - 2024-10-31
+
+### API-Changes
+
+- Add Message::new_text() ([#6123](https://github.com/deltachat/deltachat-core-rust/pull/6123)).
+- Add `MessageSearchResult.chat_id` ([#6120](https://github.com/deltachat/deltachat-core-rust/pull/6120)).
+
+### Features / Changes
+
+- Enable Webxdc realtime by default ([#6125](https://github.com/deltachat/deltachat-core-rust/pull/6125)).
+
+### Fixes
+
+- Save full text to mime_headers for long outgoing messages ([#6091](https://github.com/deltachat/deltachat-core-rust/pull/6091)).
+- Show root SMTP connection failure in connectivity view ([#6121](https://github.com/deltachat/deltachat-core-rust/pull/6121)).
+- Skip IDLE if we got unsolicited FETCH ([#6130](https://github.com/deltachat/deltachat-core-rust/pull/6130)).
+
+### Miscellaneous Tasks
+
+- Silence another rust-analyzer false-positive ([#6124](https://github.com/deltachat/deltachat-core-rust/pull/6124)).
+- cargo: Upgrade iroh to 0.26.0.
+
+### Refactor
+
+- Directly use connectives ([#6128](https://github.com/deltachat/deltachat-core-rust/pull/6128)).
+- Use Message::new_text() more ([#6127](https://github.com/deltachat/deltachat-core-rust/pull/6127)).
+
 ## [1.148.5] - 2024-10-27
 
 ### Fixes
@@ -5165,3 +5192,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.2..v1.148.3
 [1.148.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.3..v1.148.4
 [1.148.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.4..v1.148.5
+[1.148.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.5..v1.148.6
