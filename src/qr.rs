@@ -446,7 +446,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
     if let (Some(addr), Some(invitenumber), Some(authcode)) = (&addr, invitenumber, authcode) {
         let addr = ContactAddress::new(addr)?;
         let (contact_id, _) =
-            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledSecurejoinQrScan)
                 .await
                 .with_context(|| format!("failed to add or lookup contact for address {addr:?}"))?;
 
@@ -1270,7 +1270,8 @@ mod tests {
         if let Qr::AskVerifyContact { contact_id, .. } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "cli@deltachat.de");
-            assert_eq!(contact.get_name(), "Jörn P. P.");
+            assert_eq!(contact.get_authname(), "Jörn P. P.");
+            assert_eq!(contact.get_name(), "");
         } else {
             bail!("Wrong QR code type");
         }
@@ -1285,6 +1286,7 @@ mod tests {
         if let Qr::AskVerifyContact { contact_id, .. } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "cli@deltachat.de");
+            assert_eq!(contact.get_authname(), "");
             assert_eq!(contact.get_name(), "");
         } else {
             bail!("Wrong QR code type");

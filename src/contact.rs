@@ -425,8 +425,11 @@ pub enum Origin {
     /// To: of incoming messages of unknown sender
     IncomingUnknownTo = 0x40,
 
-    /// address scanned but not verified
+    /// Address scanned but not verified.
     UnhandledQrScan = 0x80,
+
+    /// Address scanned from a SecureJoin QR code, but not verified yet.
+    UnhandledSecurejoinQrScan = 0x81,
 
     /// Reply-To: of incoming message of known sender
     /// Contacts with at least this origin value are shown in the contact list.
