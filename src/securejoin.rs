@@ -765,6 +765,7 @@ mod tests {
         WrongAliceGossip,
         SecurejoinWaitTimeout,
         AliceIsBot,
+        AliceHasName,
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -792,10 +793,21 @@ mod tests {
         test_setup_contact_ex(SetupContactCase::AliceIsBot).await
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_setup_contact_alice_has_name() {
+        test_setup_contact_ex(SetupContactCase::AliceHasName).await
+    }
+
     async fn test_setup_contact_ex(case: SetupContactCase) {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let alice_addr = &alice.get_config(Config::Addr).await.unwrap().unwrap();
+        if case == SetupContactCase::AliceHasName {
+            alice
+                .set_config(Config::Displayname, Some("Alice"))
+                .await
+                .unwrap();
+        }
         let bob = tcm.bob().await;
         bob.set_config(Config::Displayname, Some("Bob Examplenet"))
             .await
@@ -840,7 +852,10 @@ mod tests {
             Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
             1
         );
-
+        let contact_alice_id = Contact::lookup_id_by_addr(&bob.ctx, alice_addr, Origin::Unknown)
+            .await
+            .expect("Error looking up contact")
+            .expect("Contact not found");
         let sent = bob.pop_sent_msg().await;
         assert!(!sent.payload.contains("Bob Examplenet"));
         assert_eq!(sent.recipient(), EmailAddress::new(alice_addr).unwrap());
@@ -974,6 +989,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contact_bob.get_authname(), "Bob Examplenet");
+        assert!(contact_bob.get_name().is_empty());
         assert_eq!(contact_bob.is_bot(), false);
 
         // exactly one one-to-one chat should be visible for both now
@@ -1003,14 +1019,13 @@ mod tests {
         }
 
         // Make sure Alice hasn't yet sent their name to Bob.
-        let contact_alice_id = Contact::lookup_id_by_addr(&bob.ctx, alice_addr, Origin::Unknown)
-            .await
-            .expect("Error looking up contact")
-            .expect("Contact not found");
         let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id)
             .await
             .unwrap();
-        assert_eq!(contact_alice.get_authname(), "");
+        match case {
+            SetupContactCase::AliceHasName => assert_eq!(contact_alice.get_authname(), "Alice"),
+            _ => assert_eq!(contact_alice.get_authname(), ""),
+        };
 
         // Check Alice sent the right message to Bob.
         let sent = alice.pop_sent_msg().await;
@@ -1033,6 +1048,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contact_alice.get_authname(), "Alice Exampleorg");
+        assert!(contact_alice.get_name().is_empty());
         assert_eq!(contact_alice.is_bot(), case == SetupContactCase::AliceIsBot);
 
         if case != SetupContactCase::SecurejoinWaitTimeout {
