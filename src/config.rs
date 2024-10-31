@@ -433,6 +433,7 @@ pub enum Config {
     WebxdcIntegration,
 
     /// Enable webxdc realtime features.
+    #[strum(props(default = "1"))]
     WebxdcRealtimeEnabled,
 }
 

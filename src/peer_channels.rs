@@ -590,17 +590,6 @@ mod tests {
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
 
-        bob.ctx
-            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
-            .await
-            .unwrap();
-
-        alice
-            .ctx
-            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
-            .await
-            .unwrap();
-
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
         let mut instance = Message::new(Viewtype::File);
@@ -738,17 +727,6 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
-
-        bob.ctx
-            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
-            .await
-            .unwrap();
-
-        alice
-            .ctx
-            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
-            .await
-            .unwrap();
 
         assert!(alice
             .get_config_bool(Config::WebxdcRealtimeEnabled)
@@ -907,17 +885,6 @@ mod tests {
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
 
-        bob.ctx
-            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
-            .await
-            .unwrap();
-
-        alice
-            .ctx
-            .set_config_bool(Config::WebxdcRealtimeEnabled, true)
-            .await
-            .unwrap();
-
         // Alice sends webxdc to bob
         let alice_chat = alice.create_chat(bob).await;
         let mut instance = Message::new(Viewtype::File);
@@ -985,6 +952,11 @@ mod tests {
     async fn test_peer_channels_disabled() {
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
+
+        alice
+            .set_config_bool(Config::WebxdcRealtimeEnabled, false)
+            .await
+            .unwrap();
 
         // creates iroh endpoint as side effect
         send_webxdc_realtime_advertisement(alice, MsgId::new(1))
