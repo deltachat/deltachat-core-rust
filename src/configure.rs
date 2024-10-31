@@ -19,11 +19,12 @@ use auto_outlook::outlk_autodiscover;
 use deltachat_contact_tools::EmailAddress;
 use futures::FutureExt;
 use futures_lite::FutureExt as _;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::utf8_percent_encode;
 use server_params::{expand_param_vector, ServerParams};
 use tokio::task;
 
 use crate::config::{self, Config};
+use crate::constants::NON_ALPHANUMERIC_WITHOUT_DOT;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::log::LogExt;
@@ -498,7 +499,15 @@ async fn get_autoconfig(
     param: &EnteredLoginParam,
     param_domain: &str,
 ) -> Option<Vec<ServerParams>> {
-    let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
+    // Make sure to not encode `.` as `%2E` here.
+    // Some servers like murena.io on 2024-11-01 produce incorrect autoconfig XML
+    // when address is encoded.
+    // E.g.
+    // <https://autoconfig.murena.io/mail/config-v1.1.xml?emailaddress=foobar%40example%2Eorg>
+    // produced XML file with `<username>foobar@example%2Eorg</username>`
+    // resulting in failure to log in.
+    let param_addr_urlencoded =
+        utf8_percent_encode(&param.addr, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
     if let Ok(res) = moz_autoconfigure(
         ctx,
