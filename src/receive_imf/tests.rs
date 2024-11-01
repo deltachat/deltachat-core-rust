@@ -821,7 +821,6 @@ async fn test_resend_after_ndn() -> Result<()> {
         "To: hcksocnsofoejx@five.chat\n\
         From: alice@testrun.org\n\
         Date: Today, 2 January 2024 00:00:00 -300\n\
-        Subject: hi\n\
         Message-ID: Mr.A7pTA5IgrUA.q4bP41vAJOp@testrun.org\n\
         \n\
         hi"
