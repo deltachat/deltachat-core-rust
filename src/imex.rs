@@ -107,9 +107,6 @@ pub async fn imex(
     } else {
         info!(context, "IMEX successfully completed");
         context.emit_event(EventType::ImexProgress(1000));
-        if what == ImexMode::ImportBackup {
-            context.emit_event(EventType::AccountsItemChanged);
-        }
     }
 
     res
@@ -436,6 +433,7 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
             .log_err(context)
             .ok();
     }
+    context.emit_event(EventType::AccountsItemChanged);
     (res,)
 }
 
