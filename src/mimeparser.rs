@@ -2250,6 +2250,7 @@ async fn handle_ndn(
             .error
             .as_ref()
             .map(|err| format!("{}\n{}", err, err_msg));
+        println!("prev error: {:?}", prev_error);
         set_msg_failed(
             context,
             &mut message,
