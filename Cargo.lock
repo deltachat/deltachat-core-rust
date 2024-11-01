@@ -343,9 +343,9 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "928ea96f04e1260036cb01f82c1e5dc7c3b478e7b9463c87712297784ce3cdc6"
+checksum = "00d1f1a16e5abad3ada9f1f23dbc2f354b138121b90533381be62dada6cbf40a"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
