@@ -61,7 +61,7 @@ hickory-resolver = "=0.25.0-alpha.2"
 http-body-util = "0.1.2"
 humansize = "2"
 hyper = "1"
-hyper-util = "0.1.9"
+hyper-util = "0.1.10"
 image = { version = "0.25.1", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh-gossip = { version = "0.26.0", default-features = false, features = ["net"] }
 iroh-net = { version = "0.26.0", default-features = false }
