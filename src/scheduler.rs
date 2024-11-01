@@ -655,9 +655,7 @@ async fn fetch_idle(
             ctx,
             "IMAP session does not support IDLE, going to fake idle."
         );
-        connection
-            .fake_idle(ctx, &mut session, watch_folder, folder_meaning)
-            .await?;
+        connection.fake_idle(ctx, watch_folder).await?;
         return Ok(session);
     }
 
@@ -669,9 +667,7 @@ async fn fetch_idle(
         .unwrap_or_default()
     {
         info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
-        connection
-            .fake_idle(ctx, &mut session, watch_folder, folder_meaning)
-            .await?;
+        connection.fake_idle(ctx, watch_folder).await?;
         return Ok(session);
     }
 

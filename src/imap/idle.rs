@@ -9,7 +9,6 @@ use tokio::time::timeout;
 use super::session::Session;
 use super::Imap;
 use crate::context::Context;
-use crate::imap::FolderMeaning;
 use crate::net::TIMEOUT;
 use crate::tools::{self, time_elapsed};
 
@@ -109,37 +108,16 @@ impl Imap {
     pub(crate) async fn fake_idle(
         &mut self,
         context: &Context,
-        session: &mut Session,
         watch_folder: String,
-        folder_meaning: FolderMeaning,
     ) -> Result<()> {
         let fake_idle_start_time = tools::Time::now();
 
         info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
-        // Loop until we are interrupted or until we fetch something.
-        loop {
-            match timeout(Duration::from_secs(60), self.idle_interrupt_receiver.recv()).await {
-                Err(_) => {
-                    // Let's see if fetching messages results
-                    // in anything.  If so, we behave as if IDLE had data but
-                    // will have already fetched the messages so perform_*_fetch
-                    // will not find any new.
-                    let res = self
-                        .fetch_new_messages(context, session, &watch_folder, folder_meaning, false)
-                        .await?;
-
-                    info!(context, "fetch_new_messages returned {:?}", res);
-
-                    if res {
-                        break;
-                    }
-                }
-                Ok(_) => {
-                    info!(context, "Fake IDLE interrupted.");
-                    break;
-                }
-            }
+        // Wait for 60 seconds or until we are interrupted.
+        match timeout(Duration::from_secs(60), self.idle_interrupt_receiver.recv()).await {
+            Err(_) => info!(context, "Fake IDLE finished."),
+            Ok(_) => info!(context, "Fake IDLE interrupted."),
         }
 
         info!(
