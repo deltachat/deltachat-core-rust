@@ -2246,15 +2246,14 @@ async fn handle_ndn(
     for msg in msgs {
         let (msg_id, chat_id, chat_type) = msg?;
         let mut message = Message::load_from_db(context, msg_id).await?;
-        let prev_error = message
+        let aggregated_error = message
             .error
             .as_ref()
-            .map(|err| format!("{}\n{}", err, err_msg));
-        println!("prev error: {:?}", prev_error);
+            .map(|err| format!("{}\n\n{}", err, err_msg));
         set_msg_failed(
             context,
             &mut message,
-            prev_error.as_ref().unwrap_or(err_msg),
+            aggregated_error.as_ref().unwrap_or(err_msg),
         )
         .await?;
         if first {
