@@ -79,7 +79,7 @@ percent-encoding = "2.3"
 pgp = { version = "0.13.2", default-features = false }
 pin-project = "1"
 qrcodegen = "1.7.0"
-quick-xml = "0.36"
+quick-xml = "0.37"
 quoted_printable = "0.5"
 rand = { workspace = true }
 regex = { workspace = true }
