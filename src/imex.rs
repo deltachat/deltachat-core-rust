@@ -107,7 +107,9 @@ pub async fn imex(
     } else {
         info!(context, "IMEX successfully completed");
         context.emit_event(EventType::ImexProgress(1000));
-        context.emit_event(EventType::AccountsItemChanged);
+        if what == ImexMode::ImportBackup {
+            context.emit_event(EventType::AccountsItemChanged);
+        }
     }
 
     res
