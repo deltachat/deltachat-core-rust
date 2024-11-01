@@ -25,18 +25,21 @@ async fn test_account_event() -> Result<()> {
     let tracker = EventTracker::new(manager.get_event_emitter());
 
     // create account
+    tracker.clear_events();
     let account_id = manager.add_account().await?;
     tracker
         .get_matching(|evt| matches!(evt, EventType::AccountsChanged))
         .await;
 
     // remove account
+    tracker.clear_events();
     manager.remove_account(account_id).await?;
     tracker
         .get_matching(|evt| matches!(evt, EventType::AccountsChanged))
         .await;
 
     // create closed account
+    tracker.clear_events();
     manager.add_closed_account().await?;
     tracker
         .get_matching(|evt| matches!(evt, EventType::AccountsChanged))
@@ -51,6 +54,7 @@ async fn test_account_event() -> Result<()> {
 async fn test_set_displayname() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let context = tcm.alice().await;
+    context.evtracker.clear_events();
     context
         .set_config(crate::config::Config::Displayname, Some("🐰 Alice"))
         .await?;
@@ -65,6 +69,7 @@ async fn test_set_selfavatar() -> Result<()> {
     let file = context.dir.path().join("avatar.jpg");
     let bytes = include_bytes!("../../test-data/image/avatar1000x1000.jpg");
     tokio::fs::write(&file, bytes).await?;
+    context.evtracker.clear_events();
     context
         .set_config(
             crate::config::Config::Selfavatar,
@@ -79,6 +84,7 @@ async fn test_set_selfavatar() -> Result<()> {
 async fn test_set_private_tag() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let context = tcm.alice().await;
+    context.evtracker.clear_events();
     context
         .set_config(crate::config::Config::PrivateTag, Some("Wonderland"))
         .await?;
@@ -99,6 +105,7 @@ async fn test_import_backup() -> Result<()> {
 
     let context2 = TestContext::new().await;
     assert!(!context2.is_configured().await?);
+    context2.evtracker.clear_events();
     let backup = has_backup(&context2, backup_dir.path()).await?;
     imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None).await?;
     assert!(context2.is_configured().await?);
