@@ -927,7 +927,7 @@ async fn test_concat_multiple_ndns() -> Result<()> {
     receive_imf(&t, raw.as_bytes(), false).await?;
     let msg = Message::load_from_db(&t, msg_id).await?;
 
-    assert_eq!(msg.error(), Some([err.clone(), err].join("\n")));
+    assert_eq!(msg.error(), Some([err.clone(), err].join("\n\n")));
     Ok(())
 }
 
