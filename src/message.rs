@@ -150,16 +150,17 @@ impl MsgId {
 
     pub(crate) async fn set_delivered(self, context: &Context) -> Result<()> {
         update_msg_state(context, self, MessageState::OutDelivered).await?;
-        let chat_id: ChatId = context
+        let chat_id: Option<ChatId> = context
             .sql
             .query_get_value("SELECT chat_id FROM msgs WHERE id=?", (self,))
-            .await?
-            .unwrap_or_default();
+            .await?;
         context.emit_event(EventType::MsgDelivered {
-            chat_id,
+            chat_id: chat_id.unwrap_or_default(),
             msg_id: self,
         });
-        chatlist_events::emit_chatlist_item_changed(context, chat_id);
+        if let Some(chat_id) = chat_id {
+            chatlist_events::emit_chatlist_item_changed(context, chat_id);
+        }
         Ok(())
     }
 
@@ -1850,20 +1851,21 @@ pub(crate) async fn set_msg_failed(
     }
     msg.error = Some(error.to_string());
 
-    context
+    let exists = context
         .sql
         .execute(
             "UPDATE msgs SET state=?, error=? WHERE id=?;",
             (msg.state, error, msg.id),
         )
-        .await?;
-
+        .await?
+        > 0;
     context.emit_event(EventType::MsgFailed {
         chat_id: msg.chat_id,
         msg_id: msg.id,
     });
-    chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
-
+    if exists {
+        chatlist_events::emit_chatlist_item_changed(context, msg.chat_id);
+    }
     Ok(())
 }
 
