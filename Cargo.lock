@@ -6350,9 +6350,9 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
 name = "typescript-type-def"
-version = "0.5.12"
+version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c9a1ec7a0e59e03c7ab74e924abef19d2669aa9255b9821e55854b08453eb71"
+checksum = "233ee5e596f41dbaf8c3e48a60b128eadf89395ee9e45fcedc3281c077c5a014"
 dependencies = [
  "serde_json",
  "typescript-type-def-derive",
@@ -6360,9 +6360,9 @@ dependencies = [
 
 [[package]]
 name = "typescript-type-def-derive"
-version = "0.5.12"
+version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34c1213de2386875250474a109f0985ce83333038c885d2fec4de79d9dfcee8c"
+checksum = "912e6d6fed61bac90cd957093b11b5330d756ad4e7b8f309f71ae04b546a8513"
 dependencies = [
  "darling",
  "ident_case",
