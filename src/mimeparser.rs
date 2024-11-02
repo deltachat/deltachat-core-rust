@@ -2240,12 +2240,22 @@ async fn handle_ndn(
     } else {
         "Delivery to at least one recipient failed.".to_string()
     };
+    let err_msg = &error;
 
     let mut first = true;
     for msg in msgs {
         let (msg_id, chat_id, chat_type) = msg?;
         let mut message = Message::load_from_db(context, msg_id).await?;
-        set_msg_failed(context, &mut message, &error).await?;
+        let aggregated_error = message
+            .error
+            .as_ref()
+            .map(|err| format!("{}\n\n{}", err, err_msg));
+        set_msg_failed(
+            context,
+            &mut message,
+            aggregated_error.as_ref().unwrap_or(err_msg),
+        )
+        .await?;
         if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
