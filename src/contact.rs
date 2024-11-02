@@ -143,6 +143,43 @@ impl ContactId {
             .await?;
         Ok(())
     }
+
+    /// Returns contact adress.
+    pub async fn addr(&self, context: &Context) -> Result<String> {
+        let addr = context
+            .sql
+            .query_row("SELECT addr FROM contacts WHERE id=?", (self,), |row| {
+                let addr: String = row.get(0)?;
+                Ok(addr)
+            })
+            .await?;
+        Ok(addr)
+    }
+
+    /// Resets encryption with the contact.
+    ///
+    /// Effect is similar to receiving a message without Autocrypt header
+    /// from the contact, but this action is triggered manually by the user.
+    ///
+    /// For example, this will result in sending the next message
+    /// to 1:1 chat unencrypted, but will not remove existing verified keys.
+    pub async fn reset_encryption(self, context: &Context) -> Result<()> {
+        let now = time();
+
+        let addr = self.addr(context).await?;
+        if let Some(mut peerstate) = Peerstate::from_addr(context, &addr).await? {
+            peerstate.degrade_encryption(now);
+            peerstate.save_to_db(&context.sql).await?;
+        }
+
+        // Reset 1:1 chat protection.
+        if let Some(chat_id) = ChatId::lookup_by_contact(context, self).await? {
+            chat_id
+                .set_protection(context, ProtectionStatus::Unprotected, now, Some(self))
+                .await?;
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Display for ContactId {
@@ -3149,6 +3186,61 @@ Until the false-positive is fixed:
         let sent_msg = alice.send_text(chat_id, "moin").await;
         let msg = bob.recv_msg(&sent_msg).await;
         assert!(msg.get_showpadlock());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reset_encryption() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let msg = tcm.send_recv_accept(alice, bob, "Hello!").await;
+        assert_eq!(msg.get_showpadlock(), false);
+
+        let msg = tcm.send_recv(bob, alice, "Hi!").await;
+        assert_eq!(msg.get_showpadlock(), true);
+        let alice_bob_contact_id = msg.from_id;
+
+        alice_bob_contact_id.reset_encryption(alice).await?;
+
+        let msg = tcm.send_recv(alice, bob, "Unencrypted").await;
+        assert_eq!(msg.get_showpadlock(), false);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reset_verified_encryption() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        tcm.execute_securejoin(bob, alice).await;
+
+        let msg = tcm.send_recv(bob, alice, "Encrypted").await;
+        assert_eq!(msg.get_showpadlock(), true);
+
+        let alice_bob_chat_id = msg.chat_id;
+        let alice_bob_contact_id = msg.from_id;
+        alice_bob_contact_id.reset_encryption(alice).await?;
+
+        // Check that the contact is still verified after resetting encryption.
+        let alice_bob_contact = Contact::get_by_id(alice, alice_bob_contact_id).await?;
+        assert_eq!(alice_bob_contact.is_verified(alice).await?, true);
+
+        // 1:1 chat and profile is no longer verified.
+        assert_eq!(alice_bob_contact.is_profile_verified(alice).await?, false);
+
+        let info_msg = alice.get_last_msg_in(alice_bob_chat_id).await;
+        assert_eq!(
+            info_msg.text,
+            "bob@example.net sent a message from another device."
+        );
+
+        let msg = tcm.send_recv(alice, bob, "Unencrypted").await;
+        assert_eq!(msg.get_showpadlock(), false);
 
         Ok(())
     }
