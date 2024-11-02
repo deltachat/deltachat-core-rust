@@ -83,7 +83,7 @@ export const DEFAULT_OPTS: Opts = {
   url: "ws://localhost:20808/ws",
   startEventLoop: true,
 };
-export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
+export class WebsocketDeltaChat extends BaseDeltaChat<WebsocketTransport> {
   opts: Opts;
   close() {
     this.transport.close();

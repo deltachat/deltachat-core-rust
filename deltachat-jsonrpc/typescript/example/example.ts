@@ -1,4 +1,4 @@
-import { DcEvent, DeltaChat } from "../deltachat.js";
+import { DcEvent, WebsocketDeltaChat as DeltaChat } from "../deltachat.js";
 
 var SELECTED_ACCOUNT = 0;
 
