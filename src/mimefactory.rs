@@ -743,8 +743,6 @@ impl MimeFactory {
                 hidden_headers.push(header);
             } else if header_name == "chat-user-avatar" {
                 hidden_headers.push(header);
-            } else if header_name == "autocrypt" {
-                unprotected_headers.push(header.clone());
             } else if header_name == "from" {
                 // Unencrypted securejoin messages should _not_ include the display name:
                 if is_encrypted || !is_securejoin_message {
