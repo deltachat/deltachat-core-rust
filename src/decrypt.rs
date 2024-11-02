@@ -31,11 +31,11 @@ pub fn try_decrypt(
         return Ok(None);
     };
 
-    decrypt_part(
-        encrypted_data_part,
-        private_keyring,
-        public_keyring_for_validate,
-    )
+    let data = encrypted_data_part.get_body_raw()?;
+
+    let (plain, ret_valid_signatures) =
+        pgp::pk_decrypt(data, private_keyring, public_keyring_for_validate)?;
+    Ok(Some((plain, ret_valid_signatures)))
 }
 
 pub(crate) async fn prepare_decryption(
@@ -204,37 +204,6 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail
     }
 }
 
-/// Returns Ok(None) if nothing encrypted was found.
-fn decrypt_part(
-    mail: &ParsedMail<'_>,
-    private_keyring: &[SignedSecretKey],
-    public_keyring_for_validate: &[SignedPublicKey],
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
-    let data = mail.get_body_raw()?;
-
-    if has_decrypted_pgp_armor(&data) {
-        let (plain, ret_valid_signatures) =
-            pgp::pk_decrypt(data, private_keyring, public_keyring_for_validate)?;
-        return Ok(Some((plain, ret_valid_signatures)));
-    }
-
-    Ok(None)
-}
-
-#[allow(clippy::indexing_slicing)]
-fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
-    if let Some(index) = input.iter().position(|b| *b > b' ') {
-        if input.len() - index > 26 {
-            let start = index;
-            let end = start + 27;
-
-            return &input[start..end] == b"-----BEGIN PGP MESSAGE-----";
-        }
-    }
-
-    false
-}
-
 /// Validates signatures of Multipart/Signed message part, as defined in RFC 1847.
 ///
 /// Returns the signed part and the set of key
@@ -345,24 +314,6 @@ mod tests {
     use super::*;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
-
-    #[test]
-    fn test_has_decrypted_pgp_armor() {
-        let data = b" -----BEGIN PGP MESSAGE-----";
-        assert_eq!(has_decrypted_pgp_armor(data), true);
-
-        let data = b"    \n-----BEGIN PGP MESSAGE-----";
-        assert_eq!(has_decrypted_pgp_armor(data), true);
-
-        let data = b"    -----BEGIN PGP MESSAGE---";
-        assert_eq!(has_decrypted_pgp_armor(data), false);
-
-        let data = b" -----BEGIN PGP MESSAGE-----";
-        assert_eq!(has_decrypted_pgp_armor(data), true);
-
-        let data = b"blas";
-        assert_eq!(has_decrypted_pgp_armor(data), false);
-    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mixed_up_mime() -> Result<()> {
