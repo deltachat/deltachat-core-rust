@@ -1807,6 +1807,14 @@ async fn lookup_chat_by_reply(
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
     if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
+        // If the parent chat is a 1:1 chat, then the message should go to the 1:1 chat.
+        if to_ids.len() == 1 {
+            let name = chat::get_other_chat_contacts(context, parent_chat_id).await?[0];
+            if from_id != *name {
+                mime_parser.set_override_sender_name(Some(name.get_stock_name(context).await));
+            }
+            return Ok(Some((parent_chat.id, parent_chat.blocked)));
+        }
         return Ok(None);
     }
 
