@@ -3481,29 +3481,6 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
     Ok(list)
 }
 
-/// Returns a vector of contact IDs for given chat ID where the contact is not SELF.
-pub async fn get_other_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<ContactId>> {
-    // Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
-    // groupchat but the chats stays visible, moreover, this makes displaying lists easier)
-
-    let list = context
-        .sql
-        .query_map(
-            "SELECT cc.contact_id
-               FROM chats_contacts cc
-               LEFT JOIN contacts c
-                      ON c.id=cc.contact_id
-              WHERE cc.chat_id=? AND c.id!=1
-              ORDER BY c.id=1, c.last_seen DESC, c.id DESC;",
-            (chat_id,),
-            |row| row.get::<_, ContactId>(0),
-            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-        )
-        .await?;
-
-    Ok(list)
-}
-
 /// Creates a group chat with a given `name`.
 pub async fn create_group_chat(
     context: &Context,
