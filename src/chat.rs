@@ -4711,6 +4711,7 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat;
     use crate::chatlist::get_archived_cnt;
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::headerdef::HeaderDef;
@@ -7693,6 +7694,63 @@ mod tests {
             in_reply_to,
             format!("<{}>", bob_received_message.rfc724_mid)
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reply_with_alias() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // Alice sends a message to Bob
+        let alice_bob_chat = alice.create_chat(&bob).await;
+        let alice_msg = alice.send_text(alice_bob_chat.id, "Hello Bob!").await;
+        let msg = alice_msg.load_from_db().await;
+        bob.recv_msg(&alice_msg).await;
+
+        // Bob replies using an alias email address
+        let alias_email = "bob.alias@example.org";
+        let reply_imf = format!(
+            "From: Bob Alias <{}>\r\n\
+            To: {}\r\n\
+            In-Reply-To: <{}>\r\n\
+            Message-ID: <reply1@alias.example.org>\r\n\
+            \r\n\
+            Hi Alice, this is Bob's alias.",
+            alias_email,
+            alice.get_primary_self_addr().await?,
+            msg.rfc724_mid
+        );
+
+        // Alice receives the raw message
+        let received = receive_imf(&alice, reply_imf.as_bytes(), false)
+            .await?
+            .unwrap();
+
+        // The message should appear in the existing 1:1 chat between Alice and Bob
+        assert_eq!(received.chat_id, alice_bob_chat.id);
+
+        let msg = Message::load_from_db(&alice, received.msg_ids[0]).await?;
+        assert_eq!(msg.text, "Hi Alice, this is Bob's alias.");
+
+        // Alias is displayed in chat
+        assert_eq!(
+            msg.param.get(Param::OverrideSenderDisplayname).unwrap(),
+            "Bob Alias"
+        );
+
+        // Chat remains 1:1
+        let contacts = chat::get_chat_contacts(&alice, alice_bob_chat.id)
+            .await
+            .unwrap();
+        assert_eq!(contacts, vec![ContactId::new(10)]);
+
+        // Following messages still go to 1:1 chat
+        let sent = alice.send_text(alice_bob_chat.id, "Hello again!").await;
+        let msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert_eq!(msg.chat_id, alice_bob_chat.id);
 
         Ok(())
     }

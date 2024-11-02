@@ -842,6 +842,7 @@ async fn add_parts(
             }
         }
 
+        // Lookup or create adhoc group chat.
         if chat_id.is_none() {
             if let Some((new_chat_id, new_chat_id_blocked)) = lookup_chat_or_create_adhoc_group(
                 context,
@@ -966,52 +967,55 @@ async fn add_parts(
                         );
                     }
                 }
+            }
+        }
 
-                // Check if the message was sent with verified encryption and set the protection of
-                // the 1:1 chat accordingly.
-                let chat = match is_partial_download.is_none()
-                    && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
-                    && !is_mdn
-                {
-                    true => Some(Chat::load_from_db(context, chat_id).await?)
-                        .filter(|chat| chat.typ == Chattype::Single),
-                    false => None,
+        if let Some(chat_id) = chat_id {
+            let contact = Contact::get_by_id(context, from_id).await?;
+            // Check if the message was sent with verified encryption and set the protection of
+            // the 1:1 chat accordingly.
+            let chat = match is_partial_download.is_none()
+                && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+                && !is_mdn
+            {
+                true => Some(Chat::load_from_db(context, chat_id).await?)
+                    .filter(|chat| chat.typ == Chattype::Single),
+                false => None,
+            };
+            if let Some(chat) = chat {
+                debug_assert!(chat.typ == Chattype::Single);
+                let mut new_protection = match verified_encryption {
+                    VerifiedEncryption::Verified => ProtectionStatus::Protected,
+                    VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
                 };
-                if let Some(chat) = chat {
-                    debug_assert!(chat.typ == Chattype::Single);
-                    let mut new_protection = match verified_encryption {
-                        VerifiedEncryption::Verified => ProtectionStatus::Protected,
-                        VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
-                    };
 
-                    if chat.protected != ProtectionStatus::Unprotected
-                        && new_protection == ProtectionStatus::Unprotected
-                        // `chat.protected` must be maintained regardless of the `Config::VerifiedOneOnOneChats`.
-                        // That's why the config is checked here, and not above.
-                        && context.get_config_bool(Config::VerifiedOneOnOneChats).await?
-                    {
-                        new_protection = ProtectionStatus::ProtectionBroken;
-                    }
-                    if chat.protected != new_protection {
-                        // The message itself will be sorted under the device message since the device
-                        // message is `MessageState::InNoticed`, which means that all following
-                        // messages are sorted under it.
-                        chat_id
-                            .set_protection(
-                                context,
-                                new_protection,
-                                mime_parser.timestamp_sent,
-                                Some(from_id),
-                            )
-                            .await?;
-                    }
-                    if let Some(peerstate) = &mime_parser.peerstate {
-                        restore_protection = new_protection != ProtectionStatus::Protected
-                            && peerstate.prefer_encrypt == EncryptPreference::Mutual
-                            // Check that the contact still has the Autocrypt key same as the
-                            // verified key, see also `Peerstate::is_using_verified_key()`.
-                            && contact.is_verified(context).await?;
-                    }
+                if chat.protected != ProtectionStatus::Unprotected
+                    && new_protection == ProtectionStatus::Unprotected
+                    // `chat.protected` must be maintained regardless of the `Config::VerifiedOneOnOneChats`.
+                    // That's why the config is checked here, and not above.
+                    && context.get_config_bool(Config::VerifiedOneOnOneChats).await?
+                {
+                    new_protection = ProtectionStatus::ProtectionBroken;
+                }
+                if chat.protected != new_protection {
+                    // The message itself will be sorted under the device message since the device
+                    // message is `MessageState::InNoticed`, which means that all following
+                    // messages are sorted under it.
+                    chat_id
+                        .set_protection(
+                            context,
+                            new_protection,
+                            mime_parser.timestamp_sent,
+                            Some(from_id),
+                        )
+                        .await?;
+                }
+                if let Some(peerstate) = &mime_parser.peerstate {
+                    restore_protection = new_protection != ProtectionStatus::Protected
+                        && peerstate.prefer_encrypt == EncryptPreference::Mutual
+                        // Check that the contact still has the Autocrypt key same as the
+                        // verified key, see also `Peerstate::is_using_verified_key()`.
+                        && contact.is_verified(context).await?;
                 }
             }
         }
@@ -1805,7 +1809,13 @@ async fn lookup_chat_by_reply(
 
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
-    if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
+    if parent_chat.get_type() != Chattype::Single
+        && is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await?
+    {
+        return Ok(None);
+    }
+
+    if parent_chat.is_protected() || mime_parser.decrypting_failed {
         return Ok(None);
     }
 
