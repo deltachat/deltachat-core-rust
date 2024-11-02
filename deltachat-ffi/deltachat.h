@@ -506,6 +506,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    to not mess up with non-delivery-reports or read-receipts.
  *                    0=no limit (default).
  *                    Changes affect future messages only.
+ * - `protect_autocrypt` = Enable Header Protection for Autocrypt header.
+ *                    This is an experimental option not compatible to other MUAs
+ *                    and older Delta Chat versions.
+ *                    1 = enable.
+ *                    0 = disable (default).
  * - `gossip_period` = How often to gossip Autocrypt keys in chats with multiple recipients, in
  *                    seconds. 2 days by default.
  *                    This is not supposed to be changed by UIs and only used for testing.

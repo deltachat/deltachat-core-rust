@@ -4,6 +4,7 @@ use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::str;
+use std::str::FromStr;
 
 use anyhow::{bail, Context as _, Result};
 use deltachat_contact_tools::{addr_cmp, addr_normalize, sanitize_bidi_characters};
@@ -14,6 +15,7 @@ use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, Si
 use rand::distributions::{Alphanumeric, DistString};
 
 use crate::aheader::{Aheader, EncryptPreference};
+use crate::authres::handle_authres;
 use crate::blob::BlobObject;
 use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
@@ -21,8 +23,8 @@ use crate::constants::{self, Chattype};
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
-    keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
-    DecryptionInfo,
+    get_autocrypt_peerstate, get_encrypted_mime, keyring_from_peerstate, try_decrypt,
+    validate_detached_signature,
 };
 use crate::dehtml::dehtml;
 use crate::events::EventType;
@@ -71,7 +73,8 @@ pub(crate) struct MimeMessage {
     /// messages to this address to post them to the list.
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
-    pub decryption_info: DecryptionInfo,
+    pub autocrypt_header: Option<Aheader>,
+    pub peerstate: Option<Peerstate>,
     pub decrypting_failed: bool,
 
     /// Set of valid signature fingerprints if a message is an
@@ -301,42 +304,101 @@ impl MimeMessage {
         let mut from = from.context("No from in message")?;
         let private_keyring = load_self_secret_keyring(context).await?;
 
-        let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, timestamp_sent).await?;
+        let allow_aeap = get_encrypted_mime(&mail).is_some();
 
-        // Memory location for a possible decrypted message.
-        let mut mail_raw = Vec::new();
+        let dkim_results = handle_authres(context, &mail, &from.addr).await?;
+
         let mut gossiped_keys = Default::default();
         let mut from_is_signed = false;
         hop_info += "\n\n";
-        hop_info += &decryption_info.dkim_results.to_string();
+        hop_info += &dkim_results.to_string();
 
         let incoming = !context.is_self_addr(&from.addr).await?;
-        let public_keyring = match decryption_info.peerstate.is_none() && !incoming {
-            true => key::load_self_public_keyring(context).await?,
-            false => keyring_from_peerstate(decryption_info.peerstate.as_ref()),
-        };
-        let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
-            try_decrypt(&mail, &private_keyring, &public_keyring)
-        }) {
-            Ok(Some((raw, signatures))) => {
-                mail_raw = raw;
-                let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-                if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                    info!(
-                        context,
-                        "decrypted message mime-body:\n{}",
-                        String::from_utf8_lossy(&mail_raw),
-                    );
+
+        let mut aheader_value: Option<String> = mail.headers.get_header_value(HeaderDef::Autocrypt);
+
+        let mail_raw; // Memory location for a possible decrypted message.
+        let decrypted_msg; // Decrypted signed OpenPGP message.
+
+        let (mail, encrypted) =
+            match tokio::task::block_in_place(|| try_decrypt(&mail, &private_keyring)) {
+                Ok(Some(msg)) => {
+                    mail_raw = msg.get_content()?.unwrap_or_default();
+
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                        info!(
+                            context,
+                            "decrypted message mime-body:\n{}",
+                            String::from_utf8_lossy(&mail_raw),
+                        );
+                    }
+
+                    decrypted_msg = Some(msg);
+                    if let Some(protected_aheader_value) = decrypted_mail
+                        .headers
+                        .get_header_value(HeaderDef::Autocrypt)
+                    {
+                        aheader_value = Some(protected_aheader_value);
+                    }
+
+                    (Ok(decrypted_mail), true)
                 }
-                (Ok(decrypted_mail), signatures, true)
+                Ok(None) => {
+                    mail_raw = Vec::new();
+                    decrypted_msg = None;
+                    (Ok(mail), false)
+                }
+                Err(err) => {
+                    mail_raw = Vec::new();
+                    decrypted_msg = None;
+                    warn!(context, "decryption failed: {:#}", err);
+                    (Err(err), false)
+                }
+            };
+
+        let autocrypt_header = if !incoming {
+            None
+        } else if let Some(aheader_value) = aheader_value {
+            match Aheader::from_str(&aheader_value) {
+                Ok(header) if addr_cmp(&header.addr, &from.addr) => Some(header),
+                Ok(header) => {
+                    warn!(
+                        context,
+                        "Autocrypt header address {:?} is not {:?}.", header.addr, from.addr
+                    );
+                    None
+                }
+                Err(err) => {
+                    warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
+                    None
+                }
             }
-            Ok(None) => (Ok(mail), HashSet::new(), false),
-            Err(err) => {
-                warn!(context, "decryption failed: {:#}", err);
-                (Err(err), HashSet::new(), false)
-            }
+        } else {
+            None
         };
+
+        // The peerstate that will be used to validate the signatures.
+        let mut peerstate = get_autocrypt_peerstate(
+            context,
+            &from.addr,
+            autocrypt_header.as_ref(),
+            timestamp_sent,
+            allow_aeap,
+        )
+        .await?;
+
+        let public_keyring = match peerstate.is_none() && !incoming {
+            true => key::load_self_public_keyring(context).await?,
+            false => keyring_from_peerstate(peerstate.as_ref()),
+        };
+
+        let mut signatures = if let Some(ref decrypted_msg) = decrypted_msg {
+            crate::pgp::valid_signature_fingerprints(decrypted_msg, &public_keyring)?
+        } else {
+            HashSet::new()
+        };
+
         let mail = mail.as_ref().map(|mail| {
             let (content, signatures_detached) = validate_detached_signature(mail, &public_keyring)
                 .unwrap_or((mail, Default::default()));
@@ -422,7 +484,7 @@ impl MimeMessage {
             Self::remove_secured_headers(&mut headers);
 
             // If it is not a read receipt, degrade encryption.
-            if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
+            if let (Some(peerstate), Ok(mail)) = (&mut peerstate, mail) {
                 if timestamp_sent > peerstate.last_seen_autocrypt
                     && mail.ctype.mimetype != "multipart/report"
                 {
@@ -433,7 +495,7 @@ impl MimeMessage {
         if !encrypted {
             signatures.clear();
         }
-        if let Some(peerstate) = &mut decryption_info.peerstate {
+        if let Some(peerstate) = &mut peerstate {
             if peerstate.prefer_encrypt != EncryptPreference::Mutual && !signatures.is_empty() {
                 peerstate.prefer_encrypt = EncryptPreference::Mutual;
                 peerstate.save_to_db(&context.sql).await?;
@@ -449,7 +511,8 @@ impl MimeMessage {
             from_is_signed,
             incoming,
             chat_disposition_notification_to,
-            decryption_info,
+            autocrypt_header,
+            peerstate,
             decrypting_failed: mail.is_err(),
 
             // only non-empty if it was a valid autocrypt message
@@ -1231,7 +1294,7 @@ impl MimeMessage {
         if decoded_data.is_empty() {
             return Ok(());
         }
-        if let Some(peerstate) = &mut self.decryption_info.peerstate {
+        if let Some(peerstate) = &mut self.peerstate {
             if peerstate.prefer_encrypt != EncryptPreference::Mutual
                 && mime_type.type_() == mime::APPLICATION
                 && mime_type.subtype().as_str() == "pgp-keys"
@@ -4012,12 +4075,8 @@ Content-Disposition: reaction\n\
 
         // We do allow the time to be in the future a bit (because of unsynchronized clocks),
         // but only 60 seconds:
-        assert!(mime_message.decryption_info.message_time <= time() + 60);
-        assert!(mime_message.decryption_info.message_time >= beginning_time + 60);
-        assert_eq!(
-            mime_message.decryption_info.message_time,
-            mime_message.timestamp_sent
-        );
+        assert!(mime_message.timestamp_sent <= time() + 60);
+        assert!(mime_message.timestamp_sent >= beginning_time + 60);
         assert!(mime_message.timestamp_rcvd <= time());
 
         Ok(())
@@ -4087,5 +4146,25 @@ Content-Type: text/plain; charset=utf-8
             mimeparser.get_header(HeaderDef::From_).unwrap(),
             "alice@example.org"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_protect_autocrypt() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        alice
+            .set_config_bool(Config::ProtectAutocrypt, true)
+            .await?;
+        bob.set_config_bool(Config::ProtectAutocrypt, true).await?;
+
+        let msg = tcm.send_recv_accept(alice, bob, "Hello!").await;
+        assert_eq!(msg.get_showpadlock(), false);
+
+        let msg = tcm.send_recv(bob, alice, "Hi!").await;
+        assert_eq!(msg.get_showpadlock(), true);
+
+        Ok(())
     }
 }
