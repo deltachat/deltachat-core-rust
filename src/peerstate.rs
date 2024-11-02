@@ -766,8 +766,7 @@ pub(crate) async fn maybe_do_aeap_transition(
     context: &Context,
     mime_parser: &mut crate::mimeparser::MimeMessage,
 ) -> Result<()> {
-    let info = &mime_parser.decryption_info;
-    let Some(peerstate) = &info.peerstate else {
+    let Some(peerstate) = &mime_parser.peerstate else {
         return Ok(());
     };
 
@@ -815,13 +814,13 @@ pub(crate) async fn maybe_do_aeap_transition(
 
         // DC avoids sending messages with the same timestamp, that's why messages
         // with equal timestamps are ignored here unlike in `Peerstate::apply_header()`.
-        if info.message_time <= peerstate.last_seen {
+        if mime_parser.timestamp_sent <= peerstate.last_seen {
             info!(
                 context,
                 "Not doing AEAP from {} to {} because {} < {}.",
                 &peerstate.addr,
                 &mime_parser.from.addr,
-                info.message_time,
+                mime_parser.timestamp_sent,
                 peerstate.last_seen
             );
             return Ok(());
@@ -832,24 +831,23 @@ pub(crate) async fn maybe_do_aeap_transition(
             "Doing AEAP transition from {} to {}.", &peerstate.addr, &mime_parser.from.addr
         );
 
-        let info = &mut mime_parser.decryption_info;
-        let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
+        let peerstate = mime_parser.peerstate.as_mut().context("no peerstate??")?;
         // Add info messages to chats with this (verified) contact
         //
         peerstate
             .handle_setup_change(
                 context,
-                info.message_time,
-                PeerstateChange::Aeap(info.from.clone()),
+                mime_parser.timestamp_sent,
+                PeerstateChange::Aeap(mime_parser.from.addr.clone()),
             )
             .await?;
 
         let old_addr = mem::take(&mut peerstate.addr);
-        peerstate.addr.clone_from(&info.from);
-        let header = info.autocrypt_header.as_ref().context(
+        peerstate.addr.clone_from(&mime_parser.from.addr);
+        let header = mime_parser.autocrypt_header.as_ref().context(
             "Internal error: Tried to do an AEAP transition without an autocrypt header??",
         )?;
-        peerstate.apply_header(context, header, info.message_time);
+        peerstate.apply_header(context, header, mime_parser.timestamp_sent);
 
         peerstate
             .save_to_db_ex(&context.sql, Some(&old_addr))

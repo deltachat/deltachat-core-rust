@@ -1,125 +1,36 @@
 //! End-to-end decryption support.
 
 use std::collections::HashSet;
-use std::str::FromStr;
 
 use anyhow::Result;
 use deltachat_contact_tools::addr_cmp;
 use mailparse::ParsedMail;
 
 use crate::aheader::Aheader;
-use crate::authres::handle_authres;
-use crate::authres::{self, DkimResults};
 use crate::context::Context;
-use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
 /// Tries to decrypt a message, but only if it is structured as an Autocrypt message.
 ///
-/// If successful and the message is encrypted, returns decrypted body and a set of valid
-/// signature fingerprints.
-///
-/// If the message is wrongly signed, HashSet will be empty.
+/// If successful and the message is encrypted, returns decrypted body.
 pub fn try_decrypt(
     mail: &ParsedMail<'_>,
     private_keyring: &[SignedSecretKey],
-    public_keyring_for_validate: &[SignedPublicKey],
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+) -> Result<Option<::pgp::composed::Message>> {
     let Some(encrypted_data_part) = get_encrypted_mime(mail) else {
         return Ok(None);
     };
 
     let data = encrypted_data_part.get_body_raw()?;
+    let msg = pgp::pk_decrypt(data, private_keyring)?;
 
-    let (plain, ret_valid_signatures) =
-        pgp::pk_decrypt(data, private_keyring, public_keyring_for_validate)?;
-    Ok(Some((plain, ret_valid_signatures)))
-}
-
-pub(crate) async fn prepare_decryption(
-    context: &Context,
-    mail: &ParsedMail<'_>,
-    from: &str,
-    message_time: i64,
-) -> Result<DecryptionInfo> {
-    if mail.headers.get_header(HeaderDef::ListPost).is_some() {
-        if mail.headers.get_header(HeaderDef::Autocrypt).is_some() {
-            info!(
-                context,
-                "Ignoring autocrypt header since this is a mailing list message. \
-                NOTE: For privacy reasons, the mailing list software should remove Autocrypt headers."
-            );
-        }
-        return Ok(DecryptionInfo {
-            from: from.to_string(),
-            autocrypt_header: None,
-            peerstate: None,
-            message_time,
-            dkim_results: DkimResults { dkim_passed: false },
-        });
-    }
-
-    let autocrypt_header = if context.is_self_addr(from).await? {
-        None
-    } else if let Some(aheader_value) = mail.headers.get_header_value(HeaderDef::Autocrypt) {
-        match Aheader::from_str(&aheader_value) {
-            Ok(header) if addr_cmp(&header.addr, from) => Some(header),
-            Ok(header) => {
-                warn!(
-                    context,
-                    "Autocrypt header address {:?} is not {:?}.", header.addr, from
-                );
-                None
-            }
-            Err(err) => {
-                warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    let dkim_results = handle_authres(context, mail, from).await?;
-    let allow_aeap = get_encrypted_mime(mail).is_some();
-    let peerstate = get_autocrypt_peerstate(
-        context,
-        from,
-        autocrypt_header.as_ref(),
-        message_time,
-        allow_aeap,
-    )
-    .await?;
-
-    Ok(DecryptionInfo {
-        from: from.to_string(),
-        autocrypt_header,
-        peerstate,
-        message_time,
-        dkim_results,
-    })
-}
-
-#[derive(Debug)]
-pub struct DecryptionInfo {
-    /// The From address. This is the address from the unnencrypted, outer
-    /// From header.
-    pub from: String,
-    pub autocrypt_header: Option<Aheader>,
-    /// The peerstate that will be used to validate the signatures
-    pub peerstate: Option<Peerstate>,
-    /// The timestamp when the message was sent.
-    /// If this is older than the peerstate's last_seen, this probably
-    /// means out-of-order message arrival, We don't modify the
-    /// peerstate in this case.
-    pub message_time: i64,
-    pub(crate) dkim_results: authres::DkimResults,
+    Ok(Some(msg))
 }
 
 /// Returns a reference to the encrypted payload of a message.
-fn get_encrypted_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail<'b>> {
+pub(crate) fn get_encrypted_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail<'b>> {
     get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
         .or_else(|| get_attachment_mime(mail))

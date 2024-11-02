@@ -201,7 +201,7 @@ pub(crate) async fn receive_imf_inner(
     };
 
     crate::peerstate::maybe_do_aeap_transition(context, &mut mime_parser).await?;
-    if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+    if let Some(peerstate) = &mime_parser.peerstate {
         peerstate
             .handle_fingerprint_change(context, mime_parser.timestamp_sent)
             .await?;
@@ -356,8 +356,7 @@ pub(crate) async fn receive_imf_inner(
 
             // Peerstate could be updated by handling the Securejoin handshake.
             let contact = Contact::get_by_id(context, from_id).await?;
-            mime_parser.decryption_info.peerstate =
-                Peerstate::from_addr(context, contact.get_addr()).await?;
+            mime_parser.peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
         } else {
             let to_id = to_ids.first().copied().unwrap_or_default();
             // handshake may mark contacts as verified and must be processed before chats are created
@@ -393,7 +392,7 @@ pub(crate) async fn receive_imf_inner(
     if verified_encryption == VerifiedEncryption::Verified
         && mime_parser.get_header(HeaderDef::ChatVerified).is_some()
     {
-        if let Some(peerstate) = &mut mime_parser.decryption_info.peerstate {
+        if let Some(peerstate) = &mut mime_parser.peerstate {
             // NOTE: it might be better to remember ID of the key
             // that we used to decrypt the message, but
             // it is unlikely that default key ever changes
@@ -1006,7 +1005,7 @@ async fn add_parts(
                             )
                             .await?;
                     }
-                    if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+                    if let Some(peerstate) = &mime_parser.peerstate {
                         restore_protection = new_protection != ProtectionStatus::Protected
                             && peerstate.prefer_encrypt == EncryptPreference::Mutual
                             // Check that the contact still has the Autocrypt key same as the
@@ -2662,7 +2661,7 @@ async fn update_verified_keys(
         return Ok(None);
     }
 
-    let Some(peerstate) = &mut mimeparser.decryption_info.peerstate else {
+    let Some(peerstate) = &mut mimeparser.peerstate else {
         // No peerstate means no verified keys.
         return Ok(None);
     };
@@ -2735,7 +2734,7 @@ async fn has_verified_encryption(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
-        let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
+        let Some(peerstate) = &mimeparser.peerstate else {
             return Ok(NotVerified(
                 "No peerstate, the contact isn't verified".to_string(),
             ));

@@ -297,34 +297,34 @@ pub fn pk_calc_signature(
 ///
 /// Receiver private keys are provided in
 /// `private_keys_for_decryption`.
-///
-/// Returns decrypted message and fingerprints
-/// of all keys from the `public_keys_for_validation` keyring that
-/// have valid signatures there.
-#[allow(clippy::implicit_hasher)]
 pub fn pk_decrypt(
     ctext: Vec<u8>,
     private_keys_for_decryption: &[SignedSecretKey],
-    public_keys_for_validation: &[SignedPublicKey],
-) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
-    let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
-
+) -> Result<pgp::composed::Message> {
     let cursor = Cursor::new(ctext);
-    let (msg, _) = Message::from_armor_single(cursor)?;
+    let (msg, _headers) = Message::from_armor_single(cursor)?;
 
     let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.iter().collect();
 
-    let (msg, _) = msg.decrypt(|| "".into(), &skeys[..])?;
+    let (msg, _key_ids) = msg.decrypt(|| "".into(), &skeys[..])?;
 
     // get_content() will decompress the message if needed,
     // but this avoids decompressing it again to check signatures
     let msg = msg.decompress()?;
 
-    let content = match msg.get_content()? {
-        Some(content) => content,
-        None => bail!("The decrypted message is empty"),
-    };
+    Ok(msg)
+}
 
+/// Returns fingerprints
+/// of all keys from the `public_keys_for_validation` keyring that
+/// have valid signatures there.
+///
+/// If the message is wrongly signed, HashSet will be empty.
+pub fn valid_signature_fingerprints(
+    msg: &pgp::composed::Message,
+    public_keys_for_validation: &[SignedPublicKey],
+) -> Result<HashSet<Fingerprint>> {
+    let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
     if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
         for pkey in public_keys_for_validation {
             if signed_msg.verify(&pkey.primary_key).is_ok() {
@@ -333,7 +333,7 @@ pub fn pk_decrypt(
             }
         }
     }
-    Ok((content, ret_signature_fingerprints))
+    Ok(ret_signature_fingerprints)
 }
 
 /// Validates detached signature.
@@ -406,6 +406,18 @@ mod tests {
 
     use super::*;
     use crate::test_utils::{alice_keypair, bob_keypair};
+
+    fn pk_decrypt_and_validate(
+        ctext: Vec<u8>,
+        private_keys_for_decryption: &[SignedSecretKey],
+        public_keys_for_validation: &[SignedPublicKey],
+    ) -> Result<(pgp::composed::Message, HashSet<Fingerprint>)> {
+        let msg = pk_decrypt(ctext, private_keys_for_decryption)?;
+        let ret_signature_fingerprints =
+            valid_signature_fingerprints(&msg, public_keys_for_validation)?;
+
+        Ok((msg, ret_signature_fingerprints))
+    }
 
     #[test]
     fn test_split_armored_data_1() {
@@ -534,34 +546,35 @@ mod tests {
         // Check decrypting as Alice
         let decrypt_keyring = vec![KEYS.alice_secret.clone()];
         let sig_check_keyring = vec![KEYS.alice_public.clone()];
-        let (plain, valid_signatures) = pk_decrypt(
+        let (msg, valid_signatures) = pk_decrypt_and_validate(
             ctext_signed().await.as_bytes().to_vec(),
             &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
-        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(msg.get_content().unwrap().unwrap(), CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);
 
         // Check decrypting as Bob
         let decrypt_keyring = vec![KEYS.bob_secret.clone()];
         let sig_check_keyring = vec![KEYS.alice_public.clone()];
-        let (plain, valid_signatures) = pk_decrypt(
+        let (msg, valid_signatures) = pk_decrypt_and_validate(
             ctext_signed().await.as_bytes().to_vec(),
             &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
-        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(msg.get_content().unwrap().unwrap(), CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_no_sig_check() {
         let keyring = vec![KEYS.alice_secret.clone()];
-        let (plain, valid_signatures) =
-            pk_decrypt(ctext_signed().await.as_bytes().to_vec(), &keyring, &[]).unwrap();
-        assert_eq!(plain, CLEARTEXT);
+        let (msg, valid_signatures) =
+            pk_decrypt_and_validate(ctext_signed().await.as_bytes().to_vec(), &keyring, &[])
+                .unwrap();
+        assert_eq!(msg.get_content().unwrap().unwrap(), CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
 
@@ -570,26 +583,26 @@ mod tests {
         // The validation does not have the public key of the signer.
         let decrypt_keyring = vec![KEYS.bob_secret.clone()];
         let sig_check_keyring = vec![KEYS.bob_public.clone()];
-        let (plain, valid_signatures) = pk_decrypt(
+        let (msg, valid_signatures) = pk_decrypt_and_validate(
             ctext_signed().await.as_bytes().to_vec(),
             &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
-        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(msg.get_content().unwrap().unwrap(), CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_unsigned() {
         let decrypt_keyring = vec![KEYS.bob_secret.clone()];
-        let (plain, valid_signatures) = pk_decrypt(
+        let (msg, valid_signatures) = pk_decrypt_and_validate(
             ctext_unsigned().await.as_bytes().to_vec(),
             &decrypt_keyring,
             &[],
         )
         .unwrap();
-        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(msg.get_content().unwrap().unwrap(), CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
 }
