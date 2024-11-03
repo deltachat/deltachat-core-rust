@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.148.7] - 2024-11-03
+
+### API-Changes
+
+- Add API to reset contact encryption.
+
+### Features / Changes
+
+- Emit chatlist events only if message still exists.
+
+### Fixes
+
+- send_msg_to_smtp: Do not fail if the message does not exist anymore.
+- Do not percent-encode dot when passing to autoconfig server.
+- Save contact name from SecureJoin QR to `authname`, not to `name` ([#6115](https://github.com/deltachat/deltachat-core-rust/pull/6115)).
+- Always exit fake IDLE after at most 60 seconds.
+- Concat NDNs ([#6129](https://github.com/deltachat/deltachat-core-rust/pull/6129)).
+
+### Refactor
+
+- Remove `has_decrypted_pgp_armor()`.
+
+### Miscellaneous Tasks
+
+- Update dependencies.
+
 ## [1.148.6] - 2024-10-31
 
 ### API-Changes
@@ -5193,3 +5219,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.3..v1.148.4
 [1.148.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.4..v1.148.5
 [1.148.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.5..v1.148.6
+[1.148.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.6..v1.148.7
