@@ -1913,7 +1913,7 @@ async fn needs_move_to_mvbox(
         && has_chat_version
         && headers
             .get_header_value(HeaderDef::AutoSubmitted)
-            .filter(|val| val.to_ascii_lowercase() == "auto-generated")
+            .filter(|val| val.eq_ignore_ascii_case("auto-generated"))
             .is_some()
     {
         if let Some(from) = mimeparser::get_from(headers) {

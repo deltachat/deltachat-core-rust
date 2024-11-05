@@ -135,7 +135,7 @@ impl SchedulerState {
     /// If in the meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called
     /// resume will do the right thing and restore the scheduler to the state requested by
     /// the last call.
-    pub(crate) async fn pause<'a>(&'_ self, context: Context) -> Result<IoPausedGuard> {
+    pub(crate) async fn pause(&'_ self, context: Context) -> Result<IoPausedGuard> {
         {
             let mut inner = self.inner.write().await;
             match *inner {

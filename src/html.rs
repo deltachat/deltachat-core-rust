@@ -144,12 +144,12 @@ impl HtmlMsgParser {
                         self.plain = Some(PlainText {
                             text: decoded_data,
                             flowed: if let Some(format) = mail.ctype.params.get("format") {
-                                format.as_str().to_ascii_lowercase() == "flowed"
+                                format.as_str().eq_ignore_ascii_case("flowed")
                             } else {
                                 false
                             },
                             delsp: if let Some(delsp) = mail.ctype.params.get("delsp") {
-                                delsp.as_str().to_ascii_lowercase() == "yes"
+                                delsp.as_str().eq_ignore_ascii_case("yes")
                             } else {
                                 false
                             },
