@@ -800,7 +800,6 @@ impl MimeFactory {
                     | "in-reply-to"
                     | "references"
                     | "auto-submitted"
-                    | "chat-version"
                     | "autocrypt-setup-message" => {
                         unprotected_headers.push(header);
                     }
