@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.149.0] - 2024-11-05
+
+### Build system
+
+- Update tokio to 1.41 and Android NDK to r27.
+- `nix flake update android`.
+
+### Fixes
+
+- cargo: Update iroh to 0.28.1.
+  This fixes the problem with iroh not sending the `Host:` header and not being able to connect to relays behind nginx reverse proxy.
+
 ## [1.148.7] - 2024-11-03
 
 ### API-Changes
@@ -5220,3 +5232,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.4..v1.148.5
 [1.148.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.5..v1.148.6
 [1.148.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.6..v1.148.7
+[1.149.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.7..v1.149.0
