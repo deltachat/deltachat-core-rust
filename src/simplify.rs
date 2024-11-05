@@ -21,7 +21,9 @@ pub fn escape_message_footer_marks(text: &str) -> String {
 /// `footer_lines` is set to `Some` if the footer was actually removed from `lines`
 /// (which is equal to the input array otherwise).
 #[allow(clippy::indexing_slicing)]
-fn remove_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<&'a [&'a str]>) {
+pub(crate) fn remove_message_footer<'a>(
+    lines: &'a [&str],
+) -> (&'a [&'a str], Option<&'a [&'a str]>) {
     let mut nearly_standard_footer = None;
     for (ix, &line) in lines.iter().enumerate() {
         match line {

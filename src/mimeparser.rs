@@ -3708,6 +3708,28 @@ On 2020-10-25, Bob wrote:
         Ok(())
     }
 
+    /// Tests that sender status (signature) does not appear
+    /// in HTML view of a long message.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_large_message_no_signature() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        alice
+            .set_config(Config::Selfstatus, Some("Some signature"))
+            .await?;
+        let chat = alice.create_chat(bob).await;
+        let txt = "Hello!\n".repeat(500);
+        let sent = alice.send_text(chat.id, &txt).await;
+        let msg = bob.recv_msg(&sent).await;
+
+        assert_eq!(msg.has_html(), true);
+        let html = msg.id.get_html(bob).await?.unwrap();
+        assert_eq!(html.contains("Some signature"), false);
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_x_microsoft_original_message_id() {
         let t = TestContext::new_alice().await;

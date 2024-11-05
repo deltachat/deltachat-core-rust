@@ -2,7 +2,7 @@
 
 use once_cell::sync::Lazy;
 
-use crate::simplify::split_lines;
+use crate::simplify::remove_message_footer;
 
 /// Plaintext message body together with format=flowed attributes.
 #[derive(Debug)]
@@ -32,7 +32,8 @@ impl PlainText {
             regex::Regex::new(r"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)").unwrap()
         });
 
-        let lines = split_lines(&self.text);
+        let lines: Vec<&str> = self.text.lines().collect();
+        let (lines, _footer) = remove_message_footer(&lines);
 
         let mut ret = r#"<!DOCTYPE html>
 <html><head>
@@ -136,7 +137,28 @@ line 1<br/>
 line 2<br/>
 line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a> and <a href="http://link-end-of-line.com/file?foo=bar%20">http://link-end-of-line.com/file?foo=bar%20</a><br/>
 <a href="http://link-at-start-of-line.org">http://link-at-start-of-line.org</a><br/>
-<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[test]
+    fn test_plain_remove_signature() {
+        let html = PlainText {
+            text: "Foo\nbar\n-- \nSignature here".to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html();
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
+Foo<br/>
+bar<br/>
 </body></html>
 "#
         );
