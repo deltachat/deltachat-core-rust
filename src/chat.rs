@@ -3921,6 +3921,11 @@ pub async fn remove_contact_from_chat(
     let mut msg = Message::default();
 
     let chat = Chat::load_from_db(context, chat_id).await?;
+
+    if chat.typ == Chattype::Group && contact_id == ContactId::SELF {
+        chat_id.set_draft(context, None).await?; // Clear draft since the user left the group.
+    }
+
     if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
         if !chat.is_self_in_chat(context).await? {
             let err_msg = format!(
@@ -4611,6 +4616,11 @@ async fn set_contacts_by_addrs(context: &Context, id: ChatId, addrs: &[String]) 
     if contacts == contacts_old {
         return Ok(());
     }
+
+    if chat.typ == Chattype::Group && !contacts.contains(&ContactId::SELF) {
+        id.set_draft(context, None).await?; // Clear draft since the user left the group.
+    }
+
     update_chat_contacts_table(context, id, &contacts).await?;
     context.emit_event(EventType::ChatModified(id));
     Ok(())

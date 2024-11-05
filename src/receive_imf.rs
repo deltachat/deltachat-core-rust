@@ -2317,6 +2317,9 @@ async fn apply_group_changes(
         }
 
         if new_members != chat_contacts {
+            if !new_members.contains(&ContactId::SELF) {
+                chat_id.set_draft(context, None).await?; // Clear draft since Self was removed from the group.
+            }
             chat::update_chat_contacts_table(context, chat_id, &new_members).await?;
             chat_contacts = new_members;
             send_event_chat_modified = true;
