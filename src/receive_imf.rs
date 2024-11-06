@@ -1423,7 +1423,11 @@ async fn add_parts(
     if let Some(msg) = group_changes_msgs.1 {
         match &better_msg {
             None => better_msg = Some(msg),
-            Some(_) => group_changes_msgs.0.push(msg),
+            Some(_) => {
+                if !msg.is_empty() {
+                    group_changes_msgs.0.push(msg)
+                }
+            }
         }
     }
 
@@ -1506,6 +1510,9 @@ async fn add_parts(
 
         let mut txt_raw = "".to_string();
         let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
+            if better_msg.is_empty() && is_partial_download.is_none() {
+                chat_id = DC_CHAT_ID_TRASH;
+            }
             (better_msg, Viewtype::Text)
         } else {
             (&part.msg, part.typ)
@@ -2077,8 +2084,11 @@ async fn create_group(
 
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
 ///
-/// Optionally returns better message to replace the original system message.
-/// is_partial_download: whether the message is not fully downloaded.
+/// Returns `Vec` of group changes messages and, optionally, a better message to replace the
+/// original system message. If the better message is empty, the original system message should be
+/// just omitted.
+///
+/// * `is_partial_download` - whether the message is not fully downloaded.
 #[allow(clippy::too_many_arguments)]
 async fn apply_group_changes(
     context: &Context,
@@ -2180,39 +2190,47 @@ async fn apply_group_changes(
 
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
         removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
-
-        better_msg = if removed_id == Some(from_id) {
-            Some(stock_str::msg_group_left_local(context, from_id).await)
-        } else {
-            Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
-        };
-
-        if removed_id.is_some() {
-            if !allow_member_list_changes {
-                info!(
-                    context,
-                    "Ignoring removal of {removed_addr:?} from {chat_id}."
-                );
+        if let Some(id) = removed_id {
+            if allow_member_list_changes && chat_contacts.contains(&id) {
+                better_msg = if id == from_id {
+                    Some(stock_str::msg_group_left_local(context, from_id).await)
+                } else {
+                    Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
+                };
             }
         } else {
             warn!(context, "Removed {removed_addr:?} has no contact id.")
         }
+        better_msg.get_or_insert_with(Default::default);
+        if !allow_member_list_changes {
+            info!(
+                context,
+                "Ignoring removal of {removed_addr:?} from {chat_id}."
+            );
+        }
     } else if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
-        better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
-
         if allow_member_list_changes {
-            if !recreate_member_list {
-                if let Some(contact_id) =
-                    Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
-                {
+            let is_new_member;
+            if let Some(contact_id) =
+                Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
+            {
+                if !recreate_member_list {
                     added_id = Some(contact_id);
-                } else {
-                    warn!(context, "Added {added_addr:?} has no contact id.")
                 }
+                is_new_member = !chat_contacts.contains(&contact_id);
+            } else {
+                warn!(context, "Added {added_addr:?} has no contact id.");
+                is_new_member = false;
+            }
+
+            if is_new_member || self_added {
+                better_msg =
+                    Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
             }
         } else {
             info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
         }
+        better_msg.get_or_insert_with(Default::default);
     } else if let Some(old_name) = mime_parser
         .get_header(HeaderDef::ChatGroupNameChanged)
         .map(|s| s.trim())
