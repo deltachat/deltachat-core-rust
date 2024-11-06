@@ -5371,7 +5371,7 @@ mod tests {
 
         // Eventually, first removal message arrives.
         // This has no effect.
-        bob.recv_msg(&remove1).await;
+        bob.recv_msg_trash(&remove1).await;
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
         Ok(())
     }
