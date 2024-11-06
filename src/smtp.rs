@@ -357,9 +357,9 @@ pub(crate) async fn send_msg_to_smtp(
         .await
         .context("failed to update retries count")?;
 
-    let (body, recipients, msg_id, retries) = context
+    let Some((body, recipients, msg_id, retries)) = context
         .sql
-        .query_row(
+        .query_row_optional(
             "SELECT mime, recipients, msg_id, retries FROM smtp WHERE id=?",
             (rowid,),
             |row| {
@@ -370,7 +370,10 @@ pub(crate) async fn send_msg_to_smtp(
                 Ok((mime, recipients, msg_id, retries))
             },
         )
-        .await?;
+        .await?
+    else {
+        return Ok(());
+    };
     if retries > 6 {
         if let Some(mut msg) = Message::load_from_db_optional(context, msg_id).await? {
             message::set_msg_failed(context, &mut msg, "Number of retries exceeded the limit.")
