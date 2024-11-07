@@ -225,7 +225,7 @@ async fn connect_secure_proxy(
     let proxy_stream = proxy_config
         .connect(context, hostname, port, strict_tls)
         .await?;
-    let tls_stream = wrap_tls(strict_tls, hostname, alpn(port), proxy_stream).await?;
+    let tls_stream = wrap_tls(strict_tls, hostname, port, alpn(port), proxy_stream).await?;
     let mut buffered_stream = BufStream::new(tls_stream);
     skip_smtp_greeting(&mut buffered_stream).await?;
     let session_stream: Box<dyn SessionBufStream> = Box::new(buffered_stream);
@@ -248,7 +248,7 @@ async fn connect_starttls_proxy(
     skip_smtp_greeting(&mut buffered_stream).await?;
     let transport = new_smtp_transport(buffered_stream).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
-    let tls_stream = wrap_tls(strict_tls, hostname, "", tcp_stream)
+    let tls_stream = wrap_tls(strict_tls, hostname, port, "", tcp_stream)
         .await
         .context("STARTTLS upgrade failed")?;
     let buffered_stream = BufStream::new(tls_stream);
@@ -293,7 +293,7 @@ async fn connect_starttls(
     skip_smtp_greeting(&mut buffered_stream).await?;
     let transport = new_smtp_transport(buffered_stream).await?;
     let tcp_stream = transport.starttls().await?.into_inner();
-    let tls_stream = wrap_tls(strict_tls, host, "", tcp_stream)
+    let tls_stream = wrap_tls(strict_tls, host, addr.port(), "", tcp_stream)
         .await
         .context("STARTTLS upgrade failed")?;
 

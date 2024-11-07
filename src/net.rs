@@ -130,7 +130,7 @@ pub(crate) async fn connect_tls_inner(
     alpn: &str,
 ) -> Result<impl SessionStream> {
     let tcp_stream = connect_tcp_inner(addr).await?;
-    let tls_stream = wrap_tls(strict_tls, host, alpn, tcp_stream).await?;
+    let tls_stream = wrap_tls(strict_tls, host, addr.port(), alpn, tcp_stream).await?;
     Ok(tls_stream)
 }
 
