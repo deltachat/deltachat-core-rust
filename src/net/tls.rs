@@ -5,6 +5,8 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use crate::net::session::SessionStream;
+
 // this certificate is missing on older android devices (eg. lg with android6 from 2017)
 // certificate downloaded from https://letsencrypt.org/certificates/
 static LETSENCRYPT_ROOT: Lazy<async_native_tls::Certificate> = Lazy::new(|| {
@@ -14,12 +16,12 @@ static LETSENCRYPT_ROOT: Lazy<async_native_tls::Certificate> = Lazy::new(|| {
     .unwrap()
 });
 
-pub async fn wrap_tls<T: AsyncRead + AsyncWrite + Unpin>(
+pub async fn wrap_tls(
     strict_tls: bool,
     hostname: &str,
     alpn: &[&str],
-    stream: T,
-) -> Result<async_native_tls::TlsStream<T>> {
+    stream: impl SessionStream,
+) -> Result<impl SessionStream> {
     let tls_builder = async_native_tls::TlsConnector::new()
         .min_protocol_version(Some(async_native_tls::Protocol::Tlsv12))
         .request_alpns(alpn)
