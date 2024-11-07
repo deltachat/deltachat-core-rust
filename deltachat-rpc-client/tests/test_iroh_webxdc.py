@@ -7,8 +7,8 @@ If you want to debug iroh at rust-trace/log level set
     RUST_LOG=iroh_net=trace,iroh_gossip=trace
 """
 
+import logging
 import os
-import sys
 import threading
 import time
 
@@ -25,9 +25,7 @@ def path_to_webxdc(request):
 
 
 def log(msg):
-    print()
-    print("*" * 80 + "\n" + msg + "\n", file=sys.stderr)
-    print()
+    logging.info(msg)
 
 
 def setup_realtime_webxdc(ac1, ac2, path_to_webxdc):
