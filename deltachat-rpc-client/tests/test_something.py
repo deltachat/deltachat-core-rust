@@ -57,8 +57,8 @@ def test_acfactory(acfactory) -> None:
             if event.progress == 1000:  # Success
                 break
         else:
-            print(event)
-    print("Successful configuration")
+            logging.info(event)
+    logging.info("Successful configuration")
 
 
 def test_configure_starttls(acfactory) -> None:
