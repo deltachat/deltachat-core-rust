@@ -5,13 +5,13 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::{format_err, Context as _, Result};
-use async_native_tls::TlsStream;
 use tokio::net::TcpStream;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
+use crate::net::session::SessionStream;
 use crate::sql::Sql;
 use crate::tools::time;
 
@@ -128,7 +128,7 @@ pub(crate) async fn connect_tls_inner(
     host: &str,
     strict_tls: bool,
     alpn: &[&str],
-) -> Result<TlsStream<Pin<Box<TimeoutStream<TcpStream>>>>> {
+) -> Result<impl SessionStream> {
     let tcp_stream = connect_tcp_inner(addr).await?;
     let tls_stream = wrap_tls(strict_tls, host, alpn, tcp_stream).await?;
     Ok(tls_stream)

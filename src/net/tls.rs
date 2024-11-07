@@ -2,45 +2,39 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_native_tls::{Certificate, Protocol, TlsConnector, TlsStream};
-use once_cell::sync::Lazy;
-use tokio::io::{AsyncRead, AsyncWrite};
 
-// this certificate is missing on older android devices (eg. lg with android6 from 2017)
-// certificate downloaded from https://letsencrypt.org/certificates/
-static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
-    Certificate::from_der(include_bytes!(
-        "../../assets/root-certificates/letsencrypt/isrgrootx1.der"
-    ))
-    .unwrap()
-});
+use crate::net::session::SessionStream;
 
-pub async fn wrap_tls<T: AsyncRead + AsyncWrite + Unpin>(
+pub async fn wrap_tls(
     strict_tls: bool,
     hostname: &str,
     alpn: &[&str],
-    stream: T,
-) -> Result<TlsStream<T>> {
-    let tls_builder = TlsConnector::new()
-        .min_protocol_version(Some(Protocol::Tlsv12))
-        .request_alpns(alpn)
-        .add_root_certificate(LETSENCRYPT_ROOT.clone());
-    let tls = if strict_tls {
-        tls_builder
+    stream: impl SessionStream + 'static,
+) -> Result<impl SessionStream> {
+    if strict_tls {
+        let tls_stream = wrap_rustls(hostname, alpn, stream).await?;
+        let boxed_stream: Box<dyn SessionStream> = Box::new(tls_stream);
+        Ok(boxed_stream)
     } else {
-        tls_builder
+        // We use native_tls because it accepts 1024-bit RSA keys.
+        // Rustls does not support them even if
+        // certificate checks are disabled: <https://github.com/rustls/rustls/issues/234>.
+        let tls = async_native_tls::TlsConnector::new()
+            .min_protocol_version(Some(async_native_tls::Protocol::Tlsv12))
+            .request_alpns(alpn)
             .danger_accept_invalid_hostnames(true)
-            .danger_accept_invalid_certs(true)
-    };
-    let tls_stream = tls.connect(hostname, stream).await?;
-    Ok(tls_stream)
+            .danger_accept_invalid_certs(true);
+        let tls_stream = tls.connect(hostname, stream).await?;
+        let boxed_stream: Box<dyn SessionStream> = Box::new(tls_stream);
+        Ok(boxed_stream)
+    }
 }
 
-pub async fn wrap_rustls<T: AsyncRead + AsyncWrite + Unpin>(
+pub async fn wrap_rustls(
     hostname: &str,
     alpn: &[&str],
-    stream: T,
-) -> Result<tokio_rustls::client::TlsStream<T>> {
+    stream: impl SessionStream,
+) -> Result<impl SessionStream> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
