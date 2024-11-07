@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::net::session::SessionStream;
 
@@ -37,11 +36,11 @@ pub async fn wrap_tls(
     Ok(tls_stream)
 }
 
-pub async fn wrap_rustls<T: AsyncRead + AsyncWrite + Unpin>(
+pub async fn wrap_rustls(
     hostname: &str,
     alpn: &[&str],
-    stream: T,
-) -> Result<tokio_rustls::client::TlsStream<T>> {
+    stream: impl SessionStream,
+) -> Result<impl SessionStream> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
