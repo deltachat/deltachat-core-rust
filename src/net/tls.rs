@@ -2,14 +2,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_native_tls::{Certificate, Protocol, TlsConnector, TlsStream};
 use once_cell::sync::Lazy;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 // this certificate is missing on older android devices (eg. lg with android6 from 2017)
 // certificate downloaded from https://letsencrypt.org/certificates/
-static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
-    Certificate::from_der(include_bytes!(
+static LETSENCRYPT_ROOT: Lazy<async_native_tls::Certificate> = Lazy::new(|| {
+    async_native_tls::Certificate::from_der(include_bytes!(
         "../../assets/root-certificates/letsencrypt/isrgrootx1.der"
     ))
     .unwrap()
@@ -20,9 +19,9 @@ pub async fn wrap_tls<T: AsyncRead + AsyncWrite + Unpin>(
     hostname: &str,
     alpn: &[&str],
     stream: T,
-) -> Result<TlsStream<T>> {
-    let tls_builder = TlsConnector::new()
-        .min_protocol_version(Some(Protocol::Tlsv12))
+) -> Result<async_native_tls::TlsStream<T>> {
+    let tls_builder = async_native_tls::TlsConnector::new()
+        .min_protocol_version(Some(async_native_tls::Protocol::Tlsv12))
         .request_alpns(alpn)
         .add_root_certificate(LETSENCRYPT_ROOT.clone());
     let tls = if strict_tls {
