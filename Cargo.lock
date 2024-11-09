@@ -1368,7 +1368,6 @@ dependencies = [
  "regex",
  "rusqlite",
  "rust-hsluv",
- "rustls",
  "rustls-pki-types",
  "sanitize-filename",
  "serde",
