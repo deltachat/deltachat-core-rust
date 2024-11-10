@@ -922,7 +922,22 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             let msg = format!("{arg1} {arg2}");
 
-            chat::send_text_msg(&context, sel_chat.as_ref().unwrap().get_id(), msg).await?;
+            if context.is_running().await {
+                chat::send_text_msg(&context, sel_chat.as_ref().unwrap().get_id(), msg).await?;
+            } else {
+                // Send message over a dedicated SMTP connection
+                // and measure time.
+                //
+                // This can be used to benchmark SMTP connection establishment.
+                let time_start = std::time::SystemTime::now();
+
+                let mut msg = Message::new_text(msg);
+                chat::send_msg_sync(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg)
+                    .await?;
+
+                let time_needed = time_start.elapsed().unwrap_or_default();
+                println!("Sent message in {time_needed:?}.");
+            }
         }
         "sendempty" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
