@@ -87,6 +87,17 @@ pub struct Kml {
     pub curr: Location,
 }
 
+/// Location streaming status for one chat.
+#[derive(Debug, PartialEq, Eq)]
+pub enum LocationSendingStatus {
+    /// Location streaming is enabled.
+    Enabled = 0,
+    /// Location streaming is disabled.
+    Disabled = 1,
+    /// Location streaming is enabled but (currently) not possible.
+    Failure = 2,
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 enum KmlTag {
     #[default]
@@ -274,7 +285,8 @@ pub async fn send_locations_to_chat(
     ensure!(seconds >= 0);
     ensure!(!chat_id.is_special());
     let now = time();
-    let is_sending_locations_before = is_sending_locations_to_chat(context, Some(chat_id)).await?;
+    let is_sending_locations_before = is_sending_locations_to_chat(context, Some(chat_id)).await?
+        == LocationSendingStatus::Enabled;
     context
         .sql
         .execute(
@@ -314,25 +326,43 @@ pub async fn send_locations_to_chat(
 pub async fn is_sending_locations_to_chat(
     context: &Context,
     chat_id: Option<ChatId>,
-) -> Result<bool> {
+) -> Result<LocationSendingStatus> {
     let exists = match chat_id {
         Some(chat_id) => {
-            context
+            let enabled = context
                 .sql
                 .exists(
                     "SELECT COUNT(id) FROM chats  WHERE id=?  AND locations_send_until>?;",
                     (chat_id, time()),
                 )
+                .await?;
+            let functional: i32 = context
+                .sql
+                .query_get_value("SELECT locations_send_begin FROM chats WHERE id=?;", ())
                 .await?
+                .ok_or(anyhow::anyhow!("not able to select"))?;
+
+            if enabled && functional > 0 {
+                LocationSendingStatus::Enabled
+            } else if enabled && functional == 0 {
+                LocationSendingStatus::Failure
+            } else {
+                LocationSendingStatus::Disabled
+            }
         }
         None => {
-            context
+            if context
                 .sql
                 .exists(
                     "SELECT COUNT(id) FROM chats  WHERE locations_send_until>?;",
                     (time(),),
                 )
                 .await?
+            {
+                LocationSendingStatus::Enabled
+            } else {
+                LocationSendingStatus::Disabled
+            }
         }
     };
     Ok(exists)

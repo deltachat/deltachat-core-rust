@@ -20,7 +20,7 @@ use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::headerdef::HeaderDef;
 use crate::html::new_html_mimepart;
-use crate::location;
+use crate::location::{self, LocationSendingStatus};
 use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -1372,7 +1372,9 @@ impl MimeFactory {
             parts.push(msg_kml_part);
         }
 
-        if location::is_sending_locations_to_chat(context, Some(msg.chat_id)).await? {
+        if location::is_sending_locations_to_chat(context, Some(msg.chat_id)).await?
+            != LocationSendingStatus::Disabled
+        {
             if let Some(part) = self.get_location_kml_part(context).await? {
                 parts.push(part);
             }

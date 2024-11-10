@@ -2520,8 +2520,10 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
         Some(ChatId::new(chat_id))
     };
 
-    block_on(location::is_sending_locations_to_chat(ctx, chat_id))
-        .unwrap_or_log_default(ctx, "Failed dc_is_sending_locations_to_chat()") as libc::c_int
+    block_on(async {
+        location::is_sending_locations_to_chat(ctx, chat_id).await.map(|res| res as u8)
+    })
+    .unwrap_or_log_default(ctx, "Failed dc_is_sending_locations_to_chat()") as libc::c_int
 }
 
 #[no_mangle]

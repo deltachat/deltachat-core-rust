@@ -629,7 +629,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     );
                 }
             }
-            if location::is_sending_locations_to_chat(&context, None).await? {
+            if location::is_sending_locations_to_chat(&context, None).await? != location::LocationSendingStatus::Disabled {
                 println!("Location streaming enabled.");
             }
             println!("{cnt} chats");
@@ -841,7 +841,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             }
 
             println!(
-                "Location streaming: {}",
+                "Location streaming: {:?}",
                 location::is_sending_locations_to_chat(
                     &context,
                     Some(sel_chat.as_ref().unwrap().get_id())
