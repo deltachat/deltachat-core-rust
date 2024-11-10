@@ -524,7 +524,7 @@ async fn inbox_fetch_idle(ctx: &Context, imap: &mut Imap, mut session: Session) 
                             count
                         ));
 
-                        chat::add_device_msg(ctx, None, Some(&mut msg));
+                        chat::add_device_msg(ctx, None, Some(&mut msg)).await?;
                     }
                 }
             }
