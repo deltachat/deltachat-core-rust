@@ -1304,7 +1304,7 @@ impl ChatId {
         }
         if !encr_info.no_preference.is_empty() {
             if !ret.is_empty() {
-                ret.push('\n');
+                ret.push_str("\n\n");
             }
             ret += &stock_str::e2e_available(context).await;
             ret.push_str(":\n");
@@ -1312,7 +1312,7 @@ impl ChatId {
         }
         if !encr_info.mutual.is_empty() {
             if !ret.is_empty() {
-                ret.push('\n');
+                ret.push_str("\n\n");
             }
             ret += &stock_str::e2e_preferred(context).await;
             ret.push_str(":\n");
