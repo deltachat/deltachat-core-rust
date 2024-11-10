@@ -768,14 +768,16 @@ impl Imap {
         &mut self,
         context: &Context,
         session: &mut Session,
-    ) -> Result<()> {
-        add_all_recipients_as_contacts(context, session, Config::ConfiguredSentboxFolder)
-            .await
-            .context("failed to get recipients from the sentbox")?;
-        add_all_recipients_as_contacts(context, session, Config::ConfiguredMvboxFolder)
+    ) -> Result<i32> {
+        let mut created = 0;
+        created +=
+            add_all_recipients_as_contacts(context, session, Config::ConfiguredSentboxFolder)
+                .await
+                .context("failed to get recipients from the sentbox")?;
+        created += add_all_recipients_as_contacts(context, session, Config::ConfiguredMvboxFolder)
             .await
             .context("failed to get recipients from the movebox")?;
-        add_all_recipients_as_contacts(context, session, Config::ConfiguredInboxFolder)
+        created += add_all_recipients_as_contacts(context, session, Config::ConfiguredInboxFolder)
             .await
             .context("failed to get recipients from the inbox")?;
 
@@ -802,7 +804,7 @@ impl Imap {
         }
 
         info!(context, "Done fetching existing messages.");
-        Ok(())
+        Ok(created)
     }
 }
 
@@ -2479,11 +2481,14 @@ impl std::fmt::Display for UidRange {
         }
     }
 }
+
+/// Add all recipients as contacts.
+/// Returns how many contacts were created.
 async fn add_all_recipients_as_contacts(
     context: &Context,
     session: &mut Session,
     folder: Config,
-) -> Result<()> {
+) -> Result<i32> {
     let mailbox = if let Some(m) = context.get_config(folder).await? {
         m
     } else {
@@ -2491,7 +2496,7 @@ async fn add_all_recipients_as_contacts(
             context,
             "Folder {} is not configured, skipping fetching contacts from it.", folder
         );
-        return Ok(());
+        return Ok(0);
     };
     session
         .select_with_uidvalidity(context, &mailbox)
@@ -2504,6 +2509,7 @@ async fn add_all_recipients_as_contacts(
         .context("could not get recipients")?;
 
     let mut any_modified = false;
+    let mut created = 0;
     for recipient in recipients {
         let recipient_addr = match ContactAddress::new(&recipient.addr) {
             Err(err) => {
@@ -2528,12 +2534,15 @@ async fn add_all_recipients_as_contacts(
         if modified != Modifier::None {
             any_modified = true;
         }
+        if modified == Modifier::Created {
+            created += 1;
+        }
     }
     if any_modified {
         context.emit_event(EventType::ContactsChanged(None));
     }
 
-    Ok(())
+    Ok(created)
 }
 
 #[cfg(test)]
