@@ -1303,7 +1303,6 @@ impl ChatId {
             ret += &encr_info.reset.join("\n");
         }
         if !encr_info.no_preference.is_empty() {
-            ret.push('\n');
             if !ret.is_empty() {
                 ret.push('\n');
             }
@@ -1312,7 +1311,6 @@ impl ChatId {
             ret += &encr_info.no_preference.join("\n");
         }
         if !encr_info.mutual.is_empty() {
-            ret.push('\n');
             if !ret.is_empty() {
                 ret.push('\n');
             }
