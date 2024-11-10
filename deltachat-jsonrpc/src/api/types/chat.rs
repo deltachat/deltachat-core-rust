@@ -9,6 +9,7 @@ use deltachat::context::Context;
 use num_traits::cast::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use typescript_type_def::TypeDef;
+use yerpc::JsonSchema;
 
 use super::color_int_to_hex_string;
 use super::contact::ContactObject;
@@ -236,6 +237,26 @@ impl JSONRPCChatVisibility {
             JSONRPCChatVisibility::Normal => ChatVisibility::Normal,
             JSONRPCChatVisibility::Archived => ChatVisibility::Archived,
             JSONRPCChatVisibility::Pinned => ChatVisibility::Pinned,
+        }
+    }
+}
+
+#[derive(Debug, JsonSchema, TypeDef, Serialize, Deserialize)]
+pub struct EncryptionInfo {
+    /// Addresses with End-to-end encryption preferred.
+    pub mutual: Vec<String>,
+    /// Addresses with End-to-end encryption available.
+    pub no_preference: Vec<String>,
+    /// Addresses with no encryption.
+    pub reset: Vec<String>,
+}
+
+impl From<chat::EncryptionInfo> for EncryptionInfo {
+    fn from(encryption_info: chat::EncryptionInfo) -> Self {
+        EncryptionInfo {
+            mutual: encryption_info.mutual,
+            no_preference: encryption_info.no_preference,
+            reset: encryption_info.reset,
         }
     }
 }

@@ -45,7 +45,7 @@ pub mod types;
 
 use num_traits::FromPrimitive;
 use types::account::Account;
-use types::chat::FullChat;
+use types::chat::{EncryptionInfo, FullChat};
 use types::contact::{ContactObject, VcardContact};
 use types::events::Event;
 use types::http::HttpResponse;
@@ -706,6 +706,19 @@ impl CommandApi {
     async fn get_chat_encryption_info(&self, account_id: u32, chat_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         ChatId::new(chat_id).get_encryption_info(&ctx).await
+    }
+
+    /// Get encryption info for a chat.
+    async fn get_chat_encryption_info_json(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+    ) -> Result<EncryptionInfo> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ChatId::new(chat_id)
+            .get_encryption_info_json(&ctx)
+            .await?
+            .into())
     }
 
     /// Get QR code text that will offer a [SecureJoin](https://securejoin.delta.chat/) invitation.

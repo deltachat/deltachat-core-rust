@@ -105,6 +105,17 @@ pub enum ProtectionStatus {
     ProtectionBroken = 3, // `2` was never used as a value.
 }
 
+/// Encryption info for a single chat.
+#[derive(Debug)]
+pub struct EncryptionInfo {
+    /// Addresses with End-to-end encryption preferred.
+    pub mutual: Vec<String>,
+    /// Addresses with End-to-end encryption available.
+    pub no_preference: Vec<String>,
+    /// Addresses with no encryption.
+    pub reset: Vec<String>,
+}
+
 /// The reason why messages cannot be sent to the chat.
 ///
 /// The reason is mainly for logging and displaying in debug REPL, thus not translated.
@@ -1333,6 +1344,38 @@ impl ChatId {
         }
 
         Ok(ret.trim().to_string())
+    }
+
+    /// Returns encryption preferences of all chat contacts.
+    pub async fn get_encryption_info_json(self, context: &Context) -> Result<EncryptionInfo> {
+        let mut mutual = vec![];
+        let mut no_preference = vec![];
+        let mut reset = vec![];
+
+        for contact_id in get_chat_contacts(context, self)
+            .await?
+            .iter()
+            .filter(|&contact_id| !contact_id.is_special())
+        {
+            let contact = Contact::get_by_id(context, *contact_id).await?;
+            let addr = contact.get_addr().to_string();
+            let peerstate = Peerstate::from_addr(context, &addr).await?;
+
+            match peerstate
+                .filter(|peerstate| peerstate.peek_key(false).is_some())
+                .map(|peerstate| peerstate.prefer_encrypt)
+            {
+                Some(EncryptPreference::Mutual) => mutual.push(addr),
+                Some(EncryptPreference::NoPreference) => no_preference.push(addr),
+                Some(EncryptPreference::Reset) | None => reset.push(addr),
+            };
+        }
+
+        Ok(EncryptionInfo {
+            mutual,
+            no_preference,
+            reset,
+        })
     }
 
     /// Bad evil escape hatch.
