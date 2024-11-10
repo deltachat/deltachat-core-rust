@@ -1294,56 +1294,34 @@ impl ChatId {
     ///
     /// To get more verbose summary for a contact, including its key fingerprint, use [`Contact::get_encrinfo`].
     pub async fn get_encryption_info(self, context: &Context) -> Result<String> {
-        let mut ret_mutual = String::new();
-        let mut ret_nopreference = String::new();
-        let mut ret_reset = String::new();
-
-        for contact_id in get_chat_contacts(context, self)
-            .await?
-            .iter()
-            .filter(|&contact_id| !contact_id.is_special())
-        {
-            let contact = Contact::get_by_id(context, *contact_id).await?;
-            let addr = contact.get_addr();
-            let peerstate = Peerstate::from_addr(context, addr).await?;
-
-            match peerstate
-                .filter(|peerstate| peerstate.peek_key(false).is_some())
-                .map(|peerstate| peerstate.prefer_encrypt)
-            {
-                Some(EncryptPreference::Mutual) => ret_mutual += &format!("{addr}\n"),
-                Some(EncryptPreference::NoPreference) => ret_nopreference += &format!("{addr}\n"),
-                Some(EncryptPreference::Reset) | None => ret_reset += &format!("{addr}\n"),
-            };
-        }
+        let encr_info = self.get_encryption_info_json(context).await?;
 
         let mut ret = String::new();
-        if !ret_reset.is_empty() {
+        if !encr_info.reset.is_empty() {
             ret += &stock_str::encr_none(context).await;
-            ret.push(':');
-            ret.push('\n');
-            ret += &ret_reset;
+            ret.push_str(":\n");
+            ret += &encr_info.reset.join("\n");
         }
-        if !ret_nopreference.is_empty() {
+        if !encr_info.no_preference.is_empty() {
+            ret.push('\n');
             if !ret.is_empty() {
                 ret.push('\n');
             }
             ret += &stock_str::e2e_available(context).await;
-            ret.push(':');
-            ret.push('\n');
-            ret += &ret_nopreference;
+            ret.push_str(":\n");
+            ret += &encr_info.no_preference.join("\n");
         }
-        if !ret_mutual.is_empty() {
+        if !encr_info.mutual.is_empty() {
+            ret.push('\n');
             if !ret.is_empty() {
                 ret.push('\n');
             }
             ret += &stock_str::e2e_preferred(context).await;
-            ret.push(':');
-            ret.push('\n');
-            ret += &ret_mutual;
+            ret.push_str(":\n");
+            ret += &encr_info.mutual.join("\n");
         }
 
-        Ok(ret.trim().to_string())
+        Ok(ret)
     }
 
     /// Returns encryption preferences of all chat contacts.
