@@ -88,11 +88,17 @@ pub(crate) async fn get_chat_list_item_by_id(
 
     let (last_updated, message_type) = match last_msgid {
         Some(id) => {
-            let last_message = deltachat::message::Message::load_from_db(ctx, id).await?;
-            (
-                Some(last_message.get_timestamp() * 1000),
-                Some(last_message.get_viewtype().into()),
-            )
+            if let Some(last_message) =
+                deltachat::message::Message::load_from_db_optional(ctx, id).await?
+            {
+                (
+                    Some(last_message.get_timestamp() * 1000),
+                    Some(last_message.get_viewtype().into()),
+                )
+            } else {
+                // Message may be deleted by the time we try to load it.
+                (None, None)
+            }
         }
         None => (None, None),
     };
