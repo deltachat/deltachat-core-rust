@@ -298,7 +298,7 @@ fn is_quoted_headline(buf: &str) -> bool {
     - Currently, we simply check if the last character is a ':'.
     - Checking for the existence of an email address may fail (headlines may show the user's name instead of the address) */
 
-    buf.len() <= 80 && buf.ends_with(':')
+    buf.len() <= 120 && buf.ends_with(':')
 }
 
 fn is_plain_quote(buf: &str) -> bool {
