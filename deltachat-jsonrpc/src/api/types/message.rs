@@ -112,8 +112,10 @@ enum MessageQuote {
 }
 
 impl MessageObject {
-    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
-        let message = Message::load_from_db(context, msg_id).await?;
+    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Option<Self>> {
+        let Some(message) = Message::load_from_db_optional(context, msg_id).await? else {
+            return Ok(None);
+        };
 
         let sender_contact = Contact::get_by_id(context, message.get_from_id())
             .await
@@ -183,7 +185,7 @@ impl MessageObject {
             .map(Into::into)
             .collect();
 
-        Ok(MessageObject {
+        let message_object = MessageObject {
             id: msg_id.to_u32(),
             chat_id: message.get_chat_id().to_u32(),
             from_id: message.get_from_id().to_u32(),
@@ -244,7 +246,8 @@ impl MessageObject {
             reactions,
 
             vcard_contact: vcard_contacts.first().cloned(),
-        })
+        };
+        Ok(Some(message_object))
     }
 }
 

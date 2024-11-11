@@ -1135,9 +1135,11 @@ impl CommandApi {
     async fn get_message(&self, account_id: u32, msg_id: u32) -> Result<MessageObject> {
         let ctx = self.get_context(account_id).await?;
         let msg_id = MsgId::new(msg_id);
-        MessageObject::from_msg_id(&ctx, msg_id)
+        let message_object = MessageObject::from_msg_id(&ctx, msg_id)
             .await
-            .with_context(|| format!("Failed to load message {msg_id} for account {account_id}"))
+            .with_context(|| format!("Failed to load message {msg_id} for account {account_id}"))?
+            .with_context(|| format!("Message {msg_id} does not exist for account {account_id}"))?;
+        Ok(message_object)
     }
 
     async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
@@ -1161,7 +1163,10 @@ impl CommandApi {
             messages.insert(
                 message_id,
                 match message_result {
-                    Ok(message) => MessageLoadResult::Message(message),
+                    Ok(Some(message)) => MessageLoadResult::Message(message),
+                    Ok(None) => MessageLoadResult::LoadingError {
+                        error: "Message does not exist".to_string(),
+                    },
                     Err(error) => MessageLoadResult::LoadingError {
                         error: format!("{error:#}"),
                     },
@@ -1999,9 +2004,7 @@ impl CommandApi {
     async fn get_draft(&self, account_id: u32, chat_id: u32) -> Result<Option<MessageObject>> {
         let ctx = self.get_context(account_id).await?;
         if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
-            Ok(Some(
-                MessageObject::from_msg_id(&ctx, draft.get_id()).await?,
-            ))
+            Ok(MessageObject::from_msg_id(&ctx, draft.get_id()).await?)
         } else {
             Ok(None)
         }
@@ -2170,7 +2173,9 @@ impl CommandApi {
                 .await?;
         }
         let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message).await?;
-        let message = MessageObject::from_msg_id(&ctx, msg_id).await?;
+        let message = MessageObject::from_msg_id(&ctx, msg_id)
+            .await?
+            .context("Just sent message does not exist")?;
         Ok((msg_id.to_u32(), message))
     }
 
