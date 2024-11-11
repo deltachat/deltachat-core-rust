@@ -404,6 +404,28 @@ mod tests {
     }
 
     #[test]
+    fn test_is_quoted_headline() {
+        assert!(is_quoted_headline("On 2024-08-28, Bob wrote:"));
+        assert!(is_quoted_headline("Am 11. November 2024 schrieb Alice:"));
+        assert!(is_quoted_headline("Anonymous Longer Name a écrit:"));
+        assert!(is_quoted_headline("There is not really a pattern wrote:"));
+        assert!(is_quoted_headline(
+            "On Mon, 3 Jan, 2022 at 8:34 PM \"Anonymous Longer Name\" <anonymous-longer-name@example.com> wrote:"
+        ));
+        assert!(!is_quoted_headline(
+            "How are you? I just want to say that this line does not belong to the quote!"
+        ));
+        assert!(!is_quoted_headline(
+            "No quote headline as not ending with a colon"
+        ));
+        assert!(!is_quoted_headline(
+            "Even though this ends with a colon, \
+            this is no quote-headline as just too long for most cases of date+name+address. \
+            it's all heuristics only, it is expected to go wrong sometimes. there is always the 'Show full message' button:"
+        ));
+    }
+
+    #[test]
     fn test_remove_top_quote() {
         let (lines, top_quote) = remove_top_quote(&["> first", "> second"], true);
         assert!(lines.is_empty());
