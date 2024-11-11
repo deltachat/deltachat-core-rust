@@ -4481,13 +4481,9 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 - new qr-code type `DC_QR_WEBRTC` #1779
 
-- new `dc_chatlist_get_summary2()` api #1771
-
 - tweak smtp-timeout for larger mails #1782
 
 - optimize read-receipts #1765
-
-- Allow http scheme for DCACCOUNT URLs #1770
 
 - improve tests #1769
 
