@@ -3828,6 +3828,40 @@ async fn test_messed_up_message_id() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_big_forwarded_with_big_attachment() -> Result<()> {
+    let t = &TestContext::new_bob().await;
+
+    let raw = include_bytes!("../../test-data/message/big_forwarded_with_big_attachment.eml");
+    let rcvd = receive_imf(t, raw, false).await?.unwrap();
+    assert_eq!(rcvd.msg_ids.len(), 3);
+    let msg = Message::load_from_db(t, rcvd.msg_ids[0]).await?;
+    assert_eq!(msg.get_viewtype(), Viewtype::Text);
+    assert_eq!(msg.get_text(), "Hello!");
+    // Wrong: the second bubble's text is truncated, but "Show Full Message..." is going to be shown
+    // in the first message bubble in the UIs.
+    assert_eq!(
+        msg.id
+            .get_html(t)
+            .await?
+            .unwrap()
+            .matches("Hello!")
+            .count(),
+        1
+    );
+    let msg = Message::load_from_db(t, rcvd.msg_ids[1]).await?;
+    assert_eq!(msg.get_viewtype(), Viewtype::Text);
+    assert!(msg.get_text().starts_with("this text with 42 chars is just repeated."));
+    assert!(msg.get_text().ends_with("[...]"));
+    // Wrong: the text is truncated, but it's not possible to see the full text in HTML.
+    assert!(!msg.has_html());
+    let msg = Message::load_from_db(t, rcvd.msg_ids[2]).await?;
+    assert_eq!(msg.get_viewtype(), Viewtype::File);
+    assert!(!msg.has_html());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mua_user_adds_member() -> Result<()> {
     let t = TestContext::new_alice().await;
 
