@@ -1,0 +1,305 @@
+From: Alice <alice@example.org>
+To: Bob <bob@example.net>
+Date: Fri, 2 Jun 2023 13:29:17 +0000
+Message-ID: <foobar1@localhost>
+Content-Type: multipart/mixed; boundary="zRs3OquGy6eU58KF"
+
+
+--zRs3OquGy6eU58KF
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: inline
+
+Hello!
+
+--zRs3OquGy6eU58KF
+Content-Type: message/rfc822
+Content-Disposition: inline
+
+From: AAA <aaa@example.org>
+To: Alice <alice@example.org>
+Subject: Some subject
+Date: Fri, 2 Jun 2023 12:29:17 +0000
+Message-ID: <foobar@localhost>
+In-Reply-To: <barbaz@localhost>
+Content-Type: multipart/mixed;
+	boundary="_innerboundary_"
+MIME-Version: 1.0
+
+--_innerboundary_
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+
+--=20
+
+Kind regards,
+
+Bob
+
+--_innerboundary_
+Content-Type: text/plain; name="deltachat-log.txt"
+Content-Description: deltachat-log.txt
+Content-Disposition: attachment; filename="deltachat-log.txt";
+	size=55254; creation-date="Fri, 02 Jun 2023 11:33:49 GMT";
+	modification-date="Fri, 02 Jun 2023 12:29:17 GMT"
+
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+this text with 42 chars is just repeated.
+
+--_innerboundary_--
+
+--zRs3OquGy6eU58KF--
