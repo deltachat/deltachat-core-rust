@@ -318,10 +318,6 @@ impl Context {
                     .yellow {
                         background-color: #fdc625;
                     }
-                    .not-started-error {
-                        font-size: 2em;
-                        color: red;
-                    }
                 </style>
             </head>
             <body>"#
@@ -341,7 +337,10 @@ impl Context {
                 sched.smtp.state.connectivity.clone(),
             ),
             _ => {
-                ret += "<div class=\"not-started-error\">Error: IO Not Started</div><p>Please report this issue to the app developer.</p>\n</body></html>\n";
+                ret += &format!(
+                    "<h3>{}</h3>\n</body></html>\n",
+                    stock_str::not_connected(self).await
+                );
                 return Ok(ret);
             }
         };
