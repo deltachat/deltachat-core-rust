@@ -842,7 +842,6 @@ async fn add_parts(
             }
         }
 
-        // Lookup or create adhoc group chat.
         if chat_id.is_none() {
             if let Some((new_chat_id, new_chat_id_blocked)) = lookup_chat_or_create_adhoc_group(
                 context,
