@@ -90,10 +90,10 @@ pub struct Kml {
 /// Location streaming status for one chat.
 #[derive(Debug, PartialEq, Eq)]
 pub enum LocationSendingStatus {
-    /// Location streaming is enabled.
-    Enabled = 0,
     /// Location streaming is disabled.
-    Disabled = 1,
+    Disabled = 0,
+    /// Location streaming is enabled.
+    Enabled = 1,
     /// Location streaming is enabled but (currently) not possible.
     Failure = 2,
 }
