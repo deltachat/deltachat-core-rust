@@ -8,21 +8,23 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     android.url = "github:tadfisher/android-nixpkgs";
   };
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-    nix-filter,
-    naersk,
-    fenix,
-    android,
-  }:
+  outputs =
+    { self
+    , nixpkgs
+    , flake-utils
+    , nix-filter
+    , naersk
+    , fenix
+    , android
+    ,
+    }:
     flake-utils.lib.eachDefaultSystem (
-      system: let
+      system:
+      let
         pkgs = nixpkgs.legacyPackages.${system};
         inherit (pkgs.stdenv) isDarwin;
         fenixPkgs = fenix.packages.${system};
-        naersk' = pkgs.callPackage naersk {};
+        naersk' = pkgs.callPackage naersk { };
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
         androidSdk = android.sdk.${system} (sdkPkgs:
           builtins.attrValues {
@@ -104,7 +106,7 @@
         mkRustPackage = packageName:
           naersk'.buildPackage {
             pname = packageName;
-            cargoBuildOptions = x: x ++ ["--package" packageName];
+            cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
             src = pkgs.lib.cleanSource ./.;
             nativeBuildInputs = [
@@ -117,21 +119,22 @@
             doCheck = false; # Disable test as it requires network access.
           };
         pkgsWin64 = pkgs.pkgsCross.mingwW64;
-        mkWin64RustPackage = packageName: let
-          rustTarget = "x86_64-pc-windows-gnu";
-          toolchainWin = fenixPkgs.combine [
-            fenixPkgs.stable.rustc
-            fenixPkgs.stable.cargo
-            fenixPkgs.targets.${rustTarget}.stable.rust-std
-          ];
-          naerskWin = pkgs.callPackage naersk {
-            cargo = toolchainWin;
-            rustc = toolchainWin;
-          };
-        in
+        mkWin64RustPackage = packageName:
+          let
+            rustTarget = "x86_64-pc-windows-gnu";
+            toolchainWin = fenixPkgs.combine [
+              fenixPkgs.stable.rustc
+              fenixPkgs.stable.cargo
+              fenixPkgs.targets.${rustTarget}.stable.rust-std
+            ];
+            naerskWin = pkgs.callPackage naersk {
+              cargo = toolchainWin;
+              rustc = toolchainWin;
+            };
+          in
           naerskWin.buildPackage rec {
             pname = packageName;
-            cargoBuildOptions = x: x ++ ["--package" packageName];
+            cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
             strictDeps = true;
             src = pkgs.lib.cleanSource ./.;
@@ -157,45 +160,46 @@
           };
 
         pkgsWin32 = pkgs.pkgsCross.mingw32;
-        mkWin32RustPackage = packageName: let
-          rustTarget = "i686-pc-windows-gnu";
-        in let
-          toolchainWin = fenixPkgs.combine [
-            fenixPkgs.stable.rustc
-            fenixPkgs.stable.cargo
-            fenixPkgs.targets.${rustTarget}.stable.rust-std
-          ];
-          naerskWin = pkgs.callPackage naersk {
-            cargo = toolchainWin;
-            rustc = toolchainWin;
-          };
+        mkWin32RustPackage = packageName:
+          let
+            rustTarget = "i686-pc-windows-gnu";
+          in
+          let
+            toolchainWin = fenixPkgs.combine [
+              fenixPkgs.stable.rustc
+              fenixPkgs.stable.cargo
+              fenixPkgs.targets.${rustTarget}.stable.rust-std
+            ];
+            naerskWin = pkgs.callPackage naersk {
+              cargo = toolchainWin;
+              rustc = toolchainWin;
+            };
 
-          # Get rid of MCF Gthread library.
-          # See <https://github.com/NixOS/nixpkgs/issues/156343>
-          # and <https://discourse.nixos.org/t/statically-linked-mingw-binaries/38395>
-          # for details.
-          #
-          # Use DWARF-2 instead of SJLJ for exception handling.
-          winCC = pkgsWin32.buildPackages.wrapCC (
-            (pkgsWin32.buildPackages.gcc-unwrapped.override
-              {
-                threadsCross = {
-                  model = "win32";
-                  package = null;
-                };
+            # Get rid of MCF Gthread library.
+            # See <https://github.com/NixOS/nixpkgs/issues/156343>
+            # and <https://discourse.nixos.org/t/statically-linked-mingw-binaries/38395>
+            # for details.
+            #
+            # Use DWARF-2 instead of SJLJ for exception handling.
+            winCC = pkgsWin32.buildPackages.wrapCC (
+              (pkgsWin32.buildPackages.gcc-unwrapped.override
+                {
+                  threadsCross = {
+                    model = "win32";
+                    package = null;
+                  };
+                }).overrideAttrs (oldAttr: {
+                configureFlags =
+                  oldAttr.configureFlags
+                  ++ [
+                    "--disable-sjlj-exceptions --with-dwarf2"
+                  ];
               })
-            .overrideAttrs (oldAttr: {
-              configureFlags =
-                oldAttr.configureFlags
-                ++ [
-                  "--disable-sjlj-exceptions --with-dwarf2"
-                ];
-            })
-          );
-        in
+            );
+          in
           naerskWin.buildPackage rec {
             pname = packageName;
-            cargoBuildOptions = x: x ++ ["--package" packageName];
+            cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
             strictDeps = true;
             src = pkgs.lib.cleanSource ./.;
@@ -220,27 +224,29 @@
             LD = "${winCC}/bin/${winCC.targetPrefix}cc";
           };
 
-        mkCrossRustPackage = arch: packageName: let
-          rustTarget = arch2targets."${arch}".rustTarget;
-          crossTarget = arch2targets."${arch}".crossTarget;
-          pkgsCross = import nixpkgs {
-            system = system;
-            crossSystem.config = crossTarget;
-          };
-        in let
-          toolchain = fenixPkgs.combine [
-            fenixPkgs.stable.rustc
-            fenixPkgs.stable.cargo
-            fenixPkgs.targets.${rustTarget}.stable.rust-std
-          ];
-          naersk-lib = pkgs.callPackage naersk {
-            cargo = toolchain;
-            rustc = toolchain;
-          };
-        in
+        mkCrossRustPackage = arch: packageName:
+          let
+            rustTarget = arch2targets."${arch}".rustTarget;
+            crossTarget = arch2targets."${arch}".crossTarget;
+            pkgsCross = import nixpkgs {
+              system = system;
+              crossSystem.config = crossTarget;
+            };
+          in
+          let
+            toolchain = fenixPkgs.combine [
+              fenixPkgs.stable.rustc
+              fenixPkgs.stable.cargo
+              fenixPkgs.targets.${rustTarget}.stable.rust-std
+            ];
+            naersk-lib = pkgs.callPackage naersk {
+              cargo = toolchain;
+              rustc = toolchain;
+            };
+          in
           naersk-lib.buildPackage rec {
             pname = packageName;
-            cargoBuildOptions = x: x ++ ["--package" packageName];
+            cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
             strictDeps = true;
             src = rustSrc;
@@ -280,24 +286,25 @@
           };
         };
 
-        mkAndroidRustPackage = arch: packageName: let
-          rustTarget = androidAttrs.${arch}.rustTarget;
-          toolchain = fenixPkgs.combine [
-            fenixPkgs.stable.rustc
-            fenixPkgs.stable.cargo
-            fenixPkgs.targets.${rustTarget}.stable.rust-std
-          ];
-          naersk-lib = pkgs.callPackage naersk {
-            cargo = toolchain;
-            rustc = toolchain;
-          };
-          targetToolchain = "${androidNdkRoot}/toolchains/llvm/prebuilt/linux-x86_64";
-          targetCcName = androidAttrs.${arch}.cc;
-          targetCc = "${targetToolchain}/bin/${targetCcName}";
-        in
+        mkAndroidRustPackage = arch: packageName:
+          let
+            rustTarget = androidAttrs.${arch}.rustTarget;
+            toolchain = fenixPkgs.combine [
+              fenixPkgs.stable.rustc
+              fenixPkgs.stable.cargo
+              fenixPkgs.targets.${rustTarget}.stable.rust-std
+            ];
+            naersk-lib = pkgs.callPackage naersk {
+              cargo = toolchain;
+              rustc = toolchain;
+            };
+            targetToolchain = "${androidNdkRoot}/toolchains/llvm/prebuilt/linux-x86_64";
+            targetCcName = androidAttrs.${arch}.cc;
+            targetCc = "${targetToolchain}/bin/${targetCcName}";
+          in
           naersk-lib.buildPackage rec {
             pname = packageName;
-            cargoBuildOptions = x: x ++ ["--package" packageName];
+            cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
             strictDeps = true;
             src = rustSrc;
@@ -323,39 +330,42 @@
           "deltachat-repl-${arch}-android" = mkAndroidRustPackage arch "deltachat-repl";
         };
 
-        mkRustPackages = arch: let
-          rpc-server = mkCrossRustPackage arch "deltachat-rpc-server";
-        in {
-          "deltachat-repl-${arch}" = mkCrossRustPackage arch "deltachat-repl";
-          "deltachat-rpc-server-${arch}" = rpc-server;
-          "deltachat-rpc-server-${arch}-wheel" = pkgs.stdenv.mkDerivation {
-            pname = "deltachat-rpc-server-${arch}-wheel";
-            version = manifest.version;
-            src = nix-filter.lib {
-              root = ./.;
-              include = [
-                "scripts/wheel-rpc-server.py"
-                "deltachat-rpc-server/README.md"
-                "LICENSE"
-                "Cargo.toml"
+        mkRustPackages = arch:
+          let
+            rpc-server = mkCrossRustPackage arch "deltachat-rpc-server";
+          in
+          {
+            "deltachat-repl-${arch}" = mkCrossRustPackage arch "deltachat-repl";
+            "deltachat-rpc-server-${arch}" = rpc-server;
+            "deltachat-rpc-server-${arch}-wheel" = pkgs.stdenv.mkDerivation {
+              pname = "deltachat-rpc-server-${arch}-wheel";
+              version = manifest.version;
+              src = nix-filter.lib {
+                root = ./.;
+                include = [
+                  "scripts/wheel-rpc-server.py"
+                  "deltachat-rpc-server/README.md"
+                  "LICENSE"
+                  "Cargo.toml"
+                ];
+              };
+              nativeBuildInputs = [
+                pkgs.python3
+                pkgs.python3Packages.wheel
               ];
+              buildInputs = [
+                rpc-server
+              ];
+              buildPhase = ''
+                mkdir tmp
+                cp ${rpc-server}/bin/deltachat-rpc-server tmp/deltachat-rpc-server
+                python3 scripts/wheel-rpc-server.py ${arch} tmp/deltachat-rpc-server
+              '';
+              installPhase = ''mkdir -p $out; cp -av deltachat_rpc_server-*.whl $out'';
             };
-            nativeBuildInputs = [
-              pkgs.python3
-              pkgs.python3Packages.wheel
-            ];
-            buildInputs = [
-              rpc-server
-            ];
-            buildPhase = ''
-              mkdir tmp
-              cp ${rpc-server}/bin/deltachat-rpc-server tmp/deltachat-rpc-server
-              python3 scripts/wheel-rpc-server.py ${arch} tmp/deltachat-rpc-server
-            '';
-            installPhase = ''mkdir -p $out; cp -av deltachat_rpc_server-*.whl $out'';
           };
-        };
-      in {
+      in
+      {
         formatter = pkgs.nixpkgs-fmt;
 
         packages =
@@ -435,7 +445,7 @@
               pname = "docs";
               version = manifest.version;
               src = pkgs.lib.cleanSource ./.;
-              nativeBuildInputs = [pkgs.doxygen];
+              nativeBuildInputs = [ pkgs.doxygen ];
               buildPhase = ''scripts/run-doxygen.sh'';
               installPhase = ''mkdir -p $out; cp -av deltachat-ffi/html deltachat-ffi/xml $out'';
             };
@@ -521,18 +531,19 @@
                 pkgs.python3Packages.breathe
                 pkgs.python3Packages.sphinx_rtd_theme
               ];
-              nativeBuildInputs = [pkgs.sphinx];
+              nativeBuildInputs = [ pkgs.sphinx ];
               buildPhase = ''sphinx-build -b html -a python/doc/ dist/html'';
               installPhase = ''mkdir -p $out; cp -av dist/html $out'';
             };
           };
 
-        devShells.default = let
-          pkgs = import nixpkgs {
-            system = system;
-            overlays = [fenix.overlays.default];
-          };
-        in
+        devShells.default =
+          let
+            pkgs = import nixpkgs {
+              system = system;
+              overlays = [ fenix.overlays.default ];
+            };
+          in
           pkgs.mkShell {
             buildInputs = with pkgs; [
               (fenix.packages.${system}.complete.withComponents [
