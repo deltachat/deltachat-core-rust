@@ -5710,7 +5710,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Accept certificates that are expired, self-signed
- * or otherwise not valid for the server hostname.
+ * or not valid for the server hostname.
  */
 #define DC_CERTCK_ACCEPT_INVALID 2
 
