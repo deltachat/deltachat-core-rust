@@ -244,7 +244,7 @@
               rustc = toolchain;
             };
           in
-          naersk-lib.buildPackage rec {
+          naersk-lib.buildPackage {
             pname = packageName;
             cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
@@ -255,16 +255,6 @@
             ];
             auditable = false; # Avoid cargo-auditable failures.
             doCheck = false; # Disable test as it requires network access.
-
-            CARGO_BUILD_TARGET = rustTarget;
-            TARGET_CC = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
-            CARGO_BUILD_RUSTFLAGS = [
-              "-C"
-              "linker=${TARGET_CC}"
-            ];
-
-            CC = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
-            LD = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
           };
 
         androidAttrs = {
