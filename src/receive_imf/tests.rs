@@ -4455,6 +4455,20 @@ async fn test_recreate_member_list_on_missing_add_of_self() -> Result<()> {
     send_text_msg(&alice, alice_chat_id, "4th message".to_string()).await?;
     bob.recv_msg(&alice.pop_sent_msg().await).await;
     assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+
+    // But if Bob left a long time ago, they must recreate the member list after missing a message.
+    SystemTime::shift(Duration::from_secs(3600));
+    send_text_msg(&alice, alice_chat_id, "5th message".to_string()).await?;
+    alice.pop_sent_msg().await;
+    send_text_msg(&alice, alice_chat_id, "6th message".to_string()).await?;
+    bob.recv_msg(&alice.pop_sent_msg().await).await;
+    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+
+    bob.golden_test_chat(
+        bob_chat_id,
+        "receive_imf_recreate_member_list_on_missing_add_of_self",
+    )
+    .await;
     Ok(())
 }
 
