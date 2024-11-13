@@ -363,6 +363,8 @@
           mkRustPackages "x86_64-linux" //
           mkRustPackages "armv7l-linux" //
           mkRustPackages "armv6l-linux" //
+          mkRustPackages "x86_64-darwin" //
+          mkRustPackages "aarch64-darwin" //
           mkAndroidPackages "armeabi-v7a" //
           mkAndroidPackages "arm64-v8a" //
           mkAndroidPackages "x86" //
