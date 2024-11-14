@@ -533,28 +533,30 @@
               };
           };
 
-        devShells.default = let 
-          pkgs = import nixpkgs {
-            system = system;
-            overlays = [ fenix.overlays.default ];
-          };
-          in pkgs.mkShell {
+        devShells.default =
+          let
+            pkgs = import nixpkgs {
+              system = system;
+              overlays = [ fenix.overlays.default ];
+            };
+          in
+          pkgs.mkShell {
 
-          buildInputs = with pkgs; [
-            (fenix.packages.${system}.complete.withComponents [
-              "cargo"
-              "clippy"
-              "rust-src"
-              "rustc"
-              "rustfmt"
-            ])
-            cargo-deny
-            rust-analyzer-nightly
-            cargo-nextest
-            perl # needed to build vendored OpenSSL
-            git-cliff
-          ];
-        };
+            buildInputs = with pkgs; [
+              (fenix.packages.${system}.complete.withComponents [
+                "cargo"
+                "clippy"
+                "rust-src"
+                "rustc"
+                "rustfmt"
+              ])
+              cargo-deny
+              rust-analyzer-nightly
+              cargo-nextest
+              perl # needed to build vendored OpenSSL
+              git-cliff
+            ];
+          };
       }
     );
 }
