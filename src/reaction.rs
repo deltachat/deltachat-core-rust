@@ -175,6 +175,7 @@ async fn set_msg_id_reaction(
     contact_id: ContactId,
     timestamp: i64,
     reaction: &Reaction,
+    rfc724_mid: Option<&str>,
 ) -> Result<()> {
     if reaction.is_empty() {
         // Simply remove the record instead of setting it to empty string.
@@ -191,11 +192,11 @@ async fn set_msg_id_reaction(
         context
             .sql
             .execute(
-                "INSERT INTO reactions (msg_id, contact_id, reaction)
-                 VALUES (?1, ?2, ?3)
+                "INSERT INTO reactions (msg_id, contact_id, reaction, rfc724_mid)
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(msg_id, contact_id)
-                 DO UPDATE SET reaction=excluded.reaction",
-                (msg_id, contact_id, reaction.as_str()),
+                 DO UPDATE SET reaction=excluded.reaction, rfc724_mid=excluded.rfc724_mid",
+                (msg_id, contact_id, reaction.as_str(), rfc724_mid),
             )
             .await?;
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -245,6 +246,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
         ContactId::SELF,
         reaction_msg.timestamp_sort,
         &reaction,
+        None,
     )
     .await?;
     Ok(reaction_msg_id)
@@ -276,9 +278,13 @@ pub(crate) async fn set_msg_reaction(
     timestamp: i64,
     reaction: Reaction,
     is_incoming_fresh: bool,
+    rfc724_mid: Option<&str>,
 ) -> Result<()> {
     if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
-        set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, &reaction).await?;
+        set_msg_id_reaction(
+            context, msg_id, chat_id, contact_id, timestamp, &reaction, rfc724_mid,
+        )
+        .await?;
 
         if is_incoming_fresh
             && !reaction.is_empty()

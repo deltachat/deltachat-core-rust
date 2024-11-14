@@ -1482,6 +1482,7 @@ async fn add_parts(
                 sort_timestamp,
                 Reaction::from(reaction_str.as_str()),
                 is_incoming_fresh,
+                Some(rfc724_mid),
             )
             .await?;
         }

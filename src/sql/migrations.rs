@@ -1068,6 +1068,15 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
             migration_version,
         )
         .await?;
+
+        inc_and_check(&mut migration_version, 124)?;
+        if dbversion < migration_version {
+            sql.execute_migration(
+                "ALTER TABLE reactions ADD COLUMN rfc724_mid TEXT;",
+                migration_version,
+            )
+            .await?;
+        }
     }
 
     let new_version = sql
