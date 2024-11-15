@@ -922,6 +922,25 @@ impl ChatId {
                     && old_draft.chat_id == self
                     && old_draft.state == MessageState::OutDraft
                 {
+                    // Do not overwrite draft if text and file are the same
+                    if old_draft.text == msg.text {
+                        if msg.param.get(Param::File).is_some() {
+                            let blob = msg
+                                .param
+                                .get_blob(Param::File, context, !msg.is_increation())
+                                .await?
+                                .context("no file stored in params")?;
+                            let old_blob = old_draft
+                                .param
+                                .get_blob(Param::File, context, false)
+                                .await?
+                                .context("no file stored in params")?;
+                            if blob == old_blob {
+                                return Ok(false);
+                            }
+                        }
+                        return Ok(false);
+                    };
                     context
                         .sql
                         .execute(
