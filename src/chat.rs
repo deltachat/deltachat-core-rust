@@ -929,7 +929,7 @@ impl ChatId {
                                 .param
                                 .get_blob(Param::File, context, !msg.is_increation())
                                 .await?
-                                .context("no file stored in params")?;
+                                .context("No file stored in params")?;
                             let old_blob = old_draft
                                 .param
                                 .get_blob(Param::File, context, false)
