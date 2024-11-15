@@ -934,7 +934,7 @@ impl ChatId {
                                 .param
                                 .get_blob(Param::File, context, false)
                                 .await?
-                                .context("no file stored in params")?;
+                                .context("No file stored in params")?;
                             if blob == old_blob {
                                 return Ok(false);
                             }
