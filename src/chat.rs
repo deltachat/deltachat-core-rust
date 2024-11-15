@@ -7724,6 +7724,7 @@ mod tests {
         let self_chat = alice.get_self_chat().await.id;
         self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
         let draft1 = self_chat.get_draft(&alice).await?.unwrap();
+        tokio::time::sleep(Duration::from_millis(800)).await;
         self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
         let draft2 = self_chat.get_draft(&alice).await?.unwrap();
         assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
