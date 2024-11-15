@@ -7715,4 +7715,18 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_do_not_overwrite_draft() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let mut msg = Message::new_text("This is a draft message".to_string());
+        let self_chat = alice.get_self_chat().await.id;
+        self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
+        let draft1 = self_chat.get_draft(&alice).await?.unwrap();
+        self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
+        let draft2 = self_chat.get_draft(&alice).await?.unwrap();
+        assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
+        Ok(())
+    }
 }
