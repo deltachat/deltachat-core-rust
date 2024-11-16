@@ -922,11 +922,18 @@ impl ChatId {
                     && old_draft.chat_id == self
                     && old_draft.state == MessageState::OutDraft
                 {
-                    return context.sql.transaction(|transaction| {
-                        let affected_rows = transaction.execute(
+                    return context
+                        .sql
+                        .transaction(|transaction| {
+                            let affected_rows = transaction.execute(
                                 "UPDATE msgs
-                                SET type=$1,txt=$2,txt_normalized=$3,param=$4,mime_in_reply_to=$5
-                                WHERE id=? AND (type <> $1 OR txt <> $2 OR txt_normalized <> $3 OR param <> $4 OR mime_in_reply_to <> $5);",
+                                SET type=?1,txt=?2,txt_normalized=?3,param=?4,mime_in_reply_to=?5
+                                WHERE id=? 
+                                AND (type <> ?1 
+                                    OR txt <> ?2 
+                                    OR txt_normalized <> ?3 
+                                    OR param <> ?4 
+                                    OR mime_in_reply_to <> ?5);",
                                 (
                                     msg.viewtype,
                                     &msg.text,
@@ -936,13 +943,17 @@ impl ChatId {
                                     msg.id,
                                 ),
                             )?;
-                        if affected_rows > 0 {
-                            transaction.execute("UPDATE msgs SET timestamp=? WHERE id=?;", (time(),msg.id))?;
-                            Ok(true)
-                        } else {
-                            Ok(false)
-                        }
-                    }).await;
+                            if affected_rows > 0 {
+                                transaction.execute(
+                                    "UPDATE msgs SET timestamp=? WHERE id=?;",
+                                    (time(), msg.id),
+                                )?;
+                                Ok(true)
+                            } else {
+                                Ok(false)
+                            }
+                        })
+                        .await;
                 }
             }
         }
