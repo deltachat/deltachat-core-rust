@@ -6091,8 +6091,9 @@ void dc_event_unref(dc_event_t* event);
  * @param data1 0
  * @param data2 (int) info_msg_id -
  *      ID of the info message added in dc_event_get_data2_int().
- *      Use dc_msg_get_text() to get the text to notify.
  *      Use dc_msg_get_parent() to get the webxdc instance the notification belongs to.
+ *      Use dc_msg_get_webxdc_deeplink() to get the deeplink to pass to `window.webxdc.deeplink` in JS land.
+ *      Use dc_msg_get_text() and dc_msg_get_from_id() to get notification text and sender.
  */
 #define DC_EVENT_INCOMING_WEBXDC_INFO     2003
 
