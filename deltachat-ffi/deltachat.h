@@ -6089,10 +6089,11 @@ void dc_event_unref(dc_event_t* event);
  * A webxdc added an info message that should be notified.
  *
  * @param data1 0
- * @param data2 (int) msg_id + (char*) info text to notify.
- *      ID of the message for which a webxdc notification was received in dc_event_get_data2_int(),
+ * @param data2 (int) info_msg_id + (char*) info text to notify.
+ *      ID of the info message added in dc_event_get_data2_int(),
  *      and the text to notify in dc_event_get_data2_str().
  *      string must be passed to dc_str_unref() afterwards.
+ *      Use dc_msg_get_parent() to get the webxdc instance the notification belongs to.
  */
 #define DC_EVENT_INCOMING_WEBXDC_INFO     2003
 
