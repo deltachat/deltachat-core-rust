@@ -942,15 +942,12 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::indexing_slicing)]
 fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, name: &str) -> bool {
     let name_to_check = if let Some(namespc) = namespc_opt {
-        let name_len = name.len();
-        let namespc_len = namespc.len();
-        if name_len <= namespc_len || !name.ends_with(namespc) {
+        let Some(name) = name.strip_suffix(namespc) else {
             return false;
-        }
-        &name[..name_len - namespc_len]
+        };
+        name
     } else {
         name
     };
