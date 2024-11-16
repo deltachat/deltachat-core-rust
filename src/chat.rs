@@ -927,14 +927,15 @@ impl ChatId {
                         .transaction(|transaction| {
                             let affected_rows = transaction.execute(
                                 "UPDATE msgs
-                                SET type=?1,txt=?2,txt_normalized=?3,param=?4,mime_in_reply_to=?5
-                                WHERE id=? 
-                                AND (type <> ?1 
-                                    OR txt <> ?2 
-                                    OR txt_normalized <> ?3 
-                                    OR param <> ?4 
-                                    OR mime_in_reply_to <> ?5);",
+                                SET timestamp=?1,type=?2,txt=?3,txt_normalized=?4,param=?5,mime_in_reply_to=?6
+                                WHERE id=?7
+                                AND (type <> ?2 
+                                    OR txt <> ?3 
+                                    OR txt_normalized <> ?4
+                                    OR param <> ?5
+                                    OR mime_in_reply_to <> ?6);",
                                 (
+                                    time(),
                                     msg.viewtype,
                                     &msg.text,
                                     message::normalize_text(&msg.text),
@@ -944,10 +945,6 @@ impl ChatId {
                                 ),
                             )?;
                             if affected_rows > 0 {
-                                transaction.execute(
-                                    "UPDATE msgs SET timestamp=? WHERE id=?;",
-                                    (time(), msg.id),
-                                )?;
                                 Ok(true)
                             } else {
                                 Ok(false)
