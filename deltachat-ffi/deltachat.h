@@ -4517,6 +4517,26 @@ int             dc_msg_get_info_type          (const dc_msg_t* msg);
 #define         DC_INFO_INVALID_UNENCRYPTED_MAIL  13
 #define         DC_INFO_WEBXDC_INFO_MESSAGE       32
 
+
+/**
+ * Get deeplink attached to an info message.
+ * The info message need to be of type DC_INFO_WEBXDC_INFO_MESSAGE.
+ *
+ * Typically, this is used to start the corresponding webxdc directly or indirectly
+ * and passing the deeplink to `window.webxdc.deeplink` in JS land.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param info_msg_id The info message object.
+ *     Not: the webxdc instance.
+ * @return The deeplink that can be passed to `window.webxdc.deeplink` in JS land.
+ *     The content of the deeplink is a full status update and its semantic is defined by the app.
+ *     Returns NULL if there is no deeplink attached to the info message and on errors.
+ *
+ */
+char*           dc_msg_get_webxdc_deeplink    (const dc_msg_t* msg);
+
+
 /**
  * Check if a message is still in creation. A message is in creation between
  * the calls to dc_prepare_msg() and dc_send_msg().
