@@ -922,10 +922,8 @@ impl ChatId {
                     && old_draft.chat_id == self
                     && old_draft.state == MessageState::OutDraft
                 {
-                    return context
-                        .sql
-                        .transaction(|transaction| {
-                            let affected_rows = transaction.execute(
+                    let affected_rows = context
+                        .sql.execute(
                                 "UPDATE msgs
                                 SET timestamp=?1,type=?2,txt=?3,txt_normalized=?4,param=?5,mime_in_reply_to=?6
                                 WHERE id=?7
@@ -943,14 +941,12 @@ impl ChatId {
                                     msg.in_reply_to.as_deref().unwrap_or_default(),
                                     msg.id,
                                 ),
-                            )?;
-                            if affected_rows > 0 {
-                                Ok(true)
-                            } else {
-                                Ok(false)
-                            }
-                        })
-                        .await;
+                            ).await?;
+                    if affected_rows > 0 {
+                        return Ok(true);
+                    } else {
+                        return Ok(false);
+                    }
                 }
             }
         }
