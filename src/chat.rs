@@ -922,43 +922,27 @@ impl ChatId {
                     && old_draft.chat_id == self
                     && old_draft.state == MessageState::OutDraft
                 {
-                    // Do not overwrite draft if text and file are the same
-                    if old_draft.text == msg.text {
-                        if msg.param.get(Param::File).is_some() {
-                            let blob = msg
-                                .param
-                                .get_blob(Param::File, context, !msg.is_increation())
-                                .await?
-                                .context("No file stored in params")?;
-                            let old_blob = old_draft
-                                .param
-                                .get_blob(Param::File, context, false)
-                                .await?
-                                .context("No file stored in params")?;
-                            if blob == old_blob {
-                                return Ok(false);
-                            }
+                    return context.sql.transaction(|transaction| {
+                        let affected_rows = transaction.execute(
+                                "UPDATE msgs
+                                SET type=$1,txt=$2,txt_normalized=$3,param=$4,mime_in_reply_to=$5
+                                WHERE id=? AND (type <> $1 OR txt <> $2 OR txt_normalized <> $3 OR param <> $4 OR mime_in_reply_to <> $5);",
+                                (
+                                    msg.viewtype,
+                                    &msg.text,
+                                    message::normalize_text(&msg.text),
+                                    msg.param.to_string(),
+                                    msg.in_reply_to.as_deref().unwrap_or_default(),
+                                    msg.id,
+                                ),
+                            )?;
+                        if affected_rows > 0 {
+                            transaction.execute("UPDATE msgs SET timestamp=? WHERE id=?;", (time(),msg.id))?;
+                            Ok(true)
+                        } else {
+                            Ok(false)
                         }
-                        return Ok(false);
-                    };
-                    context
-                        .sql
-                        .execute(
-                            "UPDATE msgs
-                            SET timestamp=?,type=?,txt=?,txt_normalized=?,param=?,mime_in_reply_to=?
-                            WHERE id=?;",
-                            (
-                                time(),
-                                msg.viewtype,
-                                &msg.text,
-                                message::normalize_text(&msg.text),
-                                msg.param.to_string(),
-                                msg.in_reply_to.as_deref().unwrap_or_default(),
-                                msg.id,
-                            ),
-                        )
-                        .await?;
-                    return Ok(true);
+                    }).await;
                 }
             }
         }
@@ -7724,7 +7708,7 @@ mod tests {
         let self_chat = alice.get_self_chat().await.id;
         self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
         let draft1 = self_chat.get_draft(&alice).await?.unwrap();
-        SystemTime::shift(Duration::from_secs(1)).await;
+        SystemTime::shift(Duration::from_secs(1));
         self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
         let draft2 = self_chat.get_draft(&alice).await?.unwrap();
         assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
