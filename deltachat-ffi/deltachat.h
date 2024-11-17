@@ -1157,7 +1157,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @param json program-readable data, this is create in JS land as:
  *     - `payload`: any JS object or primitive.
  *     - `info`: optional informational message. will be shown in chat an may be added as system notification.
- *     - `notifyUsers`: optional array of user `addr` that should be notified eg. by a sound.
+ *     - `notify`: optional array of user `addr` that should be notified eg. by a sound.
  *       note that still all users get the update payload and the `info` message shown in a chat.
  *     - `document`: optional document name. shown eg. in title bar.
  *     - `summary`: optional summary. shown beside app icon.
