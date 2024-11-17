@@ -4508,9 +4508,33 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
-/// Doesn't fail if the chat doesn't exist.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn add_info_msg_with_cmd(
+    context: &Context,
+    chat_id: ChatId,
+    text: &str,
+    cmd: SystemMessage,
+    timestamp_sort: i64,
+    timestamp_sent_rcvd: Option<i64>,
+    parent: Option<&Message>,
+    from_id: Option<ContactId>,
+) -> Result<MsgId> {
+    add_info_msg_with_importance(
+        context,
+        chat_id,
+        text,
+        cmd,
+        timestamp_sort,
+        timestamp_sent_rcvd,
+        parent,
+        from_id,
+        false,
+    ).await
+}
+
+/// Adds an informational message to chat, optionally showing a notification for important messages.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn add_info_msg_with_importance(
     context: &Context,
     chat_id: ChatId,
     text: &str,
@@ -4520,6 +4544,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     timestamp_sent_rcvd: Option<i64>,
     parent: Option<&Message>,
     from_id: Option<ContactId>,
+    important: bool,
 ) -> Result<MsgId> {
     let rfc724_mid = create_outgoing_rfc724_mid();
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
@@ -4553,7 +4578,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     context.new_msgs_notify.notify_one();
 
     let msg_id = MsgId::new(row_id.try_into()?);
-    context.emit_msgs_changed(chat_id, msg_id);
+    chat_id.emit_msg_event(context, msg_id, important);
 
     Ok(msg_id)
 }
