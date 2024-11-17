@@ -942,11 +942,7 @@ impl ChatId {
                                     msg.id,
                                 ),
                             ).await?;
-                    if affected_rows > 0 {
-                        return Ok(true);
-                    } else {
-                        return Ok(false);
-                    }
+                    return Ok(affected_rows > 0);
                 }
             }
         }
