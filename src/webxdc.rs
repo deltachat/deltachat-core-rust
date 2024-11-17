@@ -2880,4 +2880,99 @@ sth_for_the = "future""#
 
         Ok(())
     }
+
+    async fn has_incoming_msg_event(t: &TestContext, msg: Message) -> bool {
+        t.evtracker
+            .get_matching_opt(t, |evt| {
+                if let EventType::IncomingMsg { msg_id, .. } = evt {
+                    *msg_id == msg.id
+                } else {
+                    false
+                }
+            })
+            .await
+            .is_some()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_notify_one() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let fiona = tcm.fiona().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob, &fiona])
+            .await;
+        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+
+        alice
+            .send_webxdc_status_update(
+                instance.id,
+                r#"{"payload":7,"info": "your move!","notify":["bob@example.net"]}"#,
+                "d",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_msg_event(&alice, info_msg).await);
+
+        bob.recv_msg(&sent1).await;
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(has_incoming_msg_event(&bob, info_msg).await);
+
+        fiona.recv_msg(&sent1).await;
+        fiona.recv_msg_trash(&sent2).await;
+        let info_msg = fiona.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_msg_event(&fiona, info_msg).await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_notify_multiple() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let fiona = tcm.fiona().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob, &fiona])
+            .await;
+        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+
+        alice
+            .send_webxdc_status_update(
+                instance.id,
+                r#"{"payload":7,"info": "my move!","notify":["bob@example.net","fiona@example.net"]}"#,
+                "d",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_msg_event(&alice, info_msg).await);
+
+        bob.recv_msg(&sent1).await;
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(has_incoming_msg_event(&bob, info_msg).await);
+
+        fiona.recv_msg(&sent1).await;
+        fiona.recv_msg_trash(&sent2).await;
+        let info_msg = fiona.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(has_incoming_msg_event(&fiona, info_msg).await);
+
+        Ok(())
+    }
 }
