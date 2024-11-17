@@ -4529,7 +4529,8 @@ pub(crate) async fn add_info_msg_with_cmd(
         parent,
         from_id,
         false,
-    ).await
+    )
+    .await
 }
 
 /// Adds an informational message to chat, optionally showing a notification for important messages.
