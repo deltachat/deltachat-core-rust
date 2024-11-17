@@ -922,24 +922,27 @@ impl ChatId {
                     && old_draft.chat_id == self
                     && old_draft.state == MessageState::OutDraft
                 {
-                    context
-                        .sql
-                        .execute(
-                            "UPDATE msgs
-                            SET timestamp=?,type=?,txt=?,txt_normalized=?,param=?,mime_in_reply_to=?
-                            WHERE id=?;",
-                            (
-                                time(),
-                                msg.viewtype,
-                                &msg.text,
-                                message::normalize_text(&msg.text),
-                                msg.param.to_string(),
-                                msg.in_reply_to.as_deref().unwrap_or_default(),
-                                msg.id,
-                            ),
-                        )
-                        .await?;
-                    return Ok(true);
+                    let affected_rows = context
+                        .sql.execute(
+                                "UPDATE msgs
+                                SET timestamp=?1,type=?2,txt=?3,txt_normalized=?4,param=?5,mime_in_reply_to=?6
+                                WHERE id=?7
+                                AND (type <> ?2 
+                                    OR txt <> ?3 
+                                    OR txt_normalized <> ?4
+                                    OR param <> ?5
+                                    OR mime_in_reply_to <> ?6);",
+                                (
+                                    time(),
+                                    msg.viewtype,
+                                    &msg.text,
+                                    message::normalize_text(&msg.text),
+                                    msg.param.to_string(),
+                                    msg.in_reply_to.as_deref().unwrap_or_default(),
+                                    msg.id,
+                                ),
+                            ).await?;
+                    return Ok(affected_rows > 0);
                 }
             }
         }
@@ -7694,6 +7697,21 @@ mod tests {
             format!("<{}>", bob_received_message.rfc724_mid)
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_do_not_overwrite_draft() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let mut msg = Message::new_text("This is a draft message".to_string());
+        let self_chat = alice.get_self_chat().await.id;
+        self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
+        let draft1 = self_chat.get_draft(&alice).await?.unwrap();
+        SystemTime::shift(Duration::from_secs(1));
+        self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
+        let draft2 = self_chat.get_draft(&alice).await?.unwrap();
+        assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
         Ok(())
     }
 }
