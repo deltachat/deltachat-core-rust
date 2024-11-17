@@ -182,6 +182,10 @@ pub struct StatusUpdateItem {
     /// If there is no ID, message is always considered to be unique.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<String>,
+
+    /// Array of Addr that should be notified about this update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify: Option<Vec<String>>,
 }
 
 /// Update items as passed to the UIs.
@@ -1438,6 +1442,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
+                    notify: None,
                 },
                 1640178619,
                 true,
@@ -1462,6 +1467,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
+                    notify: None,
                 },
                 1640178619,
                 true,
@@ -1495,6 +1501,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: None,
+                    notify: None,
                 },
                 1640178619,
                 true,
@@ -1514,6 +1521,7 @@ mod tests {
                 document: None,
                 summary: None,
                 uid: None,
+                notify: None,
             },
             1640178619,
             true,

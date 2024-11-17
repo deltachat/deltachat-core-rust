@@ -149,6 +149,7 @@ pub(crate) async fn intercept_get_updates(
                     document: None,
                     summary: None,
                     uid: None,
+                    notify: None,
                 },
                 serial: StatusUpdateSerial(location.location_id),
                 max_serial: StatusUpdateSerial(location.location_id),
