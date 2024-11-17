@@ -323,7 +323,7 @@ impl Context {
                     )
                     .await?;
                 } else {
-                    // TODO: change add_info_msg_with_cmd() to emit DC_EVENT_INCOMING_MSG if update.notifyUsers refers to us
+                    // TODO: change add_info_msg_with_cmd() to emit DC_EVENT_INCOMING_MSG if update.notify refers to us
                     chat::add_info_msg_with_cmd(
                         self,
                         instance.chat_id,
