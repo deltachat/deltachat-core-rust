@@ -6086,22 +6086,14 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * A webxdc added an info message that should be notified.
- *
- * @param data1 0
- * @param data2 (int) info_msg_id -
- *      ID of the info message added in dc_event_get_data2_int().
- *      Use dc_msg_get_parent() to get the webxdc instance the notification belongs to.
- *      Use dc_msg_get_webxdc_deeplink() to get the deeplink to pass to `window.webxdc.deeplink` in JS land.
- *      Use dc_msg_get_text() and dc_msg_get_from_id() to get notification text and sender.
- */
-#define DC_EVENT_INCOMING_WEBXDC_INFO     2003
-
-/**
  * There is a fresh message. Typically, the user will show an notification
  * when receiving this message.
  *
  * There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
+ *
+ * If the message is an webxdc info message,
+ * dc_msg_get_parent() returns the webxdc instance the notification belongs to.
+ * Use dc_msg_get_webxdc_deeplink() to get the deeplink to pass to `window.webxdc.deeplink` in JS land.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
