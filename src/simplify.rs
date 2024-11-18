@@ -174,7 +174,6 @@ fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     }
 }
 
-#[allow(clippy::indexing_slicing)]
 fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
     let mut first_quoted_line = lines.len();
     let mut last_quoted_line = None;
@@ -189,24 +188,31 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>)
         }
     }
     if let Some(mut l_last) = last_quoted_line {
-        let quoted_text = lines[l_last..first_quoted_line]
+        let quoted_text = lines
             .iter()
+            .take(first_quoted_line)
+            .skip(l_last)
             .map(|s| {
                 s.strip_prefix('>')
                     .map_or(*s, |u| u.strip_prefix(' ').unwrap_or(u))
             })
             .collect::<Vec<&str>>()
             .join("\n");
-        if l_last > 1 && is_empty_line(lines[l_last - 1]) {
-            l_last -= 1
-        }
         if l_last > 1 {
-            let line = lines[l_last - 1];
-            if is_quoted_headline(line) {
-                l_last -= 1
+            if let Some(line) = lines.get(l_last - 1) {
+                if is_empty_line(line) {
+                    l_last -= 1
+                }
             }
         }
-        (&lines[..l_last], Some(quoted_text))
+        if l_last > 1 {
+            if let Some(line) = lines.get(l_last - 1) {
+                if is_quoted_headline(line) {
+                    l_last -= 1
+                }
+            }
+        }
+        (lines.get(..l_last).unwrap_or(lines), Some(quoted_text))
     } else {
         (lines, None)
     }
