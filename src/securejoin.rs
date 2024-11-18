@@ -347,7 +347,7 @@ pub(crate) async fn handle_securejoin_handshake(
             send_alice_handshake_msg(
                 context,
                 contact_id,
-                &format!("{}-auth-required", &step[..2]),
+                &format!("{}-auth-required", &step.get(..2).unwrap_or_default()),
             )
             .await
             .context("failed sending auth-required handshake message")?;

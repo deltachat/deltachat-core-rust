@@ -9,6 +9,7 @@
 //!
 //! For received messages, DelSp parameter is honoured.
 #![cfg_attr(not(test), forbid(clippy::indexing_slicing))]
+#![cfg_attr(not(test), forbid(clippy::string_slice))]
 
 /// Wraps line to 72 characters using format=flowed soft breaks.
 ///

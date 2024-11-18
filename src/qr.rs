@@ -807,11 +807,7 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
         .get(MAILTO_SCHEME.len()..)
         .context("Invalid mailto: scheme")?;
 
-    let (addr, query) = if let Some(query_index) = payload.find('?') {
-        (&payload[..query_index], &payload[query_index + 1..])
-    } else {
-        (payload, "")
-    };
+    let (addr, query) = payload.split_once('?').unwrap_or((payload, ""));
 
     let param: BTreeMap<&str, &str> = query
         .split('&')
@@ -861,12 +857,9 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
 async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
     let payload = qr.get(SMTP_SCHEME.len()..).context("Invalid SMTP scheme")?;
 
-    let addr = if let Some(query_index) = payload.find(':') {
-        &payload[..query_index]
-    } else {
-        bail!("Invalid SMTP found");
-    };
-
+    let (addr, _rest) = payload
+        .split_once(':')
+        .context("Invalid SMTP scheme payload")?;
     let addr = normalize_address(addr)?;
     let name = "";
     Qr::from_address(context, name, &addr, None).await
