@@ -218,7 +218,6 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>)
     }
 }
 
-#[allow(clippy::indexing_slicing)]
 fn remove_top_quote<'a>(
     lines: &'a [&str],
     is_chat_message: bool,
@@ -245,10 +244,12 @@ fn remove_top_quote<'a>(
     }
     if let Some(last_quoted_line) = last_quoted_line {
         (
-            &lines[last_quoted_line + 1..],
+            lines.get(last_quoted_line + 1..).unwrap_or(lines),
             Some(
-                lines[first_quoted_line..last_quoted_line + 1]
+                lines
                     .iter()
+                    .take(last_quoted_line + 1)
+                    .skip(first_quoted_line)
                     .map(|s| {
                         s.strip_prefix('>')
                             .map_or(*s, |u| u.strip_prefix(' ').unwrap_or(u))
