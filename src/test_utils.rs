@@ -1,7 +1,6 @@
 //! Utilities to help writing tests.
 //!
 //! This private module is only compiled for test runs.
-#![allow(clippy::indexing_slicing)]
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
 use std::ops::{Deref, DerefMut};

@@ -288,8 +288,6 @@ pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use super::*;
     use crate::test_utils::TestContext;
 

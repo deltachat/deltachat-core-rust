@@ -260,7 +260,6 @@ fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str>
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
     use tokio::fs;
     use tokio::io::AsyncReadExt;
 

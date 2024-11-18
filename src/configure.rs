@@ -611,8 +611,6 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use super::*;
     use crate::config::Config;
     use crate::login_param::EnteredServerLoginParam;
