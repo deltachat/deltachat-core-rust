@@ -367,9 +367,10 @@ pub fn format_backup(qr: &Qr) -> Result<String> {
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR`
-#[allow(clippy::indexing_slicing)]
 async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
-    let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
+    let payload = qr
+        .get(OPENPGP4FPR_SCHEME.len()..)
+        .context("Invalid OPENPGP4FPR scheme")?;
 
     // macOS and iOS sometimes replace the # with %23 (uri encode it), we should be able to parse this wrong format too.
     // see issue https://github.com/deltachat/deltachat-core-rust/issues/1969 for more info
@@ -546,7 +547,7 @@ async fn decode_ideltachat(context: &Context, prefix: &str, qr: &str) -> Result<
 fn decode_account(qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCACCOUNT_SCHEME.len()..)
-        .context("invalid DCACCOUNT payload")?;
+        .context("Invalid DCACCOUNT payload")?;
     let url = url::Url::parse(payload).context("Invalid account URL")?;
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::Account {
@@ -564,7 +565,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
 fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCWEBRTC_SCHEME.len()..)
-        .context("invalid DCWEBRTC payload")?;
+        .context("Invalid DCWEBRTC payload")?;
 
     let (_type, url) = Message::parse_webrtc_instance(payload);
     let url = url::Url::parse(&url).context("Invalid WebRTC instance")?;
@@ -637,7 +638,7 @@ fn decode_shadowsocks_proxy(qr: &str) -> Result<Qr> {
 fn decode_backup2(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP2_SCHEME)
-        .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
+        .ok_or_else(|| anyhow!("Invalid DCBACKUP2 scheme"))?;
     let (auth_token, node_addr) = payload
         .split_once('&')
         .context("Backup QR code has no separator")?;
@@ -668,9 +669,10 @@ struct CreateAccountErrorResponse {
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
-#[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
-    let url_str = &qr[DCACCOUNT_SCHEME.len()..];
+    let url_str = qr
+        .get(DCACCOUNT_SCHEME.len()..)
+        .context("Invalid DCACCOUNT scheme")?;
 
     if !url_str.starts_with(HTTPS_SCHEME) {
         bail!("DCACCOUNT QR codes must use HTTPS scheme");
@@ -800,9 +802,10 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
 /// Extract address for the mailto scheme.
 ///
 /// Scheme: `mailto:addr...?subject=...&body=..`
-#[allow(clippy::indexing_slicing)]
 async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
-    let payload = &qr[MAILTO_SCHEME.len()..];
+    let payload = qr
+        .get(MAILTO_SCHEME.len()..)
+        .context("Invalid mailto: scheme")?;
 
     let (addr, query) = if let Some(query_index) = payload.find('?') {
         (&payload[..query_index], &payload[query_index + 1..])
@@ -855,9 +858,8 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
 /// Extract address for the smtp scheme.
 ///
 /// Scheme: `SMTP:addr...:subject...:body...`
-#[allow(clippy::indexing_slicing)]
 async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
-    let payload = &qr[SMTP_SCHEME.len()..];
+    let payload = qr.get(SMTP_SCHEME.len()..).context("Invalid SMTP scheme")?;
 
     let addr = if let Some(query_index) = payload.find(':') {
         &payload[..query_index]
@@ -875,14 +877,13 @@ async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
 /// Scheme: `MATMSG:TO:addr...;SUB:subject...;BODY:body...;`
 ///
 /// There may or may not be linebreaks after the fields.
-#[allow(clippy::indexing_slicing)]
 async fn decode_matmsg(context: &Context, qr: &str) -> Result<Qr> {
     // Does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field.
     // we ignore this case.
     let addr = if let Some(to_index) = qr.find("TO:") {
-        let addr = qr[to_index + 3..].trim();
+        let addr = qr.get(to_index + 3..).unwrap_or_default().trim();
         if let Some(semi_index) = addr.find(';') {
-            addr[..semi_index].trim()
+            addr.get(..semi_index).unwrap_or_default().trim()
         } else {
             addr
         }
@@ -903,7 +904,6 @@ static VCARD_EMAIL_RE: Lazy<regex::Regex> =
 /// Extract address for the vcard scheme.
 ///
 /// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;`
-#[allow(clippy::indexing_slicing)]
 async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
     let name = VCARD_NAME_RE
         .captures(qr)
@@ -915,8 +915,8 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
         })
         .unwrap_or_default();
 
-    let addr = if let Some(caps) = VCARD_EMAIL_RE.captures(qr) {
-        normalize_address(caps[2].trim())?
+    let addr = if let Some(cap) = VCARD_EMAIL_RE.captures(qr).and_then(|caps| caps.get(2)) {
+        normalize_address(cap.as_str().trim())?
     } else {
         bail!("Bad e-mail address");
     };
