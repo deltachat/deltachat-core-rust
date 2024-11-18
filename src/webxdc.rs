@@ -315,20 +315,33 @@ impl Context {
 
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
-                if let Some(info_msg_id) =
-                    self.get_overwritable_info_msg_id(instance, from_id).await?
-                {
-                    chat::update_msg_text_and_timestamp(
-                        self,
-                        instance.chat_id,
-                        info_msg_id,
-                        info.as_str(),
-                        timestamp,
-                    )
-                    .await?;
+                let overwritable_info =
+                    self.get_overwritable_info_msg_id(instance, from_id).await?;
+                let notify_list = status_update_item.notify;
+
+                if notify_list.is_none() && overwritable_info.is_some() {
+                    if let Some(overwritable_info) = overwritable_info {
+                        chat::update_msg_text_and_timestamp(
+                            self,
+                            instance.chat_id,
+                            overwritable_info,
+                            info.as_str(),
+                            timestamp,
+                        )
+                        .await?;
+                    }
                 } else {
-                    // TODO: change add_info_msg_with_cmd() to emit DC_EVENT_INCOMING_MSG if update.notify refers to us
-                    chat::add_info_msg_with_cmd(
+                    let notify = if let Some(notify_list) = notify_list {
+                        if let Ok(self_addr) = self.get_primary_self_addr().await {
+                            notify_list.contains(&self_addr)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    chat::add_info_msg_with_importance(
                         self,
                         instance.chat_id,
                         info.as_str(),
@@ -337,6 +350,7 @@ impl Context {
                         None,
                         Some(instance),
                         Some(from_id),
+                        notify,
                     )
                     .await?;
                 }
