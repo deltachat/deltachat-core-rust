@@ -279,7 +279,6 @@ pub(crate) enum HandshakeMessage {
 ///
 /// When `handle_securejoin_handshake()` is called, the message is not yet filed in the
 /// database; this is done by `receive_imf()` later on as needed.
-#[allow(clippy::indexing_slicing)]
 pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
