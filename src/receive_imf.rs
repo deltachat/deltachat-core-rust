@@ -2465,14 +2465,16 @@ async fn create_or_lookup_mailinglist(
     }
 }
 
-#[allow(clippy::indexing_slicing)]
 fn compute_mailinglist_name(
     list_id_header: &str,
     listid: &str,
     mime_parser: &MimeMessage,
 ) -> String {
-    let mut name = match LIST_ID_REGEX.captures(list_id_header) {
-        Some(cap) => cap[1].trim().to_string(),
+    let mut name = match LIST_ID_REGEX
+        .captures(list_id_header)
+        .and_then(|caps| caps.get(1))
+    {
+        Some(cap) => cap.as_str().trim().to_string(),
         None => "".to_string(),
     };
 
@@ -2519,8 +2521,11 @@ fn compute_mailinglist_name(
         // 51231231231231231231231232869f58.xing.com -> xing.com
         static PREFIX_32_CHARS_HEX: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
-        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(listid) {
-            name = cap[2].to_string();
+        if let Some(cap) = PREFIX_32_CHARS_HEX
+            .captures(listid)
+            .and_then(|caps| caps.get(2))
+        {
+            name = cap.as_str().to_string();
         } else {
             name = listid.to_string();
         }
