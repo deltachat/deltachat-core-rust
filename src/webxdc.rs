@@ -315,16 +315,15 @@ impl Context {
 
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
-                let overwritable_info =
-                    self.get_overwritable_info_msg_id(instance, from_id).await?;
+                let mut info_msg_id = self.get_overwritable_info_msg_id(instance, from_id).await?;
                 let notify_list = status_update_item.notify;
 
-                if notify_list.is_none() && overwritable_info.is_some() {
-                    if let Some(overwritable_info) = overwritable_info {
+                if notify_list.is_none() && info_msg_id.is_some() {
+                    if let Some(info_msg_id) = info_msg_id {
                         chat::update_msg_text_and_timestamp(
                             self,
                             instance.chat_id,
-                            overwritable_info,
+                            info_msg_id,
                             info.as_str(),
                             timestamp,
                         )
@@ -341,18 +340,28 @@ impl Context {
                         false
                     };
 
-                    chat::add_info_msg_with_importance(
-                        self,
-                        instance.chat_id,
-                        info.as_str(),
-                        SystemMessage::WebxdcInfoMessage,
-                        timestamp,
-                        None,
-                        Some(instance),
-                        Some(from_id),
-                        notify,
-                    )
-                    .await?;
+                    info_msg_id = Some(
+                        chat::add_info_msg_with_importance(
+                            self,
+                            instance.chat_id,
+                            info.as_str(),
+                            SystemMessage::WebxdcInfoMessage,
+                            timestamp,
+                            None,
+                            Some(instance),
+                            Some(from_id),
+                            notify,
+                        )
+                        .await?,
+                    );
+                }
+
+                if let Some(info_msg_id) = info_msg_id {
+                    let mut info_msg = Message::load_from_db(self, info_msg_id).await?;
+                    info_msg
+                        .param
+                        .set_int(Param::Arg, status_update_serial.to_u32() as i32);
+                    info_msg.update_param(self).await?;
                 }
             }
         }
@@ -924,6 +933,37 @@ impl Message {
             },
             internet_access,
         })
+    }
+
+    /// Get deeplink attached to an info message.
+    ///
+    /// The info message need to be of type SystemMessage::WebxdcInfoMessage.
+    /// Typically, this is used to start the corresponding webxdc directly or indirectly
+    //  and passing the deeplink to `window.webxdc.deeplink` in JS land.
+    pub async fn get_webxdc_deeplink(&self, context: &Context) -> Result<Option<String>> {
+        let Some(serial) = self.param.get_int(Param::Arg) else {
+            return Ok(None);
+        };
+        let serial = StatusUpdateSerial::new(serial as u32);
+        let Some(instance) = self.parent(&context).await? else {
+            return Ok(None);
+        };
+
+        let update_item_str: String = context
+            .sql
+            .query_get_value(
+                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND id=?",
+                (instance.id, serial),
+            )
+            .await?
+            .context("cannot read update item")?;
+        let update_item = StatusUpdateItem {
+            uid: None, // Erase UIDs, apps, bots and tests don't need to know them.
+            ..serde_json::from_str(&update_item_str)?
+        };
+
+        let json = serde_json::to_string(&update_item)?;
+        Ok(Some(json))
     }
 }
 
@@ -2986,6 +3026,46 @@ sth_for_the = "future""#
         let info_msg = fiona.get_last_msg().await;
         assert!(info_msg.is_info());
         assert!(has_incoming_msg_event(&fiona, info_msg).await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_deeplink() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob])
+            .await;
+        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+
+        alice
+            .send_webxdc_status_update(
+                instance.id,
+                r#"{"payload": "my deeplink data", "info": "my move!"}"#,
+                "d",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert_eq!(
+            info_msg.get_webxdc_deeplink(&alice).await?.unwrap(),
+            r#"{"payload":"my deeplink data","info":"my move!"}"#
+        );
+
+        bob.recv_msg(&sent1).await;
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert_eq!(
+            info_msg.get_webxdc_deeplink(&bob).await?.unwrap(),
+            r#"{"payload":"my deeplink data","info":"my move!"}"#
+        );
 
         Ok(())
     }

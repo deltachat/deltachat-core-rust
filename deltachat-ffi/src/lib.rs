@@ -3682,6 +3682,31 @@ pub unsafe extern "C" fn dc_msg_get_info_type(msg: *mut dc_msg_t) -> libc::c_int
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_webxdc_deeplink(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_webxdc_deeplink()");
+        return "".strdup();
+    }
+
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+    let res = block_on(async move {
+        ffi_msg
+            .message
+            .get_webxdc_deeplink(ctx)
+            .await
+            .context("failed to get deeplink")
+            .log_err(ctx)
+            .unwrap_or(None)
+    });
+
+    match res {
+        Some(str) => str.strdup(),
+        None => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_is_increation()");
