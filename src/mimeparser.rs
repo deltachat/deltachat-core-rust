@@ -1915,18 +1915,17 @@ pub(crate) struct DeliveryReport {
     pub failure: bool,
 }
 
-#[allow(clippy::indexing_slicing)]
 pub(crate) fn parse_message_ids(ids: &str) -> Vec<String> {
     // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
     let mut msgids = Vec::new();
     for id in ids.split_whitespace() {
         let mut id = id.to_string();
-        if id.starts_with('<') {
-            id = id[1..].to_string();
-        }
-        if id.ends_with('>') {
-            id = id[..id.len() - 1].to_string();
-        }
+        if let Some(id_without_prefix) = id.strip_prefix('<') {
+            id = id_without_prefix.to_string();
+        };
+        if let Some(id_without_suffix) = id.strip_suffix('>') {
+            id = id_without_suffix.to_string();
+        };
         if !id.is_empty() {
             msgids.push(id);
         }
