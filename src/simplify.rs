@@ -53,7 +53,6 @@ pub(crate) fn remove_message_footer<'a>(
 /// Returns `(lines, is_footer_removed)` tuple;
 /// `is_footer_removed` is set to `true` if the footer was actually removed from `lines`
 /// (which is equal to the input array otherwise).
-#[allow(clippy::indexing_slicing)]
 fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     for (ix, &line) in lines.iter().enumerate() {
         if line == "--"
@@ -63,7 +62,10 @@ fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
             || line.starts_with("*****")
             || line.starts_with("~~~~~")
         {
-            return (&lines[..ix], true);
+            // `get` should always return `Some` here.
+            if let Some(lines) = lines.get(..ix) {
+                return (lines, true);
+            }
         }
     }
     (lines, false)
