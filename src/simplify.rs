@@ -1,4 +1,5 @@
 //! # Simplify incoming plaintext.
+use crate::tools::IsNoneOrEmpty;
 
 /// Protects lines starting with `--` against being treated as a footer.
 /// for that, we insert a ZERO WIDTH SPACE (ZWSP, 0x200B);
@@ -20,7 +21,6 @@ pub fn escape_message_footer_marks(text: &str) -> String {
 /// Returns `(lines, footer_lines)` tuple;
 /// `footer_lines` is set to `Some` if the footer was actually removed from `lines`
 /// (which is equal to the input array otherwise).
-#[allow(clippy::indexing_slicing)]
 pub(crate) fn remove_message_footer<'a>(
     lines: &'a [&str],
 ) -> (&'a [&'a str], Option<&'a [&'a str]>) {
@@ -28,14 +28,13 @@ pub(crate) fn remove_message_footer<'a>(
     for (ix, &line) in lines.iter().enumerate() {
         match line {
             // some providers encode `-- ` to `-- =20` which results in `--  `
-            "-- " | "--  " => return (&lines[..ix], lines.get(ix + 1..)),
+            "-- " | "--  " => return (lines.get(..ix).unwrap_or(lines), lines.get(ix + 1..)),
             // some providers encode `-- ` to `=2D-` which results in only `--`;
             // use that only when no other footer is found
             // and if the line before is empty and the line after is not empty
             "--" => {
-                if (ix == 0 || lines[ix - 1].is_empty())
-                    && ix != lines.len() - 1
-                    && !lines[ix + 1].is_empty()
+                if (ix == 0 || lines.get(ix.saturating_sub(1)).is_none_or_empty())
+                    && !lines.get(ix + 1).is_none_or_empty()
                 {
                     nearly_standard_footer = Some(ix);
                 }
@@ -44,7 +43,7 @@ pub(crate) fn remove_message_footer<'a>(
         }
     }
     if let Some(ix) = nearly_standard_footer {
-        return (&lines[..ix], lines.get(ix + 1..));
+        return (lines.get(..ix).unwrap_or(lines), lines.get(ix + 1..));
     }
     (lines, None)
 }
