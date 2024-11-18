@@ -2362,8 +2362,6 @@ async fn ndn_maybe_add_info_msg(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use mailparse::ParsedMail;
 
     use super::*;

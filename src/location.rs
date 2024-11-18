@@ -880,8 +880,6 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use super::*;
     use crate::config::Config;
     use crate::message::MessageState;

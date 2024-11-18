@@ -1,5 +1,3 @@
-#![allow(clippy::indexing_slicing)]
-
 use anyhow::Result;
 
 use crate::chat;

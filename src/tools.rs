@@ -709,8 +709,6 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use chrono::NaiveDate;
     use proptest::prelude::*;
 
