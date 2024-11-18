@@ -665,11 +665,13 @@ impl MimeMessage {
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing a description. If such a message is detected, text from the first part can be
     /// moved to the second part, and the first part dropped.
-    #[allow(clippy::indexing_slicing)]
     fn squash_attachment_parts(&mut self) {
-        if let [textpart, filepart] = &self.parts[..] {
-            let need_drop = textpart.typ == Viewtype::Text
-                && match filepart.typ {
+        if self.parts.len() == 2
+            && self.parts.first().map(|textpart| textpart.typ) == Some(Viewtype::Text)
+            && self
+                .parts
+                .get(1)
+                .map_or(false, |filepart| match filepart.typ {
                     Viewtype::Image
                     | Viewtype::Gif
                     | Viewtype::Sticker
@@ -680,24 +682,24 @@ impl MimeMessage {
                     | Viewtype::File
                     | Viewtype::Webxdc => true,
                     Viewtype::Unknown | Viewtype::Text | Viewtype::VideochatInvitation => false,
-                };
+                })
+        {
+            let mut parts = std::mem::take(&mut self.parts);
+            let Some(mut filepart) = parts.pop() else {
+                // Should never happen.
+                return;
+            };
+            let Some(textpart) = parts.pop() else {
+                // Should never happen.
+                return;
+            };
 
-            if need_drop {
-                let mut filepart = self.parts.swap_remove(1);
-
-                // insert new one
-                filepart.msg.clone_from(&self.parts[0].msg);
-                if let Some(quote) = self.parts[0].param.get(Param::Quote) {
-                    filepart.param.set(Param::Quote, quote);
-                }
-
-                // forget the one we use now
-                self.parts[0].msg = "".to_string();
-
-                // swap new with old
-                self.parts.push(filepart); // push to the end
-                let _ = self.parts.swap_remove(0); // drops first element, replacing it with the last one in O(1)
+            filepart.msg.clone_from(&textpart.msg);
+            if let Some(quote) = textpart.param.get(Param::Quote) {
+                filepart.param.set(Param::Quote, quote);
             }
+
+            self.parts = vec![filepart];
         }
     }
 
