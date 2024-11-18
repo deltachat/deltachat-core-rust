@@ -45,7 +45,6 @@ use crate::stock_str;
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
-#[allow(clippy::indexing_slicing)]
 pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     let count = buf.chars().count();
     if count > approx_chars + DC_ELLIPSIS.len() {
