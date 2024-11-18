@@ -184,9 +184,9 @@ impl KeyPair {
 /// as [described in the Autocrypt standard](https://autocrypt.org/level1.html#openpgp-based-key-data).
 pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
     let (signing_key_type, encryption_key_type) = match keygen_type {
-        KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
+        KeyGenType::Rsa2048 | KeyGenType::Default => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
-        KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::Ed25519, PgpKeyType::X25519),
+        KeyGenType::Ed25519 => (PgpKeyType::Ed25519, PgpKeyType::X25519),
     };
 
     let user_id = format!("<{addr}>");
