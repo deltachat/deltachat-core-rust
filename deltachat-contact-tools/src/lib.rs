@@ -16,6 +16,7 @@
     clippy::cloned_instead_of_copied
 )]
 #![cfg_attr(not(test), forbid(clippy::indexing_slicing))]
+#![cfg_attr(not(test), forbid(clippy::string_slice))]
 #![allow(
     clippy::match_bool,
     clippy::mixed_read_write_in_expression,
