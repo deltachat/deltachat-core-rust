@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+#![cfg_attr(not(test), forbid(clippy::indexing_slicing))]
 pub mod api;
 pub use yerpc;
 
