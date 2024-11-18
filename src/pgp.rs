@@ -11,7 +11,6 @@ use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
     SignedPublicSubKey, SignedSecretKey, StandaloneSignature, SubkeyParamsBuilder,
 };
-use pgp::crypto::ecc_curve::ECCCurve;
 use pgp::crypto::hash::HashAlgorithm;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{CompressionAlgorithm, PublicKeyTrait, SignatureBytes, StringToKey};
@@ -187,14 +186,12 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     let (signing_key_type, encryption_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
-        KeyGenType::Ed25519 | KeyGenType::Default => (
-            PgpKeyType::EdDSALegacy,
-            PgpKeyType::ECDH(ECCCurve::Curve25519),
-        ),
+        KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::Ed25519, PgpKeyType::X25519),
     };
 
     let user_id = format!("<{addr}>");
     let key_params = SecretKeyParamsBuilder::default()
+        .version(pgp::types::KeyVersion::V6)
         .key_type(signing_key_type)
         .can_certify(true)
         .can_sign(true)
@@ -218,6 +215,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
         ])
         .subkey(
             SubkeyParamsBuilder::default()
+                .version(pgp::types::KeyVersion::V6)
                 .key_type(encryption_key_type)
                 .can_encrypt(true)
                 .passphrase(None)
