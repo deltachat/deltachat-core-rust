@@ -2072,4 +2072,41 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_cache_is_cleared_when_io_is_started() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        assert_eq!(
+            alice.get_config(Config::ShowEmails).await?,
+            Some("2".to_string())
+        );
+
+        // Change the config circumventing the cache
+        // This simulates what the notfication plugin on iOS might do
+        // because it runs in a different process
+        alice
+            .sql
+            .execute(
+                "INSERT OR REPLACE INTO config (keyname, value) VALUES ('show_emails', '0')",
+                (),
+            )
+            .await?;
+
+        // Alice's Delta Chat doesn't know about it yet:
+        assert_eq!(
+            alice.get_config(Config::ShowEmails).await?,
+            Some("2".to_string())
+        );
+
+        // Starting IO will fail of course because no server settings are configured,
+        // but it should invalidate the caches:
+        alice.start_io().await;
+
+        assert_eq!(
+            alice.get_config(Config::ShowEmails).await?,
+            Some("0".to_string())
+        );
+
+        Ok(())
+    }
 }
