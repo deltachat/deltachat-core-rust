@@ -472,6 +472,14 @@ impl Context {
             // Allow at least 1 message every second + a burst of 3.
             *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
         }
+
+        // The next line is mainly for iOS:
+        // iOS starts a separate process for receiving notifications and if the user concurrently
+        // starts the app, the UI process opens the database but waits with calling start_io()
+        // until the notifications process finishes.
+        // Now, some configs may have changed, so, we need to invalidate the cache.
+        self.sql.config_cache.write().await.clear();
+
         self.scheduler.start(self.clone()).await;
     }
 
@@ -2061,6 +2069,43 @@ mod tests {
 
         // Test that sending into the protected chat works:
         let _sent = alice.send_msg(chat_id, &mut draft).await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_cache_is_cleared_when_io_is_started() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        assert_eq!(
+            alice.get_config(Config::ShowEmails).await?,
+            Some("2".to_string())
+        );
+
+        // Change the config circumventing the cache
+        // This simulates what the notfication plugin on iOS might do
+        // because it runs in a different process
+        alice
+            .sql
+            .execute(
+                "INSERT OR REPLACE INTO config (keyname, value) VALUES ('show_emails', '0')",
+                (),
+            )
+            .await?;
+
+        // Alice's Delta Chat doesn't know about it yet:
+        assert_eq!(
+            alice.get_config(Config::ShowEmails).await?,
+            Some("2".to_string())
+        );
+
+        // Starting IO will fail of course because no server settings are configured,
+        // but it should invalidate the caches:
+        alice.start_io().await;
+
+        assert_eq!(
+            alice.get_config(Config::ShowEmails).await?,
+            Some("0".to_string())
+        );
 
         Ok(())
     }
