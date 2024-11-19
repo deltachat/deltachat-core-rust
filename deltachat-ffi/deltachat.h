@@ -6094,7 +6094,6 @@ void dc_event_unref(dc_event_t* event);
  *
  * If the message is an webxdc info message,
  * dc_msg_get_parent() returns the webxdc instance the notification belongs to.
- * Use dc_msg_get_webxdc_deeplink() to get the deeplink to pass to `window.webxdc.deeplink` in JS land.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
