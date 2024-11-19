@@ -10,12 +10,12 @@
 //! Adding peer channels to webxdc needs upfront negotation of a topic and sharing of public keys so that
 //! nodes can connect to each other. The explicit approach is as follows:
 //!
-//! 1. We introduce a new [GossipTopic](crate::headerdef::HeaderDef::IrohGossipTopic) message header with a random 32-byte TopicId,
+//! 1. We introduce a new [`IrohGossipTopic`](crate::headerdef::HeaderDef::IrohGossipTopic) message header with a random 32-byte TopicId,
 //!    securely generated on the initial webxdc sender's device. This message header is encrypted
 //!    and sent in the same message as the webxdc application.
 //! 2. Whenever `joinRealtimeChannel().setListener()` or `joinRealtimeChannel().send()` is called by the webxdc application,
 //!    we start a routine to establish p2p connectivity and join the gossip swarm with Iroh.
-//! 3. The first step of this routine is to introduce yourself with a regular message containing the `IrohPublicKey`.
+//! 3. The first step of this routine is to introduce yourself with a regular message containing the [`IrohNodeAddr`](crate::headerdef::HeaderDef::IrohNodeAddr).
 //!    This message contains the users relay-server and public key.
 //!    Direct IP address is not included as this information can be persisted by email providers.
 //! 4. After the announcement, the sending peer joins the gossip swarm with an empty list of peer IDs (as they don't know anyone yet).
