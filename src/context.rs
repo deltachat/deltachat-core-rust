@@ -472,6 +472,14 @@ impl Context {
             // Allow at least 1 message every second + a burst of 3.
             *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
         }
+
+        // The next line is mainly for iOS:
+        // iOS starts a separate process for receiving notifications and if the user concurrently
+        // starts the app, the UI process opens the database but waits with calling start_io()
+        // until the notifications process finishes.
+        // Now, some configs may have changed, so, we need to invalidate the cache.
+        self.sql.config_cache.write().await.clear();
+
         self.scheduler.start(self.clone()).await;
     }
 
