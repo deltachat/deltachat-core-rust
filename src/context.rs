@@ -2082,7 +2082,7 @@ mod tests {
         );
 
         // Change the config circumventing the cache
-        // This simulates what the notfication plugin on iOS might do
+        // This simulates what the notification plugin on iOS might do
         // because it runs in a different process
         alice
             .sql
