@@ -2308,6 +2308,20 @@ sth_for_the = "future""#
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_webxdc_self_addr() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info = instance.get_webxdc_info(&t).await?;
+
+        let real_addr = t.get_primary_self_addr().await?;
+        assert!(!info.self_addr.contains(&real_addr));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_webxdc_info_summary() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
