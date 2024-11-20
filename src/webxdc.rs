@@ -97,6 +97,9 @@ pub struct WebxdcInfo {
     /// It should request access, be encrypted
     /// and sent to self for this.
     pub internet_access: bool,
+
+    /// address to be used for `window.webxdc.selfAddr` in JS land.
+    pub self_addr: String,
 }
 
 /// Status Update ID.
@@ -872,6 +875,8 @@ impl Message {
             && self.chat_id.is_self_talk(context).await.unwrap_or_default()
             && self.get_showpadlock();
 
+        let self_addr = self.get_webxdc_self_addr(context).await?;
+
         Ok(WebxdcInfo {
             name: if let Some(name) = manifest.name {
                 name
@@ -904,7 +909,12 @@ impl Message {
                 "".to_string()
             },
             internet_access,
+            self_addr,
         })
+    }
+
+    async fn get_webxdc_self_addr(&self, context: &Context) -> Result<String> {
+        context.get_primary_self_addr().await
     }
 }
 
