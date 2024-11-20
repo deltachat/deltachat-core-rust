@@ -9,10 +9,10 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
+from direct_imap import DirectImap
 
 from deltachat_rpc_client import Contact, EventType, Message, events
 from deltachat_rpc_client.const import DownloadState, MessageState
-from deltachat_rpc_client.direct_imap import DirectImap
 from deltachat_rpc_client.rpc import JsonRpcError
 
 

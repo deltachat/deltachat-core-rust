@@ -21,7 +21,7 @@ from imap_tools import (
 )
 
 if TYPE_CHECKING:
-    from . import Account
+    from deltachat_rpc_client import Account
 
 FLAGS = b"FLAGS"
 FETCH = b"FETCH"
