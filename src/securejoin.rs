@@ -244,10 +244,10 @@ async fn verify_sender_by_fingerprint(
 
 /// What to do with a Secure-Join handshake message after it was handled.
 ///
-/// This status is returned to [`receive_imf`] which will use it to decide what to do
+/// This status is returned to [`receive_imf_inner`] which will use it to decide what to do
 /// next with this incoming setup-contact/secure-join handshake message.
 ///
-/// [`receive_imf`]: crate::receive_imf::receive_imf
+/// [`receive_imf_inner`]: crate::receive_imf::receive_imf_inner
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum HandshakeMessage {
     /// The message has been fully handled and should be removed/delete.
