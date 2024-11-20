@@ -765,27 +765,19 @@ impl ChatId {
         );
 
         let chat = Chat::load_from_db(context, self).await?;
-        context
-            .sql
-            .execute(
-                "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
-                (self,),
-            )
-            .await?;
 
         context
             .sql
-            .execute("DELETE FROM msgs WHERE chat_id=?;", (self,))
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (self,))
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM chats WHERE id=?;", (self,))
+            .transaction(|transaction| {
+                transaction.execute(
+                    "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?)",
+                    (self,),
+                )?;
+                transaction.execute("DELETE FROM msgs WHERE chat_id=?", (self,))?;
+                transaction.execute("DELETE FROM chats_contacts WHERE chat_id=?", (self,))?;
+                transaction.execute("DELETE FROM chats WHERE id=?", (self,))?;
+                Ok(())
+            })
             .await?;
 
         context.emit_msgs_changed_without_ids();
