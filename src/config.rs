@@ -441,6 +441,12 @@ pub enum Config {
     /// Enable webxdc realtime features.
     #[strum(props(default = "1"))]
     WebxdcRealtimeEnabled,
+
+    /// Last device token stored on the chatmail server.
+    ///
+    /// If it has not changed, we do not store
+    /// the device token again.
+    DeviceToken,
 }
 
 impl Config {
