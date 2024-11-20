@@ -132,6 +132,9 @@ pub(crate) enum CantSendReason {
     /// Temporary state for 1:1 chats while SecureJoin is in progress, after a timeout sending
     /// messages (incl. unencrypted if we don't yet know the contact's pubkey) is allowed.
     SecurejoinWait,
+
+    /// The contact isn't forward verified which is needed by protected 1:1 chats.
+    NoForwardVerification,
 }
 
 impl fmt::Display for CantSendReason {
@@ -152,6 +155,7 @@ impl fmt::Display for CantSendReason {
             }
             Self::NotAMember => write!(f, "not a member of the chat"),
             Self::SecurejoinWait => write!(f, "awaiting SecureJoin for 1:1 chat"),
+            Self::NoForwardVerification => write!(f, "contact isn't forward verified"),
         }
     }
 }
@@ -1662,6 +1666,19 @@ impl Chat {
             > 0
         {
             Some(SecurejoinWait)
+        } else if self.typ == Chattype::Single
+            && self.is_protected()
+            && match get_chat_contacts(context, self.id).await?.pop() {
+                Some(contact_id) => {
+                    !Contact::get_by_id(context, contact_id)
+                        .await?
+                        .is_forward_verified(context)
+                        .await?
+                }
+                None => false,
+            }
+        {
+            Some(NoForwardVerification)
         } else {
             None
         };
@@ -2769,6 +2786,7 @@ async fn prepare_msg_common(
             CantSendReason::ProtectionBroken
                 | CantSendReason::ContactRequest
                 | CantSendReason::SecurejoinWait
+                | CantSendReason::NoForwardVerification
         ) && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
         {
             // Send out the message, the securejoin message is supposed to repair the verification.

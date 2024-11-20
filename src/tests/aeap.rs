@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::chat::{self, Chat, ChatId, ProtectionStatus};
+use crate::chat::{self, CantSendReason, Chat, ChatId, ProtectionStatus};
 use crate::contact;
 use crate::contact::Contact;
 use crate::contact::ContactId;
@@ -422,6 +422,11 @@ async fn test_write_to_alice_after_aeap() -> Result<()> {
     assert!(chat::send_msg(bob, bob_alice_chat.id, &mut msg)
         .await
         .is_err());
+    assert!(!bob_alice_chat.can_send(bob).await?);
+    assert_eq!(
+        bob_alice_chat.why_cant_send(bob).await?,
+        Some(CantSendReason::NoForwardVerification)
+    );
 
     // But encrypted communication is still possible in unprotected groups with old Alice.
     let sent = bob
