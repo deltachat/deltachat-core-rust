@@ -1771,6 +1771,7 @@ mod tests {
             "socks5_password",
             "key_id",
             "webxdc_integration",
+            "device_token",
         ];
         let t = TestContext::new().await;
         let info = t.get_info().await.unwrap();
