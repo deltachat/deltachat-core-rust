@@ -92,6 +92,7 @@ serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
 serde = { workspace = true, features = ["derive"] }
 sha-1 = "0.10"
+sha2 = "0.10"
 shadowsocks = { version = "1.21.0", default-features = false, features = ["aead-cipher-2022"] }
 smallvec = "1.13.2"
 strum = "0.26"

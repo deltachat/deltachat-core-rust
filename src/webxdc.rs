@@ -30,7 +30,7 @@ use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha1::{Digest, Sha1};
+use sha2::{Digest, Sha256};
 
 use crate::chat::{self, Chat};
 use crate::constants::Chattype;
@@ -918,9 +918,7 @@ impl Message {
         let addr = context.get_primary_self_addr().await?;
         let data = format!("{}-{}", addr, self.rfc724_mid);
 
-        let mut hasher = Sha1::new();
-        hasher.update(data.as_bytes());
-        let hash = hasher.finalize();
+        let hash = Sha256::digest(data.as_bytes());
         let hash_str = format!("{:x}", hash);
 
         Ok(hash_str)
