@@ -2316,10 +2316,13 @@ sth_for_the = "future""#
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
 
         let instance = send_webxdc_instance(&t, chat_id).await?;
-        let info = instance.get_webxdc_info(&t).await?;
+        let info1 = instance.get_webxdc_info(&t).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info2 = instance.get_webxdc_info(&t).await?;
 
         let real_addr = t.get_primary_self_addr().await?;
-        assert!(!info.self_addr.contains(&real_addr));
+        assert!(!info1.self_addr.contains(&real_addr));
+        assert_ne!(info1.self_addr, info2.self_addr);
 
         Ok(())
     }
