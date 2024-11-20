@@ -1839,7 +1839,7 @@ impl Chat {
     /// deltachat, and the data returned is still subject to change.
     pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
         let draft = match self.id.get_draft(context).await? {
-            Some(message) => message.text,
+            Some(message) if self.can_send(context).await? => message.text,
             _ => String::new(),
         };
         Ok(ChatInfo {
@@ -4890,6 +4890,59 @@ mod tests {
 
         chat_id.set_draft(&t, None).await?;
         assert!(chat_id.get_draft(&t).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_draft_only_in_accesible_chat_summary() -> Result<()> {
+        let mut t = TestContextManager::new();
+        let alice = t.alice().await;
+        let bob = t.bob().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "chat").await?;
+        let bob_contact = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        add_contact_to_chat(&alice, chat_id, bob_contact).await?;
+        let bob_chat_id = bob
+            .recv_msg(&alice.send_text(chat_id, "hello bob").await)
+            .await
+            .chat_id;
+        bob_chat_id.accept(&bob).await?;
+
+        // Set draft and assure it is in chat info.
+        let draft = String::from("I'm gonna send this!!");
+        bob_chat_id
+            .set_draft(&bob, Some(&mut Message::new_text(draft.clone())))
+            .await?;
+        let chat = Chat::load_from_db(&bob, bob_chat_id).await?;
+        let info = chat.get_info(&bob).await?;
+        assert_eq!(info.draft, draft);
+
+        // Alice removes bob, so draft is not shown in chat info.
+        remove_contact_from_chat(&alice, chat_id, bob_contact).await?;
+        bob.recv_msg(&mut alice.pop_sent_msg().await).await;
+        let chat = Chat::load_from_db(&bob, bob_chat_id).await?;
+        assert!(!chat.can_send(&bob).await?);
+        let info = chat.get_info(&bob).await?;
+        assert_eq!(info.draft, String::from(""));
+
+        // Alice re-adds bob, so draft is shown again.
+        add_contact_to_chat(&alice, chat_id, bob_contact).await?;
+        let bob_chat_id = bob
+            .recv_msg(&alice.send_text(chat_id, "hello again, bob").await)
+            .await
+            .chat_id;
+
+        let chat = Chat::load_from_db(&bob, bob_chat_id).await?;
+        assert!(chat.can_send(&bob).await?);
+        let info = chat.get_info(&bob).await?;
+        assert_eq!(info.draft, draft);
+
+        // Bob leaves group so draft is not shown.
+        remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+        let chat = Chat::load_from_db(&bob, bob_chat_id).await?;
+        assert!(!chat.can_send(&bob).await?);
+        let info = chat.get_info(&bob).await?;
+        assert_eq!(info.draft, String::from(""));
 
         Ok(())
     }
