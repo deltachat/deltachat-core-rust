@@ -809,7 +809,8 @@ impl ChatId {
     ///
     /// Passing `None` as message just deletes the draft
     pub async fn set_draft(self, context: &Context, mut msg: Option<&mut Message>) -> Result<()> {
-        if self.is_special() {
+        let self_in_chat = is_contact_in_chat(context, self, ContactId::SELF).await?;
+        if self.is_special() || !self_in_chat {
             return Ok(());
         }
 
@@ -4919,7 +4920,7 @@ mod tests {
 
         // Alice removes bob, so draft is not shown in chat info.
         remove_contact_from_chat(&alice, chat_id, bob_contact).await?;
-        bob.recv_msg(&mut alice.pop_sent_msg().await).await;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
         let chat = Chat::load_from_db(&bob, bob_chat_id).await?;
         assert!(!chat.can_send(&bob).await?);
         let info = chat.get_info(&bob).await?;
@@ -4943,6 +4944,17 @@ mod tests {
         assert!(!chat.can_send(&bob).await?);
         let info = chat.get_info(&bob).await?;
         assert_eq!(info.draft, String::from(""));
+
+        // Bob can not set a draft if not in chat.
+        bob_chat_id
+            .set_draft(
+                &bob,
+                Some(&mut Message::new_text(String::from(
+                    "I'm gonna send this fr fr!!",
+                ))),
+            )
+            .await?;
+        assert_eq!(bob_chat_id.get_draft(&bob).await?.unwrap().text, draft);
 
         Ok(())
     }
