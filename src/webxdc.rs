@@ -98,7 +98,7 @@ pub struct WebxdcInfo {
     /// and sent to self for this.
     pub internet_access: bool,
 
-    /// address to be used for `window.webxdc.selfAddr` in JS land.
+    /// Address to be used for `window.webxdc.selfAddr` in JS land.
     pub self_addr: String,
 }
 
