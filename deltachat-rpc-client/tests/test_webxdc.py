@@ -24,7 +24,7 @@ def test_webxdc(acfactory) -> None:
         "name": "Chess Board",
         "sourceCodeUrl": None,
         "summary": None,
-        "selfAddr": webxdc_info.selfAddr,
+        "selfAddr": webxdc_info["selfAddr"],
     }
 
     status_updates = message.get_webxdc_status_updates()
