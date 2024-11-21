@@ -6092,7 +6092,7 @@ void dc_event_unref(dc_event_t* event);
  *
  * There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
  *
- * If the message is an webxdc info message,
+ * If the message is a webxdc info message,
  * dc_msg_get_parent() returns the webxdc instance the notification belongs to.
  *
  * @param data1 (int) chat_id
