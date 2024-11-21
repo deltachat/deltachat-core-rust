@@ -6,7 +6,7 @@ use std::str::FromStr;
 use anyhow::{Context as _, Result};
 use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, sanitize_single_line, ContactAddress};
 use iroh_gossip::proto::TopicId;
-use mailparse::{parse_mail, SingleInfo};
+use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -73,12 +73,13 @@ pub struct ReceivedMsg {
 ///
 /// This method returns errors on a failure to parse the mail or extract Message-ID. It's only used
 /// for tests and REPL tool, not actual message reception pipeline.
+#[cfg(any(test, feature = "internals"))]
 pub async fn receive_imf(
     context: &Context,
     imf_raw: &[u8],
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
-    let mail = parse_mail(imf_raw).context("can't parse mail")?;
+    let mail = mailparse::parse_mail(imf_raw).context("can't parse mail")?;
     let rfc724_mid =
         imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
     if let Some(download_limit) = context.download_limit().await? {
@@ -105,6 +106,7 @@ pub async fn receive_imf(
 /// Emulates reception of a message from "INBOX".
 ///
 /// Only used for tests and REPL tool, not actual message reception pipeline.
+#[cfg(any(test, feature = "internals"))]
 pub(crate) async fn receive_imf_from_inbox(
     context: &Context,
     rfc724_mid: &str,
