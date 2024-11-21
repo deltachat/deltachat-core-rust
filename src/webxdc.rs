@@ -30,12 +30,14 @@ use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::chat::{self, Chat};
 use crate::constants::Chattype;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::wrapped_base64_encode;
 use crate::mimeparser::SystemMessage;
@@ -97,6 +99,9 @@ pub struct WebxdcInfo {
     /// It should request access, be encrypted
     /// and sent to self for this.
     pub internet_access: bool,
+
+    /// Address to be used for `window.webxdc.selfAddr` in JS land.
+    pub self_addr: String,
 }
 
 /// Status Update ID.
@@ -872,6 +877,8 @@ impl Message {
             && self.chat_id.is_self_talk(context).await.unwrap_or_default()
             && self.get_showpadlock();
 
+        let self_addr = self.get_webxdc_self_addr(context).await?;
+
         Ok(WebxdcInfo {
             name: if let Some(name) = manifest.name {
                 name
@@ -904,7 +911,15 @@ impl Message {
                 "".to_string()
             },
             internet_access,
+            self_addr,
         })
+    }
+
+    async fn get_webxdc_self_addr(&self, context: &Context) -> Result<String> {
+        let fingerprint = load_self_public_key(context).await?.dc_fingerprint().hex();
+        let data = format!("{}-{}", fingerprint, self.rfc724_mid);
+        let hash = Sha256::digest(data.as_bytes());
+        Ok(format!("{:x}", hash))
     }
 }
 
@@ -2284,6 +2299,23 @@ sth_for_the = "future""#
         let msg = Message::load_from_db(&t, msg_id).await?;
         let result = msg.get_webxdc_info(&t).await;
         assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_webxdc_self_addr() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info1 = instance.get_webxdc_info(&t).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info2 = instance.get_webxdc_info(&t).await?;
+
+        let real_addr = t.get_primary_self_addr().await?;
+        assert!(!info1.self_addr.contains(&real_addr));
+        assert_ne!(info1.self_addr, info2.self_addr);
 
         Ok(())
     }

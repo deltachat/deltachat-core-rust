@@ -35,6 +35,8 @@ pub struct WebxdcMessageInfo {
     source_code_url: Option<String>,
     /// True if full internet access should be granted to the app.
     internet_access: bool,
+    /// Address to be used for `window.webxdc.selfAddr` in JS land.
+    self_addr: String,
 }
 
 impl WebxdcMessageInfo {
@@ -50,6 +52,7 @@ impl WebxdcMessageInfo {
             summary,
             source_code_url,
             internet_access,
+            self_addr,
         } = message.get_webxdc_info(context).await?;
 
         Ok(Self {
@@ -59,6 +62,7 @@ impl WebxdcMessageInfo {
             summary: maybe_empty_string_to_option(summary),
             source_code_url: maybe_empty_string_to_option(source_code_url),
             internet_access,
+            self_addr,
         })
     }
 }

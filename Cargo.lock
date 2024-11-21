@@ -1372,6 +1372,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sha-1",
+ "sha2",
  "shadowsocks",
  "smallvec",
  "strum",

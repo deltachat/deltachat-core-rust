@@ -4197,6 +4197,7 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   true if the Webxdc should get full internet access, including Webrtc.
  *   currently, this is only true for encrypted Webxdc's in the self chat
  *   that have requested internet access in the manifest.
+ * - self_addr: address to be used for `window.webxdc.selfAddr` in JS land.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.
