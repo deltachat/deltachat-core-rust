@@ -270,6 +270,7 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
 pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
+    let qr = qr.trim();
     let qrcode = if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)
             .await
@@ -987,6 +988,17 @@ mod tests {
             }
         );
         let qr = check_qr(&ctx.ctx, "http://www.hello.com/hello").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "http://www.hello.com/hello".to_string(),
+            }
+        );
+
+        // Test that QR code whitespace is stripped.
+        // Users can copy-paste QR code contents and "scan"
+        // from the clipboard.
+        let qr = check_qr(&ctx.ctx, "  \thttp://www.hello.com/hello  \n\t \r\n ").await?;
         assert_eq!(
             qr,
             Qr::Url {
@@ -1743,7 +1755,9 @@ mod tests {
         );
 
         // Test URL without port.
-        let res = set_config_from_qr(&t, "https://t.me/socks?server=1.2.3.4").await;
+        //
+        // Also check that whitespace is trimmed.
+        let res = set_config_from_qr(&t, " https://t.me/socks?server=1.2.3.4\n").await;
         assert!(res.is_ok());
         assert_eq!(t.get_config_bool(Config::ProxyEnabled).await?, true);
         assert_eq!(
