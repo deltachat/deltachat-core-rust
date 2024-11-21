@@ -37,7 +37,7 @@ use crate::constants::Chattype;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
-use crate::key::{load_self_secret_key, DcKey};
+use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::wrapped_base64_encode;
 use crate::mimeparser::SystemMessage;
@@ -916,17 +916,10 @@ impl Message {
     }
 
     async fn get_webxdc_self_addr(&self, context: &Context) -> Result<String> {
-        let secret_key_bytes = &load_self_secret_key(context).await?.to_bytes();
-        let rfc724_mid_bytes = self.rfc724_mid.as_bytes();
-
-        let mut hasher = Sha256::new();
-        hasher.update(secret_key_bytes);
-        hasher.update(rfc724_mid_bytes);
-        let hash = hasher.finalize();
-
-        let hash_str = format!("{:x}", hash);
-
-        Ok(hash_str)
+        let fingerprint = load_self_public_key(context).await?.dc_fingerprint().hex();
+        let data = format!("{}-{}", fingerprint, self.rfc724_mid);
+        let hash = Sha256::digest(data.as_bytes());
+        Ok(format!("{:x}", hash))
     }
 }
 
