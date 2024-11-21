@@ -542,6 +542,8 @@ impl Peerstate {
     /// * `old_addr`: Old address of the peerstate in case of an AEAP transition.
     pub(crate) async fn save_to_db_ex(&self, sql: &Sql, old_addr: Option<&str>) -> Result<()> {
         let trans_fn = |t: &mut rusqlite::Transaction| {
+            let verified_key_fingerprint =
+                self.verified_key_fingerprint.as_ref().map(|fp| fp.hex());
             if let Some(old_addr) = old_addr {
                 // We are doing an AEAP transition to the new address and the SQL INSERT below will
                 // save the existing peerstate as belonging to this new address. We now need to
@@ -551,11 +553,14 @@ impl Peerstate {
                 // existing peerstate as this would break encryption to it. This is critical for
                 // non-verified groups -- if we can't encrypt to the old address, we can't securely
                 // remove it from the group (to add the new one instead).
+                //
+                // NB: We check that `verified_key_fingerprint` hasn't changed to protect from
+                // possible races.
                 t.execute(
-                    "UPDATE acpeerstates \
-                     SET verified_key=NULL, verified_key_fingerprint='', verifier='' \
-                     WHERE addr=?",
-                    (old_addr,),
+                    "UPDATE acpeerstates
+                     SET verified_key=NULL, verified_key_fingerprint='', verifier=''
+                     WHERE addr=? AND verified_key_fingerprint=?",
+                    (old_addr, &verified_key_fingerprint),
                 )?;
             }
             t.execute(
@@ -604,7 +609,7 @@ impl Peerstate {
                     self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.verified_key.as_ref().map(|k| k.to_bytes()),
-                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                    &verified_key_fingerprint,
                     self.verifier.as_deref().unwrap_or(""),
                     self.secondary_verified_key.as_ref().map(|k| k.to_bytes()),
                     self.secondary_verified_key_fingerprint
