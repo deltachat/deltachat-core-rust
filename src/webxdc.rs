@@ -337,7 +337,7 @@ impl Context {
                     }
                 } else {
                     let notify = if let Some(notify_list) = notify_list {
-                        if let Ok(self_addr) = self.get_primary_self_addr().await {
+                        if let Ok(self_addr) = instance.get_webxdc_self_addr(self).await {
                             notify_list.contains(&self_addr)
                         } else {
                             false
@@ -2950,13 +2950,20 @@ sth_for_the = "future""#
         let grp_id = alice
             .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob, &fiona])
             .await;
-        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
         let sent1 = alice.pop_sent_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+        let _fiona_instance = fiona.recv_msg(&sent1).await;
+
+        //
 
         alice
             .send_webxdc_status_update(
-                instance.id,
-                r#"{"payload":7,"info": "your move!","notify":["bob@example.net"]}"#,
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"info\": \"your move!\",\"notify\":[\"{}\"]}}",
+                    bob_instance.get_webxdc_self_addr(&bob).await?
+                ),
                 "d",
             )
             .await?;
@@ -2966,13 +2973,11 @@ sth_for_the = "future""#
         assert!(info_msg.is_info());
         assert!(!has_incoming_msg_event(&alice, info_msg).await);
 
-        bob.recv_msg(&sent1).await;
         bob.recv_msg_trash(&sent2).await;
         let info_msg = bob.get_last_msg().await;
         assert!(info_msg.is_info());
         assert!(has_incoming_msg_event(&bob, info_msg).await);
 
-        fiona.recv_msg(&sent1).await;
         fiona.recv_msg_trash(&sent2).await;
         let info_msg = fiona.get_last_msg().await;
         assert!(info_msg.is_info());
@@ -2991,13 +2996,19 @@ sth_for_the = "future""#
         let grp_id = alice
             .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob, &fiona])
             .await;
-        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
         let sent1 = alice.pop_sent_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+        let fiona_instance = fiona.recv_msg(&sent1).await;
 
         alice
             .send_webxdc_status_update(
-                instance.id,
-                r#"{"payload":7,"info": "my move!","notify":["bob@example.net","fiona@example.net"]}"#,
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"info\": \"your move!\",\"notify\":[\"{}\",\"{}\"]}}",
+                    bob_instance.get_webxdc_self_addr(&bob).await?,
+                    fiona_instance.get_webxdc_self_addr(&fiona).await?
+                ),
                 "d",
             )
             .await?;
@@ -3007,13 +3018,11 @@ sth_for_the = "future""#
         assert!(info_msg.is_info());
         assert!(!has_incoming_msg_event(&alice, info_msg).await);
 
-        bob.recv_msg(&sent1).await;
         bob.recv_msg_trash(&sent2).await;
         let info_msg = bob.get_last_msg().await;
         assert!(info_msg.is_info());
         assert!(has_incoming_msg_event(&bob, info_msg).await);
 
-        fiona.recv_msg(&sent1).await;
         fiona.recv_msg_trash(&sent2).await;
         let info_msg = fiona.get_last_msg().await;
         assert!(info_msg.is_info());
