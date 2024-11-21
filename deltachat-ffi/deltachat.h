@@ -1156,7 +1156,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @param msg_id The ID of the message with the webxdc instance.
  * @param json program-readable data, this is create in JS land as:
  *     - `payload`: any JS object or primitive.
- *     - `info`: optional informational message. will be shown in chat an may be added as system notification.
+ *     - `info`: optional informational message. Will be shown in chat and may be added as system notification.
  *     - `notify`: optional array of user `addr` that should be notified eg. by a sound.
  *       note that still all users get the update payload and the `info` message shown in a chat.
  *     - `document`: optional document name. shown eg. in title bar.
