@@ -1,5 +1,76 @@
 # Changelog
 
+## [1.150.0] - 2024-11-21
+
+### API-Changes
+
+- Correct `DC_CERTCK_ACCEPT_*` values and docs ([#6176](https://github.com/deltachat/deltachat-core-rust/pull/6176)).
+
+### Features / Changes
+
+- Use Rustls for connections with strict TLS ([#6186](https://github.com/deltachat/deltachat-core-rust/pull/6186)).
+- Experimental header protection for Autocrypt.
+- Tune down io-not-started info in connectivity-html.
+- Clear config cache in start_io() ([#6228](https://github.com/deltachat/deltachat-core-rust/pull/6228)).
+- Line-before-quote may be up to 120 character long instead of 80.
+- Use i.delta.chat in qr codes ([#6223](https://github.com/deltachat/deltachat-core-rust/pull/6223)).
+
+### Fixes
+
+- Prevent accidental wrong-password-notifications ([#6122](https://github.com/deltachat/deltachat-core-rust/pull/6122)).
+- Remove footers from "Show Full Message...".
+- `send_msg_to_smtp`: Return Ok if `smtp` row is deleted in parallel.
+- Only add "member added/removed" messages if they actually do that ([#5992](https://github.com/deltachat/deltachat-core-rust/pull/5992)).
+- Do not fail to load chatlist summary if the message got removed.
+- deltachat-jsonrpc: Do not fail `get_chatlist_items_by_entries` if the message got deleted.
+- deltachat-jsonrpc: Do not fail `get_draft` if draft is deleted.
+- `markseen_msgs`: Limit not yet downloaded messages state to `InNoticed` ([#2970](https://github.com/deltachat/deltachat-core-rust/pull/2970)).
+- Update state of message when fully downloading it.
+- Dont overwrite equal drafts ([#6212](https://github.com/deltachat/deltachat-core-rust/pull/6212)).
+
+### Build system
+
+- Silence RUSTSEC-2024-0384.
+- cargo: Update rPGP from 0.13.2 to 0.14.0.
+- cargo: Update futures-concurrency from 7.6.1 to 7.6.2.
+- Update flake.nix ([#6200](https://github.com/deltachat/deltachat-core-rust/pull/6200))
+
+### CI
+
+- Ensure flake is formatted.
+
+### Documentation
+
+- Scanned proxies are added and normalized.
+
+### Refactor
+
+- Fix nightly clippy warnings.
+- Remove slicing from `is_file_in_use`.
+- Remove unnecessary `allow(clippy::indexing_slicing)`.
+- Don't use slicing in `remove_nonstandard_footer`.
+- Do not use slicing in `qr` module.
+- Eliminate indexing in `compute_mailinglist_name`.
+- Remove unused `allow(clippy::indexing_slicing)`.
+- Remove indexing/slicing from `remove_message_footer`.
+- Remove indexing/slicing from `squash_attachment_parts`.
+- Remove unused allow(clippy::indexing_slicing) for heuristically_parse_ndn.
+- Remove indexing/slicing from `parse_message_ids`.
+- Remove slicing from `remove_bottom_quote`.
+- Get rid of slicing in `remove_top_quote`.
+- Remove unused allow(clippy::indexing_slicing) from 'truncate'.
+- Forbid clippy::indexing_slicing.
+- Forbid clippy::string_slice.
+- Delete chat in a transaction.
+- Fix typo in `context.rs`.
+
+### Tests
+
+- Remove all calls to print() from deltachat-rpc-client tests.
+- Reply to protected group from MUA.
+- Mark not downloaded message as seen ([#2970](https://github.com/deltachat/deltachat-core-rust/pull/2970)).
+- Mark `receive_imf()` as only for tests and "internals" feature ([#6235](https://github.com/deltachat/deltachat-core-rust/pull/6235)).
+
 ## [1.149.0] - 2024-11-05
 
 ### Build system
@@ -5229,3 +5300,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.5..v1.148.6
 [1.148.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.6..v1.148.7
 [1.149.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.7..v1.149.0
+[1.150.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.149.0..v1.150.0
