@@ -4602,6 +4602,7 @@ pub(crate) async fn update_msg_text_and_timestamp(
     msg_id: MsgId,
     text: &str,
     timestamp: i64,
+    important: bool,
 ) -> Result<()> {
     context
         .sql
@@ -4610,7 +4611,7 @@ pub(crate) async fn update_msg_text_and_timestamp(
             (text, message::normalize_text(text), timestamp, msg_id),
         )
         .await?;
-    context.emit_msgs_changed(chat_id, msg_id);
+    chat_id.emit_msg_event(context, msg_id, important);
     Ok(())
 }
 

@@ -320,32 +320,30 @@ impl Context {
 
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
-                let overwritable_info =
-                    self.get_overwritable_info_msg_id(instance, from_id).await?;
                 let notify_list = status_update_item.notify;
-
-                if notify_list.is_none() && overwritable_info.is_some() {
-                    if let Some(overwritable_info) = overwritable_info {
-                        chat::update_msg_text_and_timestamp(
-                            self,
-                            instance.chat_id,
-                            overwritable_info,
-                            info.as_str(),
-                            timestamp,
-                        )
-                        .await?;
-                    }
-                } else {
-                    let notify = if let Some(notify_list) = notify_list {
-                        if let Ok(self_addr) = instance.get_webxdc_self_addr(self).await {
-                            notify_list.contains(&self_addr)
-                        } else {
-                            false
-                        }
+                let notify = if let Some(notify_list) = notify_list {
+                    if let Ok(self_addr) = instance.get_webxdc_self_addr(self).await {
+                        notify_list.contains(&self_addr)
                     } else {
                         false
-                    };
+                    }
+                } else {
+                    false
+                };
 
+                if let Some(overwritable_info) =
+                    self.get_overwritable_info_msg_id(instance, from_id).await?
+                {
+                    chat::update_msg_text_and_timestamp(
+                        self,
+                        instance.chat_id,
+                        overwritable_info,
+                        info.as_str(),
+                        timestamp,
+                        notify,
+                    )
+                    .await?;
+                } else {
                     chat::add_info_msg_with_importance(
                         self,
                         instance.chat_id,
