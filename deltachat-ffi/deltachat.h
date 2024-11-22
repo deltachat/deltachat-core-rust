@@ -1157,8 +1157,8 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @param json program-readable data, this is create in JS land as:
  *     - `payload`: any JS object or primitive.
  *     - `info`: optional informational message. Will be shown in chat and may be added as system notification.
- *     - `notify`: optional array of user `addr` that should be notified eg. by a sound.
- *       note that still all users get the update payload and the `info` message shown in a chat.
+ *     - `notify`: optional array of user addresses to be notified e.g. by a sound about `info` or `summary`.
+ *       note that also users that are not notified explicitly get the `info` or `summary` update shown in the chat.
  *     - `document`: optional document name. shown eg. in title bar.
  *     - `summary`: optional summary. shown beside app icon.
  * @param descr The user-visible description of JSON data,
@@ -6084,6 +6084,20 @@ void dc_event_unref(dc_event_t* event);
  *      string must be passed to dc_str_unref() afterwards.
  */
 #define DC_EVENT_INCOMING_REACTION        2002
+
+
+
+/**
+ * A webxdc wants an info message or a changed summary to be notified.
+ *
+ * @param data1 contact_id ID of the contact sending.
+ * @param data2 (int) msg_id + (char*) text_to_notify.
+ *      msg_id in dc_event_get_data2_int(), referring to webxdc-info-message
+ *      or webxdc-instance in case of summary change.
+ *      text_to_notify in dc_event_get_data2_str().
+ *      string must be passed to dc_str_unref() afterwards.
+ */
+#define DC_EVENT_INCOMING_WEBXDC_NOTIFY   2003
 
 
 /**

@@ -318,48 +318,17 @@ impl Context {
             return Ok(None);
         };
 
-        if can_info_msg {
-            if let Some(ref info) = status_update_item.info {
-                let notify_list = status_update_item.notify;
-                let notify = if let Some(notify_list) = notify_list {
-                    if let Ok(self_addr) = instance.get_webxdc_self_addr(self).await {
-                        notify_list.contains(&self_addr)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
-
-                if let Some(overwritable_info) =
-                    self.get_overwritable_info_msg_id(instance, from_id).await?
-                {
-                    chat::update_msg_text_and_timestamp(
-                        self,
-                        instance.chat_id,
-                        overwritable_info,
-                        info.as_str(),
-                        timestamp,
-                        notify,
-                    )
-                    .await?;
-                } else {
-                    chat::add_info_msg_with_importance(
-                        self,
-                        instance.chat_id,
-                        info.as_str(),
-                        SystemMessage::WebxdcInfoMessage,
-                        timestamp,
-                        None,
-                        Some(instance),
-                        Some(from_id),
-                        notify,
-                    )
-                    .await?;
-                }
+        let notify = if let Some(notify_list) = status_update_item.notify {
+            if let Ok(self_addr) = instance.get_webxdc_self_addr(self).await {
+                notify_list.contains(&self_addr)
+            } else {
+                false
             }
-        }
-
+        } else {
+            false
+        };
+        let mut notify_msg_id = instance.id;
+        let mut notify_text = "".to_string();
         let mut param_changed = false;
 
         let mut instance = instance.clone();
@@ -378,10 +347,42 @@ impl Context {
                 .param
                 .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
             {
-                instance
-                    .param
-                    .set(Param::WebxdcSummary, sanitize_bidi_characters(summary));
+                let summary = sanitize_bidi_characters(summary);
+                instance.param.set(Param::WebxdcSummary, summary.clone());
                 param_changed = true;
+                notify_text = summary;
+            }
+        }
+
+        if can_info_msg {
+            if let Some(ref info) = status_update_item.info {
+                if let Some(info_msg_id) = self
+                    .get_overwritable_info_msg_id(&instance, from_id)
+                    .await?
+                {
+                    chat::update_msg_text_and_timestamp(
+                        self,
+                        instance.chat_id,
+                        info_msg_id,
+                        info.as_str(),
+                        timestamp,
+                    )
+                    .await?;
+                    notify_msg_id = info_msg_id;
+                } else {
+                    notify_msg_id = chat::add_info_msg_with_cmd(
+                        self,
+                        instance.chat_id,
+                        info.as_str(),
+                        SystemMessage::WebxdcInfoMessage,
+                        timestamp,
+                        None,
+                        Some(&instance),
+                        Some(from_id),
+                    )
+                    .await?;
+                }
+                notify_text = info.to_string();
             }
         }
 
@@ -394,6 +395,14 @@ impl Context {
             self.emit_event(EventType::WebxdcStatusUpdate {
                 msg_id: instance.id,
                 status_update_serial,
+            });
+        }
+
+        if notify && !notify_text.is_empty() {
+            self.emit_event(EventType::IncomingWebxdcNotify {
+                contact_id: from_id,
+                msg_id: notify_msg_id,
+                text: notify_text,
             });
         }
 
@@ -2925,11 +2934,15 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    async fn has_incoming_msg_event(t: &TestContext, msg: Message) -> bool {
+    async fn has_incoming_webxdc_event(
+        t: &TestContext,
+        expected_msg: Message,
+        expected_text: &str,
+    ) -> bool {
         t.evtracker
             .get_matching_opt(t, |evt| {
-                if let EventType::IncomingMsg { msg_id, .. } = evt {
-                    *msg_id == msg.id
+                if let EventType::IncomingWebxdcNotify { msg_id, text, .. } = evt {
+                    *msg_id == expected_msg.id && text == expected_text
                 } else {
                     false
                 }
@@ -2959,7 +2972,7 @@ sth_for_the = "future""#
             .send_webxdc_status_update(
                 alice_instance.id,
                 &format!(
-                    "{{\"payload\":7,\"info\": \"your move!\",\"notify\":[\"{}\"]}}",
+                    "{{\"payload\":7,\"info\": \"Alice moved\",\"notify\":[\"{}\"]}}",
                     bob_instance.get_webxdc_self_addr(&bob).await?
                 ),
                 "d",
@@ -2969,17 +2982,17 @@ sth_for_the = "future""#
         let sent2 = alice.pop_sent_msg().await;
         let info_msg = alice.get_last_msg().await;
         assert!(info_msg.is_info());
-        assert!(!has_incoming_msg_event(&alice, info_msg).await);
+        assert!(!has_incoming_webxdc_event(&alice, info_msg, "Alice moved").await);
 
         bob.recv_msg_trash(&sent2).await;
         let info_msg = bob.get_last_msg().await;
         assert!(info_msg.is_info());
-        assert!(has_incoming_msg_event(&bob, info_msg).await);
+        assert!(has_incoming_webxdc_event(&bob, info_msg, "Alice moved").await);
 
         fiona.recv_msg_trash(&sent2).await;
         let info_msg = fiona.get_last_msg().await;
         assert!(info_msg.is_info());
-        assert!(!has_incoming_msg_event(&fiona, info_msg).await);
+        assert!(!has_incoming_webxdc_event(&fiona, info_msg, "Alice moved").await);
 
         Ok(())
     }
@@ -3003,7 +3016,7 @@ sth_for_the = "future""#
             .send_webxdc_status_update(
                 alice_instance.id,
                 &format!(
-                    "{{\"payload\":7,\"info\": \"your move!\",\"notify\":[\"{}\",\"{}\"]}}",
+                    "{{\"payload\":7,\"info\": \"moved\", \"summary\": \"ignored for notify as info is set\", \"notify\":[\"{}\",\"{}\"]}}",
                     bob_instance.get_webxdc_self_addr(&bob).await?,
                     fiona_instance.get_webxdc_self_addr(&fiona).await?
                 ),
@@ -3014,17 +3027,50 @@ sth_for_the = "future""#
         let sent2 = alice.pop_sent_msg().await;
         let info_msg = alice.get_last_msg().await;
         assert!(info_msg.is_info());
-        assert!(!has_incoming_msg_event(&alice, info_msg).await);
+        assert!(!has_incoming_webxdc_event(&alice, info_msg, "moved").await);
 
         bob.recv_msg_trash(&sent2).await;
         let info_msg = bob.get_last_msg().await;
         assert!(info_msg.is_info());
-        assert!(has_incoming_msg_event(&bob, info_msg).await);
+        assert!(has_incoming_webxdc_event(&bob, info_msg, "moved").await);
 
         fiona.recv_msg_trash(&sent2).await;
         let info_msg = fiona.get_last_msg().await;
         assert!(info_msg.is_info());
-        assert!(has_incoming_msg_event(&fiona, info_msg).await);
+        assert!(has_incoming_webxdc_event(&fiona, info_msg, "moved").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_notify_summary() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob])
+            .await;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"summary\": \"4 moves done\",\"notify\":[\"{}\"]}}",
+                    bob_instance.get_webxdc_self_addr(&bob).await?
+                ),
+                "d",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        assert!(!has_incoming_webxdc_event(&alice, alice_instance, "4 moves done").await);
+
+        bob.recv_msg_trash(&sent2).await;
+        assert!(has_incoming_webxdc_event(&bob, bob_instance, "4 moves done").await);
 
         Ok(())
     }
