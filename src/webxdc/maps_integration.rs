@@ -146,6 +146,7 @@ pub(crate) async fn intercept_get_updates(
                 item: StatusUpdateItem {
                     payload: serde_json::to_value(location_item)?,
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: None,
