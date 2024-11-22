@@ -1,11 +1,11 @@
 //! # Chat module.
 
-use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
+use std::{cmp, convert};
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
 use deltachat_contact_tools::{sanitize_bidi_characters, sanitize_single_line, ContactAddress};
@@ -809,8 +809,15 @@ impl ChatId {
     ///
     /// Passing `None` as message just deletes the draft
     pub async fn set_draft(self, context: &Context, mut msg: Option<&mut Message>) -> Result<()> {
-        let self_in_chat = is_contact_in_chat(context, self, ContactId::SELF).await?;
-        if self.is_special() || !self_in_chat {
+        let self_in_chat = self.is_self_in_chat(context).await?;
+        if !self_in_chat {
+            warn!(
+                context,
+                "Not setting draft because self is not member of the chat"
+            );
+            return Ok(());
+        }
+        if self.is_special() {
             return Ok(());
         }
 
@@ -874,6 +881,22 @@ impl ChatId {
             )
             .await?
             > 0)
+    }
+
+    async fn get_chat_type(self, context: &Context) -> Result<Chattype> {
+        context
+            .sql
+            .query_get_value("SELECT type FROM chats WHERE id=?;", (self,))
+            .await
+            .map(|res| res.ok_or(anyhow!("Can't get type for char")))
+            .and_then(convert::identity)
+    }
+
+    async fn is_self_in_chat(self, context: &Context) -> Result<bool> {
+        match self.get_chat_type(context).await? {
+            Chattype::Single | Chattype::Broadcast | Chattype::Mailinglist => Ok(true),
+            Chattype::Group => is_contact_in_chat(context, self, ContactId::SELF).await,
+        }
     }
 
     /// Set provided message as draft message for specified chat.
@@ -1839,8 +1862,9 @@ impl Chat {
     /// This is somewhat experimental, even more so than the rest of
     /// deltachat, and the data returned is still subject to change.
     pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
+        let self_in_chat = self.is_self_in_chat(context).await?;
         let draft = match self.id.get_draft(context).await? {
-            Some(message) if self.can_send(context).await? => message.text,
+            Some(message) if self_in_chat => message.text,
             _ => String::new(),
         };
         Ok(ChatInfo {
