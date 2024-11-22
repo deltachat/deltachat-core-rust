@@ -962,8 +962,8 @@ impl Message {
     /// Get link attached to an info message.
     ///
     /// The info message needs to be of type SystemMessage::WebxdcInfoMessage.
-    /// Typically, this is used to start the corresponding
-    //  with `window.location.href` set in JS land.
+    /// Typically, this is used to start the corresponding webxdc app
+    /// with `window.location.href` set in JS land.
     pub fn get_webxdc_href(&self) -> Option<String> {
         let Some(href) = self.param.get(Param::Arg) else {
             return None;
