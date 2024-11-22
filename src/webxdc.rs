@@ -362,7 +362,7 @@ impl Context {
                     .get_overwritable_info_msg_id(&instance, from_id)
                     .await?;
 
-                if info_msg_id.is_some() && !status_update_item.href.is_some() {
+                if info_msg_id.is_some() && status_update_item.href.is_none() {
                     if let Some(info_msg_id) = info_msg_id {
                         chat::update_msg_text_and_timestamp(
                             self,
@@ -965,10 +965,7 @@ impl Message {
     /// Typically, this is used to start the corresponding webxdc app
     /// with `window.location.href` set in JS land.
     pub fn get_webxdc_href(&self) -> Option<String> {
-        let Some(href) = self.param.get(Param::Arg) else {
-            return None;
-        };
-        Some(href.to_string())
+        self.param.get(Param::Arg).map(|href| href.to_string())
     }
 }
 
