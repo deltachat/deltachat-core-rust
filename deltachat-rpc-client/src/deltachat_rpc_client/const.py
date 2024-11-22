@@ -39,6 +39,7 @@ class EventType(str, Enum):
     ERROR_SELF_NOT_IN_GROUP = "ErrorSelfNotInGroup"
     MSGS_CHANGED = "MsgsChanged"
     REACTIONS_CHANGED = "ReactionsChanged"
+    INCOMING_REACTION = "IncomingReaction"
     INCOMING_MSG = "IncomingMsg"
     INCOMING_MSG_BUNCH = "IncomingMsgBunch"
     MSGS_NOTICED = "MsgsNoticed"
