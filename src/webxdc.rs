@@ -319,11 +319,8 @@ impl Context {
         };
 
         let notify = if let Some(notify_list) = status_update_item.notify {
-            if let Ok(self_addr) = instance.get_webxdc_self_addr(self).await {
-                notify_list.contains(&self_addr)
-            } else {
-                false
-            }
+            let self_addr = instance.get_webxdc_self_addr(self).await?;
+            notify_list.contains(&self_addr)
         } else {
             false
         };
