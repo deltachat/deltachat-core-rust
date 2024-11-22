@@ -1154,7 +1154,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
- * @param json program-readable data, this is create in JS land as:
+ * @param json program-readable data, this is created in JS land as:
  *     - `payload`: any JS object or primitive.
  *     - `info`: optional informational message. Will be shown in chat and may be added as system notification.
  *     - `notify`: optional array of user addresses to be notified e.g. by a sound about `info` or `summary`.
