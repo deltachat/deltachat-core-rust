@@ -1160,7 +1160,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  *       note that also users that are not notified explicitly get the `info` or `summary` update shown in the chat.
  *     - `document`: optional document name. shown eg. in title bar.
  *     - `summary`: optional summary. shown beside app icon.
- *     - `notify`: optional array of user addresses to be notified e.g. by a sound about `info` or `summary`.
+ *     - `notify`: optional array of other users `selfAddr` to be notified e.g. by a sound about `info` or `summary`.
  * @param descr The user-visible description of JSON data,
  *     in case of a chess game, e.g. the move.
  * @return 1=success, 0=error

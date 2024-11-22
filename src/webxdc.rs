@@ -183,7 +183,7 @@ pub struct StatusUpdateItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<String>,
 
-    /// Array of Addr that should be notified about this update.
+    /// Array of other users `selfAddr` that should be notified about this update.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notify: Option<Vec<String>>,
 }
@@ -2962,8 +2962,6 @@ sth_for_the = "future""#
         let sent1 = alice.pop_sent_msg().await;
         let bob_instance = bob.recv_msg(&sent1).await;
         let _fiona_instance = fiona.recv_msg(&sent1).await;
-
-        //
 
         alice
             .send_webxdc_status_update(
