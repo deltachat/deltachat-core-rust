@@ -3695,10 +3695,7 @@ pub unsafe extern "C" fn dc_msg_get_webxdc_href(msg: *mut dc_msg_t) -> *mut libc
     }
 
     let ffi_msg = &*msg;
-    match ffi_msg.message.get_webxdc_href() {
-        Some(str) => str.strdup(),
-        None => ptr::null_mut(),
-    }
+    ffi_msg.message.get_webxdc_href().strdup()
 }
 
 #[no_mangle]
