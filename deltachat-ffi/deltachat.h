@@ -1157,10 +1157,10 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @param json program-readable data, this is created in JS land as:
  *     - `payload`: any JS object or primitive.
  *     - `info`: optional informational message. Will be shown in chat and may be added as system notification.
- *     - `notify`: optional array of user addresses to be notified e.g. by a sound about `info` or `summary`.
  *       note that also users that are not notified explicitly get the `info` or `summary` update shown in the chat.
  *     - `document`: optional document name. shown eg. in title bar.
  *     - `summary`: optional summary. shown beside app icon.
+ *     - `notify`: optional array of user addresses to be notified e.g. by a sound about `info` or `summary`.
  * @param descr The user-visible description of JSON data,
  *     in case of a chess game, e.g. the move.
  * @return 1=success, 0=error
