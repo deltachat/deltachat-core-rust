@@ -1154,7 +1154,13 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
- * @param json program-readable data, the actual payload
+ * @param json program-readable data, this is created in JS land as:
+ *     - `payload`: any JS object or primitive.
+ *     - `info`: optional informational message. Will be shown in chat and may be added as system notification.
+ *       note that also users that are not notified explicitly get the `info` or `summary` update shown in the chat.
+ *     - `document`: optional document name. shown eg. in title bar.
+ *     - `summary`: optional summary. shown beside app icon.
+ *     - `notify`: optional array of other users `selfAddr` to be notified e.g. by a sound about `info` or `summary`.
  * @param descr The user-visible description of JSON data,
  *     in case of a chess game, e.g. the move.
  * @return 1=success, 0=error
@@ -6080,11 +6086,28 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_INCOMING_REACTION        2002
 
 
+
+/**
+ * A webxdc wants an info message or a changed summary to be notified.
+ *
+ * @param data1 contact_id ID of the contact sending.
+ * @param data2 (int) msg_id + (char*) text_to_notify.
+ *      msg_id in dc_event_get_data2_int(), referring to webxdc-info-message
+ *      or webxdc-instance in case of summary change.
+ *      text_to_notify in dc_event_get_data2_str().
+ *      string must be passed to dc_str_unref() afterwards.
+ */
+#define DC_EVENT_INCOMING_WEBXDC_NOTIFY   2003
+
+
 /**
  * There is a fresh message. Typically, the user will show an notification
  * when receiving this message.
  *
  * There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
+ *
+ * If the message is a webxdc info message,
+ * dc_msg_get_parent() returns the webxdc instance the notification belongs to.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
