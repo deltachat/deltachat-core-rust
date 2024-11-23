@@ -25,7 +25,7 @@ def build_source_package(version, filename):
 
         def pack(name, contents):
             contents = contents.encode()
-            tar_info = tarfile.TarInfo(f"deltachat-rpc-server-{version}/{name}")
+            tar_info = tarfile.TarInfo(f"deltachat_rpc_server-{version}/{name}")
             tar_info.mode = 0o644
             tar_info.size = len(contents)
             pkg.addfile(tar_info, BytesIO(contents))
@@ -167,7 +167,7 @@ def main():
         cargo_manifest = tomllib.load(fp)
     version = cargo_manifest["package"]["version"]
     if sys.argv[1] == "source":
-        filename = f"deltachat-rpc-server-{version}.tar.gz"
+        filename = f"deltachat_rpc_server-{version}.tar.gz"
         build_source_package(version, filename)
     else:
         arch = sys.argv[1]
