@@ -395,7 +395,7 @@ impl Context {
             });
         }
 
-        if notify && !notify_text.is_empty() {
+        if notify && !notify_text.is_empty() && from_id != ContactId::SELF {
             self.emit_event(EventType::IncomingWebxdcNotify {
                 contact_id: from_id,
                 msg_id: notify_msg_id,
@@ -3033,6 +3033,47 @@ sth_for_the = "future""#
         let info_msg = fiona.get_last_msg().await;
         assert!(info_msg.is_info());
         assert!(has_incoming_webxdc_event(&fiona, info_msg, "moved").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_no_notify_self() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let alice2 = tcm.alice().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[])
+            .await;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let alice2_instance = alice2.recv_msg(&sent1).await;
+        assert_eq!(
+            alice_instance.get_webxdc_self_addr(&alice).await?,
+            alice2_instance.get_webxdc_self_addr(&alice2).await?
+        );
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"info\": \"moved\", \"notify\":[\"{}\"]}}",
+                    alice2_instance.get_webxdc_self_addr(&alice2).await?
+                ),
+                "d",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&alice, info_msg, "moved").await);
+
+        alice2.recv_msg_trash(&sent2).await;
+        let info_msg = alice2.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&alice2, info_msg, "moved").await);
 
         Ok(())
     }
