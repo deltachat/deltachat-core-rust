@@ -12,7 +12,6 @@ import pytest
 
 from deltachat_rpc_client import Contact, EventType, Message, events
 from deltachat_rpc_client.const import DownloadState, MessageState
-from deltachat_rpc_client.direct_imap import DirectImap
 from deltachat_rpc_client.rpc import JsonRpcError
 
 
@@ -536,7 +535,7 @@ def test_reaction_to_partially_fetched_msg(acfactory, tmp_path):
     assert list(reactions.reactions_by_contact.values())[0] == [react_str]
 
 
-def test_reactions_for_a_reordering_move(acfactory):
+def test_reactions_for_a_reordering_move(acfactory, direct_imap):
     """When a batch of messages is moved from Inbox to DeltaChat folder with a single MOVE command,
     their UIDs may be reordered (e.g. Gmail is known for that) which led to that messages were
     processed by receive_imf in the wrong order, and, particularly, reactions were processed before
@@ -560,7 +559,7 @@ def test_reactions_for_a_reordering_move(acfactory):
     msg1.send_reaction(react_str).wait_until_delivered()
 
     logging.info("moving messages to ac2's DeltaChat folder in the reverse order")
-    ac2_direct_imap = DirectImap(ac2)
+    ac2_direct_imap = direct_imap(ac2)
     ac2_direct_imap.connect()
     for uid in sorted([m.uid for m in ac2_direct_imap.get_all_messages()], reverse=True):
         ac2_direct_imap.conn.move(uid, "DeltaChat")

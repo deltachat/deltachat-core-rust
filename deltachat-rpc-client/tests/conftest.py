@@ -1,7 +1,3 @@
-"""
-Internal Python-level IMAP handling used by the tests.
-"""
-
 from __future__ import annotations
 
 import imaplib
@@ -11,17 +7,11 @@ import ssl
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from imap_tools import (
-    AND,
-    Header,
-    MailBox,
-    MailMessage,
-    MailMessageFlags,
-    errors,
-)
+import pytest
+from imap_tools import AND, Header, MailBox, MailMessage, MailMessageFlags, errors
 
 if TYPE_CHECKING:
-    from . import Account
+    from deltachat_rpc_client import Account
 
 FLAGS = b"FLAGS"
 FETCH = b"FETCH"
@@ -29,6 +19,8 @@ ALL = "1:*"
 
 
 class DirectImap:
+    """Internal Python-level IMAP handling."""
+
     def __init__(self, account: Account) -> None:
         self.account = account
         self.logid = account.get_config("displayname") or id(account)
@@ -212,3 +204,8 @@ class IdleManager:
     def done(self):
         """send idle-done to server if we are currently in idle mode."""
         return self.direct_imap.conn.idle.stop()
+
+
+@pytest.fixture
+def direct_imap():
+    return DirectImap
