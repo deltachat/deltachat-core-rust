@@ -60,6 +60,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
                         "time": time,
                     }),
                     info: None,
+                    href: None,
                     summary: None,
                     document: None,
                     uid: None,

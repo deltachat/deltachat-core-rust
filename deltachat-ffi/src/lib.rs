@@ -3688,6 +3688,17 @@ pub unsafe extern "C" fn dc_msg_get_info_type(msg: *mut dc_msg_t) -> libc::c_int
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_webxdc_href(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_webxdc_href()");
+        return "".strdup();
+    }
+
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_webxdc_href().strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_is_increation()");

@@ -4518,6 +4518,24 @@ int             dc_msg_get_info_type          (const dc_msg_t* msg);
 #define         DC_INFO_INVALID_UNENCRYPTED_MAIL  13
 #define         DC_INFO_WEBXDC_INFO_MESSAGE       32
 
+
+/**
+ * Get link attached to an webxdc info message.
+ * The info message needs to be of type DC_INFO_WEBXDC_INFO_MESSAGE.
+ *
+ * Typically, this is used to set `document.location.href` in JS land.
+ *
+ * Webxdc apps can define the link by setting `update.href` when sending and update,
+ * see dc_send_webxdc_status_update().
+ *
+ * @memberof dc_msg_t
+ * @param msg The info message object.
+ *     Not: the webxdc instance.
+ * @return The link to be set to `document.location.href` in JS land.
+ *     Returns NULL if there is no link attached to the info message and on errors.
+ */
+char*           dc_msg_get_webxdc_href        (const dc_msg_t* msg);
+
 /**
  * Check if a message is still in creation. A message is in creation between
  * the calls to dc_prepare_msg() and dc_send_msg().

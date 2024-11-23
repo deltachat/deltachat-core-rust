@@ -165,6 +165,11 @@ pub struct StatusUpdateItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<String>,
 
+    /// Optional link the info message will point to.
+    /// Used to set `window.location.href` in JS land.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub href: Option<String>,
+
     /// The new name of the editing document.
     /// This is not needed if the webxdc doesn't edit documents.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -353,19 +358,22 @@ impl Context {
 
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
-                if let Some(info_msg_id) = self
+                let info_msg_id = self
                     .get_overwritable_info_msg_id(&instance, from_id)
-                    .await?
-                {
-                    chat::update_msg_text_and_timestamp(
-                        self,
-                        instance.chat_id,
-                        info_msg_id,
-                        info.as_str(),
-                        timestamp,
-                    )
                     .await?;
-                    notify_msg_id = info_msg_id;
+
+                if info_msg_id.is_some() && status_update_item.href.is_none() {
+                    if let Some(info_msg_id) = info_msg_id {
+                        chat::update_msg_text_and_timestamp(
+                            self,
+                            instance.chat_id,
+                            info_msg_id,
+                            info.as_str(),
+                            timestamp,
+                        )
+                        .await?;
+                        notify_msg_id = info_msg_id;
+                    }
                 } else {
                     notify_msg_id = chat::add_info_msg_with_cmd(
                         self,
@@ -380,6 +388,12 @@ impl Context {
                     .await?;
                 }
                 notify_text = info.to_string();
+
+                if let Some(href) = status_update_item.href {
+                    let mut notify_msg = Message::load_from_db(self, notify_msg_id).await?;
+                    notify_msg.param.set(Param::Arg, href);
+                    notify_msg.update_param(self).await?;
+                }
             }
         }
 
@@ -944,6 +958,15 @@ impl Message {
         let hash = Sha256::digest(data.as_bytes());
         Ok(format!("{:x}", hash))
     }
+
+    /// Get link attached to an info message.
+    ///
+    /// The info message needs to be of type SystemMessage::WebxdcInfoMessage.
+    /// Typically, this is used to start the corresponding webxdc app
+    /// with `window.location.href` set in JS land.
+    pub fn get_webxdc_href(&self) -> Option<String> {
+        self.param.get(Param::Arg).map(|href| href.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -1457,6 +1480,7 @@ mod tests {
                 StatusUpdateItem {
                     payload: json!({"foo": "bar"}),
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
@@ -1482,6 +1506,7 @@ mod tests {
                 StatusUpdateItem {
                     payload: json!({"nothing": "this should be ignored"}),
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
@@ -1516,6 +1541,7 @@ mod tests {
                 StatusUpdateItem {
                     payload: json!({"foo2": "bar2"}),
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: None,
@@ -1536,6 +1562,7 @@ mod tests {
             StatusUpdateItem {
                 payload: Value::Bool(true),
                 info: None,
+                href: None,
                 document: None,
                 summary: None,
                 uid: None,
@@ -3107,6 +3134,40 @@ sth_for_the = "future""#
 
         bob.recv_msg_trash(&sent2).await;
         assert!(has_incoming_webxdc_event(&bob, bob_instance, "4 moves done").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_href() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob])
+            .await;
+        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+
+        alice
+            .send_webxdc_status_update(
+                instance.id,
+                r##"{"payload": "my deeplink data", "info": "my move!", "href": "#foobar"}"##,
+                "d",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_webxdc_href(), Some("#foobar".to_string()));
+
+        bob.recv_msg(&sent1).await;
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_webxdc_href(), Some("#foobar".to_string()));
 
         Ok(())
     }
