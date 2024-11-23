@@ -6091,11 +6091,15 @@ void dc_event_unref(dc_event_t* event);
  * A webxdc wants an info message or a changed summary to be notified.
  *
  * @param data1 contact_id ID of the contact sending.
- * @param data2 (int) msg_id + (char*) text_to_notify.
- *      msg_id in dc_event_get_data2_int(), referring to webxdc-info-message
- *      or webxdc-instance in case of summary change.
- *      text_to_notify in dc_event_get_data2_str().
- *      string must be passed to dc_str_unref() afterwards.
+ * @param data2 (int) msg_id _and_ (char*) text_to_notify.
+ *      - dc_event_get_data2_int() returns the msg_id,
+ *        referring to the webxdc-info-message, if there is any.
+ *        Sometimes no webxdc-info-message is added to the chat
+ *        and yet a notification is sent; in this case the msg_id
+ *        of the webxdc instance is returned.
+ *      - dc_event_get_data2_str() returns text_to_notify,
+ *        the text that shall be shown in the notification.
+ *        string must be passed to dc_str_unref() afterwards.
  */
 #define DC_EVENT_INCOMING_WEBXDC_NOTIFY   2003
 
