@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.151.0] - 2024-11-23
+
+### Features / Changes
+
+- Trim whitespace from scanned QR codes.
+- Use privacy-preserving webxdc addresses ([#6237](https://github.com/deltachat/deltachat-core-rust/pull/6237)).
+- Webxdc notify ([#6230](https://github.com/deltachat/deltachat-core-rust/pull/6230)).
+- `update.href` api ([#6248](https://github.com/deltachat/deltachat-core-rust/pull/6248)).
+
+### Fixes
+
+- Never notify SELF ([#6251](https://github.com/deltachat/deltachat-core-rust/pull/6251)).
+
+### Build system
+
+- Use underscores in deltachat-rpc-server source package filename.
+- Remove imap_tools from dependencies ([#6238](https://github.com/deltachat/deltachat-core-rust/pull/6238)).
+- cargo: Update Rustls from 0.23.14 to 0.23.18.
+- deps: Bump curve25519-dalek from 3.2.0 to 4.1.3 in /fuzz.
+
+### Documentation
+
+- Move style guide into a separate document.
+- Clarify DC_EVENT_INCOMING_WEBXDC_NOTIFY documentation ([#6249](https://github.com/deltachat/deltachat-core-rust/pull/6249)).
+
+### Tests
+
+- After AEAP, 1:1 chat isn't available for sending, but unprotected groups are ([#6222](https://github.com/deltachat/deltachat-core-rust/pull/6222)).
+
 ## [1.150.0] - 2024-11-21
 
 ### API-Changes
@@ -5301,3 +5330,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.6..v1.148.7
 [1.149.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.7..v1.149.0
 [1.150.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.149.0..v1.150.0
+[1.151.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.150.0..v1.151.0
