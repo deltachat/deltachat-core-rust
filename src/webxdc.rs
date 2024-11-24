@@ -547,10 +547,10 @@ impl Context {
 
         if send_now {
             self.sql.insert(
-                "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
+                "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, '')
                  ON CONFLICT(msg_id)
-                 DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
-                (instance.id, status_update_serial, status_update_serial, BODY_DESCR),
+                 DO UPDATE SET last_serial=excluded.last_serial",
+                (instance.id, status_update_serial, status_update_serial),
             ).await.context("Failed to insert webxdc update into SMTP queue")?;
             self.scheduler.interrupt_smtp().await;
         }
