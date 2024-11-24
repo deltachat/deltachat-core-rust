@@ -969,9 +969,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "Arguments <msg-id> <json status update> expected"
             );
             let msg_id = MsgId::new(arg1.parse()?);
-            context
-                .send_webxdc_status_update(msg_id, arg2, "this is a webxdc status update")
-                .await?;
+            context.send_webxdc_status_update(msg_id, arg2).await?;
         }
         "videochat" => {
             ensure!(sel_chat.is_some(), "No chat selected.");

@@ -1161,8 +1161,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  *     - `document`: optional document name. shown eg. in title bar.
  *     - `summary`: optional summary. shown beside app icon.
  *     - `notify`: optional array of other users `selfAddr` to be notified e.g. by a sound about `info` or `summary`.
- * @param descr The user-visible description of JSON data,
- *     in case of a chess game, e.g. the move.
+ * @param descr Deprecated, set to NULL
  * @return 1=success, 0=error
  */
 int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const char* json, const char* descr);
