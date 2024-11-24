@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.151.1] - 2024-11-24
+
+### Build system
+
+- nix: Fix deltachat-rpc-server-source installable.
+
+### CI
+
+- Test building nix targets to avoid regressions.
+
 ## [1.151.0] - 2024-11-23
 
 ### Features / Changes
@@ -5331,3 +5341,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.149.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.7..v1.149.0
 [1.150.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.149.0..v1.150.0
 [1.151.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.150.0..v1.151.0
+[1.151.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.0..v1.151.1
