@@ -1331,7 +1331,7 @@ impl MimeFactory {
             "{}{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
             quoted_text.unwrap_or_default(),
-            escape_message_footer_marks(&final_text),
+            escape_message_footer_marks(final_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
