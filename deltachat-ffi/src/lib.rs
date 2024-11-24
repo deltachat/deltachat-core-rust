@@ -1065,7 +1065,7 @@ pub unsafe extern "C" fn dc_send_webxdc_status_update(
     context: *mut dc_context_t,
     msg_id: u32,
     json: *const libc::c_char,
-    _unused: *const libc::c_char,
+    _descr: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_send_webxdc_status_update()");

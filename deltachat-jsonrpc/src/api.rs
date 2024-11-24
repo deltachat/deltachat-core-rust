@@ -1767,7 +1767,7 @@ impl CommandApi {
         account_id: u32,
         instance_msg_id: u32,
         update_str: String,
-        _unused: String,
+        _descr: String,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ctx.send_webxdc_status_update(MsgId::new(instance_msg_id), &update_str)

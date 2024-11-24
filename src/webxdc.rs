@@ -13,7 +13,7 @@
 //! - `msg_id` - ID of the message in the `msgs` table
 //! - `first_serial` - serial number of the first status update to send
 //! - `last_serial` - serial number of the last status update to send
-//! - `descr` - text to send along with the updates
+//! - `descr` - not used, set to empty string
 
 mod integration;
 mod maps_integration;
