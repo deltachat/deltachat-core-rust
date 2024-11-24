@@ -558,7 +558,12 @@ Here's my footer -- bob@example.net"
     ) -> Result<()> {
         let event = t
             .evtracker
-            .get_matching(|evt| matches!(evt, EventType::ReactionsChanged { .. }))
+            .get_matching(|evt| {
+                matches!(
+                    evt,
+                    EventType::ReactionsChanged { .. } | EventType::IncomingMsg { .. }
+                )
+            })
             .await;
         match event {
             EventType::ReactionsChanged {
@@ -570,7 +575,7 @@ Here's my footer -- bob@example.net"
                 assert_eq!(msg_id, expected_msg_id);
                 assert_eq!(contact_id, expected_contact_id);
             }
-            _ => unreachable!(),
+            _ => panic!("Unexpected event {event:?}."),
         }
         Ok(())
     }
@@ -583,7 +588,14 @@ Here's my footer -- bob@example.net"
     ) -> Result<()> {
         let event = t
             .evtracker
-            .get_matching(|evt| matches!(evt, EventType::IncomingReaction { .. }))
+            // Check for absence of `IncomingMsg` events -- it appeared that it's quite easy to make
+            // bugs when `IncomingMsg` is issued for reactions.
+            .get_matching(|evt| {
+                matches!(
+                    evt,
+                    EventType::IncomingReaction { .. } | EventType::IncomingMsg { .. }
+                )
+            })
             .await;
         match event {
             EventType::IncomingReaction {
@@ -595,16 +607,25 @@ Here's my footer -- bob@example.net"
                 assert_eq!(contact_id, expected_contact_id);
                 assert_eq!(reaction, Reaction::from(expected_reaction));
             }
-            _ => unreachable!(),
+            _ => panic!("Unexpected event {event:?}."),
         }
         Ok(())
     }
 
-    async fn has_incoming_reactions_event(t: &TestContext) -> bool {
-        t.evtracker
-            .get_matching_opt(t, |evt| matches!(evt, EventType::IncomingReaction { .. }))
-            .await
-            .is_some()
+    /// Checks that no unwanted events remain after expecting "wanted" reaction events.
+    async fn expect_no_unwanted_events(t: &TestContext) {
+        let ev = t
+            .evtracker
+            .get_matching_opt(t, |evt| {
+                matches!(
+                    evt,
+                    EventType::IncomingReaction { .. } | EventType::IncomingMsg { .. }
+                )
+            })
+            .await;
+        if let Some(ev) = ev {
+            panic!("Unwanted event {ev:?}.")
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -635,9 +656,10 @@ Here's my footer -- bob@example.net"
 
         bob_msg.chat_id.accept(&bob).await?;
 
+        bob.evtracker.clear_events();
         send_reaction(&bob, bob_msg.id, "👍").await.unwrap();
         expect_reactions_changed_event(&bob, bob_msg.chat_id, bob_msg.id, ContactId::SELF).await?;
-        assert!(!has_incoming_reactions_event(&bob).await);
+        expect_no_unwanted_events(&bob).await;
         assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
@@ -656,6 +678,7 @@ Here's my footer -- bob@example.net"
         expect_reactions_changed_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id)
             .await?;
         expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍").await?;
+        expect_no_unwanted_events(&alice).await;
 
         // Alice reacts to own message.
         send_reaction(&alice, alice_msg.sender_msg_id, "👍 😀")
@@ -684,6 +707,7 @@ Here's my footer -- bob@example.net"
         let bob = TestContext::new_bob().await;
         alice.set_config(Config::Displayname, Some("ALICE")).await?;
         bob.set_config(Config::Displayname, Some("BOB")).await?;
+        let alice_bob_id = alice.add_or_lookup_contact_id(&bob).await;
 
         // Alice sends message to Bob
         let alice_chat = alice.create_chat(&bob).await;
@@ -696,7 +720,9 @@ Here's my footer -- bob@example.net"
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
         alice.recv_msg_trash(&bob_send_reaction).await;
-        assert!(has_incoming_reactions_event(&alice).await);
+        expect_incoming_reactions_event(&alice, alice_msg1.sender_msg_id, alice_bob_id, "👍")
+            .await?;
+        expect_no_unwanted_events(&alice).await;
 
         let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
         let summary = chatlist.get_summary(&bob, 0, None).await?;
@@ -711,8 +737,9 @@ Here's my footer -- bob@example.net"
         SystemTime::shift(Duration::from_secs(10));
         send_reaction(&alice, alice_msg1.sender_msg_id, "🍿").await?;
         let alice_send_reaction = alice.pop_sent_msg().await;
+        bob.evtracker.clear_events();
         bob.recv_msg_opt(&alice_send_reaction).await;
-        assert!(!has_incoming_reactions_event(&bob).await);
+        expect_no_unwanted_events(&bob).await;
 
         assert_summary(&alice, "You reacted 🍿 to \"Party?\"").await;
         assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
@@ -934,7 +961,9 @@ Here's my footer -- bob@example.net"
         expect_reactions_changed_event(&alice0, chat_id, alice0_msg_id, ContactId::SELF).await?;
         expect_reactions_changed_event(&alice1, alice1_msg.chat_id, alice1_msg.id, ContactId::SELF)
             .await?;
-
+        for a in [&alice0, &alice1] {
+            expect_no_unwanted_events(a).await;
+        }
         Ok(())
     }
 }
