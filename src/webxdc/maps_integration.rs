@@ -205,7 +205,6 @@ mod tests {
         t.send_webxdc_status_update(
             integration_id,
             r#"{"payload": {"action": "pos", "lat": 11.0, "lng": 12.0, "label": "poi #1"}}"#,
-            "descr",
         )
         .await?;
         t.evtracker
@@ -239,7 +238,6 @@ mod tests {
         t.send_webxdc_status_update(
             integration_id,
             r#"{"payload": {"action": "pos", "lat": 22.0, "lng": 23.0, "label": "poi #2"}}"#,
-            "descr",
         )
         .await?;
         let updates = t
