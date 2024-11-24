@@ -558,21 +558,18 @@ impl Context {
     }
 
     /// Returns one record of the queued webxdc status updates.
-    async fn smtp_status_update_get(
-        &self,
-    ) -> Result<Option<(MsgId, i64, StatusUpdateSerial, String)>> {
+    async fn smtp_status_update_get(&self) -> Result<Option<(MsgId, i64, StatusUpdateSerial)>> {
         let res = self
             .sql
             .query_row_optional(
-                "SELECT msg_id, first_serial, last_serial, descr \
+                "SELECT msg_id, first_serial, last_serial \
                  FROM smtp_status_updates LIMIT 1",
                 (),
                 |row| {
                     let instance_id: MsgId = row.get(0)?;
                     let first_serial: i64 = row.get(1)?;
                     let last_serial: StatusUpdateSerial = row.get(2)?;
-                    let descr: String = row.get(3)?;
-                    Ok((instance_id, first_serial, last_serial, descr))
+                    Ok((instance_id, first_serial, last_serial))
                 },
             )
             .await?;
@@ -610,7 +607,7 @@ impl Context {
     /// Attempts to send queued webxdc status updates.
     pub(crate) async fn flush_status_updates(&self) -> Result<()> {
         loop {
-            let (instance_id, first, last, descr) = match self.smtp_status_update_get().await? {
+            let (instance_id, first, last) = match self.smtp_status_update_get().await? {
                 Some(res) => res,
                 None => return Ok(()),
             };
@@ -627,7 +624,7 @@ impl Context {
                 let mut status_update = Message {
                     chat_id: instance.chat_id,
                     viewtype: Viewtype::Text,
-                    text: descr.to_string(),
+                    text: BODY_DESCR.to_string(),
                     hidden: true,
                     ..Default::default()
                 };
@@ -1967,7 +1964,7 @@ mod tests {
         // order of smtp_status_update_get() is not defined, therefore the more complicated test
         let mut instances_checked = 0;
         for i in 0..3 {
-            let (instance, min_ser, max_ser, descr) = t.smtp_status_update_get().await?.unwrap();
+            let (instance, min_ser, max_ser) = t.smtp_status_update_get().await?.unwrap();
             t.smtp_status_update_pop_serials(
                 instance,
                 min_ser,
@@ -1977,15 +1974,14 @@ mod tests {
             let min_ser: u32 = min_ser.try_into()?;
             if instance == instance1.id {
                 assert_eq!(min_ser, max_ser.to_u32());
-                assert_eq!(descr, BODY_DESCR);
+
                 instances_checked += 1;
             } else if instance == instance2.id {
                 assert_eq!(min_ser, max_ser.to_u32() - 1);
-                assert_eq!(descr, BODY_DESCR);
+
                 instances_checked += 1;
             } else if instance == instance3.id {
                 assert_eq!(min_ser, max_ser.to_u32() - 2);
-                assert_eq!(descr, BODY_DESCR);
                 instances_checked += 1;
             } else {
                 bail!("unexpected instance");
