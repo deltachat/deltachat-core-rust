@@ -57,7 +57,7 @@ pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 
 /// Text shown to classic e-mail users in the visible e-mail body.
-const BODY_DESCR: &str = "Status Update";
+const BODY_DESCR: &str = "Webxdc Status Update";
 
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize, Default)]
