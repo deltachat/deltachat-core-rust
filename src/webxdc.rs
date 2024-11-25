@@ -326,12 +326,6 @@ impl Context {
             return Ok(None);
         };
 
-        let notify = if let Some(notify_list) = status_update_item.notify {
-            let self_addr = instance.get_webxdc_self_addr(self).await?;
-            notify_list.contains(&self_addr)
-        } else {
-            false
-        };
         let mut notify_msg_id = instance.id;
         let mut notify_text = "".to_string();
         let mut param_changed = false;
@@ -412,12 +406,17 @@ impl Context {
             });
         }
 
-        if notify && !notify_text.is_empty() && from_id != ContactId::SELF {
-            self.emit_event(EventType::IncomingWebxdcNotify {
-                contact_id: from_id,
-                msg_id: notify_msg_id,
-                text: notify_text,
-            });
+        if !notify_text.is_empty() && from_id != ContactId::SELF {
+            if let Some(notify_list) = status_update_item.notify {
+                let self_addr = instance.get_webxdc_self_addr(self).await?;
+                if notify_list.contains(&self_addr) {
+                    self.emit_event(EventType::IncomingWebxdcNotify {
+                        contact_id: from_id,
+                        msg_id: notify_msg_id,
+                        text: notify_text,
+                    });
+                }
+            }
         }
 
         Ok(Some(status_update_serial))
