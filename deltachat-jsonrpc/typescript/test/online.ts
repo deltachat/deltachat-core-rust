@@ -1,6 +1,8 @@
 import { assert, expect } from "chai";
-import { StdioDeltaChat as DeltaChat, DcEvent } from "../deltachat.js";
-import { RpcServerHandle, createTempUser, startServer } from "./test_base.js";
+import { StdioDeltaChat as DeltaChat } from "../deltachat.js";
+import type { DcEvent } from "../deltachat.js";
+import type { RpcServerHandle } from "./test_base.js";
+import { createTempUser, startServer } from "./test_base.js";
 
 const EVENT_TIMEOUT = 20000;
 
