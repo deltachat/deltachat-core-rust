@@ -391,7 +391,7 @@ impl TestContext {
         Self {
             ctx,
             dir,
-            evtracker: EventTracker(evtracker_receiver),
+            evtracker: EventTracker::new(evtracker_receiver),
             _log_sink,
         }
     }
@@ -1087,6 +1087,10 @@ impl DerefMut for EventTracker {
 }
 
 impl EventTracker {
+    pub fn new(emitter: EventEmitter) -> Self {
+        Self(emitter)
+    }
+
     /// Consumes emitted events returning the first matching one.
     ///
     /// If no matching events are ready this will wait for new events to arrive and time out

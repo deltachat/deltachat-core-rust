@@ -426,6 +426,7 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
     if res.is_ok() {
         context.emit_event(EventType::ImexProgress(999));
         res = context.sql.run_migrations(context).await;
+        context.emit_event(EventType::AccountsItemChanged);
     }
     if res.is_ok() {
         delete_and_reset_all_device_msgs(context)

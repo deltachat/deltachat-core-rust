@@ -36,10 +36,10 @@ use crate::message::Message;
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
-use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::time;
 use crate::{chat, e2ee, provider};
+use crate::{stock_str, EventType};
 use deltachat_contact_tools::addr_cmp;
 
 macro_rules! progress {
@@ -486,6 +486,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     update_device_chats_handle.await??;
 
     ctx.sql.set_raw_config_bool("configured", true).await?;
+    ctx.emit_event(EventType::AccountsItemChanged);
 
     Ok(configured_param)
 }

@@ -139,6 +139,7 @@ impl Accounts {
         ctx.open("".to_string()).await?;
 
         self.accounts.insert(account_config.id, ctx);
+        self.emit_event(EventType::AccountsChanged);
 
         Ok(account_config.id)
     }
@@ -156,6 +157,7 @@ impl Accounts {
             .build()
             .await?;
         self.accounts.insert(account_config.id, ctx);
+        self.emit_event(EventType::AccountsChanged);
 
         Ok(account_config.id)
     }
@@ -190,6 +192,7 @@ impl Accounts {
                 .context("failed to remove account data")?;
         }
         self.config.remove_account(id).await?;
+        self.emit_event(EventType::AccountsChanged);
 
         Ok(())
     }

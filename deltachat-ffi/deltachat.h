@@ -6413,6 +6413,25 @@ void dc_event_unref(dc_event_t* event);
 
 #define DC_EVENT_CHATLIST_ITEM_CHANGED         2301
 
+/**
+ * Inform that the list of accounts has changed (an account removed or added or (not yet implemented) the account order changes)
+ *
+ * This event is only emitted by the account manager.
+ */
+
+#define DC_EVENT_ACCOUNTS_CHANGED              2302
+
+/**
+ * Inform that an account property that might be shown in the account list changed, namely:
+ * - is_configured (see dc_is_configured())
+ * - displayname
+ * - selfavatar
+ * - private_tag
+ * 
+ * This event is emitted from the account whose property changed.
+ */
+
+#define DC_EVENT_ACCOUNTS_ITEM_CHANGED         2303
 
 /**
  * Inform that some events have been skipped due to event channel overflow.

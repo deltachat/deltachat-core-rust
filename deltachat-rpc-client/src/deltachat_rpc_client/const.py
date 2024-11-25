@@ -61,6 +61,8 @@ class EventType(str, Enum):
     WEBXDC_INSTANCE_DELETED = "WebxdcInstanceDeleted"
     CHATLIST_CHANGED = "ChatlistChanged"
     CHATLIST_ITEM_CHANGED = "ChatlistItemChanged"
+    ACCOUNTS_CHANGED = "AccountsChanged"
+    ACCOUNTS_ITEM_CHANGED = "AccountsItemChanged"
     CONFIG_SYNCED = "ConfigSynced"
     WEBXDC_REALTIME_DATA = "WebxdcRealtimeData"
     WEBXDC_REALTIME_ADVERTISEMENT_RECEIVED = "WebxdcRealtimeAdvertisementReceived"
