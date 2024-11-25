@@ -1303,13 +1303,11 @@ impl MimeFactory {
         if let Some(msg_quoted_text) = msg.quoted_text() {
             let mut some_quoted_text = String::new();
             for quoted_line in msg_quoted_text.split('\n') {
-                if !some_quoted_text.is_empty() {
-                    some_quoted_text += "\r\n";
-                }
                 some_quoted_text += "> ";
                 some_quoted_text += quoted_line;
+                some_quoted_text += "\r\n";
             }
-            some_quoted_text += "\r\n\r\n";
+            some_quoted_text += "\r\n";
             quoted_text = Some(some_quoted_text)
         }
 
