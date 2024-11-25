@@ -25,6 +25,8 @@ def test_webxdc(acfactory) -> None:
         "sourceCodeUrl": None,
         "summary": None,
         "selfAddr": webxdc_info["selfAddr"],
+        "sendUpdateInterval": 1000,
+        "sendUpdateMaxSize": 18874368,
     }
 
     status_updates = message.get_webxdc_status_updates()

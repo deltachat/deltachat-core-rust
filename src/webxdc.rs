@@ -40,6 +40,7 @@ use crate::events::EventType;
 use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::wrapped_base64_encode;
+use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
@@ -105,6 +106,14 @@ pub struct WebxdcInfo {
 
     /// Address to be used for `window.webxdc.selfAddr` in JS land.
     pub self_addr: String,
+
+    /// Milliseconds to wait before calling `sendUpdate()` again since the last call.
+    /// Should be exposed to `window.sendUpdateInterval` in JS land.
+    pub send_update_interval: usize,
+
+    /// Maximum number of bytes accepted for a serialized update object.
+    /// Should be exposed to `window.sendUpdateMaxSize` in JS land.
+    pub send_update_max_size: usize,
 }
 
 /// Status Update ID.
@@ -946,6 +955,8 @@ impl Message {
             },
             internet_access,
             self_addr,
+            send_update_interval: context.ratelimit.read().await.update_interval(),
+            send_update_max_size: RECOMMENDED_FILE_SIZE as usize,
         })
     }
 
@@ -2258,6 +2269,8 @@ sth_for_the = "future""#
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "minimal.xdc");
         assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
+        assert_eq!(info.send_update_interval, 10000);
+        assert_eq!(info.send_update_max_size, RECOMMENDED_FILE_SIZE as usize);
 
         let mut instance = create_webxdc_instance(
             &t,
