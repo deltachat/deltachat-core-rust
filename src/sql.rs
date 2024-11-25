@@ -886,18 +886,11 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                             continue;
                         }
                         unreferenced_count += 1;
-                        let recently_created =
-                            stats.created().map_or(false, |t| t > keep_files_newer_than);
                         let recently_modified = stats
                             .modified()
                             .map_or(false, |t| t > keep_files_newer_than);
-                        let recently_accessed = stats
-                            .accessed()
-                            .map_or(false, |t| t > keep_files_newer_than);
 
-                        if p == blobdir
-                            && (recently_created || recently_modified || recently_accessed)
-                        {
+                        if p == blobdir && recently_modified {
                             info!(
                                 context,
                                 "Housekeeping: Keeping new unreferenced file #{}: {:?}.",
@@ -1143,6 +1136,26 @@ mod tests {
         tokio::fs::write(dir.join("f"), "").await.unwrap();
         housekeeping(&t).await.unwrap();
         tokio::fs::create_dir(&dir).await.unwrap();
+    }
+
+    /// Tests that housekeeping keeps new blobs.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_housekeeping_keeps_new_blobs() {
+        use tempfile::tempdir;
+
+        let t = TestContext::new_alice().await;
+
+        let dir = tempdir()?;
+        let filepath = dir.path().join("file.txt");
+        fs::write(&filepath, b"test").await.unwrap();
+        // TODO: rewind all the file dates
+
+        let blob = BlobObject::new_from_path(context, filepath).await?;
+
+        housekeeping(&t).await.unwrap();
+
+        let data = fs::read(blob.to_abs_path()).await.unwrap();
+        assert_eq!(data, b"test");
     }
 
     /// Regression test.
