@@ -4203,6 +4203,10 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   currently, this is only true for encrypted Webxdc's in the self chat
  *   that have requested internet access in the manifest.
  * - self_addr: address to be used for `window.webxdc.selfAddr` in JS land.
+ * - send_update_interval: Milliseconds to wait before calling `sendUpdate()` again since the last call.
+ *   Should be exposed to `webxdc.sendUpdateInterval` in JS land.
+ * - send_update_max_size: Maximum number of bytes accepted for a serialized update object.
++    Should be exposed to `webxdc.sendUpdateMaxSize` in JS land.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.

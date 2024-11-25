@@ -37,6 +37,12 @@ pub struct WebxdcMessageInfo {
     internet_access: bool,
     /// Address to be used for `window.webxdc.selfAddr` in JS land.
     self_addr: String,
+    /// Milliseconds to wait before calling `sendUpdate()` again since the last call.
+    /// Should be exposed to `window.sendUpdateInterval` in JS land.
+    send_update_interval: usize,
+    /// Maximum number of bytes accepted for a serialized update object.
+    /// Should be exposed to `window.sendUpdateMaxSize` in JS land.
+    send_update_max_size: usize,
 }
 
 impl WebxdcMessageInfo {
@@ -53,6 +59,8 @@ impl WebxdcMessageInfo {
             source_code_url,
             internet_access,
             self_addr,
+            send_update_interval,
+            send_update_max_size,
         } = message.get_webxdc_info(context).await?;
 
         Ok(Self {
@@ -63,6 +71,8 @@ impl WebxdcMessageInfo {
             source_code_url: maybe_empty_string_to_option(source_code_url),
             internet_access,
             self_addr,
+            send_update_interval,
+            send_update_max_size,
         })
     }
 }
