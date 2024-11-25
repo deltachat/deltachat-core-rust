@@ -289,7 +289,7 @@ mod tests {
     use super::*;
     use crate::chat::ChatId;
     use crate::param::Param;
-    use crate::test_utils as test;
+    use crate::test_utils::TestContext;
 
     async fn assert_summary_texts(msg: &Message, ctx: &Context, expected: &str) {
         assert_eq!(msg.get_summary_text(ctx).await, expected);
@@ -298,7 +298,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_summary_text() {
-        let d = test::TestContext::new().await;
+        let d = TestContext::new_alice().await;
         let ctx = &d.ctx;
         let chat_id = ChatId::create_for_contact(ctx, ContactId::SELF)
             .await

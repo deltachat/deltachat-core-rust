@@ -18,9 +18,9 @@
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
         androidSdk = android.sdk.${system} (sdkPkgs:
           builtins.attrValues {
-            inherit (sdkPkgs) ndk-24-0-8215888 cmdline-tools-latest;
+            inherit (sdkPkgs) ndk-27-0-11902837 cmdline-tools-latest;
           });
-        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/24.0.8215888";
+        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/27.0.11902837";
 
         rustSrc = nix-filter.lib {
           root = ./.;
@@ -257,12 +257,20 @@
 
         androidAttrs = {
           armeabi-v7a = {
-            cc = "armv7a-linux-androideabi19-clang";
+            cc = "armv7a-linux-androideabi21-clang";
             rustTarget = "armv7-linux-androideabi";
           };
           arm64-v8a = {
             cc = "aarch64-linux-android21-clang";
             rustTarget = "aarch64-linux-android";
+          };
+          x86 = {
+            cc = "i686-linux-android21-clang";
+            rustTarget = "i686-linux-android";
+          };
+          x86_64 = {
+            cc = "x86_64-linux-android21-clang";
+            rustTarget = "x86_64-linux-android";
           };
         };
 
@@ -355,6 +363,8 @@
           mkRustPackages "x86_64-linux" //
           mkRustPackages "armv7l-linux" //
           mkRustPackages "armv6l-linux" //
+          mkRustPackages "x86_64-darwin" //
+          mkRustPackages "aarch64-darwin" //
           mkAndroidPackages "armeabi-v7a" //
           mkAndroidPackages "arm64-v8a" //
           mkAndroidPackages "x86" //
@@ -471,8 +481,8 @@
                   pkgs.python3
                   pkgs.python3Packages.wheel
                 ];
-                buildPhase = ''python3 scripts/wheel-rpc-server.py source deltachat-rpc-server-${manifest.version}.tar.gz'';
-                installPhase = ''mkdir -p $out; cp -av deltachat-rpc-server-${manifest.version}.tar.gz $out'';
+                buildPhase = ''python3 scripts/wheel-rpc-server.py source deltachat_rpc_server-${manifest.version}.tar.gz'';
+                installPhase = ''mkdir -p $out; cp -av deltachat_rpc_server-${manifest.version}.tar.gz $out'';
               };
 
             deltachat-rpc-client =
@@ -525,28 +535,30 @@
               };
           };
 
-        devShells.default = let 
-          pkgs = import nixpkgs {
-            system = system;
-            overlays = [ fenix.overlays.default ];
-          };
-          in pkgs.mkShell {
+        devShells.default =
+          let
+            pkgs = import nixpkgs {
+              system = system;
+              overlays = [ fenix.overlays.default ];
+            };
+          in
+          pkgs.mkShell {
 
-          buildInputs = with pkgs; [
-            (fenix.packages.${system}.complete.withComponents [
-              "cargo"
-              "clippy"
-              "rust-src"
-              "rustc"
-              "rustfmt"
-            ])
-            cargo-deny
-            rust-analyzer-nightly
-            cargo-nextest
-            perl # needed to build vendored OpenSSL
-            git-cliff
-          ];
-        };
+            buildInputs = with pkgs; [
+              (fenix.packages.${system}.complete.withComponents [
+                "cargo"
+                "clippy"
+                "rust-src"
+                "rustc"
+                "rustfmt"
+              ])
+              cargo-deny
+              rust-analyzer-nightly
+              cargo-nextest
+              perl # needed to build vendored OpenSSL
+              git-cliff
+            ];
+          };
       }
     );
 }

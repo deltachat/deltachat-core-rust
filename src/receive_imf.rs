@@ -6,7 +6,7 @@ use std::str::FromStr;
 use anyhow::{Context as _, Result};
 use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, sanitize_single_line, ContactAddress};
 use iroh_gossip::proto::TopicId;
-use mailparse::{parse_mail, SingleInfo};
+use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -73,12 +73,13 @@ pub struct ReceivedMsg {
 ///
 /// This method returns errors on a failure to parse the mail or extract Message-ID. It's only used
 /// for tests and REPL tool, not actual message reception pipeline.
+#[cfg(any(test, feature = "internals"))]
 pub async fn receive_imf(
     context: &Context,
     imf_raw: &[u8],
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
-    let mail = parse_mail(imf_raw).context("can't parse mail")?;
+    let mail = mailparse::parse_mail(imf_raw).context("can't parse mail")?;
     let rfc724_mid =
         imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
     if let Some(download_limit) = context.download_limit().await? {
@@ -105,6 +106,7 @@ pub async fn receive_imf(
 /// Emulates reception of a message from "INBOX".
 ///
 /// Only used for tests and REPL tool, not actual message reception pipeline.
+#[cfg(any(test, feature = "internals"))]
 pub(crate) async fn receive_imf_from_inbox(
     context: &Context,
     rfc724_mid: &str,
@@ -201,7 +203,7 @@ pub(crate) async fn receive_imf_inner(
     };
 
     crate::peerstate::maybe_do_aeap_transition(context, &mut mime_parser).await?;
-    if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+    if let Some(peerstate) = &mime_parser.peerstate {
         peerstate
             .handle_fingerprint_change(context, mime_parser.timestamp_sent)
             .await?;
@@ -356,8 +358,7 @@ pub(crate) async fn receive_imf_inner(
 
             // Peerstate could be updated by handling the Securejoin handshake.
             let contact = Contact::get_by_id(context, from_id).await?;
-            mime_parser.decryption_info.peerstate =
-                Peerstate::from_addr(context, contact.get_addr()).await?;
+            mime_parser.peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
         } else {
             let to_id = to_ids.first().copied().unwrap_or_default();
             // handshake may mark contacts as verified and must be processed before chats are created
@@ -393,7 +394,7 @@ pub(crate) async fn receive_imf_inner(
     if verified_encryption == VerifiedEncryption::Verified
         && mime_parser.get_header(HeaderDef::ChatVerified).is_some()
     {
-        if let Some(peerstate) = &mut mime_parser.decryption_info.peerstate {
+        if let Some(peerstate) = &mut mime_parser.peerstate {
             // NOTE: it might be better to remember ID of the key
             // that we used to decrypt the message, but
             // it is unlikely that default key ever changes
@@ -1006,7 +1007,7 @@ async fn add_parts(
                             )
                             .await?;
                     }
-                    if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+                    if let Some(peerstate) = &mime_parser.peerstate {
                         restore_protection = new_protection != ProtectionStatus::Protected
                             && peerstate.prefer_encrypt == EncryptPreference::Mutual
                             // Check that the contact still has the Autocrypt key same as the
@@ -1424,7 +1425,11 @@ async fn add_parts(
     if let Some(msg) = group_changes_msgs.1 {
         match &better_msg {
             None => better_msg = Some(msg),
-            Some(_) => group_changes_msgs.0.push(msg),
+            Some(_) => {
+                if !msg.is_empty() {
+                    group_changes_msgs.0.push(msg)
+                }
+            }
         }
     }
 
@@ -1507,6 +1512,9 @@ async fn add_parts(
 
         let mut txt_raw = "".to_string();
         let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
+            if better_msg.is_empty() && is_partial_download.is_none() {
+                chat_id = DC_CHAT_ID_TRASH;
+            }
             (better_msg, Viewtype::Text)
         } else {
             (&part.msg, part.typ)
@@ -1569,7 +1577,7 @@ INSERT INTO msgs
 ON CONFLICT (id) DO UPDATE
 SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
-    type=excluded.type, msgrmsg=excluded.msgrmsg,
+    type=excluded.type, state=max(state,excluded.state), msgrmsg=excluded.msgrmsg,
     txt=excluded.txt, txt_normalized=excluded.txt_normalized, subject=excluded.subject,
     txt_raw=excluded.txt_raw, param=excluded.param,
     hidden=excluded.hidden,bytes=excluded.bytes, mime_headers=excluded.mime_headers,
@@ -2078,8 +2086,11 @@ async fn create_group(
 
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
 ///
-/// Optionally returns better message to replace the original system message.
-/// is_partial_download: whether the message is not fully downloaded.
+/// Returns `Vec` of group changes messages and, optionally, a better message to replace the
+/// original system message. If the better message is empty, the original system message should be
+/// just omitted.
+///
+/// * `is_partial_download` - whether the message is not fully downloaded.
 #[allow(clippy::too_many_arguments)]
 async fn apply_group_changes(
     context: &Context,
@@ -2181,39 +2192,47 @@ async fn apply_group_changes(
 
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
         removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
-
-        better_msg = if removed_id == Some(from_id) {
-            Some(stock_str::msg_group_left_local(context, from_id).await)
-        } else {
-            Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
-        };
-
-        if removed_id.is_some() {
-            if !allow_member_list_changes {
-                info!(
-                    context,
-                    "Ignoring removal of {removed_addr:?} from {chat_id}."
-                );
+        if let Some(id) = removed_id {
+            if allow_member_list_changes && chat_contacts.contains(&id) {
+                better_msg = if id == from_id {
+                    Some(stock_str::msg_group_left_local(context, from_id).await)
+                } else {
+                    Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
+                };
             }
         } else {
             warn!(context, "Removed {removed_addr:?} has no contact id.")
         }
+        better_msg.get_or_insert_with(Default::default);
+        if !allow_member_list_changes {
+            info!(
+                context,
+                "Ignoring removal of {removed_addr:?} from {chat_id}."
+            );
+        }
     } else if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
-        better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
-
         if allow_member_list_changes {
-            if !recreate_member_list {
-                if let Some(contact_id) =
-                    Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
-                {
+            let is_new_member;
+            if let Some(contact_id) =
+                Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
+            {
+                if !recreate_member_list {
                     added_id = Some(contact_id);
-                } else {
-                    warn!(context, "Added {added_addr:?} has no contact id.")
                 }
+                is_new_member = !chat_contacts.contains(&contact_id);
+            } else {
+                warn!(context, "Added {added_addr:?} has no contact id.");
+                is_new_member = false;
+            }
+
+            if is_new_member || self_added {
+                better_msg =
+                    Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
             }
         } else {
             info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
         }
+        better_msg.get_or_insert_with(Default::default);
     } else if let Some(old_name) = mime_parser
         .get_header(HeaderDef::ChatGroupNameChanged)
         .map(|s| s.trim())
@@ -2448,14 +2467,16 @@ async fn create_or_lookup_mailinglist(
     }
 }
 
-#[allow(clippy::indexing_slicing)]
 fn compute_mailinglist_name(
     list_id_header: &str,
     listid: &str,
     mime_parser: &MimeMessage,
 ) -> String {
-    let mut name = match LIST_ID_REGEX.captures(list_id_header) {
-        Some(cap) => cap[1].trim().to_string(),
+    let mut name = match LIST_ID_REGEX
+        .captures(list_id_header)
+        .and_then(|caps| caps.get(1))
+    {
+        Some(cap) => cap.as_str().trim().to_string(),
         None => "".to_string(),
     };
 
@@ -2502,8 +2523,11 @@ fn compute_mailinglist_name(
         // 51231231231231231231231232869f58.xing.com -> xing.com
         static PREFIX_32_CHARS_HEX: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
-        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(listid) {
-            name = cap[2].to_string();
+        if let Some(cap) = PREFIX_32_CHARS_HEX
+            .captures(listid)
+            .and_then(|caps| caps.get(2))
+        {
+            name = cap.as_str().to_string();
         } else {
             name = listid.to_string();
         }
@@ -2662,7 +2686,7 @@ async fn update_verified_keys(
         return Ok(None);
     }
 
-    let Some(peerstate) = &mut mimeparser.decryption_info.peerstate else {
+    let Some(peerstate) = &mut mimeparser.peerstate else {
         // No peerstate means no verified keys.
         return Ok(None);
     };
@@ -2735,7 +2759,7 @@ async fn has_verified_encryption(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
-        let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
+        let Some(peerstate) = &mimeparser.peerstate else {
             return Ok(NotVerified(
                 "No peerstate, the contact isn't verified".to_string(),
             ));

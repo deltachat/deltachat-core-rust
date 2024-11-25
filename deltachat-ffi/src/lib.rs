@@ -542,6 +542,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::MsgsChanged { .. } => 2000,
         EventType::ReactionsChanged { .. } => 2001,
         EventType::IncomingReaction { .. } => 2002,
+        EventType::IncomingWebxdcNotify { .. } => 2003,
         EventType::IncomingMsg { .. } => 2005,
         EventType::IncomingMsgBunch { .. } => 2006,
         EventType::MsgsNoticed { .. } => 2008,
@@ -606,7 +607,8 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::ChatlistChanged
         | EventType::AccountsChanged
         | EventType::AccountsItemChanged => 0,
-        EventType::IncomingReaction { contact_id, .. } => contact_id.to_u32() as libc::c_int,
+        EventType::IncomingReaction { contact_id, .. }
+        | EventType::IncomingWebxdcNotify { contact_id, .. } => contact_id.to_u32() as libc::c_int,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -687,6 +689,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         EventType::MsgsChanged { msg_id, .. }
         | EventType::ReactionsChanged { msg_id, .. }
         | EventType::IncomingReaction { msg_id, .. }
+        | EventType::IncomingWebxdcNotify { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
         | EventType::MsgDelivered { msg_id, .. }
         | EventType::MsgFailed { msg_id, .. }
@@ -783,6 +786,9 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             .to_c_string()
             .unwrap_or_default()
             .into_raw(),
+        EventType::IncomingWebxdcNotify { text, .. } => {
+            text.to_c_string().unwrap_or_default().into_raw()
+        }
         #[allow(unreachable_patterns)]
         #[cfg(test)]
         _ => unreachable!("This is just to silence a rust_analyzer false-positive"),
@@ -1067,7 +1073,7 @@ pub unsafe extern "C" fn dc_send_webxdc_status_update(
     context: *mut dc_context_t,
     msg_id: u32,
     json: *const libc::c_char,
-    descr: *const libc::c_char,
+    _descr: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_send_webxdc_status_update()");
@@ -1075,14 +1081,10 @@ pub unsafe extern "C" fn dc_send_webxdc_status_update(
     }
     let ctx = &*context;
 
-    block_on(ctx.send_webxdc_status_update(
-        MsgId::new(msg_id),
-        &to_string_lossy(json),
-        &to_string_lossy(descr),
-    ))
-    .context("Failed to send webxdc update")
-    .log_err(ctx)
-    .is_ok() as libc::c_int
+    block_on(ctx.send_webxdc_status_update(MsgId::new(msg_id), &to_string_lossy(json)))
+        .context("Failed to send webxdc update")
+        .log_err(ctx)
+        .is_ok() as libc::c_int
 }
 
 #[no_mangle]
@@ -3687,6 +3689,17 @@ pub unsafe extern "C" fn dc_msg_get_info_type(msg: *mut dc_msg_t) -> libc::c_int
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_info_type() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_webxdc_href(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_webxdc_href()");
+        return "".strdup();
+    }
+
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_webxdc_href().strdup()
 }
 
 #[no_mangle]

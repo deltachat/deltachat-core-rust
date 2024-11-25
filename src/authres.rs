@@ -260,7 +260,6 @@ fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str>
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
     use tokio::fs;
     use tokio::io::AsyncReadExt;
 
@@ -520,8 +519,13 @@ Authentication-Results: dkim=";
         handle_authres(&t, &mail, "invalid@rom.com").await.unwrap();
     }
 
+    // Test that Autocrypt works with mailing list.
+    //
+    // Previous versions of Delta Chat ignored Autocrypt based on the List-Post header.
+    // This is not needed: comparing of the From address to Autocrypt header address is enough.
+    // If the mailing list is not rewriting the From header, Autocrypt should be applied.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_autocrypt_in_mailinglist_ignored() -> Result<()> {
+    async fn test_autocrypt_in_mailinglist_not_ignored() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
@@ -533,28 +537,18 @@ Authentication-Results: dkim=";
             .insert_str(0, "List-Post: <mailto:deltachat-community.example.net>\n");
         bob.recv_msg(&sent).await;
         let peerstate = Peerstate::from_addr(&bob, "alice@example.org").await?;
-        assert!(peerstate.is_none());
-
-        // Do the same without the mailing list header, this time the peerstate should be accepted
-        let sent = alice
-            .send_text(alice_bob_chat.id, "hellooo without mailing list")
-            .await;
-        bob.recv_msg(&sent).await;
-        let peerstate = Peerstate::from_addr(&bob, "alice@example.org").await?;
         assert!(peerstate.is_some());
 
-        // This also means that Bob can now write encrypted to Alice:
+        // Bob can now write encrypted to Alice:
         let mut sent = bob
             .send_text(bob_alice_chat.id, "hellooo in the mailinglist again")
             .await;
         assert!(sent.load_from_db().await.get_showpadlock());
 
-        // But if Bob writes to a mailing list, Alice doesn't show a padlock
-        // since she can't verify the signature without accepting Bob's key:
         sent.payload
             .insert_str(0, "List-Post: <mailto:deltachat-community.example.net>\n");
         let rcvd = alice.recv_msg(&sent).await;
-        assert!(!rcvd.get_showpadlock());
+        assert!(rcvd.get_showpadlock());
         assert_eq!(&rcvd.text, "hellooo in the mailinglist again");
 
         Ok(())

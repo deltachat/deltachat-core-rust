@@ -135,7 +135,7 @@ impl SchedulerState {
     /// If in the meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called
     /// resume will do the right thing and restore the scheduler to the state requested by
     /// the last call.
-    pub(crate) async fn pause<'a>(&'_ self, context: Context) -> Result<IoPausedGuard> {
+    pub(crate) async fn pause(&'_ self, context: Context) -> Result<IoPausedGuard> {
         {
             let mut inner = self.inner.write().await;
             match *inner {
@@ -655,9 +655,7 @@ async fn fetch_idle(
             ctx,
             "IMAP session does not support IDLE, going to fake idle."
         );
-        connection
-            .fake_idle(ctx, &mut session, watch_folder, folder_meaning)
-            .await?;
+        connection.fake_idle(ctx, watch_folder).await?;
         return Ok(session);
     }
 
@@ -669,9 +667,7 @@ async fn fetch_idle(
         .unwrap_or_default()
     {
         info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
-        connection
-            .fake_idle(ctx, &mut session, watch_folder, folder_meaning)
-            .await?;
+        connection.fake_idle(ctx, watch_folder).await?;
         return Ok(session);
     }
 

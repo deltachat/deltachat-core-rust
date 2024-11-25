@@ -146,9 +146,11 @@ pub(crate) async fn intercept_get_updates(
                 item: StatusUpdateItem {
                     payload: serde_json::to_value(location_item)?,
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: None,
+                    notify: None,
                 },
                 serial: StatusUpdateSerial(location.location_id),
                 max_serial: StatusUpdateSerial(location.location_id),
@@ -203,7 +205,6 @@ mod tests {
         t.send_webxdc_status_update(
             integration_id,
             r#"{"payload": {"action": "pos", "lat": 11.0, "lng": 12.0, "label": "poi #1"}}"#,
-            "descr",
         )
         .await?;
         t.evtracker
@@ -237,7 +238,6 @@ mod tests {
         t.send_webxdc_status_update(
             integration_id,
             r#"{"payload": {"action": "pos", "lat": 22.0, "lng": 23.0, "label": "poi #2"}}"#,
-            "descr",
         )
         .await?;
         let updates = t

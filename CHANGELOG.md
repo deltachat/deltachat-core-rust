@@ -1,5 +1,153 @@
 # Changelog
 
+## [1.151.1] - 2024-11-24
+
+### Build system
+
+- nix: Fix deltachat-rpc-server-source installable.
+
+### CI
+
+- Test building nix targets to avoid regressions.
+
+## [1.151.0] - 2024-11-23
+
+### Features / Changes
+
+- Trim whitespace from scanned QR codes.
+- Use privacy-preserving webxdc addresses ([#6237](https://github.com/deltachat/deltachat-core-rust/pull/6237)).
+- Webxdc notify ([#6230](https://github.com/deltachat/deltachat-core-rust/pull/6230)).
+- `update.href` api ([#6248](https://github.com/deltachat/deltachat-core-rust/pull/6248)).
+
+### Fixes
+
+- Never notify SELF ([#6251](https://github.com/deltachat/deltachat-core-rust/pull/6251)).
+
+### Build system
+
+- Use underscores in deltachat-rpc-server source package filename.
+- Remove imap_tools from dependencies ([#6238](https://github.com/deltachat/deltachat-core-rust/pull/6238)).
+- cargo: Update Rustls from 0.23.14 to 0.23.18.
+- deps: Bump curve25519-dalek from 3.2.0 to 4.1.3 in /fuzz.
+
+### Documentation
+
+- Move style guide into a separate document.
+- Clarify DC_EVENT_INCOMING_WEBXDC_NOTIFY documentation ([#6249](https://github.com/deltachat/deltachat-core-rust/pull/6249)).
+
+### Tests
+
+- After AEAP, 1:1 chat isn't available for sending, but unprotected groups are ([#6222](https://github.com/deltachat/deltachat-core-rust/pull/6222)).
+
+## [1.150.0] - 2024-11-21
+
+### API-Changes
+
+- Correct `DC_CERTCK_ACCEPT_*` values and docs ([#6176](https://github.com/deltachat/deltachat-core-rust/pull/6176)).
+
+### Features / Changes
+
+- Use Rustls for connections with strict TLS ([#6186](https://github.com/deltachat/deltachat-core-rust/pull/6186)).
+- Experimental header protection for Autocrypt.
+- Tune down io-not-started info in connectivity-html.
+- Clear config cache in start_io() ([#6228](https://github.com/deltachat/deltachat-core-rust/pull/6228)).
+- Line-before-quote may be up to 120 character long instead of 80.
+- Use i.delta.chat in qr codes ([#6223](https://github.com/deltachat/deltachat-core-rust/pull/6223)).
+
+### Fixes
+
+- Prevent accidental wrong-password-notifications ([#6122](https://github.com/deltachat/deltachat-core-rust/pull/6122)).
+- Remove footers from "Show Full Message...".
+- `send_msg_to_smtp`: Return Ok if `smtp` row is deleted in parallel.
+- Only add "member added/removed" messages if they actually do that ([#5992](https://github.com/deltachat/deltachat-core-rust/pull/5992)).
+- Do not fail to load chatlist summary if the message got removed.
+- deltachat-jsonrpc: Do not fail `get_chatlist_items_by_entries` if the message got deleted.
+- deltachat-jsonrpc: Do not fail `get_draft` if draft is deleted.
+- `markseen_msgs`: Limit not yet downloaded messages state to `InNoticed` ([#2970](https://github.com/deltachat/deltachat-core-rust/pull/2970)).
+- Update state of message when fully downloading it.
+- Dont overwrite equal drafts ([#6212](https://github.com/deltachat/deltachat-core-rust/pull/6212)).
+
+### Build system
+
+- Silence RUSTSEC-2024-0384.
+- cargo: Update rPGP from 0.13.2 to 0.14.0.
+- cargo: Update futures-concurrency from 7.6.1 to 7.6.2.
+- Update flake.nix ([#6200](https://github.com/deltachat/deltachat-core-rust/pull/6200))
+
+### CI
+
+- Ensure flake is formatted.
+
+### Documentation
+
+- Scanned proxies are added and normalized.
+
+### Refactor
+
+- Fix nightly clippy warnings.
+- Remove slicing from `is_file_in_use`.
+- Remove unnecessary `allow(clippy::indexing_slicing)`.
+- Don't use slicing in `remove_nonstandard_footer`.
+- Do not use slicing in `qr` module.
+- Eliminate indexing in `compute_mailinglist_name`.
+- Remove unused `allow(clippy::indexing_slicing)`.
+- Remove indexing/slicing from `remove_message_footer`.
+- Remove indexing/slicing from `squash_attachment_parts`.
+- Remove unused allow(clippy::indexing_slicing) for heuristically_parse_ndn.
+- Remove indexing/slicing from `parse_message_ids`.
+- Remove slicing from `remove_bottom_quote`.
+- Get rid of slicing in `remove_top_quote`.
+- Remove unused allow(clippy::indexing_slicing) from 'truncate'.
+- Forbid clippy::indexing_slicing.
+- Forbid clippy::string_slice.
+- Delete chat in a transaction.
+- Fix typo in `context.rs`.
+
+### Tests
+
+- Remove all calls to print() from deltachat-rpc-client tests.
+- Reply to protected group from MUA.
+- Mark not downloaded message as seen ([#2970](https://github.com/deltachat/deltachat-core-rust/pull/2970)).
+- Mark `receive_imf()` as only for tests and "internals" feature ([#6235](https://github.com/deltachat/deltachat-core-rust/pull/6235)).
+
+## [1.149.0] - 2024-11-05
+
+### Build system
+
+- Update tokio to 1.41 and Android NDK to r27.
+- `nix flake update android`.
+
+### Fixes
+
+- cargo: Update iroh to 0.28.1.
+  This fixes the problem with iroh not sending the `Host:` header and not being able to connect to relays behind nginx reverse proxy.
+
+## [1.148.7] - 2024-11-03
+
+### API-Changes
+
+- Add API to reset contact encryption.
+
+### Features / Changes
+
+- Emit chatlist events only if message still exists.
+
+### Fixes
+
+- send_msg_to_smtp: Do not fail if the message does not exist anymore.
+- Do not percent-encode dot when passing to autoconfig server.
+- Save contact name from SecureJoin QR to `authname`, not to `name` ([#6115](https://github.com/deltachat/deltachat-core-rust/pull/6115)).
+- Always exit fake IDLE after at most 60 seconds.
+- Concat NDNs ([#6129](https://github.com/deltachat/deltachat-core-rust/pull/6129)).
+
+### Refactor
+
+- Remove `has_decrypted_pgp_armor()`.
+
+### Miscellaneous Tasks
+
+- Update dependencies.
+
 ## [1.148.6] - 2024-10-31
 
 ### API-Changes
@@ -4443,13 +4591,9 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 - new qr-code type `DC_QR_WEBRTC` #1779
 
-- new `dc_chatlist_get_summary2()` api #1771
-
 - tweak smtp-timeout for larger mails #1782
 
 - optimize read-receipts #1765
-
-- Allow http scheme for DCACCOUNT URLs #1770
 
 - improve tests #1769
 
@@ -5193,3 +5337,8 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.148.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.3..v1.148.4
 [1.148.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.4..v1.148.5
 [1.148.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.5..v1.148.6
+[1.148.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.6..v1.148.7
+[1.149.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.7..v1.149.0
+[1.150.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.149.0..v1.150.0
+[1.151.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.150.0..v1.151.0
+[1.151.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.0..v1.151.1

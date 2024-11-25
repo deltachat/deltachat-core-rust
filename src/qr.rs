@@ -270,6 +270,7 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
 pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
+    let qr = qr.trim();
     let qrcode = if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)
             .await
@@ -367,9 +368,10 @@ pub fn format_backup(qr: &Qr) -> Result<String> {
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR`
-#[allow(clippy::indexing_slicing)]
 async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
-    let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
+    let payload = qr
+        .get(OPENPGP4FPR_SCHEME.len()..)
+        .context("Invalid OPENPGP4FPR scheme")?;
 
     // macOS and iOS sometimes replace the # with %23 (uri encode it), we should be able to parse this wrong format too.
     // see issue https://github.com/deltachat/deltachat-core-rust/issues/1969 for more info
@@ -446,7 +448,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
     if let (Some(addr), Some(invitenumber), Some(authcode)) = (&addr, invitenumber, authcode) {
         let addr = ContactAddress::new(addr)?;
         let (contact_id, _) =
-            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledSecurejoinQrScan)
                 .await
                 .with_context(|| format!("failed to add or lookup contact for address {addr:?}"))?;
 
@@ -546,7 +548,7 @@ async fn decode_ideltachat(context: &Context, prefix: &str, qr: &str) -> Result<
 fn decode_account(qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCACCOUNT_SCHEME.len()..)
-        .context("invalid DCACCOUNT payload")?;
+        .context("Invalid DCACCOUNT payload")?;
     let url = url::Url::parse(payload).context("Invalid account URL")?;
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::Account {
@@ -564,7 +566,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
 fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCWEBRTC_SCHEME.len()..)
-        .context("invalid DCWEBRTC payload")?;
+        .context("Invalid DCWEBRTC payload")?;
 
     let (_type, url) = Message::parse_webrtc_instance(payload);
     let url = url::Url::parse(&url).context("Invalid WebRTC instance")?;
@@ -637,7 +639,7 @@ fn decode_shadowsocks_proxy(qr: &str) -> Result<Qr> {
 fn decode_backup2(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP2_SCHEME)
-        .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
+        .ok_or_else(|| anyhow!("Invalid DCBACKUP2 scheme"))?;
     let (auth_token, node_addr) = payload
         .split_once('&')
         .context("Backup QR code has no separator")?;
@@ -668,9 +670,10 @@ struct CreateAccountErrorResponse {
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
-#[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
-    let url_str = &qr[DCACCOUNT_SCHEME.len()..];
+    let url_str = qr
+        .get(DCACCOUNT_SCHEME.len()..)
+        .context("Invalid DCACCOUNT scheme")?;
 
     if !url_str.starts_with(HTTPS_SCHEME) {
         bail!("DCACCOUNT QR codes must use HTTPS scheme");
@@ -800,15 +803,12 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
 /// Extract address for the mailto scheme.
 ///
 /// Scheme: `mailto:addr...?subject=...&body=..`
-#[allow(clippy::indexing_slicing)]
 async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
-    let payload = &qr[MAILTO_SCHEME.len()..];
+    let payload = qr
+        .get(MAILTO_SCHEME.len()..)
+        .context("Invalid mailto: scheme")?;
 
-    let (addr, query) = if let Some(query_index) = payload.find('?') {
-        (&payload[..query_index], &payload[query_index + 1..])
-    } else {
-        (payload, "")
-    };
+    let (addr, query) = payload.split_once('?').unwrap_or((payload, ""));
 
     let param: BTreeMap<&str, &str> = query
         .split('&')
@@ -855,16 +855,12 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
 /// Extract address for the smtp scheme.
 ///
 /// Scheme: `SMTP:addr...:subject...:body...`
-#[allow(clippy::indexing_slicing)]
 async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
-    let payload = &qr[SMTP_SCHEME.len()..];
+    let payload = qr.get(SMTP_SCHEME.len()..).context("Invalid SMTP scheme")?;
 
-    let addr = if let Some(query_index) = payload.find(':') {
-        &payload[..query_index]
-    } else {
-        bail!("Invalid SMTP found");
-    };
-
+    let (addr, _rest) = payload
+        .split_once(':')
+        .context("Invalid SMTP scheme payload")?;
     let addr = normalize_address(addr)?;
     let name = "";
     Qr::from_address(context, name, &addr, None).await
@@ -875,14 +871,13 @@ async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
 /// Scheme: `MATMSG:TO:addr...;SUB:subject...;BODY:body...;`
 ///
 /// There may or may not be linebreaks after the fields.
-#[allow(clippy::indexing_slicing)]
 async fn decode_matmsg(context: &Context, qr: &str) -> Result<Qr> {
     // Does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field.
     // we ignore this case.
     let addr = if let Some(to_index) = qr.find("TO:") {
-        let addr = qr[to_index + 3..].trim();
+        let addr = qr.get(to_index + 3..).unwrap_or_default().trim();
         if let Some(semi_index) = addr.find(';') {
-            addr[..semi_index].trim()
+            addr.get(..semi_index).unwrap_or_default().trim()
         } else {
             addr
         }
@@ -903,7 +898,6 @@ static VCARD_EMAIL_RE: Lazy<regex::Regex> =
 /// Extract address for the vcard scheme.
 ///
 /// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;`
-#[allow(clippy::indexing_slicing)]
 async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
     let name = VCARD_NAME_RE
         .captures(qr)
@@ -915,8 +909,8 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
         })
         .unwrap_or_default();
 
-    let addr = if let Some(caps) = VCARD_EMAIL_RE.captures(qr) {
-        normalize_address(caps[2].trim())?
+    let addr = if let Some(cap) = VCARD_EMAIL_RE.captures(qr).and_then(|caps| caps.get(2)) {
+        normalize_address(cap.as_str().trim())?
     } else {
         bail!("Bad e-mail address");
     };
@@ -994,6 +988,17 @@ mod tests {
             }
         );
         let qr = check_qr(&ctx.ctx, "http://www.hello.com/hello").await?;
+        assert_eq!(
+            qr,
+            Qr::Url {
+                url: "http://www.hello.com/hello".to_string(),
+            }
+        );
+
+        // Test that QR code whitespace is stripped.
+        // Users can copy-paste QR code contents and "scan"
+        // from the clipboard.
+        let qr = check_qr(&ctx.ctx, "  \thttp://www.hello.com/hello  \n\t \r\n ").await?;
         assert_eq!(
             qr,
             Qr::Url {
@@ -1270,7 +1275,8 @@ mod tests {
         if let Qr::AskVerifyContact { contact_id, .. } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "cli@deltachat.de");
-            assert_eq!(contact.get_name(), "Jörn P. P.");
+            assert_eq!(contact.get_authname(), "Jörn P. P.");
+            assert_eq!(contact.get_name(), "");
         } else {
             bail!("Wrong QR code type");
         }
@@ -1285,6 +1291,7 @@ mod tests {
         if let Qr::AskVerifyContact { contact_id, .. } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "cli@deltachat.de");
+            assert_eq!(contact.get_authname(), "");
             assert_eq!(contact.get_name(), "");
         } else {
             bail!("Wrong QR code type");
@@ -1307,7 +1314,7 @@ mod tests {
             last_seen_autocrypt: 1,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: None,
             gossip_timestamp: 0,
             gossip_key_fingerprint: None,
@@ -1338,7 +1345,10 @@ mod tests {
 
         let qr = check_qr(
             &ctx.ctx,
-            &format!("OPENPGP4FPR:{}#a=alice@example.org", pub_key.fingerprint()),
+            &format!(
+                "OPENPGP4FPR:{}#a=alice@example.org",
+                pub_key.dc_fingerprint()
+            ),
         )
         .await?;
         if let Qr::FprOk { contact_id, .. } = qr {
@@ -1745,7 +1755,9 @@ mod tests {
         );
 
         // Test URL without port.
-        let res = set_config_from_qr(&t, "https://t.me/socks?server=1.2.3.4").await;
+        //
+        // Also check that whitespace is trimmed.
+        let res = set_config_from_qr(&t, " https://t.me/socks?server=1.2.3.4\n").await;
         assert!(res.is_ok());
         assert_eq!(t.get_config_bool(Config::ProxyEnabled).await?, true);
         assert_eq!(

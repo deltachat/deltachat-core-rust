@@ -13,7 +13,7 @@
 //! - `msg_id` - ID of the message in the `msgs` table
 //! - `first_serial` - serial number of the first status update to send
 //! - `last_serial` - serial number of the last status update to send
-//! - `descr` - text to send along with the updates
+//! - `descr` - not used, set to empty string
 
 mod integration;
 mod maps_integration;
@@ -30,12 +30,14 @@ use lettre_email::PartBuilder;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::chat::{self, Chat};
 use crate::constants::Chattype;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::wrapped_base64_encode;
 use crate::mimeparser::SystemMessage;
@@ -53,6 +55,9 @@ const WEBXDC_API_VERSION: u32 = 1;
 /// Suffix used to recognize webxdc files.
 pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
+
+/// Text shown to classic e-mail users in the visible e-mail body.
+const BODY_DESCR: &str = "Webxdc Status Update";
 
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize, Default)]
@@ -97,6 +102,9 @@ pub struct WebxdcInfo {
     /// It should request access, be encrypted
     /// and sent to self for this.
     pub internet_access: bool,
+
+    /// Address to be used for `window.webxdc.selfAddr` in JS land.
+    pub self_addr: String,
 }
 
 /// Status Update ID.
@@ -160,6 +168,11 @@ pub struct StatusUpdateItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<String>,
 
+    /// Optional link the info message will point to.
+    /// Used to set `window.location.href` in JS land.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub href: Option<String>,
+
     /// The new name of the editing document.
     /// This is not needed if the webxdc doesn't edit documents.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -177,6 +190,10 @@ pub struct StatusUpdateItem {
     /// If there is no ID, message is always considered to be unique.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<String>,
+
+    /// Array of other users `selfAddr` that should be notified about this update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify: Option<Vec<String>>,
 }
 
 /// Update items as passed to the UIs.
@@ -309,35 +326,8 @@ impl Context {
             return Ok(None);
         };
 
-        if can_info_msg {
-            if let Some(ref info) = status_update_item.info {
-                if let Some(info_msg_id) =
-                    self.get_overwritable_info_msg_id(instance, from_id).await?
-                {
-                    chat::update_msg_text_and_timestamp(
-                        self,
-                        instance.chat_id,
-                        info_msg_id,
-                        info.as_str(),
-                        timestamp,
-                    )
-                    .await?;
-                } else {
-                    chat::add_info_msg_with_cmd(
-                        self,
-                        instance.chat_id,
-                        info.as_str(),
-                        SystemMessage::WebxdcInfoMessage,
-                        timestamp,
-                        None,
-                        Some(instance),
-                        Some(from_id),
-                    )
-                    .await?;
-                }
-            }
-        }
-
+        let mut notify_msg_id = instance.id;
+        let mut notify_text = "".to_string();
         let mut param_changed = false;
 
         let mut instance = instance.clone();
@@ -356,10 +346,51 @@ impl Context {
                 .param
                 .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
             {
-                instance
-                    .param
-                    .set(Param::WebxdcSummary, sanitize_bidi_characters(summary));
+                let summary = sanitize_bidi_characters(summary);
+                instance.param.set(Param::WebxdcSummary, summary.clone());
                 param_changed = true;
+                notify_text = summary;
+            }
+        }
+
+        if can_info_msg {
+            if let Some(ref info) = status_update_item.info {
+                let info_msg_id = self
+                    .get_overwritable_info_msg_id(&instance, from_id)
+                    .await?;
+
+                if info_msg_id.is_some() && status_update_item.href.is_none() {
+                    if let Some(info_msg_id) = info_msg_id {
+                        chat::update_msg_text_and_timestamp(
+                            self,
+                            instance.chat_id,
+                            info_msg_id,
+                            info.as_str(),
+                            timestamp,
+                        )
+                        .await?;
+                        notify_msg_id = info_msg_id;
+                    }
+                } else {
+                    notify_msg_id = chat::add_info_msg_with_cmd(
+                        self,
+                        instance.chat_id,
+                        info.as_str(),
+                        SystemMessage::WebxdcInfoMessage,
+                        timestamp,
+                        None,
+                        Some(&instance),
+                        Some(from_id),
+                    )
+                    .await?;
+                }
+                notify_text = info.to_string();
+
+                if let Some(href) = status_update_item.href {
+                    let mut notify_msg = Message::load_from_db(self, notify_msg_id).await?;
+                    notify_msg.param.set(Param::Arg, href);
+                    notify_msg.update_param(self).await?;
+                }
             }
         }
 
@@ -373,6 +404,19 @@ impl Context {
                 msg_id: instance.id,
                 status_update_serial,
             });
+        }
+
+        if !notify_text.is_empty() && from_id != ContactId::SELF {
+            if let Some(notify_list) = status_update_item.notify {
+                let self_addr = instance.get_webxdc_self_addr(self).await?;
+                if notify_list.contains(&self_addr) {
+                    self.emit_event(EventType::IncomingWebxdcNotify {
+                        contact_id: from_id,
+                        msg_id: notify_msg_id,
+                        text: notify_text,
+                    });
+                }
+            }
         }
 
         Ok(Some(status_update_serial))
@@ -441,11 +485,10 @@ impl Context {
         &self,
         instance_msg_id: MsgId,
         update_str: &str,
-        descr: &str,
     ) -> Result<()> {
         let status_update_item: StatusUpdateItem = serde_json::from_str(update_str)
             .with_context(|| format!("Failed to parse webxdc update item from {update_str:?}"))?;
-        self.send_webxdc_status_update_struct(instance_msg_id, status_update_item, descr)
+        self.send_webxdc_status_update_struct(instance_msg_id, status_update_item)
             .await?;
         Ok(())
     }
@@ -456,7 +499,6 @@ impl Context {
         &self,
         instance_msg_id: MsgId,
         mut status_update: StatusUpdateItem,
-        descr: &str,
     ) -> Result<()> {
         let instance = Message::load_from_db(self, instance_msg_id)
             .await
@@ -504,10 +546,10 @@ impl Context {
 
         if send_now {
             self.sql.insert(
-                "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
+                "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, '')
                  ON CONFLICT(msg_id)
-                 DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
-                (instance.id, status_update_serial, status_update_serial, descr),
+                 DO UPDATE SET last_serial=excluded.last_serial",
+                (instance.id, status_update_serial, status_update_serial),
             ).await.context("Failed to insert webxdc update into SMTP queue")?;
             self.scheduler.interrupt_smtp().await;
         }
@@ -515,21 +557,18 @@ impl Context {
     }
 
     /// Returns one record of the queued webxdc status updates.
-    async fn smtp_status_update_get(
-        &self,
-    ) -> Result<Option<(MsgId, i64, StatusUpdateSerial, String)>> {
+    async fn smtp_status_update_get(&self) -> Result<Option<(MsgId, i64, StatusUpdateSerial)>> {
         let res = self
             .sql
             .query_row_optional(
-                "SELECT msg_id, first_serial, last_serial, descr \
+                "SELECT msg_id, first_serial, last_serial \
                  FROM smtp_status_updates LIMIT 1",
                 (),
                 |row| {
                     let instance_id: MsgId = row.get(0)?;
                     let first_serial: i64 = row.get(1)?;
                     let last_serial: StatusUpdateSerial = row.get(2)?;
-                    let descr: String = row.get(3)?;
-                    Ok((instance_id, first_serial, last_serial, descr))
+                    Ok((instance_id, first_serial, last_serial))
                 },
             )
             .await?;
@@ -567,7 +606,7 @@ impl Context {
     /// Attempts to send queued webxdc status updates.
     pub(crate) async fn flush_status_updates(&self) -> Result<()> {
         loop {
-            let (instance_id, first, last, descr) = match self.smtp_status_update_get().await? {
+            let (instance_id, first, last) = match self.smtp_status_update_get().await? {
                 Some(res) => res,
                 None => return Ok(()),
             };
@@ -584,7 +623,7 @@ impl Context {
                 let mut status_update = Message {
                     chat_id: instance.chat_id,
                     viewtype: Viewtype::Text,
-                    text: descr.to_string(),
+                    text: BODY_DESCR.to_string(),
                     hidden: true,
                     ..Default::default()
                 };
@@ -872,6 +911,8 @@ impl Message {
             && self.chat_id.is_self_talk(context).await.unwrap_or_default()
             && self.get_showpadlock();
 
+        let self_addr = self.get_webxdc_self_addr(context).await?;
+
         Ok(WebxdcInfo {
             name: if let Some(name) = manifest.name {
                 name
@@ -904,7 +945,24 @@ impl Message {
                 "".to_string()
             },
             internet_access,
+            self_addr,
         })
+    }
+
+    async fn get_webxdc_self_addr(&self, context: &Context) -> Result<String> {
+        let fingerprint = load_self_public_key(context).await?.dc_fingerprint().hex();
+        let data = format!("{}-{}", fingerprint, self.rfc724_mid);
+        let hash = Sha256::digest(data.as_bytes());
+        Ok(format!("{:x}", hash))
+    }
+
+    /// Get link attached to an info message.
+    ///
+    /// The info message needs to be of type SystemMessage::WebxdcInfoMessage.
+    /// Typically, this is used to start the corresponding webxdc app
+    /// with `window.location.href` set in JS land.
+    pub fn get_webxdc_href(&self) -> Option<String> {
+        self.param.get(Param::Arg).map(|href| href.to_string())
     }
 }
 
@@ -1072,7 +1130,6 @@ mod tests {
         t.send_webxdc_status_update(
             instance.id,
             r#"{"info": "foo", "summary":"bar", "document":"doc", "payload": 42}"#,
-            "descr",
         )
         .await?;
         assert!(!instance.is_forwarded());
@@ -1123,7 +1180,6 @@ mod tests {
             .send_webxdc_status_update(
                 alice_instance.id,
                 r#"{"payload":7,"info": "i","summary":"s"}"#,
-                "d",
             )
             .await?;
         assert_eq!(alice_grp.get_msg_cnt(&alice).await?, 2);
@@ -1206,7 +1262,7 @@ mod tests {
             .await
             .is_ok());
         assert!(bob
-            .send_webxdc_status_update(bob_instance.id, r#"{"payload":42}"#, "descr")
+            .send_webxdc_status_update(bob_instance.id, r#"{"payload":42}"#)
             .await
             .is_err());
         assert_eq!(
@@ -1218,7 +1274,7 @@ mod tests {
         // Once the contact request is accepted, Bob can send updates
         bob_chat.id.accept(&bob).await?;
         assert!(bob
-            .send_webxdc_status_update(bob_instance.id, r#"{"payload":42}"#, "descr")
+            .send_webxdc_status_update(bob_instance.id, r#"{"payload":42}"#)
             .await
             .is_ok());
         assert_eq!(
@@ -1249,7 +1305,6 @@ mod tests {
             .send_webxdc_status_update(
                 alice_instance.id,
                 r#"{"payload": 7, "summary":"sum", "document":"doc"}"#,
-                "bla",
             )
             .await?;
         alice.flush_status_updates().await?;
@@ -1376,7 +1431,7 @@ mod tests {
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let instance = chat_id.get_draft(&t).await?.unwrap();
-        t.send_webxdc_status_update(instance.id, r#"{"payload": 42}"#, "descr")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 42}"#)
             .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
@@ -1419,9 +1474,11 @@ mod tests {
                 StatusUpdateItem {
                     payload: json!({"foo": "bar"}),
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
+                    notify: None,
                 },
                 1640178619,
                 true,
@@ -1443,9 +1500,11 @@ mod tests {
                 StatusUpdateItem {
                     payload: json!({"nothing": "this should be ignored"}),
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
+                    notify: None,
                 },
                 1640178619,
                 true,
@@ -1455,12 +1514,12 @@ mod tests {
         assert_eq!(update_id1_duplicate, None);
 
         assert!(t
-            .send_webxdc_status_update(instance.id, "\n\n\n", "")
+            .send_webxdc_status_update(instance.id, "\n\n\n")
             .await
             .is_err());
 
         assert!(t
-            .send_webxdc_status_update(instance.id, "bad json", "")
+            .send_webxdc_status_update(instance.id, "bad json")
             .await
             .is_err());
 
@@ -1476,9 +1535,11 @@ mod tests {
                 StatusUpdateItem {
                     payload: json!({"foo2": "bar2"}),
                     info: None,
+                    href: None,
                     document: None,
                     summary: None,
                     uid: None,
+                    notify: None,
                 },
                 1640178619,
                 true,
@@ -1495,9 +1556,11 @@ mod tests {
             StatusUpdateItem {
                 payload: Value::Bool(true),
                 info: None,
+                href: None,
                 document: None,
                 summary: None,
                 uid: None,
+                notify: None,
             },
             1640178619,
             true,
@@ -1515,7 +1578,6 @@ mod tests {
         t.send_webxdc_status_update(
             instance.id,
             r#"{"payload" : 1, "sender": "that is not used"}"#,
-            "",
         )
         .await?;
         assert_eq!(
@@ -1650,11 +1712,7 @@ mod tests {
         assert!(!sent1.payload().contains("report-type=status-update"));
 
         alice
-            .send_webxdc_status_update(
-                alice_instance.id,
-                r#"{"payload" : {"foo":"bar"}}"#,
-                "descr text",
-            )
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload" : {"foo":"bar"}}"#)
             .await?;
         alice.flush_status_updates().await?;
         expect_status_update_event(&alice, alice_instance.id).await?;
@@ -1663,7 +1721,7 @@ mod tests {
         assert!(alice_update.hidden);
         assert_eq!(alice_update.viewtype, Viewtype::Text);
         assert_eq!(alice_update.get_filename(), None);
-        assert_eq!(alice_update.text, "descr text".to_string());
+        assert_eq!(alice_update.text, BODY_DESCR.to_string());
         assert_eq!(alice_update.chat_id, alice_instance.chat_id);
         assert_eq!(
             alice_update.parent(&alice).await?.unwrap().id,
@@ -1671,7 +1729,7 @@ mod tests {
         );
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 1);
         assert!(sent2.payload().contains("report-type=status-update"));
-        assert!(sent2.payload().contains("descr text"));
+        assert!(sent2.payload().contains(BODY_DESCR));
         assert_eq!(
             alice
                 .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
@@ -1680,11 +1738,7 @@ mod tests {
         );
 
         alice
-            .send_webxdc_status_update(
-                alice_instance.id,
-                r#"{"payload":{"snipp":"snapp"}}"#,
-                "bla text",
-            )
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload":{"snipp":"snapp"}}"#)
             .await?;
         assert_eq!(
             alice
@@ -1753,31 +1807,23 @@ mod tests {
             + &String::from_utf8(vec![b'a'; STATUS_UPDATE_SIZE_MAX])?
             + r#""}"#;
         alice
-            .send_webxdc_status_update(alice_instance.id, &(update1_str.clone() + "}"), "descr1")
+            .send_webxdc_status_update(alice_instance.id, &(update1_str.clone() + "}"))
             .await?;
         alice
-            .send_webxdc_status_update(
-                alice_instance.id,
-                r#"{"payload" : {"foo":"bar2"}}"#,
-                "descr2",
-            )
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload" : {"foo":"bar2"}}"#)
             .await?;
         alice
-            .send_webxdc_status_update(
-                alice_instance.id,
-                r#"{"payload" : {"foo":"bar3"}}"#,
-                "descr3",
-            )
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload" : {"foo":"bar3"}}"#)
             .await?;
         alice.flush_status_updates().await?;
 
         // There's the message stack, so we pop messages in the reverse order.
         let sent3 = &alice.pop_sent_msg().await;
         let alice_update = sent3.load_from_db().await;
-        assert_eq!(alice_update.text, "descr3".to_string());
+        assert_eq!(alice_update.text, BODY_DESCR.to_string());
         let sent2 = &alice.pop_sent_msg().await;
         let alice_update = sent2.load_from_db().await;
-        assert_eq!(alice_update.text, "descr3".to_string());
+        assert_eq!(alice_update.text, BODY_DESCR.to_string());
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 1);
 
         // Bob receives the instance.
@@ -1828,7 +1874,7 @@ mod tests {
             (None, StatusUpdateSerial(u32::MAX))
         );
 
-        t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#, "bla")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#)
             .await?;
         let (object, first_new) = t
             .render_webxdc_status_update_object(instance.id, first, last, None)
@@ -1844,13 +1890,13 @@ mod tests {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
         let instance = send_webxdc_instance(&t, chat_id).await?;
-        t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#, "d")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#)
             .await?;
-        t.send_webxdc_status_update(instance.id, r#"{"payload": 2}"#, "d")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 2}"#)
             .await?;
-        t.send_webxdc_status_update(instance.id, r#"{"payload": 3}"#, "d")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 3}"#)
             .await?;
-        t.send_webxdc_status_update(instance.id, r#"{"payload": 4}"#, "d")
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 4}"#)
             .await?;
         let (json, first_new) = t
             .render_webxdc_status_update_object(
@@ -1895,17 +1941,17 @@ mod tests {
         let instance3 = send_webxdc_instance(&t, chat_id).await?;
         assert!(t.smtp_status_update_get().await?.is_none());
 
-        t.send_webxdc_status_update(instance1.id, r#"{"payload": "1a"}"#, "descr1a")
+        t.send_webxdc_status_update(instance1.id, r#"{"payload": "1a"}"#)
             .await?;
-        t.send_webxdc_status_update(instance2.id, r#"{"payload": "2a"}"#, "descr2a")
+        t.send_webxdc_status_update(instance2.id, r#"{"payload": "2a"}"#)
             .await?;
-        t.send_webxdc_status_update(instance2.id, r#"{"payload": "2b"}"#, "descr2b")
+        t.send_webxdc_status_update(instance2.id, r#"{"payload": "2b"}"#)
             .await?;
-        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3a"}"#, "descr3a")
+        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3a"}"#)
             .await?;
-        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3b"}"#, "descr3b")
+        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3b"}"#)
             .await?;
-        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3c"}"#, "descr3c")
+        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3c"}"#)
             .await?;
         assert_eq!(
             t.sql
@@ -1917,7 +1963,7 @@ mod tests {
         // order of smtp_status_update_get() is not defined, therefore the more complicated test
         let mut instances_checked = 0;
         for i in 0..3 {
-            let (instance, min_ser, max_ser, descr) = t.smtp_status_update_get().await?.unwrap();
+            let (instance, min_ser, max_ser) = t.smtp_status_update_get().await?.unwrap();
             t.smtp_status_update_pop_serials(
                 instance,
                 min_ser,
@@ -1927,15 +1973,14 @@ mod tests {
             let min_ser: u32 = min_ser.try_into()?;
             if instance == instance1.id {
                 assert_eq!(min_ser, max_ser.to_u32());
-                assert_eq!(descr, "descr1a");
+
                 instances_checked += 1;
             } else if instance == instance2.id {
                 assert_eq!(min_ser, max_ser.to_u32() - 1);
-                assert_eq!(descr, "descr2b");
+
                 instances_checked += 1;
             } else if instance == instance3.id {
                 assert_eq!(min_ser, max_ser.to_u32() - 2);
-                assert_eq!(descr, "descr3c");
                 instances_checked += 1;
             } else {
                 bail!("unexpected instance");
@@ -1973,11 +2018,11 @@ mod tests {
         let mut alice_instance = alice_chat_id.get_draft(&alice).await?.unwrap();
 
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"payload": {"foo":"bar"}}"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload": {"foo":"bar"}}"#)
             .await?;
         expect_status_update_event(&alice, alice_instance.id).await?;
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42, "info":"i"}"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42, "info":"i"}"#)
             .await?;
         expect_status_update_event(&alice, alice_instance.id).await?;
         assert_eq!(
@@ -2024,7 +2069,7 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         let msg_id = send_text_msg(&t, chat_id, "ho!".to_string()).await?;
         assert!(t
-            .send_webxdc_status_update(msg_id, r#"{"foo":"bar"}"#, "descr")
+            .send_webxdc_status_update(msg_id, r#"{"foo":"bar"}"#)
             .await
             .is_err());
         Ok(())
@@ -2289,6 +2334,23 @@ sth_for_the = "future""#
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_webxdc_self_addr() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info1 = instance.get_webxdc_info(&t).await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        let info2 = instance.get_webxdc_info(&t).await?;
+
+        let real_addr = t.get_primary_self_addr().await?;
+        assert!(!info1.self_addr.contains(&real_addr));
+        assert_ne!(info1.self_addr, info2.self_addr);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_webxdc_info_summary() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -2301,11 +2363,7 @@ sth_for_the = "future""#
         assert_eq!(info.summary, "".to_string());
 
         alice
-            .send_webxdc_status_update(
-                alice_instance.id,
-                r#"{"summary":"sum: 1", "payload":1}"#,
-                "descr",
-            )
+            .send_webxdc_status_update(alice_instance.id, r#"{"summary":"sum: 1", "payload":1}"#)
             .await?;
         alice.flush_status_updates().await?;
         let sent_update1 = &alice.pop_sent_msg().await;
@@ -2316,11 +2374,7 @@ sth_for_the = "future""#
         assert_eq!(info.summary, "sum: 1".to_string());
 
         alice
-            .send_webxdc_status_update(
-                alice_instance.id,
-                r#"{"summary":"sum: 2", "payload":2}"#,
-                "descr",
-            )
+            .send_webxdc_status_update(alice_instance.id, r#"{"summary":"sum: 2", "payload":2}"#)
             .await?;
         alice.flush_status_updates().await?;
         let sent_update2 = &alice.pop_sent_msg().await;
@@ -2371,7 +2425,6 @@ sth_for_the = "future""#
             .send_webxdc_status_update(
                 alice_instance.id,
                 r#"{"document":"my file", "payload":1337}"#,
-                "descr",
             )
             .await?;
         alice.flush_status_updates().await?;
@@ -2411,7 +2464,6 @@ sth_for_the = "future""#
             .send_webxdc_status_update(
                 alice_instance.id,
                 r#"{"info":"this appears in-chat", "payload":"sth. else"}"#,
-                "descr text",
             )
             .await?;
         alice.flush_status_updates().await?;
@@ -2489,13 +2541,13 @@ sth_for_the = "future""#
         // Alice sends two info messages in a row;
         // the second one removes the first one as there is nothing in between
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"info":"i1", "payload":1}"#, "d")
+            .send_webxdc_status_update(alice_instance.id, r#"{"info":"i1", "payload":1}"#)
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = &alice.pop_sent_msg().await;
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"info":"i2", "payload":2}"#, "d")
+            .send_webxdc_status_update(alice_instance.id, r#"{"info":"i2", "payload":2}"#)
             .await?;
         alice.flush_status_updates().await?;
         let sent3 = &alice.pop_sent_msg().await;
@@ -2522,12 +2574,12 @@ sth_for_the = "future""#
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "c").await?;
         let instance = send_webxdc_instance(&t, chat_id).await?;
 
-        t.send_webxdc_status_update(instance.id, r#"{"info":"i1", "payload":1}"#, "d")
+        t.send_webxdc_status_update(instance.id, r#"{"info":"i1", "payload":1}"#)
             .await?;
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 2);
         send_text_msg(&t, chat_id, "msg between info".to_string()).await?;
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 3);
-        t.send_webxdc_status_update(instance.id, r#"{"info":"i2", "payload":2}"#, "d")
+        t.send_webxdc_status_update(instance.id, r#"{"info":"i2", "payload":2}"#)
             .await?;
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 4);
 
@@ -2556,7 +2608,7 @@ sth_for_the = "future""#
         let alice_instance = send_webxdc_instance(&alice, alice_chat_id).await?;
         let sent1 = &alice.pop_sent_msg().await;
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42}"#, "descr")
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload":42}"#)
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = &alice.pop_sent_msg().await;
@@ -2576,7 +2628,7 @@ sth_for_the = "future""#
             Contact::create(&bob, "", "claire@example.org").await?,
         )
         .await?;
-        bob.send_webxdc_status_update(bob_instance.id, r#"{"payload":43}"#, "descr")
+        bob.send_webxdc_status_update(bob_instance.id, r#"{"payload":43}"#)
             .await?;
         bob.flush_status_updates().await?;
         let sent3 = bob.pop_sent_msg().await;
@@ -2614,7 +2666,6 @@ sth_for_the = "future""#
                     t.send_webxdc_status_update(
                         instance_id,
                         r#"{"summary":"real summary", "payload": 42}"#,
-                        "descr",
                     )
                     .await?;
                     let instance = Message::load_from_db(&t, instance_id).await?;
@@ -2692,7 +2743,6 @@ sth_for_the = "future""#
         bob.send_webxdc_status_update(
             bob_instance.id,
             r#"{"payload":7,"info": "i","summary":"s"}"#,
-            "",
         )
         .await?;
         bob.flush_status_updates().await?;
@@ -2812,7 +2862,6 @@ sth_for_the = "future""#
             .send_webxdc_status_update(
                 alice_instance.id,
                 r#"{"payload":"p","info":"i","aNewUnknownProperty":"x","max_serial":123}"#,
-                "Some description",
             )
             .await?;
         alice.flush_status_updates().await?;
@@ -2868,6 +2917,216 @@ sth_for_the = "future""#
         ephemeral::delete_expired_messages(bob, tools::time()).await?;
         let bob_instance = Message::load_from_db(bob, bob_instance.id).await?;
         assert_eq!(bob_instance.chat_id.is_trash(), false);
+
+        Ok(())
+    }
+
+    async fn has_incoming_webxdc_event(
+        t: &TestContext,
+        expected_msg: Message,
+        expected_text: &str,
+    ) -> bool {
+        t.evtracker
+            .get_matching_opt(t, |evt| {
+                if let EventType::IncomingWebxdcNotify { msg_id, text, .. } = evt {
+                    *msg_id == expected_msg.id && text == expected_text
+                } else {
+                    false
+                }
+            })
+            .await
+            .is_some()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_notify_one() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let fiona = tcm.fiona().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob, &fiona])
+            .await;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+        let _fiona_instance = fiona.recv_msg(&sent1).await;
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"info\": \"Alice moved\",\"notify\":[\"{}\"]}}",
+                    bob_instance.get_webxdc_self_addr(&bob).await?
+                ),
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&alice, info_msg, "Alice moved").await);
+
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(has_incoming_webxdc_event(&bob, info_msg, "Alice moved").await);
+
+        fiona.recv_msg_trash(&sent2).await;
+        let info_msg = fiona.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&fiona, info_msg, "Alice moved").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_notify_multiple() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let fiona = tcm.fiona().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob, &fiona])
+            .await;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+        let fiona_instance = fiona.recv_msg(&sent1).await;
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"info\": \"moved\", \"summary\": \"ignored for notify as info is set\", \"notify\":[\"{}\",\"{}\"]}}",
+                    bob_instance.get_webxdc_self_addr(&bob).await?,
+                    fiona_instance.get_webxdc_self_addr(&fiona).await?
+                ),
+
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&alice, info_msg, "moved").await);
+
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(has_incoming_webxdc_event(&bob, info_msg, "moved").await);
+
+        fiona.recv_msg_trash(&sent2).await;
+        let info_msg = fiona.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(has_incoming_webxdc_event(&fiona, info_msg, "moved").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_no_notify_self() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let alice2 = tcm.alice().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[])
+            .await;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let alice2_instance = alice2.recv_msg(&sent1).await;
+        assert_eq!(
+            alice_instance.get_webxdc_self_addr(&alice).await?,
+            alice2_instance.get_webxdc_self_addr(&alice2).await?
+        );
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"info\": \"moved\", \"notify\":[\"{}\"]}}",
+                    alice2_instance.get_webxdc_self_addr(&alice2).await?
+                ),
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&alice, info_msg, "moved").await);
+
+        alice2.recv_msg_trash(&sent2).await;
+        let info_msg = alice2.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert!(!has_incoming_webxdc_event(&alice2, info_msg, "moved").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_notify_summary() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob])
+            .await;
+        let alice_instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let bob_instance = bob.recv_msg(&sent1).await;
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                &format!(
+                    "{{\"payload\":7,\"summary\": \"4 moves done\",\"notify\":[\"{}\"]}}",
+                    bob_instance.get_webxdc_self_addr(&bob).await?
+                ),
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        assert!(!has_incoming_webxdc_event(&alice, alice_instance, "4 moves done").await);
+
+        bob.recv_msg_trash(&sent2).await;
+        assert!(has_incoming_webxdc_event(&bob, bob_instance, "4 moves done").await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_href() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let grp_id = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&bob])
+            .await;
+        let instance = send_webxdc_instance(&alice, grp_id).await?;
+        let sent1 = alice.pop_sent_msg().await;
+
+        alice
+            .send_webxdc_status_update(
+                instance.id,
+                r##"{"payload": "my deeplink data", "info": "my move!", "href": "#foobar"}"##,
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let info_msg = alice.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_webxdc_href(), Some("#foobar".to_string()));
+
+        bob.recv_msg(&sent1).await;
+        bob.recv_msg_trash(&sent2).await;
+        let info_msg = bob.get_last_msg().await;
+        assert!(info_msg.is_info());
+        assert_eq!(info_msg.get_webxdc_href(), Some("#foobar".to_string()));
 
         Ok(())
     }

@@ -765,27 +765,19 @@ impl ChatId {
         );
 
         let chat = Chat::load_from_db(context, self).await?;
-        context
-            .sql
-            .execute(
-                "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
-                (self,),
-            )
-            .await?;
 
         context
             .sql
-            .execute("DELETE FROM msgs WHERE chat_id=?;", (self,))
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (self,))
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM chats WHERE id=?;", (self,))
+            .transaction(|transaction| {
+                transaction.execute(
+                    "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?)",
+                    (self,),
+                )?;
+                transaction.execute("DELETE FROM msgs WHERE chat_id=?", (self,))?;
+                transaction.execute("DELETE FROM chats_contacts WHERE chat_id=?", (self,))?;
+                transaction.execute("DELETE FROM chats WHERE id=?", (self,))?;
+                Ok(())
+            })
             .await?;
 
         context.emit_msgs_changed_without_ids();
@@ -922,24 +914,27 @@ impl ChatId {
                     && old_draft.chat_id == self
                     && old_draft.state == MessageState::OutDraft
                 {
-                    context
-                        .sql
-                        .execute(
-                            "UPDATE msgs
-                            SET timestamp=?,type=?,txt=?,txt_normalized=?,param=?,mime_in_reply_to=?
-                            WHERE id=?;",
-                            (
-                                time(),
-                                msg.viewtype,
-                                &msg.text,
-                                message::normalize_text(&msg.text),
-                                msg.param.to_string(),
-                                msg.in_reply_to.as_deref().unwrap_or_default(),
-                                msg.id,
-                            ),
-                        )
-                        .await?;
-                    return Ok(true);
+                    let affected_rows = context
+                        .sql.execute(
+                                "UPDATE msgs
+                                SET timestamp=?1,type=?2,txt=?3,txt_normalized=?4,param=?5,mime_in_reply_to=?6
+                                WHERE id=?7
+                                AND (type <> ?2 
+                                    OR txt <> ?3 
+                                    OR txt_normalized <> ?4
+                                    OR param <> ?5
+                                    OR mime_in_reply_to <> ?6);",
+                                (
+                                    time(),
+                                    msg.viewtype,
+                                    &msg.text,
+                                    message::normalize_text(&msg.text),
+                                    msg.param.to_string(),
+                                    msg.in_reply_to.as_deref().unwrap_or_default(),
+                                    msg.id,
+                                ),
+                            ).await?;
+                    return Ok(affected_rows > 0);
                 }
             }
         }
@@ -4505,6 +4500,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
+/// Doesn't fail if the chat doesn't exist.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn add_info_msg_with_cmd(
     context: &Context,
@@ -5370,7 +5366,7 @@ mod tests {
 
         // Eventually, first removal message arrives.
         // This has no effect.
-        bob.recv_msg(&remove1).await;
+        bob.recv_msg_trash(&remove1).await;
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
         Ok(())
     }
@@ -7693,6 +7689,21 @@ mod tests {
             format!("<{}>", bob_received_message.rfc724_mid)
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_do_not_overwrite_draft() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let mut msg = Message::new_text("This is a draft message".to_string());
+        let self_chat = alice.get_self_chat().await.id;
+        self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
+        let draft1 = self_chat.get_draft(&alice).await?.unwrap();
+        SystemTime::shift(Duration::from_secs(1));
+        self_chat.set_draft(&alice, Some(&mut msg)).await.unwrap();
+        let draft2 = self_chat.get_draft(&alice).await?.unwrap();
+        assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
         Ok(())
     }
 }

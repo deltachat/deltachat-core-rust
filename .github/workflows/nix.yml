@@ -1,0 +1,104 @@
+name: Test Nix flake
+
+on:
+  pull_request:
+    paths:
+      - flake.nix
+      - flake.lock
+  push:
+    paths:
+      - flake.nix
+      - flake.lock
+    branches:
+      - main
+
+jobs:
+  format:
+    name: check flake formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix fmt
+
+      # Check that formatting does not change anything.
+      - run: git diff --exit-code
+
+  build:
+    name: nix build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        installable:
+          # Ensure `nix develop` will work.
+          - devShells.x86_64-linux.default
+
+          - deltachat-python
+          - deltachat-repl
+          - deltachat-repl-aarch64-linux
+          - deltachat-repl-arm64-v8a-android
+          - deltachat-repl-armeabi-v7a-android
+          - deltachat-repl-armv6l-linux
+          - deltachat-repl-armv7l-linux
+          - deltachat-repl-i686-linux
+          - deltachat-repl-win32
+          - deltachat-repl-win64
+          - deltachat-repl-x86_64-linux
+          - deltachat-rpc-client
+          - deltachat-rpc-server
+          - deltachat-rpc-server-aarch64-linux
+          - deltachat-rpc-server-aarch64-linux-wheel
+          - deltachat-rpc-server-arm64-v8a-android
+          - deltachat-rpc-server-armeabi-v7a-android
+          - deltachat-rpc-server-armv6l-linux
+          - deltachat-rpc-server-armv6l-linux-wheel
+          - deltachat-rpc-server-armv7l-linux
+          - deltachat-rpc-server-armv7l-linux-wheel
+          - deltachat-rpc-server-i686-linux
+          - deltachat-rpc-server-i686-linux-wheel
+          - deltachat-rpc-server-source
+          - deltachat-rpc-server-win32
+          - deltachat-rpc-server-win32-wheel
+          - deltachat-rpc-server-win64
+          - deltachat-rpc-server-win64-wheel
+          - deltachat-rpc-server-x86_64-linux
+          - deltachat-rpc-server-x86_64-linux-wheel
+          - docs
+          - libdeltachat
+          - python-docs
+
+          # Fails to build
+          #- deltachat-repl-x86_64-android
+          #- deltachat-repl-x86-android
+          #- deltachat-rpc-server-x86_64-android
+          #- deltachat-rpc-server-x86-android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix build .#${{ matrix.installable }}
+
+  build-macos:
+    name: nix build on macOS
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        installable:
+          - deltachat-rpc-server-aarch64-darwin
+
+          # Fails to bulid
+          # - deltachat-rpc-server-x86_64-darwin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix build .#${{ matrix.installable }}

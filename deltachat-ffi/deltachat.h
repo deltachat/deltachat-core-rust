@@ -506,6 +506,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    to not mess up with non-delivery-reports or read-receipts.
  *                    0=no limit (default).
  *                    Changes affect future messages only.
+ * - `protect_autocrypt` = Enable Header Protection for Autocrypt header.
+ *                    This is an experimental option not compatible to other MUAs
+ *                    and older Delta Chat versions.
+ *                    1 = enable.
+ *                    0 = disable (default).
  * - `gossip_period` = How often to gossip Autocrypt keys in chats with multiple recipients, in
  *                    seconds. 2 days by default.
  *                    This is not supposed to be changed by UIs and only used for testing.
@@ -1149,9 +1154,14 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
- * @param json program-readable data, the actual payload
- * @param descr The user-visible description of JSON data,
- *     in case of a chess game, e.g. the move.
+ * @param json program-readable data, this is created in JS land as:
+ *     - `payload`: any JS object or primitive.
+ *     - `info`: optional informational message. Will be shown in chat and may be added as system notification.
+ *       note that also users that are not notified explicitly get the `info` or `summary` update shown in the chat.
+ *     - `document`: optional document name. shown eg. in title bar.
+ *     - `summary`: optional summary. shown beside app icon.
+ *     - `notify`: optional array of other users `selfAddr` to be notified e.g. by a sound about `info` or `summary`.
+ * @param descr Deprecated, set to NULL
  * @return 1=success, 0=error
  */
 int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const char* json, const char* descr);
@@ -2536,6 +2546,8 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_PROXY with dc_lot_t::text1=address:
  *   ask the user if they want to use the given proxy.
  *   if so, call dc_set_config_from_qr() and restart I/O.
+ *   On success, dc_get_config(context, "proxy_url")
+ *   will contain the new proxy in normalized form as the first element.
  *
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
  *   e-mail address scanned, optionally, a draft message could be set in
@@ -4190,6 +4202,7 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   true if the Webxdc should get full internet access, including Webrtc.
  *   currently, this is only true for encrypted Webxdc's in the self chat
  *   that have requested internet access in the manifest.
+ * - self_addr: address to be used for `window.webxdc.selfAddr` in JS land.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.
@@ -4503,6 +4516,24 @@ int             dc_msg_get_info_type          (const dc_msg_t* msg);
 #define         DC_INFO_PROTECTION_DISABLED       12
 #define         DC_INFO_INVALID_UNENCRYPTED_MAIL  13
 #define         DC_INFO_WEBXDC_INFO_MESSAGE       32
+
+
+/**
+ * Get link attached to an webxdc info message.
+ * The info message needs to be of type DC_INFO_WEBXDC_INFO_MESSAGE.
+ *
+ * Typically, this is used to set `document.location.href` in JS land.
+ *
+ * Webxdc apps can define the link by setting `update.href` when sending and update,
+ * see dc_send_webxdc_status_update().
+ *
+ * @memberof dc_msg_t
+ * @param msg The info message object.
+ *     Not: the webxdc instance.
+ * @return The link to be set to `document.location.href` in JS land.
+ *     Returns NULL if there is no link attached to the info message and on errors.
+ */
+char*           dc_msg_get_webxdc_href        (const dc_msg_t* msg);
 
 /**
  * Check if a message is still in creation. A message is in creation between
@@ -5704,8 +5735,14 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_CERTCK_STRICT 1
 
 /**
- * Accept invalid certificates, including self-signed ones
- * or having incorrect hostname.
+ * Accept certificates that are expired, self-signed
+ * or not valid for the server hostname.
+ */
+#define DC_CERTCK_ACCEPT_INVALID 2
+
+/**
+ * For API compatibility only: Treat this as DC_CERTCK_ACCEPT_INVALID on reading.
+ * Must not be written.
  */
 #define DC_CERTCK_ACCEPT_INVALID_CERTIFICATES 3
 
@@ -6066,11 +6103,32 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_INCOMING_REACTION        2002
 
 
+
+/**
+ * A webxdc wants an info message or a changed summary to be notified.
+ *
+ * @param data1 contact_id ID of the contact sending.
+ * @param data2 (int) msg_id _and_ (char*) text_to_notify.
+ *      - dc_event_get_data2_int() returns the msg_id,
+ *        referring to the webxdc-info-message, if there is any.
+ *        Sometimes no webxdc-info-message is added to the chat
+ *        and yet a notification is sent; in this case the msg_id
+ *        of the webxdc instance is returned.
+ *      - dc_event_get_data2_str() returns text_to_notify,
+ *        the text that shall be shown in the notification.
+ *        string must be passed to dc_str_unref() afterwards.
+ */
+#define DC_EVENT_INCOMING_WEBXDC_NOTIFY   2003
+
+
 /**
  * There is a fresh message. Typically, the user will show an notification
  * when receiving this message.
  *
  * There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
+ *
+ * If the message is a webxdc info message,
+ * dc_msg_get_parent() returns the webxdc instance the notification belongs to.
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id

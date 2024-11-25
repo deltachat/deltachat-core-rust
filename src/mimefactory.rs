@@ -743,7 +743,9 @@ impl MimeFactory {
                 hidden_headers.push(header);
             } else if header_name == "chat-user-avatar" {
                 hidden_headers.push(header);
-            } else if header_name == "autocrypt" {
+            } else if header_name == "autocrypt"
+                && !context.get_config_bool(Config::ProtectAutocrypt).await?
+            {
                 unprotected_headers.push(header.clone());
             } else if header_name == "from" {
                 // Unencrypted securejoin messages should _not_ include the display name:
@@ -2272,7 +2274,6 @@ mod tests {
         let msg = message.as_string();
 
         let header_end = msg.find("Hi").unwrap();
-        #[allow(clippy::indexing_slicing)]
         let headers = msg[0..header_end].trim();
 
         assert!(!headers.lines().any(|l| l.trim().is_empty()));

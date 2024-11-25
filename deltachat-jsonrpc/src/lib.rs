@@ -1,4 +1,6 @@
 #![recursion_limit = "256"]
+#![cfg_attr(not(test), forbid(clippy::indexing_slicing))]
+#![cfg_attr(not(test), forbid(clippy::string_slice))]
 pub mod api;
 pub use yerpc;
 

@@ -107,6 +107,18 @@ pub enum EventType {
         reaction: Reaction,
     },
 
+    /// A webxdc wants an info message or a changed summary to be notified.
+    IncomingWebxdcNotify {
+        /// ID of the contact sending.
+        contact_id: ContactId,
+
+        /// ID of the added info message or webxdc instance in case of summary change.
+        msg_id: MsgId,
+
+        /// Text to notify.
+        text: String,
+    },
+
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///

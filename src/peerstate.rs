@@ -121,7 +121,7 @@ impl Peerstate {
             last_seen_autocrypt: last_seen,
             prefer_encrypt,
             public_key: Some(public_key.clone()),
-            public_key_fingerprint: Some(public_key.fingerprint()),
+            public_key_fingerprint: Some(public_key.dc_fingerprint()),
             gossip_key: None,
             gossip_key_fingerprint: None,
             gossip_timestamp: 0,
@@ -153,7 +153,7 @@ impl Peerstate {
             public_key: None,
             public_key_fingerprint: None,
             gossip_key: Some(gossip_header.public_key.clone()),
-            gossip_key_fingerprint: Some(gossip_header.public_key.fingerprint()),
+            gossip_key_fingerprint: Some(gossip_header.public_key.dc_fingerprint()),
             gossip_timestamp: message_time,
             verified_key: None,
             verified_key_fingerprint: None,
@@ -308,7 +308,7 @@ impl Peerstate {
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
-            self.public_key_fingerprint = Some(public_key.fingerprint());
+            self.public_key_fingerprint = Some(public_key.dc_fingerprint());
 
             if old_public_fingerprint.is_some()
                 && old_public_fingerprint != self.public_key_fingerprint
@@ -319,7 +319,7 @@ impl Peerstate {
 
         if let Some(ref gossip_key) = self.gossip_key {
             let old_gossip_fingerprint = self.gossip_key_fingerprint.take();
-            self.gossip_key_fingerprint = Some(gossip_key.fingerprint());
+            self.gossip_key_fingerprint = Some(gossip_key.dc_fingerprint());
 
             if old_gossip_fingerprint.is_none()
                 || self.gossip_key_fingerprint.is_none()
@@ -506,7 +506,7 @@ impl Peerstate {
         fingerprint: Fingerprint,
         verifier: String,
     ) -> Result<()> {
-        if key.fingerprint() == fingerprint {
+        if key.dc_fingerprint() == fingerprint {
             self.verified_key = Some(key);
             self.verified_key_fingerprint = Some(fingerprint);
             self.verifier = Some(verifier);
@@ -524,7 +524,7 @@ impl Peerstate {
     /// do nothing to avoid overwriting secondary verified key
     /// which may be different.
     pub fn set_secondary_verified_key(&mut self, gossip_key: SignedPublicKey, verifier: String) {
-        let fingerprint = gossip_key.fingerprint();
+        let fingerprint = gossip_key.dc_fingerprint();
         if self.verified_key_fingerprint.as_ref() != Some(&fingerprint) {
             self.secondary_verified_key = Some(gossip_key);
             self.secondary_verified_key_fingerprint = Some(fingerprint);
@@ -542,6 +542,8 @@ impl Peerstate {
     /// * `old_addr`: Old address of the peerstate in case of an AEAP transition.
     pub(crate) async fn save_to_db_ex(&self, sql: &Sql, old_addr: Option<&str>) -> Result<()> {
         let trans_fn = |t: &mut rusqlite::Transaction| {
+            let verified_key_fingerprint =
+                self.verified_key_fingerprint.as_ref().map(|fp| fp.hex());
             if let Some(old_addr) = old_addr {
                 // We are doing an AEAP transition to the new address and the SQL INSERT below will
                 // save the existing peerstate as belonging to this new address. We now need to
@@ -551,11 +553,14 @@ impl Peerstate {
                 // existing peerstate as this would break encryption to it. This is critical for
                 // non-verified groups -- if we can't encrypt to the old address, we can't securely
                 // remove it from the group (to add the new one instead).
+                //
+                // NB: We check that `verified_key_fingerprint` hasn't changed to protect from
+                // possible races.
                 t.execute(
-                    "UPDATE acpeerstates \
-                     SET verified_key=NULL, verified_key_fingerprint='', verifier='' \
-                     WHERE addr=?",
-                    (old_addr,),
+                    "UPDATE acpeerstates
+                     SET verified_key=NULL, verified_key_fingerprint='', verifier=''
+                     WHERE addr=? AND verified_key_fingerprint=?",
+                    (old_addr, &verified_key_fingerprint),
                 )?;
             }
             t.execute(
@@ -604,7 +609,7 @@ impl Peerstate {
                     self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.verified_key.as_ref().map(|k| k.to_bytes()),
-                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                    &verified_key_fingerprint,
                     self.verifier.as_deref().unwrap_or(""),
                     self.secondary_verified_key.as_ref().map(|k| k.to_bytes()),
                     self.secondary_verified_key_fingerprint
@@ -766,8 +771,7 @@ pub(crate) async fn maybe_do_aeap_transition(
     context: &Context,
     mime_parser: &mut crate::mimeparser::MimeMessage,
 ) -> Result<()> {
-    let info = &mime_parser.decryption_info;
-    let Some(peerstate) = &info.peerstate else {
+    let Some(peerstate) = &mime_parser.peerstate else {
         return Ok(());
     };
 
@@ -815,13 +819,13 @@ pub(crate) async fn maybe_do_aeap_transition(
 
         // DC avoids sending messages with the same timestamp, that's why messages
         // with equal timestamps are ignored here unlike in `Peerstate::apply_header()`.
-        if info.message_time <= peerstate.last_seen {
+        if mime_parser.timestamp_sent <= peerstate.last_seen {
             info!(
                 context,
                 "Not doing AEAP from {} to {} because {} < {}.",
                 &peerstate.addr,
                 &mime_parser.from.addr,
-                info.message_time,
+                mime_parser.timestamp_sent,
                 peerstate.last_seen
             );
             return Ok(());
@@ -832,24 +836,23 @@ pub(crate) async fn maybe_do_aeap_transition(
             "Doing AEAP transition from {} to {}.", &peerstate.addr, &mime_parser.from.addr
         );
 
-        let info = &mut mime_parser.decryption_info;
-        let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
+        let peerstate = mime_parser.peerstate.as_mut().context("no peerstate??")?;
         // Add info messages to chats with this (verified) contact
         //
         peerstate
             .handle_setup_change(
                 context,
-                info.message_time,
-                PeerstateChange::Aeap(info.from.clone()),
+                mime_parser.timestamp_sent,
+                PeerstateChange::Aeap(mime_parser.from.addr.clone()),
             )
             .await?;
 
         let old_addr = mem::take(&mut peerstate.addr);
-        peerstate.addr.clone_from(&info.from);
-        let header = info.autocrypt_header.as_ref().context(
+        peerstate.addr.clone_from(&mime_parser.from.addr);
+        let header = mime_parser.autocrypt_header.as_ref().context(
             "Internal error: Tried to do an AEAP transition without an autocrypt header??",
         )?;
-        peerstate.apply_header(context, header, info.message_time);
+        peerstate.apply_header(context, header, mime_parser.timestamp_sent);
 
         peerstate
             .save_to_db_ex(&context.sql, Some(&old_addr))
@@ -890,12 +893,12 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: Some(pub_key.clone()),
             gossip_timestamp: 12,
-            gossip_key_fingerprint: Some(pub_key.fingerprint()),
+            gossip_key_fingerprint: Some(pub_key.dc_fingerprint()),
             verified_key: Some(pub_key.clone()),
-            verified_key_fingerprint: Some(pub_key.fingerprint()),
+            verified_key_fingerprint: Some(pub_key.dc_fingerprint()),
             verifier: None,
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
@@ -915,7 +918,7 @@ mod tests {
             .expect("no peerstate found in the database");
 
         assert_eq!(peerstate, peerstate_new);
-        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.fingerprint())
+        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.dc_fingerprint())
             .await
             .expect("failed to load peerstate from db")
             .expect("no peerstate found in the database");
@@ -934,7 +937,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,
@@ -971,7 +974,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.dc_fingerprint()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,

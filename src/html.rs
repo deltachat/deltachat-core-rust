@@ -144,12 +144,12 @@ impl HtmlMsgParser {
                         self.plain = Some(PlainText {
                             text: decoded_data,
                             flowed: if let Some(format) = mail.ctype.params.get("format") {
-                                format.as_str().to_ascii_lowercase() == "flowed"
+                                format.as_str().eq_ignore_ascii_case("flowed")
                             } else {
                                 false
                             },
                             delsp: if let Some(delsp) = mail.ctype.params.get("delsp") {
-                                delsp.as_str().to_ascii_lowercase() == "yes"
+                                delsp.as_str().eq_ignore_ascii_case("yes")
                             } else {
                                 false
                             },
@@ -283,7 +283,6 @@ mod tests {
 <meta name="color-scheme" content="light dark" />
 </head><body>
 This message does not have Content-Type nor Subject.<br/>
-<br/>
 </body></html>
 "#
         );
@@ -302,7 +301,6 @@ This message does not have Content-Type nor Subject.<br/>
 <meta name="color-scheme" content="light dark" />
 </head><body>
 message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
-<br/>
 </body></html>
 "#
         );
@@ -325,7 +323,6 @@ This line ends with a space and will be merged with the next one due to format=f
 <br/>
 This line does not end with a space<br/>
 and will be wrapped as usual.<br/>
-<br/>
 </body></html>
 "#
         );
@@ -346,7 +343,6 @@ and will be wrapped as usual.<br/>
 mime-modified should not be set set as there is no html and no special stuff;<br/>
 although not being a delta-message.<br/>
 test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x27; :)<br/>
-<br/>
 <br/>
 </body></html>
 "#

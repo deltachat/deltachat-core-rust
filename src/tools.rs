@@ -45,23 +45,29 @@ use crate::stock_str;
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
-#[allow(clippy::indexing_slicing)]
 pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     let count = buf.chars().count();
-    if count > approx_chars + DC_ELLIPSIS.len() {
-        let end_pos = buf
-            .char_indices()
-            .nth(approx_chars)
-            .map(|(n, _)| n)
-            .unwrap_or_default();
+    if count <= approx_chars + DC_ELLIPSIS.len() {
+        return Cow::Borrowed(buf);
+    }
+    let end_pos = buf
+        .char_indices()
+        .nth(approx_chars)
+        .map(|(n, _)| n)
+        .unwrap_or_default();
 
-        if let Some(index) = buf[..end_pos].rfind([' ', '\n']) {
-            Cow::Owned(format!("{}{}", &buf[..=index], DC_ELLIPSIS))
-        } else {
-            Cow::Owned(format!("{}{}", &buf[..end_pos], DC_ELLIPSIS))
-        }
+    if let Some(index) = buf.get(..end_pos).and_then(|s| s.rfind([' ', '\n'])) {
+        Cow::Owned(format!(
+            "{}{}",
+            &buf.get(..=index).unwrap_or_default(),
+            DC_ELLIPSIS
+        ))
     } else {
-        Cow::Borrowed(buf)
+        Cow::Owned(format!(
+            "{}{}",
+            &buf.get(..end_pos).unwrap_or_default(),
+            DC_ELLIPSIS
+        ))
     }
 }
 
@@ -709,8 +715,6 @@ pub(crate) fn inc_and_check<T: PrimInt + AddAssign + std::fmt::Debug>(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use chrono::NaiveDate;
     use proptest::prelude::*;
 

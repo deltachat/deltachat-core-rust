@@ -440,7 +440,7 @@ mod tests {
         let _sent1 = alice.send_msg(chat_id, &mut instance).await;
 
         alice
-            .send_webxdc_status_update(instance.id, r#"{"payload":7}"#, "d")
+            .send_webxdc_status_update(instance.id, r#"{"payload":7}"#)
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = alice.pop_sent_msg().await;

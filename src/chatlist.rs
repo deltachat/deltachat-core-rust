@@ -394,25 +394,32 @@ impl Chatlist {
             &chat_loaded
         };
 
-        let (lastmsg, lastcontact) = if let Some(lastmsg_id) = lastmsg_id {
-            let lastmsg = Message::load_from_db(context, lastmsg_id)
+        let lastmsg = if let Some(lastmsg_id) = lastmsg_id {
+            // Message may be deleted by the time we try to load it,
+            // so use `load_from_db_optional` instead of `load_from_db`.
+            Message::load_from_db_optional(context, lastmsg_id)
                 .await
-                .context("loading message failed")?;
+                .context("Loading message failed")?
+        } else {
+            None
+        };
+
+        let lastcontact = if let Some(lastmsg) = &lastmsg {
             if lastmsg.from_id == ContactId::SELF {
-                (Some(lastmsg), None)
+                None
             } else {
                 match chat.typ {
                     Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                         let lastcontact = Contact::get_by_id(context, lastmsg.from_id)
                             .await
                             .context("loading contact failed")?;
-                        (Some(lastmsg), Some(lastcontact))
+                        Some(lastcontact)
                     }
-                    Chattype::Single => (Some(lastmsg), None),
+                    Chattype::Single => None,
                 }
             }
         } else {
-            (None, None)
+            None
         };
 
         if chat.id.is_archived_link() {
@@ -759,6 +766,25 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         let summary = chats.get_summary(&t, 0, None).await.unwrap();
         assert_eq!(summary.text, "foo: bar test"); // the linebreak should be removed from summary
+    }
+
+    /// Tests that summary does not fail to load
+    /// if the draft was deleted after loading the chatlist.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_summary_deleted_draft() {
+        let t = TestContext::new().await;
+
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
+            .await
+            .unwrap();
+        let mut msg = Message::new_text("Foobar".to_string());
+        chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        chat_id.set_draft(&t, None).await.unwrap();
+
+        let summary_res = chats.get_summary(&t, 0, None).await;
+        assert!(summary_res.is_ok());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

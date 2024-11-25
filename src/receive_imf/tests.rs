@@ -883,6 +883,54 @@ async fn test_parse_ndn_group_msg() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_concat_multiple_ndns() -> Result<()> {
+    let t = TestContext::new().await;
+    t.configure_addr("alice@posteo.org").await;
+    let mid = "1234@mail.gmail.com";
+    receive_imf(
+        &t,
+        b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                 From: alice@posteo.org\n\
+                 To: hanerthaertidiuea@gmx.de\n\
+                 Subject: foo\n\
+                 Message-ID: <1234@mail.gmail.com>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Disposition-Notification-To: alice@example.org\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+        false,
+    )
+    .await?;
+
+    let chats = Chatlist::try_load(&t, 0, None, None).await?;
+    let msg_id = chats.get_msg_id(0)?.unwrap();
+
+    let raw = include_str!("../../test-data/message/posteo_ndn.eml");
+    let raw = raw.replace(
+        "Message-ID: <04422840-f884-3e37-5778-8192fe22d8e1@posteo.de>",
+        &format!("Message-ID: <{}>", mid),
+    );
+    receive_imf(&t, raw.as_bytes(), false).await?;
+
+    let msg = Message::load_from_db(&t, msg_id).await?;
+
+    let err = "Undelivered Mail Returned to Sender – This is the mail system at host mout01.posteo.de.\n\nI'm sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It's attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<hanerthaertidiuea@gmx.de>: host mx01.emig.gmx.net[212.227.17.5] said: 550\n    Requested action not taken: mailbox unavailable (in reply to RCPT TO\n    command)".to_string();
+    assert_eq!(msg.error(), Some(err.clone()));
+    assert_eq!(msg.state, MessageState::OutFailed);
+
+    let raw = raw.replace(
+        "Message-Id: <20200609184422.DCB6B1200DD@mout01.posteo.de>",
+        "Message-Id: <next@mout01.posteo.de>",
+    );
+    receive_imf(&t, raw.as_bytes(), false).await?;
+    let msg = Message::load_from_db(&t, msg_id).await?;
+
+    assert_eq!(msg.error(), Some([err.clone(), err].join("\n\n")));
+    Ok(())
+}
+
 async fn load_imf_email(context: &Context, imf_raw: &[u8]) -> Message {
     context
         .set_config(Config::ShowEmails, Some("2"))
@@ -4137,9 +4185,8 @@ async fn test_recreate_contact_list_on_missing_message() -> Result<()> {
     // readd fiona
     add_contact_to_chat(&alice, chat_id, alice_fiona).await?;
 
-    alice.recv_msg(&remove_msg).await;
-
     // delayed removal of fiona shouldn't remove her
+    alice.recv_msg_trash(&remove_msg).await;
     assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 4);
 
     Ok(())
@@ -4809,6 +4856,37 @@ async fn test_protected_group_add_remove_member_missing_key() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_protected_group_reply_from_mua() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let fiona = &tcm.fiona().await;
+    mark_as_verified(alice, bob).await;
+    mark_as_verified(alice, fiona).await;
+    mark_as_verified(bob, alice).await;
+    let alice_chat_id = alice
+        .create_group_with_members(ProtectionStatus::Protected, "Group", &[bob, fiona])
+        .await;
+    let sent = alice.send_text(alice_chat_id, "Hello!").await;
+    let bob_msg = bob.recv_msg(&sent).await;
+    bob_msg.chat_id.accept(bob).await?;
+    // This is hacky, but i don't know other simple way to simulate a MUA reply. It works because
+    // the message is correctly assigned to the chat by `References:`.
+    bob.sql
+        .execute(
+            "UPDATE chats SET protected=0, grpid='' WHERE id=?",
+            (bob_msg.chat_id,),
+        )
+        .await?;
+    let sent = bob
+        .send_text(bob_msg.chat_id, "/me replying from MUA")
+        .await;
+    let alice_msg = alice.recv_msg(&sent).await;
+    assert_eq!(alice_msg.chat_id, alice_chat_id);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_older_message_from_2nd_device() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = &tcm.alice().await;
@@ -4896,6 +4974,32 @@ async fn test_unarchive_on_member_removal() -> Result<()> {
     let bob_chat = Chat::load_from_db(bob, bob_chat_id).await?;
     assert_eq!(bob_chat.get_visibility(), ChatVisibility::Normal);
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_no_op_member_added_is_trash() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat_id = alice
+        .create_group_with_members(ProtectionStatus::Unprotected, "foos", &[bob])
+        .await;
+    send_text_msg(alice, alice_chat_id, "populate".to_string()).await?;
+    let msg = alice.pop_sent_msg().await;
+    bob.recv_msg(&msg).await;
+    let bob_chat_id = bob.get_last_msg().await.chat_id;
+    bob_chat_id.accept(bob).await?;
+
+    let fiona_id = Contact::create(alice, "", "fiona@example.net").await?;
+    add_contact_to_chat(alice, alice_chat_id, fiona_id).await?;
+    let msg = alice.pop_sent_msg().await;
+
+    let fiona_id = Contact::create(bob, "", "fiona@example.net").await?;
+    add_contact_to_chat(bob, bob_chat_id, fiona_id).await?;
+    bob.recv_msg_trash(&msg).await;
+    let contacts = get_chat_contacts(bob, bob_chat_id).await?;
+    assert_eq!(contacts.len(), 3);
     Ok(())
 }
 

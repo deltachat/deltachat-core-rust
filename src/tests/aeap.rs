@@ -1,15 +1,13 @@
-#![allow(clippy::indexing_slicing)]
-
 use anyhow::Result;
 
-use crate::chat;
-use crate::chat::ChatId;
+use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::contact;
 use crate::contact::Contact;
 use crate::contact::ContactId;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
+use crate::securejoin::get_securejoin_qr;
 use crate::stock_str;
 use crate::test_utils::mark_as_verified;
 use crate::test_utils::TestContext;
@@ -394,5 +392,42 @@ async fn test_aeap_replay_attack() -> Result<()> {
     let bob_fiona_contact = Contact::create(&bob, "", "fiona@example.net").await?;
     assert!(!chat::is_contact_in_chat(&bob, group, bob_fiona_contact).await?);
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_write_to_alice_after_aeap() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_grp_id = chat::create_group_chat(alice, ProtectionStatus::Protected, "Group").await?;
+    let qr = get_securejoin_qr(alice, Some(alice_grp_id)).await?;
+    tcm.exec_securejoin_qr(bob, alice, &qr).await;
+    let bob_alice_contact = bob.add_or_lookup_contact(alice).await;
+    assert!(bob_alice_contact.is_verified(bob).await?);
+    let bob_alice_chat = bob.create_chat(alice).await;
+    assert!(bob_alice_chat.is_protected());
+    let bob_unprotected_grp_id = bob
+        .create_group_with_members(ProtectionStatus::Unprotected, "Group", &[alice])
+        .await;
+
+    tcm.change_addr(alice, "alice@someotherdomain.xyz").await;
+    let sent = alice.send_text(alice_grp_id, "Hello!").await;
+    bob.recv_msg(&sent).await;
+
+    assert!(!bob_alice_contact.is_verified(bob).await?);
+    let bob_alice_chat = Chat::load_from_db(bob, bob_alice_chat.id).await?;
+    assert!(bob_alice_chat.is_protected());
+    let mut msg = Message::new_text("hi".to_string());
+    assert!(chat::send_msg(bob, bob_alice_chat.id, &mut msg)
+        .await
+        .is_err());
+
+    // But encrypted communication is still possible in unprotected groups with old Alice.
+    let sent = bob
+        .send_text(bob_unprotected_grp_id, "Alice, how is your address change?")
+        .await;
+    let msg = Message::load_from_db(bob, sent.sender_msg_id).await?;
+    assert!(msg.get_showpadlock());
     Ok(())
 }

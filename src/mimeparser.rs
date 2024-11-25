@@ -4,6 +4,7 @@ use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::str;
+use std::str::FromStr;
 
 use anyhow::{bail, Context as _, Result};
 use deltachat_contact_tools::{addr_cmp, addr_normalize, sanitize_bidi_characters};
@@ -14,6 +15,7 @@ use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, Si
 use rand::distributions::{Alphanumeric, DistString};
 
 use crate::aheader::{Aheader, EncryptPreference};
+use crate::authres::handle_authres;
 use crate::blob::BlobObject;
 use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
@@ -21,8 +23,8 @@ use crate::constants::{self, Chattype};
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
-    keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
-    DecryptionInfo,
+    get_autocrypt_peerstate, get_encrypted_mime, keyring_from_peerstate, try_decrypt,
+    validate_detached_signature,
 };
 use crate::dehtml::dehtml;
 use crate::events::EventType;
@@ -71,7 +73,8 @@ pub(crate) struct MimeMessage {
     /// messages to this address to post them to the list.
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
-    pub decryption_info: DecryptionInfo,
+    pub autocrypt_header: Option<Aheader>,
+    pub peerstate: Option<Peerstate>,
     pub decrypting_failed: bool,
 
     /// Set of valid signature fingerprints if a message is an
@@ -301,42 +304,101 @@ impl MimeMessage {
         let mut from = from.context("No from in message")?;
         let private_keyring = load_self_secret_keyring(context).await?;
 
-        let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, timestamp_sent).await?;
+        let allow_aeap = get_encrypted_mime(&mail).is_some();
 
-        // Memory location for a possible decrypted message.
-        let mut mail_raw = Vec::new();
+        let dkim_results = handle_authres(context, &mail, &from.addr).await?;
+
         let mut gossiped_keys = Default::default();
         let mut from_is_signed = false;
         hop_info += "\n\n";
-        hop_info += &decryption_info.dkim_results.to_string();
+        hop_info += &dkim_results.to_string();
 
         let incoming = !context.is_self_addr(&from.addr).await?;
-        let public_keyring = match decryption_info.peerstate.is_none() && !incoming {
-            true => key::load_self_public_keyring(context).await?,
-            false => keyring_from_peerstate(decryption_info.peerstate.as_ref()),
-        };
-        let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
-            try_decrypt(&mail, &private_keyring, &public_keyring)
-        }) {
-            Ok(Some((raw, signatures))) => {
-                mail_raw = raw;
-                let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-                if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                    info!(
-                        context,
-                        "decrypted message mime-body:\n{}",
-                        String::from_utf8_lossy(&mail_raw),
-                    );
+
+        let mut aheader_value: Option<String> = mail.headers.get_header_value(HeaderDef::Autocrypt);
+
+        let mail_raw; // Memory location for a possible decrypted message.
+        let decrypted_msg; // Decrypted signed OpenPGP message.
+
+        let (mail, encrypted) =
+            match tokio::task::block_in_place(|| try_decrypt(&mail, &private_keyring)) {
+                Ok(Some(msg)) => {
+                    mail_raw = msg.get_content()?.unwrap_or_default();
+
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                        info!(
+                            context,
+                            "decrypted message mime-body:\n{}",
+                            String::from_utf8_lossy(&mail_raw),
+                        );
+                    }
+
+                    decrypted_msg = Some(msg);
+                    if let Some(protected_aheader_value) = decrypted_mail
+                        .headers
+                        .get_header_value(HeaderDef::Autocrypt)
+                    {
+                        aheader_value = Some(protected_aheader_value);
+                    }
+
+                    (Ok(decrypted_mail), true)
                 }
-                (Ok(decrypted_mail), signatures, true)
+                Ok(None) => {
+                    mail_raw = Vec::new();
+                    decrypted_msg = None;
+                    (Ok(mail), false)
+                }
+                Err(err) => {
+                    mail_raw = Vec::new();
+                    decrypted_msg = None;
+                    warn!(context, "decryption failed: {:#}", err);
+                    (Err(err), false)
+                }
+            };
+
+        let autocrypt_header = if !incoming {
+            None
+        } else if let Some(aheader_value) = aheader_value {
+            match Aheader::from_str(&aheader_value) {
+                Ok(header) if addr_cmp(&header.addr, &from.addr) => Some(header),
+                Ok(header) => {
+                    warn!(
+                        context,
+                        "Autocrypt header address {:?} is not {:?}.", header.addr, from.addr
+                    );
+                    None
+                }
+                Err(err) => {
+                    warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
+                    None
+                }
             }
-            Ok(None) => (Ok(mail), HashSet::new(), false),
-            Err(err) => {
-                warn!(context, "decryption failed: {:#}", err);
-                (Err(err), HashSet::new(), false)
-            }
+        } else {
+            None
         };
+
+        // The peerstate that will be used to validate the signatures.
+        let mut peerstate = get_autocrypt_peerstate(
+            context,
+            &from.addr,
+            autocrypt_header.as_ref(),
+            timestamp_sent,
+            allow_aeap,
+        )
+        .await?;
+
+        let public_keyring = match peerstate.is_none() && !incoming {
+            true => key::load_self_public_keyring(context).await?,
+            false => keyring_from_peerstate(peerstate.as_ref()),
+        };
+
+        let mut signatures = if let Some(ref decrypted_msg) = decrypted_msg {
+            crate::pgp::valid_signature_fingerprints(decrypted_msg, &public_keyring)?
+        } else {
+            HashSet::new()
+        };
+
         let mail = mail.as_ref().map(|mail| {
             let (content, signatures_detached) = validate_detached_signature(mail, &public_keyring)
                 .unwrap_or((mail, Default::default()));
@@ -422,7 +484,7 @@ impl MimeMessage {
             Self::remove_secured_headers(&mut headers);
 
             // If it is not a read receipt, degrade encryption.
-            if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
+            if let (Some(peerstate), Ok(mail)) = (&mut peerstate, mail) {
                 if timestamp_sent > peerstate.last_seen_autocrypt
                     && mail.ctype.mimetype != "multipart/report"
                 {
@@ -433,7 +495,7 @@ impl MimeMessage {
         if !encrypted {
             signatures.clear();
         }
-        if let Some(peerstate) = &mut decryption_info.peerstate {
+        if let Some(peerstate) = &mut peerstate {
             if peerstate.prefer_encrypt != EncryptPreference::Mutual && !signatures.is_empty() {
                 peerstate.prefer_encrypt = EncryptPreference::Mutual;
                 peerstate.save_to_db(&context.sql).await?;
@@ -449,7 +511,8 @@ impl MimeMessage {
             from_is_signed,
             incoming,
             chat_disposition_notification_to,
-            decryption_info,
+            autocrypt_header,
+            peerstate,
             decrypting_failed: mail.is_err(),
 
             // only non-empty if it was a valid autocrypt message
@@ -602,11 +665,13 @@ impl MimeMessage {
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing a description. If such a message is detected, text from the first part can be
     /// moved to the second part, and the first part dropped.
-    #[allow(clippy::indexing_slicing)]
     fn squash_attachment_parts(&mut self) {
-        if let [textpart, filepart] = &self.parts[..] {
-            let need_drop = textpart.typ == Viewtype::Text
-                && match filepart.typ {
+        if self.parts.len() == 2
+            && self.parts.first().map(|textpart| textpart.typ) == Some(Viewtype::Text)
+            && self
+                .parts
+                .get(1)
+                .map_or(false, |filepart| match filepart.typ {
                     Viewtype::Image
                     | Viewtype::Gif
                     | Viewtype::Sticker
@@ -617,24 +682,24 @@ impl MimeMessage {
                     | Viewtype::File
                     | Viewtype::Webxdc => true,
                     Viewtype::Unknown | Viewtype::Text | Viewtype::VideochatInvitation => false,
-                };
+                })
+        {
+            let mut parts = std::mem::take(&mut self.parts);
+            let Some(mut filepart) = parts.pop() else {
+                // Should never happen.
+                return;
+            };
+            let Some(textpart) = parts.pop() else {
+                // Should never happen.
+                return;
+            };
 
-            if need_drop {
-                let mut filepart = self.parts.swap_remove(1);
-
-                // insert new one
-                filepart.msg.clone_from(&self.parts[0].msg);
-                if let Some(quote) = self.parts[0].param.get(Param::Quote) {
-                    filepart.param.set(Param::Quote, quote);
-                }
-
-                // forget the one we use now
-                self.parts[0].msg = "".to_string();
-
-                // swap new with old
-                self.parts.push(filepart); // push to the end
-                let _ = self.parts.swap_remove(0); // drops first element, replacing it with the last one in O(1)
+            filepart.msg.clone_from(&textpart.msg);
+            if let Some(quote) = textpart.param.get(Param::Quote) {
+                filepart.param.set(Param::Quote, quote);
             }
+
+            self.parts = vec![filepart];
         }
     }
 
@@ -1158,7 +1223,7 @@ impl MimeMessage {
 
                         let is_format_flowed = if let Some(format) = mail.ctype.params.get("format")
                         {
-                            format.as_str().to_ascii_lowercase() == "flowed"
+                            format.as_str().eq_ignore_ascii_case("flowed")
                         } else {
                             false
                         };
@@ -1168,7 +1233,7 @@ impl MimeMessage {
                             && is_format_flowed
                         {
                             let delsp = if let Some(delsp) = mail.ctype.params.get("delsp") {
-                                delsp.as_str().to_ascii_lowercase() == "yes"
+                                delsp.as_str().eq_ignore_ascii_case("yes")
                             } else {
                                 false
                             };
@@ -1231,7 +1296,7 @@ impl MimeMessage {
         if decoded_data.is_empty() {
             return Ok(());
         }
-        if let Some(peerstate) = &mut self.decryption_info.peerstate {
+        if let Some(peerstate) = &mut self.peerstate {
             if peerstate.prefer_encrypt != EncryptPreference::Mutual
                 && mime_type.type_() == mime::APPLICATION
                 && mime_type.subtype().as_str() == "pgp-keys"
@@ -1688,7 +1753,6 @@ impl MimeMessage {
     /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
     /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
     /// Also you should add a test in receive_imf.rs (there already are lots of test_parse_ndn_* tests).
-    #[allow(clippy::indexing_slicing)]
     async fn heuristically_parse_ndn(&mut self, context: &Context) {
         let maybe_ndn = if let Some(from) = self.get_header(HeaderDef::From_) {
             let from = from.to_ascii_lowercase();
@@ -1851,18 +1915,17 @@ pub(crate) struct DeliveryReport {
     pub failure: bool,
 }
 
-#[allow(clippy::indexing_slicing)]
 pub(crate) fn parse_message_ids(ids: &str) -> Vec<String> {
     // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
     let mut msgids = Vec::new();
     for id in ids.split_whitespace() {
         let mut id = id.to_string();
-        if id.starts_with('<') {
-            id = id[1..].to_string();
-        }
-        if id.ends_with('>') {
-            id = id[..id.len() - 1].to_string();
-        }
+        if let Some(id_without_prefix) = id.strip_prefix('<') {
+            id = id_without_prefix.to_string();
+        };
+        if let Some(id_without_suffix) = id.strip_suffix('>') {
+            id = id_without_suffix.to_string();
+        };
         if !id.is_empty() {
             msgids.push(id);
         }
@@ -2240,12 +2303,22 @@ async fn handle_ndn(
     } else {
         "Delivery to at least one recipient failed.".to_string()
     };
+    let err_msg = &error;
 
     let mut first = true;
     for msg in msgs {
         let (msg_id, chat_id, chat_type) = msg?;
         let mut message = Message::load_from_db(context, msg_id).await?;
-        set_msg_failed(context, &mut message, &error).await?;
+        let aggregated_error = message
+            .error
+            .as_ref()
+            .map(|err| format!("{}\n\n{}", err, err_msg));
+        set_msg_failed(
+            context,
+            &mut message,
+            aggregated_error.as_ref().unwrap_or(err_msg),
+        )
+        .await?;
         if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
@@ -2289,8 +2362,6 @@ async fn ndn_maybe_add_info_msg(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)]
-
     use mailparse::ParsedMail;
 
     use super::*;
@@ -3635,6 +3706,28 @@ On 2020-10-25, Bob wrote:
         Ok(())
     }
 
+    /// Tests that sender status (signature) does not appear
+    /// in HTML view of a long message.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_large_message_no_signature() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        alice
+            .set_config(Config::Selfstatus, Some("Some signature"))
+            .await?;
+        let chat = alice.create_chat(bob).await;
+        let txt = "Hello!\n".repeat(500);
+        let sent = alice.send_text(chat.id, &txt).await;
+        let msg = bob.recv_msg(&sent).await;
+
+        assert_eq!(msg.has_html(), true);
+        let html = msg.id.get_html(bob).await?.unwrap();
+        assert_eq!(html.contains("Some signature"), false);
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_x_microsoft_original_message_id() {
         let t = TestContext::new_alice().await;
@@ -4002,12 +4095,8 @@ Content-Disposition: reaction\n\
 
         // We do allow the time to be in the future a bit (because of unsynchronized clocks),
         // but only 60 seconds:
-        assert!(mime_message.decryption_info.message_time <= time() + 60);
-        assert!(mime_message.decryption_info.message_time >= beginning_time + 60);
-        assert_eq!(
-            mime_message.decryption_info.message_time,
-            mime_message.timestamp_sent
-        );
+        assert!(mime_message.timestamp_sent <= time() + 60);
+        assert!(mime_message.timestamp_sent >= beginning_time + 60);
         assert!(mime_message.timestamp_rcvd <= time());
 
         Ok(())
@@ -4077,5 +4166,25 @@ Content-Type: text/plain; charset=utf-8
             mimeparser.get_header(HeaderDef::From_).unwrap(),
             "alice@example.org"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_protect_autocrypt() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        alice
+            .set_config_bool(Config::ProtectAutocrypt, true)
+            .await?;
+        bob.set_config_bool(Config::ProtectAutocrypt, true).await?;
+
+        let msg = tcm.send_recv_accept(alice, bob, "Hello!").await;
+        assert_eq!(msg.get_showpadlock(), false);
+
+        let msg = tcm.send_recv(bob, alice, "Hi!").await;
+        assert_eq!(msg.get_showpadlock(), true);
+
+        Ok(())
     }
 }
