@@ -244,32 +244,27 @@ pub(crate) async fn smtp_send(
                 async_smtp::error::Error::Transient(ref response) => {
                     // We got a transient 4xx response from SMTP server.
                     // Give some time until the server-side error maybe goes away.
-
-                    if let Some(first_word) = response.first_word() {
-                        if first_word.ends_with(".1.1")
-                            || first_word.ends_with(".1.2")
-                            || first_word.ends_with(".1.3")
-                        {
-                            // Sometimes we receive transient errors that should be permanent.
-                            // Any extended smtp status codes like x.1.1, x.1.2 or x.1.3 that we
-                            // receive as a transient error are misconfigurations of the smtp server.
-                            // See <https://tools.ietf.org/html/rfc3463#section-3.2>
-                            info!(context, "Received extended status code {first_word} for a transient error. This looks like a misconfigured SMTP server, let's fail immediately.");
-                            SendResult::Failure(format_err!("Permanent SMTP error: {}", err))
-                        } else {
-                            info!(
-                                context,
-                                "Transient error with status code {first_word}, postponing retry for later."
-                            );
-                            SendResult::Retry
-                        }
-                    } else {
-                        info!(
-                            context,
-                            "Transient error without status code, postponing retry for later."
-                        );
-                        SendResult::Retry
-                    }
+                    //
+                    // One particular case is
+                    // `450 4.1.2 <alice@example.org>: Recipient address rejected: Domain not found`.
+                    // known to be returned by Postfix.
+                    //
+                    // [RFC 3463](https://tools.ietf.org/html/rfc3463#section-3.2)
+                    // says "This code is only useful for permanent failures."
+                    // in X.1.1, X.1.2 and X.1.3 descriptions.
+                    //
+                    // Previous Delta Chat core versions
+                    // from 1.51.0 to 1.151.1
+                    // were treating such errors as permanent.
+                    //
+                    // This was later reverted because such errors were observed
+                    // for existing domains and turned out to be actually transient,
+                    // likely caused by nameserver downtime.
+                    info!(
+                        context,
+                        "Transient error {response:?}, postponing retry for later."
+                    );
+                    SendResult::Retry
                 }
                 _ => {
                     info!(
