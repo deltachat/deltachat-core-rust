@@ -6,7 +6,6 @@ use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
 use email::Mailbox;
-use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
 
@@ -1300,9 +1299,18 @@ impl MimeFactory {
 
         let final_text = placeholdertext.as_deref().unwrap_or(&msg.text);
 
-        let mut quoted_text = msg
-            .quoted_text()
-            .map(|quote| format_flowed_quote(&quote) + "\r\n\r\n");
+        let mut quoted_text = None;
+        if let Some(msg_quoted_text) = msg.quoted_text() {
+            let mut some_quoted_text = String::new();
+            for quoted_line in msg_quoted_text.split('\n') {
+                some_quoted_text += "> ";
+                some_quoted_text += quoted_line;
+                some_quoted_text += "\r\n";
+            }
+            some_quoted_text += "\r\n";
+            quoted_text = Some(some_quoted_text)
+        }
+
         if !is_encrypted && msg.param.get_bool(Param::ProtectQuote).unwrap_or_default() {
             // Message is not encrypted but quotes encrypted message.
             quoted_text = Some("> ...\r\n\r\n".to_string());
@@ -1312,7 +1320,6 @@ impl MimeFactory {
             // Delta Chat.
             quoted_text = Some("\r\n".to_string());
         }
-        let flowed_text = format_flowed(final_text);
 
         let is_reaction = msg.param.get_int(Param::Reaction).unwrap_or_default() != 0;
 
@@ -1322,7 +1329,7 @@ impl MimeFactory {
             "{}{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
             quoted_text.unwrap_or_default(),
-            escape_message_footer_marks(&flowed_text),
+            escape_message_footer_marks(final_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
@@ -1332,10 +1339,8 @@ impl MimeFactory {
             footer
         );
 
-        let mut main_part = PartBuilder::new().header((
-            "Content-Type",
-            "text/plain; charset=utf-8; format=flowed; delsp=no",
-        ));
+        let mut main_part =
+            PartBuilder::new().header(("Content-Type", "text/plain; charset=utf-8"));
         main_part = self.add_message_text(main_part, message_text);
 
         if is_reaction {

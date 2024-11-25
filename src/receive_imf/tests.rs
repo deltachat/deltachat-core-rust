@@ -1068,7 +1068,7 @@ async fn test_classic_mailing_list() -> Result<()> {
     let mime = sent.payload();
 
     println!("Sent mime message is:\n\n{mime}\n\n");
-    assert!(mime.contains("Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no\r\n"));
+    assert!(mime.contains("Content-Type: text/plain; charset=utf-8\r\n"));
     assert!(mime.contains("Subject: =?utf-8?q?Re=3A_=5Bdelta-dev=5D_What=27s_up=3F?=\r\n"));
     assert!(mime.contains("MIME-Version: 1.0\r\n"));
     assert!(mime.contains("In-Reply-To: <38942@posteo.org>\r\n"));
