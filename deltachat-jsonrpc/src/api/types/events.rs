@@ -112,6 +112,7 @@ pub enum EventType {
         contact_id: u32,
         msg_id: u32,
         text: String,
+        href: Option<String>,
     },
 
     /// There is a fresh message. Typically, the user will show an notification
@@ -345,10 +346,12 @@ impl From<CoreEventType> for EventType {
                 contact_id,
                 msg_id,
                 text,
+                href,
             } => IncomingWebxdcNotify {
                 contact_id: contact_id.to_u32(),
                 msg_id: msg_id.to_u32(),
                 text,
+                href,
             },
             CoreEventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),

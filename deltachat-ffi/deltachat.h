@@ -5901,15 +5901,26 @@ int dc_event_get_data2_int(dc_event_t* event);
 
 /**
  * Get data associated with an event object.
- * The meaning of the data depends on the event ID
- * returned as @ref DC_EVENT constants by dc_event_get_id().
- * See also dc_event_get_data1_int() and dc_event_get_data2_int().
+ * The meaning of the data depends on the event ID returned as @ref DC_EVENT constants.
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_get_next_event().
- * @return "data2" as a string or NULL.
- *     the meaning depends on the event type associated with this event.
- *     Once you're done with the string, you have to unref it using dc_unref_str().
+ * @return "data1" string or NULL.
+ *     The meaning depends on the event type associated with this event.
+ *     Must be freed using dc_str_unref().
+ */
+char* dc_event_get_data1_str(dc_event_t* event);
+
+
+/**
+ * Get data associated with an event object.
+ * The meaning of the data depends on the event ID returned as @ref DC_EVENT constants.
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_get_next_event().
+ * @return "data2" string or NULL.
+ *     The meaning depends on the event type associated with this event.
+ *     Must be freed using dc_str_unref().
  */
 char* dc_event_get_data2_str(dc_event_t* event);
 
@@ -6111,7 +6122,9 @@ void dc_event_unref(dc_event_t* event);
 /**
  * A webxdc wants an info message or a changed summary to be notified.
  *
- * @param data1 contact_id ID of the contact sending.
+ * @param data1 (int) contact_id ID _and_ (char*) href.
+ *      - dc_event_get_data1_int() returns contact_id of the sending contact.
+ *      - dc_event_get_data1_str() returns the href as set to `update.href`.
  * @param data2 (int) msg_id _and_ (char*) text_to_notify.
  *      - dc_event_get_data2_int() returns the msg_id,
  *        referring to the webxdc-info-message, if there is any.

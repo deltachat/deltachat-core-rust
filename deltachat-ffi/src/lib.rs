@@ -710,6 +710,27 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_event_get_data1_str(event: *mut dc_event_t) -> *mut libc::c_char {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_event_get_data1_str()");
+        return ptr::null_mut();
+    }
+
+    let event = &(*event).typ;
+
+    match event {
+        EventType::IncomingWebxdcNotify { href, .. } => {
+            if let Some(href) = href {
+                href.to_c_string().unwrap_or_default().into_raw()
+            } else {
+                ptr::null_mut()
+            }
+        }
+        _ => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut libc::c_char {
     if event.is_null() {
         eprintln!("ignoring careless call to dc_event_get_data2_str()");

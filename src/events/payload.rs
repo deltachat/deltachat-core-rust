@@ -117,6 +117,9 @@ pub enum EventType {
 
         /// Text to notify.
         text: String,
+
+        /// Link assigned to this notification, if any.
+        href: Option<String>,
     },
 
     /// There is a fresh message. Typically, the user will show an notification
