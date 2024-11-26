@@ -488,6 +488,11 @@ impl Context {
         self.scheduler.stop(self).await;
     }
 
+    /// Returns true if IO scheduler is running.
+    pub async fn is_running(&self) -> bool {
+        self.scheduler.is_running().await
+    }
+
     /// Restarts the IO scheduler if it was running before
     /// when it is not running this is an no-op
     pub async fn restart_io_if_running(&self) {
