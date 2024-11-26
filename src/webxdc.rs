@@ -393,7 +393,7 @@ impl Context {
                     .await?;
                 }
 
-                if let Some(href) = status_update_item.href {
+                if let Some(ref href) = status_update_item.href {
                     let mut notify_msg = Message::load_from_db(self, notify_msg_id).await?;
                     notify_msg.param.set(Param::Arg, href);
                     notify_msg.update_param(self).await?;
@@ -421,12 +421,14 @@ impl Context {
                         contact_id: from_id,
                         msg_id: notify_msg_id,
                         text: notify_text.clone(),
+                        href: status_update_item.href,
                     });
                 } else if let Some(notify_text) = notify_list.get("*") {
                     self.emit_event(EventType::IncomingWebxdcNotify {
                         contact_id: from_id,
                         msg_id: notify_msg_id,
                         text: notify_text.clone(),
+                        href: status_update_item.href,
                     });
                 }
             }
