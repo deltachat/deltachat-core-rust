@@ -244,18 +244,14 @@ impl Kml {
             self.tag = KmlTag::PlacemarkPoint;
         } else if tag == "coordinates" && self.tag == KmlTag::PlacemarkPoint {
             self.tag = KmlTag::PlacemarkPointCoordinates;
-            if let Some(acc) = event.attributes().find(|attr| {
-                attr.as_ref()
-                    .map(|a| {
-                        String::from_utf8_lossy(a.key.as_ref())
-                            .trim()
-                            .to_lowercase()
-                            == "accuracy"
-                    })
-                    .unwrap_or_default()
+            if let Some(acc) = event.attributes().find_map(|attr| {
+                attr.ok().filter(|a| {
+                    String::from_utf8_lossy(a.key.as_ref())
+                        .trim()
+                        .eq_ignore_ascii_case("accuracy")
+                })
             }) {
                 let v = acc
-                    .unwrap()
                     .decode_and_unescape_value(reader.decoder())
                     .unwrap_or_default();
 

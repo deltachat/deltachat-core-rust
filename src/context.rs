@@ -276,7 +276,7 @@ pub struct InnerContext {
     /// The text of the last error logged and emitted as an event.
     /// If the ui wants to display an error after a failure,
     /// `last_error` should be used to avoid races with the event thread.
-    pub(crate) last_error: std::sync::RwLock<String>,
+    pub(crate) last_error: parking_lot::RwLock<String>,
 
     /// If debug logging is enabled, this contains all necessary information
     ///
@@ -446,7 +446,7 @@ impl Context {
             metadata: RwLock::new(None),
             creation_time: tools::Time::now(),
             last_full_folder_scan: Mutex::new(None),
-            last_error: std::sync::RwLock::new("".to_string()),
+            last_error: parking_lot::RwLock::new("".to_string()),
             debug_logging: std::sync::RwLock::new(None),
             push_subscriber,
             push_subscribed: AtomicBool::new(false),

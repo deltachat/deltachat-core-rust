@@ -1667,10 +1667,11 @@ impl MimeMessage {
             {
                 let mut to_list =
                     get_all_addresses_from_header(&report.headers, "x-failed-recipients");
-                let to = if to_list.len() == 1 {
-                    Some(to_list.pop().unwrap())
+                let to = if to_list.len() != 1 {
+                    // We do not know which recipient failed
+                    None
                 } else {
-                    None // We do not know which recipient failed
+                    to_list.pop()
                 };
 
                 return Ok(Some(DeliveryReport {
