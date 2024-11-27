@@ -4657,9 +4657,9 @@ impl Context {
                     Contact::create_ex(self, Nosync, to, addr).await?;
                     return Ok(());
                 }
-                let contact_id = Contact::lookup_id_by_addr_ex(self, addr, Origin::Unknown, None)
-                    .await?
-                    .with_context(|| format!("No contact for addr '{addr}'"))?;
+                let addr = ContactAddress::new(addr).context("Invalid address")?;
+                let (contact_id, _) =
+                    Contact::add_or_lookup(self, "", &addr, Origin::Hidden).await?;
                 match action {
                     SyncAction::Block => {
                         return contact::set_blocked(self, Nosync, contact_id, true).await
@@ -4669,9 +4669,10 @@ impl Context {
                     }
                     _ => (),
                 }
-                ChatIdBlocked::lookup_by_contact(self, contact_id)
+                // Use `Request` so that even if the program crashes, the user doesn't have to look
+                // into the blocked contacts.
+                ChatIdBlocked::get_for_contact(self, contact_id, Blocked::Request)
                     .await?
-                    .with_context(|| format!("No chat for addr '{addr}'"))?
                     .id
             }
             SyncId::Grpid(grpid) => {
@@ -7474,6 +7475,71 @@ mod tests {
                 .await?
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_accept_before_first_msg() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let bob = TestContext::new_bob().await;
+
+        let ba_chat = bob.create_chat(alice0).await;
+        let sent_msg = bob.send_text(ba_chat.id, "hi").await;
+        let a0b_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+        assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Request);
+        a0b_chat_id.accept(alice0).await?;
+        let a0b_contact = alice0.add_or_lookup_contact(&bob).await;
+        assert_eq!(a0b_contact.origin, Origin::CreateChat);
+        assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Not);
+
+        sync(alice0, alice1).await;
+        let a1b_contact = alice1.add_or_lookup_contact(&bob).await;
+        assert_eq!(a1b_contact.origin, Origin::CreateChat);
+        let a1b_chat = alice1.get_chat(&bob).await;
+        assert_eq!(a1b_chat.blocked, Blocked::Not);
+        let chats = Chatlist::try_load(alice1, 0, None, None).await?;
+        assert_eq!(chats.len(), 1);
+
+        let rcvd_msg = alice1.recv_msg(&sent_msg).await;
+        assert_eq!(rcvd_msg.chat_id, a1b_chat.id);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_block_before_first_msg() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let bob = TestContext::new_bob().await;
+
+        let ba_chat = bob.create_chat(alice0).await;
+        let sent_msg = bob.send_text(ba_chat.id, "hi").await;
+        let a0b_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+        assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Request);
+        a0b_chat_id.block(alice0).await?;
+        let a0b_contact = alice0.add_or_lookup_contact(&bob).await;
+        assert_eq!(a0b_contact.origin, Origin::IncomingUnknownFrom);
+        assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Yes);
+
+        sync(alice0, alice1).await;
+        let a1b_contact = alice1.add_or_lookup_contact(&bob).await;
+        assert_eq!(a1b_contact.origin, Origin::Hidden);
+        assert!(ChatIdBlocked::lookup_by_contact(alice1, a1b_contact.id)
+            .await?
+            .is_none());
+
+        let rcvd_msg = alice1.recv_msg(&sent_msg).await;
+        let a1b_contact = alice1.add_or_lookup_contact(&bob).await;
+        assert_eq!(a1b_contact.origin, Origin::IncomingUnknownFrom);
+        let a1b_chat = alice1.get_chat(&bob).await;
+        assert_eq!(a1b_chat.blocked, Blocked::Yes);
+        assert_eq!(rcvd_msg.chat_id, a1b_chat.id);
         Ok(())
     }
 
