@@ -367,18 +367,16 @@ impl Context {
                     .get_overwritable_info_msg_id(&instance, from_id)
                     .await?;
 
-                if info_msg_id.is_some() && status_update_item.href.is_none() {
-                    if let Some(info_msg_id) = info_msg_id {
-                        chat::update_msg_text_and_timestamp(
-                            self,
-                            instance.chat_id,
-                            info_msg_id,
-                            info.as_str(),
-                            timestamp,
-                        )
-                        .await?;
-                        notify_msg_id = info_msg_id;
-                    }
+                if let (Some(info_msg_id), None) = (info_msg_id, &status_update_item.href) {
+                    chat::update_msg_text_and_timestamp(
+                        self,
+                        instance.chat_id,
+                        info_msg_id,
+                        info.as_str(),
+                        timestamp,
+                    )
+                    .await?;
+                    notify_msg_id = info_msg_id;
                 } else {
                     notify_msg_id = chat::add_info_msg_with_cmd(
                         self,
