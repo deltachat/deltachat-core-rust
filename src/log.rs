@@ -50,13 +50,13 @@ impl Context {
     /// Set last error string.
     /// Implemented as blocking as used from macros in different, not always async blocks.
     pub fn set_last_error(&self, error: &str) {
-        let mut last_error = self.last_error.write().unwrap();
+        let mut last_error = self.last_error.write();
         *last_error = error.to_string();
     }
 
     /// Get last error string.
     pub fn get_last_error(&self) -> String {
-        let last_error = &*self.last_error.read().unwrap();
+        let last_error = &*self.last_error.read();
         last_error.clone()
     }
 }
