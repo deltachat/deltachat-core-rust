@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.151.2] - 2024-11-26
+
+### API-Changes
+
+- Deprecate webxdc `descr` parameter ([#6255](https://github.com/deltachat/deltachat-core-rust/pull/6255)).
+
+### Features / Changes
+
+- AEAP: Check that the old peerstate verified key fingerprint hasn't changed when removing it.
+- Add `AccountsChanged` and `AccountsItemChanged` events ([#6118](https://github.com/deltachat/deltachat-core-rust/pull/6118)).
+- Do not use format=flowed in outgoing messages ([#6256](https://github.com/deltachat/deltachat-core-rust/pull/6256)).
+- Add webxdc limits api.
+- Add href to IncomingWebxdcNotify event ([#6266](https://github.com/deltachat/deltachat-core-rust/pull/6266)).
+
+### Fixes
+
+- Revert treating some transient SMTP errors as permanent.
+
+### Refactor
+
+- Create_status_update_record: Get rid of `notify` var.
+
+### Tests
+
+- Check that IncomingMsg isn't emitted for reactions.
+
 ## [1.151.1] - 2024-11-24
 
 ### Build system
@@ -5342,3 +5368,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.150.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.149.0..v1.150.0
 [1.151.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.150.0..v1.151.0
 [1.151.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.0..v1.151.1
+[1.151.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.1..v1.151.2
