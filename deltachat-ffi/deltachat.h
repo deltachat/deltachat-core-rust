@@ -2604,7 +2604,7 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
  *
  * The returned text will also work as a normal https:-link,
  * so that the QR code is useful also without Delta Chat being installed
- * or the text can be passed to contacts through other channels.
+ * or can be passed to contacts through other channels.
  *
  * @memberof dc_context_t
  * @param context The context object.
