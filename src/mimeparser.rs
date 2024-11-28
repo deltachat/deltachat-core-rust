@@ -671,7 +671,7 @@ impl MimeMessage {
             && self
                 .parts
                 .get(1)
-                .map_or(false, |filepart| match filepart.typ {
+                .is_some_and(|filepart| match filepart.typ {
                     Viewtype::Image
                     | Viewtype::Gif
                     | Viewtype::Sticker

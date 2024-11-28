@@ -887,13 +887,11 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                         }
                         unreferenced_count += 1;
                         let recently_created =
-                            stats.created().map_or(false, |t| t > keep_files_newer_than);
-                        let recently_modified = stats
-                            .modified()
-                            .map_or(false, |t| t > keep_files_newer_than);
-                        let recently_accessed = stats
-                            .accessed()
-                            .map_or(false, |t| t > keep_files_newer_than);
+                            stats.created().is_ok_and(|t| t > keep_files_newer_than);
+                        let recently_modified =
+                            stats.modified().is_ok_and(|t| t > keep_files_newer_than);
+                        let recently_accessed =
+                            stats.accessed().is_ok_and(|t| t > keep_files_newer_than);
 
                         if p == blobdir
                             && (recently_created || recently_modified || recently_accessed)
