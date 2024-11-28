@@ -2597,12 +2597,14 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
 
 /**
  * Get QR code text that will offer an Setup-Contact or Verified-Group invitation.
- * The QR code is compatible to the OPENPGP4FPR format
- * so that a basic fingerprint comparison also works e.g. with OpenKeychain.
  *
  * The scanning device will pass the scanned content to dc_check_qr() then;
  * if dc_check_qr() returns DC_QR_ASK_VERIFYCONTACT or DC_QR_ASK_VERIFYGROUP
  * an out-of-band-verification can be joined using dc_join_securejoin()
+ *
+ * The returned text will also work as a normal https:-link,
+ * so that the QR code is useful also without Delta Chat being installed
+ * or can be passed to contacts through other channels.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4492,6 +4494,7 @@ int             dc_msg_is_info                (const dc_msg_t* msg);
  * - DC_INFO_INVALID_UNENCRYPTED_MAIL (13) - Info-message for "Provider requires end-to-end encryption which is not setup yet",
  *   the UI should change the corresponding string using #DC_STR_INVALID_UNENCRYPTED_MAIL
  *   and also offer a way to fix the encryption, eg. by a button offering a QR scan
+ * - DC_INFO_WEBXDC_INFO_MESSAGE (32) - Info-message created by webxdc app sending `update.info`
  *
  * Even when you display an icon,
  * you should still display the text of the informational message using dc_msg_get_text()
