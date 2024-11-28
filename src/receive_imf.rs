@@ -73,7 +73,6 @@ pub struct ReceivedMsg {
 ///
 /// This method returns errors on a failure to parse the mail or extract Message-ID. It's only used
 /// for tests and REPL tool, not actual message reception pipeline.
-#[cfg(any(test, feature = "internals"))]
 pub async fn receive_imf(
     context: &Context,
     imf_raw: &[u8],
@@ -106,7 +105,6 @@ pub async fn receive_imf(
 /// Emulates reception of a message from "INBOX".
 ///
 /// Only used for tests and REPL tool, not actual message reception pipeline.
-#[cfg(any(test, feature = "internals"))]
 pub(crate) async fn receive_imf_from_inbox(
     context: &Context,
     rfc724_mid: &str,
