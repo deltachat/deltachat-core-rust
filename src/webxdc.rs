@@ -76,9 +76,6 @@ pub struct WebxdcManifest {
 
     /// Set to "map" to request integration.
     pub request_integration: Option<String>,
-
-    /// If the webxdc requests network access.
-    pub request_internet_access: Option<bool>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -928,10 +925,7 @@ impl Message {
 
         let request_integration = manifest.request_integration.unwrap_or_default();
         let is_integrated = self.is_set_as_webxdc_integration(context).await?;
-
-        let internet_access = manifest.request_internet_access.unwrap_or_default()
-            && self.chat_id.is_self_talk(context).await.unwrap_or_default()
-            && self.get_showpadlock();
+        let internet_access = is_integrated;
 
         let self_addr = self.get_webxdc_self_addr(context).await?;
 
@@ -958,8 +952,6 @@ impl Message {
             } else if request_integration == "map" {
                 "🌏 To use as map, forward to \"Saved Messages\" again. Do not enter sensitive data"
                     .to_string()
-            } else if internet_access {
-                "Dev Mode: Do not enter sensitive data!".to_string()
             } else {
                 self.param
                     .get(Param::WebxdcSummary)
@@ -2248,19 +2240,6 @@ sth_for_the = "future""#
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_parse_webxdc_manifest_request_internet_access() -> Result<()> {
-        let result = parse_webxdc_manifest(r#"request_internet_access = 3"#.as_bytes());
-        assert!(result.is_err());
-        let manifest = parse_webxdc_manifest(r#" source_code_url="https://foo.org""#.as_bytes())?;
-        assert_eq!(manifest.request_internet_access, None);
-        let manifest = parse_webxdc_manifest(r#" request_internet_access=false"#.as_bytes())?;
-        assert_eq!(manifest.request_internet_access, Some(false));
-        let manifest = parse_webxdc_manifest(r#"request_internet_access = true"#.as_bytes())?;
-        assert_eq!(manifest.request_internet_access, Some(true));
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_webxdc_min_api_too_large() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
@@ -2670,15 +2649,15 @@ sth_for_the = "future""#
         Ok(())
     }
 
+    // check that `info.internet_access` is not set for normal, non-integrated webxdc -
+    // even if they use the deprecated option `request_internet_access` in manifest.toml
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_webxdc_internet_access() -> Result<()> {
+    async fn test_webxdc_no_internet_access() -> Result<()> {
         let t = TestContext::new_alice().await;
         let self_id = t.get_self_chat().await.id;
         let single_id = t.create_chat_with_contact("bob", "bob@e.com").await.id;
         let group_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
         let broadcast_id = create_broadcast_list(&t).await?;
-
-        let mut first_test = true; // only the first test has all conditions for internet access
 
         for e2ee in ["1", "0"] {
             t.set_config(Config::E2eeEnabled, Some(e2ee)).await?;
@@ -2702,11 +2681,7 @@ sth_for_the = "future""#
                     .await?;
                     let instance = Message::load_from_db(&t, instance_id).await?;
                     let info = instance.get_webxdc_info(&t).await?;
-                    assert_eq!(info.internet_access, first_test);
-                    assert_eq!(info.summary.contains("Do not enter sensitive"), first_test);
-                    assert_eq!(info.summary.contains("real summary"), !first_test);
-
-                    first_test = false;
+                    assert_eq!(info.internet_access, false);
                 }
             }
         }
