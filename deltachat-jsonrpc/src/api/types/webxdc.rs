@@ -57,6 +57,7 @@ impl WebxdcMessageInfo {
             document,
             summary,
             source_code_url,
+            request_integration: _,
             internet_access,
             self_addr,
             send_update_interval,

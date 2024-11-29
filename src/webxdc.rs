@@ -74,6 +74,9 @@ pub struct WebxdcManifest {
     /// Optional URL of webxdc source code.
     pub source_code_url: Option<String>,
 
+    /// Set to "map" to request integration.
+    pub request_integration: Option<String>,
+
     /// If the webxdc requests network access.
     pub request_internet_access: Option<bool>,
 }
@@ -99,6 +102,9 @@ pub struct WebxdcInfo {
 
     /// URL of webxdc source code or an empty string.
     pub source_code_url: String,
+
+    /// Set to "map" to request integration, otherwise an empty string.
+    pub request_integration: String,
 
     /// If the webxdc is allowed to access the network.
     /// It should request access, be encrypted
@@ -920,6 +926,9 @@ impl Message {
             }
         }
 
+        let request_integration = manifest.request_integration.unwrap_or_default();
+        let is_integrated = self.is_set_as_webxdc_integration(context).await?;
+
         let internet_access = manifest.request_internet_access.unwrap_or_default()
             && self.chat_id.is_self_talk(context).await.unwrap_or_default()
             && self.get_showpadlock();
@@ -944,7 +953,12 @@ impl Message {
                 .get(Param::WebxdcDocument)
                 .unwrap_or_default()
                 .to_string(),
-            summary: if internet_access {
+            summary: if is_integrated {
+                "🌍 Used as map. Delete to use default. Do not enter sensitive data".to_string()
+            } else if request_integration == "map" {
+                "🌏 To use as map, forward to \"Saved Messages\" again. Do not enter sensitive data"
+                    .to_string()
+            } else if internet_access {
                 "Dev Mode: Do not enter sensitive data!".to_string()
             } else {
                 self.param
@@ -957,6 +971,7 @@ impl Message {
             } else {
                 "".to_string()
             },
+            request_integration,
             internet_access,
             self_addr,
             send_update_interval: context.ratelimit.read().await.update_interval(),

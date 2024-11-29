@@ -181,7 +181,7 @@ mod tests {
     async fn test_maps_integration() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        let bytes = include_bytes!("../../test-data/webxdc/mapstest.xdc");
+        let bytes = include_bytes!("../../test-data/webxdc/mapstest-integration-set.xdc");
         let file = t.get_blobdir().join("maps.xdc");
         tokio::fs::write(&file, bytes).await.unwrap();
         t.set_webxdc_integration(file.to_str().unwrap()).await?;
@@ -199,7 +199,7 @@ mod tests {
 
         let integration = Message::load_from_db(&t, integration_id).await?;
         let info = integration.get_webxdc_info(&t).await?;
-        assert_eq!(info.name, "Maps Test");
+        assert_eq!(info.name, "Maps Test 2");
         assert_eq!(info.internet_access, true);
 
         t.send_webxdc_status_update(
