@@ -417,14 +417,9 @@ impl Context {
         if from_id != ContactId::SELF {
             if let Some(notify_list) = status_update_item.notify {
                 let self_addr = instance.get_webxdc_self_addr(self).await?;
-                if let Some(notify_text) = notify_list.get(&self_addr) {
-                    self.emit_event(EventType::IncomingWebxdcNotify {
-                        contact_id: from_id,
-                        msg_id: notify_msg_id,
-                        text: notify_text.clone(),
-                        href: status_update_item.href,
-                    });
-                } else if let Some(notify_text) = notify_list.get("*") {
+                if let Some(notify_text) =
+                    notify_list.get(&self_addr).or_else(|| notify_list.get("*"))
+                {
                     self.emit_event(EventType::IncomingWebxdcNotify {
                         contact_id: from_id,
                         msg_id: notify_msg_id,
