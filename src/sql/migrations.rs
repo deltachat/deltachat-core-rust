@@ -1070,6 +1070,24 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 124)?;
+    if dbversion < migration_version {
+        // Mark Saved Messages chat as protected if it already exists.
+        sql.execute_migration(
+            "UPDATE chats
+             SET protected=1 -- ProtectionStatus::Protected
+             WHERE type==100 -- Chattype::Single
+             AND EXISTS (
+                 SELECT 1 FROM chats_contacts cc
+                 WHERE cc.chat_id==chats.id
+                 AND cc.contact_id=1
+             )
+             ",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
