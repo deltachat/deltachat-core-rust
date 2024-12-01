@@ -1829,7 +1829,8 @@ impl CommandApi {
         WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
     }
 
-    /// Get href from a webxdc message
+    /// Get href from a WebxdcInfoMessage which might include a hash holding
+    /// information about a specific position or state in a webxdc app (optional)
     async fn get_webxdc_href(
         &self,
         account_id: u32,
