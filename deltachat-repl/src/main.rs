@@ -22,7 +22,7 @@ use log::{error, info, warn};
 use nu_ansi_term::Color;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
-use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
+use rustyline::highlight::{CmdKind as HighlightCmdKind, Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
 use rustyline::validate::Validator;
 use rustyline::{
@@ -298,8 +298,8 @@ impl Highlighter for DcHelper {
         self.highlighter.highlight(line, pos)
     }
 
-    fn highlight_char(&self, line: &str, pos: usize, forced: bool) -> bool {
-        self.highlighter.highlight_char(line, pos, forced)
+    fn highlight_char(&self, line: &str, pos: usize, kind: HighlightCmdKind) -> bool {
+        self.highlighter.highlight_char(line, pos, kind)
     }
 }
 
