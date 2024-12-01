@@ -128,21 +128,18 @@ impl MessageObject {
         let file_bytes = message.get_filebytes(context).await?.unwrap_or_default();
         let override_sender_name = message.get_override_sender_name();
 
-        let parent_message = message.parent(context).await?;
-        let parent_msg_id = parent_message.as_ref().map(|m| m.get_id());
-
         let webxdc_info = if message.get_viewtype() == Viewtype::Webxdc {
             Some(WebxdcMessageInfo::get_for_message(context, msg_id).await?)
-        } else if message.get_info_type() == deltachat::mimeparser::SystemMessage::WebxdcInfoMessage
-            && parent_msg_id.is_some()
+        } else if let (deltachat::mimeparser::SystemMessage::WebxdcInfoMessage, Some(parent_msg)) =
+            (message.get_info_type(), message.parent(context).await?)
         {
             // get webcdx info from parent message
-            Some(WebxdcMessageInfo::get_for_message(context, parent_msg_id.unwrap()).await?)
+            Some(WebxdcMessageInfo::get_for_message(context, parent_msg.get_id()).await?)
         } else {
             None
         };
 
-        let parent_id = parent_message.as_ref().map(|m| m.get_id().to_u32());
+        let parent_id = message.parent(context).await?.map(|m| m.get_id().to_u32());
 
         let download_state = message.download_state().into();
 
