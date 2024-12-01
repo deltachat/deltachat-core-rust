@@ -243,6 +243,8 @@ impl MessageObject {
             file_name: message.get_filename(),
             webxdc_info,
 
+            // On a WebxdcInfoMessage this might include a hash holding
+            // information about a specific position or state in a webxdc app
             webxdc_href: message.get_webxdc_href(),
 
             download_state,
