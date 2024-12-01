@@ -386,7 +386,7 @@ checksum = "00b9f7252833d5ed4b00aa9604b563529dd5e11de9c23615de2dcdf91eb87b52"
 dependencies = [
  "async-compression",
  "crc32fast",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "pin-project",
  "thiserror",
  "tokio",
@@ -1330,7 +1330,7 @@ dependencies = [
  "fd-lock",
  "format-flowed",
  "futures",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "hex",
  "hickory-resolver",
  "http-body-util",
@@ -1453,7 +1453,7 @@ dependencies = [
  "anyhow",
  "deltachat",
  "deltachat-jsonrpc",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "log",
  "serde",
  "serde_json",
@@ -2324,9 +2324,9 @@ dependencies = [
 
 [[package]]
 name = "futures-lite"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f1fa2f9765705486b33fd2acf1577f8ec449c2ba1f318ae5447697b7c08d210"
+checksum = "cef40d21ae2c515b51041df9ed313ed21e572df340ea58a922a0aefe7e8891a1"
 dependencies = [
  "fastrand 2.1.1",
  "futures-core",
@@ -3043,7 +3043,7 @@ dependencies = [
  "derive_more",
  "ed25519-dalek",
  "futures-concurrency",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "futures-util",
  "indexmap",
  "iroh-base",
@@ -3097,7 +3097,7 @@ dependencies = [
  "duct",
  "futures-buffered",
  "futures-concurrency",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "futures-sink",
  "futures-util",
  "genawaiter",
@@ -3218,7 +3218,7 @@ checksum = "c1fd18ec6325dd3f01625f12c01acff50a4374ee1ab708e7b2078885fd63ad30"
 dependencies = [
  "anyhow",
  "futures-buffered",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "futures-util",
  "iroh-net",
  "tokio",
@@ -3693,7 +3693,7 @@ dependencies = [
  "anyhow",
  "bytes",
  "derive_more",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "futures-sink",
  "futures-util",
  "libc",
@@ -4482,7 +4482,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "derive_more",
- "futures-lite 2.4.0",
+ "futures-lite 2.5.0",
  "futures-util",
  "igd-next",
  "iroh-metrics",
