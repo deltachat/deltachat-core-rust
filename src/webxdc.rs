@@ -21,6 +21,7 @@ mod maps_integration;
 use std::cmp::max;
 use std::collections::HashMap;
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
@@ -111,9 +112,9 @@ pub struct WebxdcInfo {
     /// Address to be used for `window.webxdc.selfAddr` in JS land.
     pub self_addr: String,
 
-    /// Milliseconds to wait before calling `sendUpdate()` again since the last call.
+    /// Time to wait before calling `sendUpdate()` again since the last call.
     /// Should be exposed to `window.sendUpdateInterval` in JS land.
-    pub send_update_interval: usize,
+    pub send_update_interval: Duration,
 
     /// Maximum number of bytes accepted for a serialized update object.
     /// Should be exposed to `window.sendUpdateMaxSize` in JS land.
@@ -961,7 +962,7 @@ impl Message {
             request_integration,
             internet_access,
             self_addr,
-            send_update_interval: context.ratelimit.read().await.update_interval(),
+            send_update_interval: context.ratelimit.read().await.min_send_interval(),
             send_update_max_size: RECOMMENDED_FILE_SIZE as usize,
         })
     }
@@ -2262,7 +2263,7 @@ sth_for_the = "future""#
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "minimal.xdc");
         assert_eq!(info.icon, WEBXDC_DEFAULT_ICON.to_string());
-        assert_eq!(info.send_update_interval, 10000);
+        assert_eq!(info.send_update_interval, Duration::new(10, 0));
         assert_eq!(info.send_update_max_size, RECOMMENDED_FILE_SIZE as usize);
 
         let mut instance = create_webxdc_instance(
