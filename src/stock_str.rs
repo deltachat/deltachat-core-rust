@@ -542,7 +542,7 @@ impl ContactId {
     }
 
     /// Get contact name, e.g. `Bob`, or `bob@exmple.net` if no name is set.
-    async fn get_stock_name(self, context: &Context) -> String {
+    pub async fn get_stock_name(self, context: &Context) -> String {
         Contact::get_by_id(context, self)
             .await
             .map(|contact| contact.get_display_name().to_string())

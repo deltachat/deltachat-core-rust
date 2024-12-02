@@ -835,6 +835,15 @@ impl MimeMessage {
         Ok(())
     }
 
+    /// Set different sender name for a message.
+    /// This overrides the name set by the `set_config()`-option `displayname`.
+    pub fn set_override_sender_name(&mut self, name: Option<String>) {
+        self.parts.iter_mut().for_each(|part| {
+            part.param
+                .set_optional(Param::OverrideSenderDisplayname, name.clone());
+        });
+    }
+
     async fn avatar_action_from_header(
         &mut self,
         context: &Context,
