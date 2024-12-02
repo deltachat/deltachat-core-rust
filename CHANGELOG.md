@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.151.3] - 2024-12-02
+
+### API-Changes
+
+- Remove experimental `request_internet_access` option from webxdc's `manifest.toml`.
+- Add getWebxdcHref to json api ([#6281](https://github.com/deltachat/deltachat-core-rust/pull/6281)).
+
+### CI
+
+- Update Rust to 1.83.0.
+
+### Documentation
+
+- Update dc_msg_get_info_type() and dc_get_securejoin_qr() ([#6269](https://github.com/deltachat/deltachat-core-rust/pull/6269)).
+- Fix references to iroh-related headers in peer_channels docs.
+- Improve CFFI docs, link to corresponding JSON-RPC docs.
+
+### Features / Changes
+
+- Allow the user to replace maps integration ([#5678](https://github.com/deltachat/deltachat-core-rust/pull/5678)).
+- Mark saved messages chat as protected.
+
+### Fixes
+
+- Close iroh endpoint when I/O is stopped.
+- Do not add protection messages to Saved Messages chat.
+- Mark Saved Messages chat as protected if it exists.
+- Sync chat action even if sync message arrives before first one from contact ([#6259](https://github.com/deltachat/deltachat-core-rust/pull/6259)).
+
+### Refactor
+
+- Remove some .unwrap() calls.
+- Create_status_update_record: Remove double check of info_msg_id.
+- Use Option::or_else() to dedup emitting IncomingWebxdcNotify.
+
 ## [1.151.2] - 2024-11-26
 
 ### API-Changes
@@ -5369,3 +5404,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.150.0..v1.151.0
 [1.151.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.0..v1.151.1
 [1.151.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.1..v1.151.2
+[1.151.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.2..v1.151.3
