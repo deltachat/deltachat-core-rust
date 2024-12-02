@@ -62,7 +62,7 @@ http-body-util = "0.1.2"
 humansize = "2"
 hyper = "1"
 hyper-util = "0.1.10"
-image = { version = "0.25.4", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
+image = { version = "0.25.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh-gossip = { version = "0.28.1", default-features = false, features = ["net"] }
 iroh-net = { version = "0.28.1", default-features = false }
 kamadak-exif = "0.6.1"
