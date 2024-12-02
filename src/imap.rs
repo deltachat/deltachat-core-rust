@@ -407,7 +407,7 @@ impl Imap {
                         "IMAP-LOGIN as {}",
                         lp.user
                     )));
-                    self.connectivity.set_connected(context).await;
+                    self.connectivity.set_preparing(context).await;
                     info!(context, "Successfully logged into IMAP server");
                     return Ok(session);
                 }
