@@ -4033,7 +4033,7 @@ async fn test_sync_member_list_on_rejoin() -> Result<()> {
     remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
     alice.pop_sent_msg().await;
 
-    // readd bob
+    // re-add bob
     add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
     let add2 = alice.pop_sent_msg().await;
     bob.recv_msg(&add2).await;
@@ -4182,7 +4182,7 @@ async fn test_recreate_contact_list_on_missing_message() -> Result<()> {
     // since we missed a message, a new contact list should be build
     assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 3);
 
-    // readd fiona
+    // re-add fiona
     add_contact_to_chat(&alice, chat_id, alice_fiona).await?;
 
     // delayed removal of fiona shouldn't remove her
@@ -4224,7 +4224,7 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
     bob.recv_msg(&alice.pop_sent_msg().await).await;
 
     // Alice didn't receive Bob's leave message although a lot of time has
-    // passed, so Bob must readd themselves otherwise other members would think
+    // passed, so Bob must re-add themselves otherwise other members would think
     // Bob is still here while they aren't. Bob should retry to leave if they
     // think that Alice didn't re-add them on purpose (which is possible if Alice uses a classical
     // MUA).

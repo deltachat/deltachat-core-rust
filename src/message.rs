@@ -724,7 +724,7 @@ impl Message {
     /// `contact_id` set to [`ContactId::SELF`].
     ///
     /// `latitude` is the North-south position of the location.
-    /// `longitutde` is the East-west position of the location.
+    /// `longitude` is the East-west position of the location.
     ///
     /// [`location::set()`]: crate::location::set
     /// [`send_locations_to_chat()`]: crate::location::send_locations_to_chat

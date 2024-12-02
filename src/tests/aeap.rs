@@ -371,7 +371,7 @@ async fn test_aeap_replay_attack() -> Result<()> {
     chat::add_contact_to_chat(&bob, group, bob_alice_contact).await?;
 
     // Alice sends a message which Bob doesn't receive or something
-    // A real attack would rather re-use a message that was sent to a group
+    // A real attack would rather reuse a message that was sent to a group
     // and replace the Message-Id or so.
     let chat = alice.create_chat(&bob).await;
     let sent = alice.send_text(chat.id, "whoop whoop").await;

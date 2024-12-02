@@ -356,7 +356,7 @@ impl MimeFactory {
                     let gossip_period = context.get_config_i64(Config::GossipPeriod).await?;
                     // `gossip_period == 0` is a special case for testing,
                     // enabling gossip in every message.
-                    // Othewise "smeared timestamps" may result in the condition
+                    // Otherwise "smeared timestamps" may result in the condition
                     // to fail even if the clock is monotonic.
                     if gossip_period == 0 || time() >= gossiped_timestamp + gossip_period {
                         Ok(true)

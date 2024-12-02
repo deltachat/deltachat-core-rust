@@ -7,7 +7,7 @@
 //! when it's not required. Only when a webxdc subscribes to realtime data or when a reatlime message is sent,
 //! the p2p machinery should be started.
 //!
-//! Adding peer channels to webxdc needs upfront negotation of a topic and sharing of public keys so that
+//! Adding peer channels to webxdc needs upfront negotiation of a topic and sharing of public keys so that
 //! nodes can connect to each other. The explicit approach is as follows:
 //!
 //! 1. We introduce a new [`IrohGossipTopic`](crate::headerdef::HeaderDef::IrohGossipTopic) message header with a random 32-byte TopicId,
@@ -935,7 +935,7 @@ mod tests {
             }
         }
 
-        // channel is only used to remeber if an advertisement has been sent
+        // channel is only used to remember if an advertisement has been sent
         // bob for example does not change the channels because he never sends an
         // advertisement
         assert_eq!(

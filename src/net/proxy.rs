@@ -230,7 +230,7 @@ where
         .get(9..12)
         .context("HTTP status line does not contain a status code")?;
 
-    // Interpert status code according to
+    // Interpret status code according to
     // <https://datatracker.ietf.org/doc/html/rfc7231#section-6>.
     if status_code == b"407" {
         Err(format_err!("Proxy Authentication Required"))

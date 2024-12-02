@@ -83,7 +83,7 @@ impl InnerPool {
     /// Retrieves a connection from the pool.
     ///
     /// Sets `query_only` pragma to the provided value
-    /// to prevent accidentaly misuse of connection
+    /// to prevent accidental misuse of connection
     /// for writing when reading is intended.
     /// Only pass `query_only=false` if you want
     /// to use the connection for writing.

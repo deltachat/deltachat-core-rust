@@ -144,7 +144,7 @@ impl ContactId {
         Ok(())
     }
 
-    /// Returns contact adress.
+    /// Returns contact address.
     pub async fn addr(&self, context: &Context) -> Result<String> {
         let addr = context
             .sql

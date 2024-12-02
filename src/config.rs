@@ -80,7 +80,7 @@ pub enum Config {
     /// SMTP server security (e.g. TLS, STARTTLS).
     SendSecurity,
 
-    /// Deprecated option for backwards compatibilty.
+    /// Deprecated option for backwards compatibility.
     ///
     /// Certificate checks for SMTP are actually controlled by `imap_certificate_checks` config.
     SmtpCertificateChecks,
