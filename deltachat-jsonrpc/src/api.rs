@@ -1767,7 +1767,7 @@ impl CommandApi {
         account_id: u32,
         instance_msg_id: u32,
         update_str: String,
-        _descr: String,
+        _descr: Option<String>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ctx.send_webxdc_status_update(MsgId::new(instance_msg_id), &update_str)
@@ -1827,6 +1827,18 @@ impl CommandApi {
     ) -> Result<WebxdcMessageInfo> {
         let ctx = self.get_context(account_id).await?;
         WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
+    }
+
+    /// Get href from a WebxdcInfoMessage which might include a hash holding
+    /// information about a specific position or state in a webxdc app (optional)
+    async fn get_webxdc_href(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+    ) -> Result<Option<String>> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(instance_msg_id)).await?;
+        Ok(message.get_webxdc_href())
     }
 
     /// Get blob encoded as base64 from a webxdc message

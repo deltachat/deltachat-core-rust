@@ -85,6 +85,8 @@ pub struct MessageObject {
 
     webxdc_info: Option<WebxdcMessageInfo>,
 
+    webxdc_href: Option<String>,
+
     download_state: DownloadState,
 
     reactions: Option<JSONRPCReactions>,
@@ -240,6 +242,10 @@ impl MessageObject {
             file_bytes,
             file_name: message.get_filename(),
             webxdc_info,
+
+            // On a WebxdcInfoMessage this might include a hash holding
+            // information about a specific position or state in a webxdc app
+            webxdc_href: message.get_webxdc_href(),
 
             download_state,
 
