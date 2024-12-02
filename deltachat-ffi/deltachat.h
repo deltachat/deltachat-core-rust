@@ -4201,14 +4201,13 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   defaults to an empty string.
  *   Implementations may offer an menu or a button to open this URL.
  * - internet_access:
- *   true if the Webxdc should get full internet access, including Webrtc.
- *   currently, this is only true for encrypted Webxdc's in the self chat
- *   that have requested internet access in the manifest.
+ *   true if the Webxdc should get internet access;
+ *   this is the case i.e. for experimental maps integration.
  * - self_addr: address to be used for `window.webxdc.selfAddr` in JS land.
  * - send_update_interval: Milliseconds to wait before calling `sendUpdate()` again since the last call.
  *   Should be exposed to `webxdc.sendUpdateInterval` in JS land.
  * - send_update_max_size: Maximum number of bytes accepted for a serialized update object.
-+    Should be exposed to `webxdc.sendUpdateMaxSize` in JS land.
+ *   Should be exposed to `webxdc.sendUpdateMaxSize` in JS land.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.
@@ -5789,6 +5788,23 @@ void dc_jsonrpc_unref(dc_jsonrpc_instance_t* jsonrpc_instance);
  * returns immediately and once the result is ready it can be retrieved via dc_jsonrpc_next_response()
  * the jsonrpc specification defines an invocation id that can then be used to match request and response.
  *
+ * An overview of JSON-RPC calls is available at
+ * <https://js.jsonrpc.delta.chat/classes/RawClient.html>.
+ * Note that the page describes only the rough methods.
+ * Calling convention, casing etc. does vary, this is a known flaw,
+ * and at some point we will get to improve that :)
+ *
+ * Also, note that most calls are more high-level than this CFFI, require more database calls and are slower.
+ * They're more suitable for an environment that is totally async and/or cannot use CFFI, which might not be true for native apps.
+ *
+ * Notable exceptions that exist only as JSON-RPC and probably never get a CFFI counterpart:
+ * - getMessageReactions(), sendReaction()
+ * - getHttpResponse()
+ * - draftSelfReport()
+ * - getAccountFileSize()
+ * - importVcard(), parseVcard(), makeVcard()
+ * - sendWebxdcRealtimeData, sendWebxdcRealtimeAdvertisement(), leaveWebxdcRealtime()
+ *
  * @memberof dc_jsonrpc_instance_t
  * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
  * @param request JSON-RPC request as string
@@ -5808,6 +5824,8 @@ char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);
 
 /**
  * Make a JSON-RPC call and return a response.
+ *
+ * See dc_jsonrpc_request() for an overview of possible calls and for more information.
  *
  * @memberof dc_jsonrpc_instance_t
  * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
