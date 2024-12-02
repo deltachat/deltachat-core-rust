@@ -418,7 +418,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `e2ee_enabled` = 0=no end-to-end-encryption, 1=prefer end-to-end-encryption (default)
  * - `mdns_enabled` = 0=do not send or request read receipts,
  *                    1=send and request read receipts
- *                    default=send and request read receipts, only send but not reuqest if `bot` is set
+ *                    default=send and request read receipts, only send but not request if `bot` is set
  * - `bcc_self`     = 0=do not send a copy of outgoing messages to self,
  *                    1=send a copy of outgoing messages to self (default).
  *                    Sending messages to self is needed for a proper multi-account setup,
@@ -985,7 +985,7 @@ uint32_t        dc_get_chat_id_by_contact_id (dc_context_t* context, uint32_t co
  * If the increation-method is not used - which is probably the normal case -
  * dc_send_msg() copies the file to the blob directory if it is not yet there.
  * To distinguish the two cases, msg->state must be set properly. The easiest
- * way to ensure this is to re-use the same object for both calls.
+ * way to ensure this is to reuse the same object for both calls.
  *
  * Example:
  * ~~~
@@ -4706,7 +4706,7 @@ int dc_msg_has_html (dc_msg_t* msg);
   *                                     If the download fails or succeeds,
   *                                     the event @ref DC_EVENT_MSGS_CHANGED is emitted.
   *
-  * - @ref DC_DOWNLOAD_UNDECIPHERABLE - The message does not need any futher download action.
+  * - @ref DC_DOWNLOAD_UNDECIPHERABLE - The message does not need any further download action.
   *                                     It was fully downloaded, but we failed to decrypt it.
   * - @ref DC_DOWNLOAD_FAILURE        - Download error, the user may start over calling dc_download_full_msg() again.
   *

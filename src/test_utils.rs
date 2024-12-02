@@ -618,7 +618,7 @@ impl TestContext {
             .filter(|msg| msg.chat_id != DC_CHAT_ID_TRASH)
     }
 
-    /// Recevies a message and asserts that it goes to trash chat.
+    /// Receives a message and asserts that it goes to trash chat.
     pub async fn recv_msg_trash(&self, msg: &SentMessage<'_>) {
         let received = receive_imf(self, msg.payload().as_bytes(), false)
             .await

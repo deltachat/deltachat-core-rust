@@ -152,7 +152,7 @@ class TestProcess:
 
     def get_liveconfig_producer(self):
         """provide live account configs, cached on a per-test-process scope
-        so that test functions can re-use already known live configs.
+        so that test functions can reuse already known live configs.
         """
         chatmail_opt = self.pytestconfig.getoption("--chatmail")
         if chatmail_opt:

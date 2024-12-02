@@ -541,7 +541,7 @@ impl ContactId {
             .unwrap_or_else(|_| self.to_string())
     }
 
-    /// Get contact name, e.g. `Bob`, or `bob@exmple.net` if no name is set.
+    /// Get contact name, e.g. `Bob`, or `bob@example.net` if no name is set.
     async fn get_stock_name(self, context: &Context) -> String {
         Contact::get_by_id(context, self)
             .await

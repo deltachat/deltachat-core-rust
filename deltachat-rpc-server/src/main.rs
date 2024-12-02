@@ -66,7 +66,7 @@ async fn main_impl() -> Result<()> {
 
     // Logs from `log` crate and traces from `tracing` crate
     // are configurable with `RUST_LOG` environment variable
-    // and go to stderr to avoid interferring with JSON-RPC using stdout.
+    // and go to stderr to avoid interfering with JSON-RPC using stdout.
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .with_writer(std::io::stderr)

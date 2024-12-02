@@ -6,7 +6,7 @@ const expected_cwd = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 if (process.cwd() !== expected_cwd) {
   console.error(
-    "CWD missmatch: this script needs to be run from " + expected_cwd,
+    "CWD mismatch: this script needs to be run from " + expected_cwd,
     { actual: process.cwd(), expected: expected_cwd }
   );
   process.exit(1);
@@ -40,7 +40,7 @@ const platform_package_names = await Promise.all(
         "has a different version than the version of the rpc server.",
         { rpc_server: version, platform_package: p.version }
       );
-      throw new Error("version missmatch");
+      throw new Error("version mismatch");
     }
     return { folder_name: name, package_name: p.name };
   })

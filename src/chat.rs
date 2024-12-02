@@ -1399,7 +1399,7 @@ impl ChatId {
     ///
     /// `message_timestamp` should be either the message "sent" timestamp or a timestamp of the
     /// corresponding event in case of a system message (usually the current system time).
-    /// `always_sort_to_bottom` makes this ajust the returned timestamp up so that the message goes
+    /// `always_sort_to_bottom` makes this adjust the returned timestamp up so that the message goes
     /// to the chat bottom.
     /// `received` -- whether the message is received. Otherwise being sent.
     /// `incoming` -- whether the message is incoming.
@@ -4495,7 +4495,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
         .await?;
     context.sql.execute("DELETE FROM devmsglabels;", ()).await?;
 
-    // Insert labels for welcome messages to avoid them being readded on reconfiguration.
+    // Insert labels for welcome messages to avoid them being re-added on reconfiguration.
     context
         .sql
         .execute(
@@ -4709,7 +4709,7 @@ impl Context {
 
     /// Emits the appropriate `MsgsChanged` event. Should be called if the number of unnoticed
     /// archived chats could decrease. In general we don't want to make an extra db query to know if
-    /// a noticied chat is archived. Emitting events should be cheap, a false-positive `MsgsChanged`
+    /// a noticed chat is archived. Emitting events should be cheap, a false-positive `MsgsChanged`
     /// is ok.
     pub(crate) fn on_archived_chats_maybe_noticed(&self) {
         self.emit_msgs_changed(DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0));

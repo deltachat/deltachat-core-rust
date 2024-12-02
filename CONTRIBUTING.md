@@ -81,7 +81,7 @@ If you want to contribute a code, follow this guide.
    CI runs the tests and checks code formatting.
 
    While it is running, self-review your PR to make sure all the changes you expect are there
-   and there are no accidentally commited unrelated changes and files.
+   and there are no accidentally committed unrelated changes and files.
 
    Push the necessary fixup commits or force-push to your branch if needed.
 

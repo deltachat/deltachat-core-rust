@@ -47,7 +47,7 @@ pub(crate) async fn prune_connection_history(context: &Context) -> Result<()> {
     Ok(())
 }
 
-/// Update the timestamp of the last successfull connection
+/// Update the timestamp of the last successful connection
 /// to the given `host` and `port`
 /// with the given application protocol `alpn`.
 ///

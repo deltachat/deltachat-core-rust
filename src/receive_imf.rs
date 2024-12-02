@@ -1356,7 +1356,7 @@ async fn add_parts(
         // 1. They can't be an attack (they are outgoing, not incoming)
         // 2. Probably the unencryptedness is just a temporary state, after all
         //    the user obviously still uses DC
-        //    -> Showing info messages everytime would be a lot of noise
+        //    -> Showing info messages every time would be a lot of noise
         // 3. The info messages that are shown to the user ("Your chat partner
         //    likely reinstalled DC" or similar) would be wrong.
         if chat.is_protected() && (mime_parser.incoming || chat.typ != Chattype::Single) {
