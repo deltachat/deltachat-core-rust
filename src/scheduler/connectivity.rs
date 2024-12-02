@@ -14,12 +14,31 @@ use crate::{context::Context, log::LogExt};
 
 use super::InnerSchedulerState;
 
+/// Rough connectivity status for display in the status bar in the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
+    /// Not connected.
+    ///
+    /// This may be because we just started,
+    /// because we lost connection and
+    /// were not able to connect and log in yet
+    /// or because I/O is not started.
     NotConnected = 1000,
+
+    /// Attempting to connect and log in.
     Connecting = 2000,
-    /// Fetching or sending messages
+
+    /// Fetching or sending messages.
     Working = 3000,
+
+    /// We are connected but not doing anything.
+    ///
+    /// This is the most common state,
+    /// so mobile UIs display the profile name
+    /// instead of connectivity status in this state.
+    /// Desktop UI displays "Connected" in the tooltip,
+    /// which signals that no more messages
+    /// are coming in.
     Connected = 4000,
 }
 
@@ -32,13 +51,17 @@ enum DetailedConnectivity {
     Error(String),
     #[default]
     Uninitialized,
+
+    /// Attempting to connect,
+    /// until we successfully log in.
     Connecting,
 
-    /// Connection is just established, but there may be work to do.
-    Connected,
+    /// Connection is just established,
+    /// there may be work to do.
+    Preparing,
 
     /// There is actual work to do, e.g. there are messages in SMTP queue
-    /// or we detected a message that should be downloaded.
+    /// or we detected a message on IMAP server that should be downloaded.
     Working,
 
     InterruptingIdle,
@@ -58,7 +81,13 @@ impl DetailedConnectivity {
             DetailedConnectivity::Connecting => Some(Connectivity::Connecting),
             DetailedConnectivity::Working => Some(Connectivity::Working),
             DetailedConnectivity::InterruptingIdle => Some(Connectivity::Connected),
-            DetailedConnectivity::Connected => Some(Connectivity::Connected),
+
+            // At this point IMAP has just connected,
+            // but does not know yet if there are messages to download.
+            // We still convert this to Working state
+            // so user can see "Updating..." and not "Connected"
+            // which is reserved for idle state.
+            DetailedConnectivity::Preparing => Some(Connectivity::Working),
 
             // Just don't return a connectivity, probably the folder is configured not to be
             // watched or there is e.g. no "Sent" folder, so we are not interested in it
@@ -74,9 +103,9 @@ impl DetailedConnectivity {
             | DetailedConnectivity::Uninitialized
             | DetailedConnectivity::NotConfigured => "<span class=\"red dot\"></span>".to_string(),
             DetailedConnectivity::Connecting => "<span class=\"yellow dot\"></span>".to_string(),
-            DetailedConnectivity::Working
+            DetailedConnectivity::Preparing
+            | DetailedConnectivity::Working
             | DetailedConnectivity::InterruptingIdle
-            | DetailedConnectivity::Connected
             | DetailedConnectivity::Idle => "<span class=\"green dot\"></span>".to_string(),
         }
     }
@@ -86,10 +115,12 @@ impl DetailedConnectivity {
             DetailedConnectivity::Error(e) => stock_str::error(context, e).await,
             DetailedConnectivity::Uninitialized => "Not started".to_string(),
             DetailedConnectivity::Connecting => stock_str::connecting(context).await,
-            DetailedConnectivity::Working => stock_str::updating(context).await,
-            DetailedConnectivity::InterruptingIdle
-            | DetailedConnectivity::Connected
-            | DetailedConnectivity::Idle => stock_str::connected(context).await,
+            DetailedConnectivity::Preparing | DetailedConnectivity::Working => {
+                stock_str::updating(context).await
+            }
+            DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Idle => {
+                stock_str::connected(context).await
+            }
             DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
     }
@@ -107,7 +138,7 @@ impl DetailedConnectivity {
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
             DetailedConnectivity::InterruptingIdle
-            | DetailedConnectivity::Connected
+            | DetailedConnectivity::Preparing
             | DetailedConnectivity::Idle => stock_str::last_msg_sent_successfully(context).await,
             DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
@@ -120,7 +151,7 @@ impl DetailedConnectivity {
             DetailedConnectivity::Connecting => false,
             DetailedConnectivity::Working => false,
             DetailedConnectivity::InterruptingIdle => false,
-            DetailedConnectivity::Connected => false, // Just connected, there may still be work to do.
+            DetailedConnectivity::Preparing => false, // Just connected, there may still be work to do.
             DetailedConnectivity::NotConfigured => true,
             DetailedConnectivity::Idle => true,
         }
@@ -148,8 +179,8 @@ impl ConnectivityStore {
     pub(crate) async fn set_working(&self, context: &Context) {
         self.set(context, DetailedConnectivity::Working).await;
     }
-    pub(crate) async fn set_connected(&self, context: &Context) {
-        self.set(context, DetailedConnectivity::Connected).await;
+    pub(crate) async fn set_preparing(&self, context: &Context) {
+        self.set(context, DetailedConnectivity::Preparing).await;
     }
     pub(crate) async fn set_not_configured(&self, context: &Context) {
         self.set(context, DetailedConnectivity::NotConfigured).await;
@@ -169,7 +200,7 @@ impl ConnectivityStore {
     }
 }
 
-/// Set all folder states to InterruptingIdle in case they were `Connected` before.
+/// Set all folder states to InterruptingIdle in case they were `Idle` before.
 /// Called during `dc_maybe_network()` to make sure that `dc_all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
 pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<ConnectivityStore>) {
@@ -179,8 +210,7 @@ pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<Conne
     // returns Connected. But after dc_maybe_network(), dc_get_connectivity() must not
     // return Connected until DC is completely done with fetching folders; this also
     // includes scan_folders() which happens on the inbox thread.
-    if *connectivity_lock == DetailedConnectivity::Connected
-        || *connectivity_lock == DetailedConnectivity::Idle
+    if *connectivity_lock == DetailedConnectivity::Idle
         || *connectivity_lock == DetailedConnectivity::NotConfigured
     {
         *connectivity_lock = DetailedConnectivity::InterruptingIdle;
@@ -189,9 +219,7 @@ pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<Conne
 
     for state in oboxes {
         let mut connectivity_lock = state.0.lock().await;
-        if *connectivity_lock == DetailedConnectivity::Connected
-            || *connectivity_lock == DetailedConnectivity::Idle
-        {
+        if *connectivity_lock == DetailedConnectivity::Idle {
             *connectivity_lock = DetailedConnectivity::InterruptingIdle;
         }
     }

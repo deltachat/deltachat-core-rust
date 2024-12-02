@@ -1899,7 +1899,7 @@ def test_connectivity(acfactory, lp):
 
     ac1.start_io()
     ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_CONNECTING)
-    ac1._evtracker.wait_for_connectivity_change(dc.const.DC_CONNECTIVITY_CONNECTING, dc.const.DC_CONNECTIVITY_CONNECTED)
+    ac1._evtracker.wait_for_connectivity_change(dc.const.DC_CONNECTIVITY_CONNECTING, dc.const.DC_CONNECTIVITY_WORKING)
 
     lp.sec(
         "Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, "
