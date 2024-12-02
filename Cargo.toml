@@ -150,6 +150,7 @@ harness = false
 
 [[bench]]
 name = "receive_emails"
+required-features = ["internals"]
 harness = false
 
 [[bench]]
