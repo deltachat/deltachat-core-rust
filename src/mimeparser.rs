@@ -3653,9 +3653,10 @@ On 2020-10-25, Bob wrote:
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_large_plain() -> Result<()> {
         let t = TestContext::new_alice().await;
+        let t1 = TestContext::new_alice().await;
 
         static REPEAT_TXT: &str = "this text with 42 chars is just repeated.\n";
-        static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_DESIRED_TEXT_LEN
+        static REPEAT_CNT: usize = DC_DESIRED_TEXT_LEN / REPEAT_TXT.len() + 2;
         let long_txt = format!("From: alice@c.de\n\n{}", REPEAT_TXT.repeat(REPEAT_CNT));
         assert_eq!(long_txt.matches("just repeated").count(), REPEAT_CNT);
         assert!(long_txt.len() > DC_DESIRED_TEXT_LEN);
@@ -3676,22 +3677,21 @@ On 2020-10-25, Bob wrote:
             if draft {
                 chat.id.set_draft(&t, Some(&mut msg)).await?;
             }
-            t.send_msg(chat.id, &mut msg).await;
+            let sent_msg = t.send_msg(chat.id, &mut msg).await;
             let msg = t.get_last_msg_in(chat.id).await;
             assert!(msg.has_html());
-            assert_eq!(
-                msg.id
-                    .get_html(&t)
-                    .await?
-                    .unwrap()
-                    .matches("just repeated")
-                    .count(),
-                REPEAT_CNT
-            );
+            let html = msg.id.get_html(&t).await?.unwrap();
+            assert_eq!(html.matches("<!DOCTYPE html>").count(), 1);
+            assert_eq!(html.matches("just repeated.<br/>").count(), REPEAT_CNT);
             assert!(
-                msg.text.matches("just repeated").count() <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
+                msg.text.matches("just repeated.").count()
+                    <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
             );
             assert!(msg.text.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
+
+            let msg = t1.recv_msg(&sent_msg).await;
+            assert!(msg.has_html());
+            assert_eq!(msg.id.get_html(&t1).await?.unwrap(), html);
         }
 
         t.set_config(Config::Bot, Some("1")).await?;
