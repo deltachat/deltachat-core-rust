@@ -37,6 +37,7 @@ skip = [
      { name = "futures-lite", version = "1.13.0" },
      { name = "getrandom", version = "<0.2" },
      { name = "http", version = "0.2.12" },
+     { name = "idna", version = "0.5.0" },
      { name = "nix", version = "0.26.4" },
      { name = "num_enum_derive", version = "0.5.11" },
      { name = "num_enum", version = "0.5.11" },
@@ -81,6 +82,7 @@ allow = [
     "MIT",
     "MPL-2.0",
     "OpenSSL",
+    "Unicode-3.0",
     "Unicode-DFS-2016",
     "Zlib",
 ]
