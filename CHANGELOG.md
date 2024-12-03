@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.151.4] - 2024-12-03
+
+### Features / Changes
+
+- Encrypt notification tokens.
+
+### Fixes
+
+- Replace connectivity state "Connected" with "Preparing".
+
+### Miscellaneous Tasks
+
+- Beta clippy suggestions ([#6271](https://github.com/deltachat/deltachat-core-rust/pull/6271)).
+
+### Tests
+
+- Fix `cargo check` for `receive_emails` benchmark.
+
+### CI
+
+- Also run cargo check without all-features.
+
 ## [1.151.3] - 2024-12-02
 
 ### API-Changes
@@ -5405,3 +5427,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.0..v1.151.1
 [1.151.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.1..v1.151.2
 [1.151.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.2..v1.151.3
+[1.151.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.3..v1.151.4
