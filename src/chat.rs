@@ -2104,13 +2104,19 @@ impl Chat {
         } else {
             None
         };
+        let new_mime_headers = new_mime_headers.map(|s| new_html_mimepart(s).build().as_string());
         let new_mime_headers = new_mime_headers.or_else(|| match was_truncated {
-            true => Some(msg.text.clone()),
+            // We need to add some headers so that they are stripped before formatting HTML by
+            // `MsgId::get_html()`, not a part of the actual text. Let's add "Content-Type", it's
+            // anyway a useful metadata about the stored text.
+            true => Some(
+                "Content-Type: text/plain; charset=utf-8\r\n\r\n".to_string() + &msg.text + "\r\n",
+            ),
             false => None,
         });
         let new_mime_headers = match new_mime_headers {
             Some(h) => Some(tokio::task::block_in_place(move || {
-                buf_compress(new_html_mimepart(h).build().as_string().as_bytes())
+                buf_compress(h.as_bytes())
             })?),
             None => None,
         };
