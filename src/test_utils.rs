@@ -1359,7 +1359,7 @@ impl Drop for TimeShiftFalsePositiveNote {
         if std::thread::panicking() {
             let green = nu_ansi_term::Color::Green.normal();
             println!("{}", green.paint(
-            "\nNOTE: This test failure is probably a false-positive, caused by tests running in parallel.
+            "\nNOTE: This test failure may be a false-positive, caused by tests running in parallel.
 The issue is that `SystemTime::shift()` (a utility function for tests) changes the time for all threads doing tests, and not only for the running test.
 Until the false-positive is fixed:
 - Use `cargo test -- --test-threads 1` instead of `cargo test`
