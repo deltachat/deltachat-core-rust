@@ -671,9 +671,6 @@ class Account:
     def get_connectivity_html(self) -> str:
         return from_dc_charpointer(lib.dc_get_connectivity_html(self._dc_context))
 
-    def all_work_done(self):
-        return lib.dc_all_work_done(self._dc_context)
-
     def start_io(self):
         """start this account's IO scheduling (Rust-core async scheduler).
 

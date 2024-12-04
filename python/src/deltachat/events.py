@@ -158,12 +158,6 @@ class FFIEventTracker:
 
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
-    def wait_for_all_work_done(self):
-        while True:
-            if self.account.all_work_done():
-                return
-            self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
-
     def ensure_event_not_queued(self, event_name_regex):
         __tracebackhide__ = True
         rex = re.compile(f"(?:{event_name_regex}).*")

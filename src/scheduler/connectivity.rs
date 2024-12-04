@@ -80,7 +80,7 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => Some(Connectivity::NotConnected),
             DetailedConnectivity::Connecting => Some(Connectivity::Connecting),
             DetailedConnectivity::Working => Some(Connectivity::Working),
-            DetailedConnectivity::InterruptingIdle => Some(Connectivity::Connected),
+            DetailedConnectivity::InterruptingIdle => Some(Connectivity::Working),
 
             // At this point IMAP has just connected,
             // but does not know yet if there are messages to download.
@@ -201,7 +201,7 @@ impl ConnectivityStore {
 }
 
 /// Set all folder states to InterruptingIdle in case they were `Idle` before.
-/// Called during `dc_maybe_network()` to make sure that `dc_all_work_done()`
+/// Called during `dc_maybe_network()` to make sure that `all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
 pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<ConnectivityStore>) {
     let mut connectivity_lock = inbox.0.lock().await;
