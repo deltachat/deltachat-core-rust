@@ -414,16 +414,6 @@ pub unsafe extern "C" fn dc_get_push_state(context: *const dc_context_t) -> libc
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_all_work_done(context: *mut dc_context_t) -> libc::c_int {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_all_work_done()");
-        return 0;
-    }
-    let ctx = &*context;
-    block_on(async move { ctx.all_work_done().await as libc::c_int })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_get_oauth2_url(
     context: *mut dc_context_t,
     addr: *const libc::c_char,

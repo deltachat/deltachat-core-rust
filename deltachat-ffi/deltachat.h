@@ -722,12 +722,6 @@ char*           dc_get_connectivity_html     (dc_context_t* context);
 int              dc_get_push_state           (dc_context_t* context);
 
 
-/**
- * Only used by the python tests.
- */
-int             dc_all_work_done             (dc_context_t* context);
-
-
 // connect
 
 /**
