@@ -751,7 +751,7 @@ mod tests {
     use crate::imex::{imex, ImexMode};
     use crate::receive_imf::receive_imf;
     use crate::stock_str::{self, chat_protection_enabled};
-    use crate::test_utils::get_chat_msg;
+    use crate::test_utils::{get_chat_msg, TimeShiftFalsePositiveNote};
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::SystemTime;
     use std::collections::HashSet;
@@ -798,6 +798,8 @@ mod tests {
     }
 
     async fn test_setup_contact_ex(case: SetupContactCase) {
+        let _n = TimeShiftFalsePositiveNote;
+
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let alice_addr = &alice.get_config(Config::Addr).await.unwrap().unwrap();
