@@ -39,9 +39,6 @@ skip = [
      { name = "http", version = "0.2.12" },
      { name = "idna", version = "0.5.0" },
      { name = "nix", version = "0.26.4" },
-     { name = "num_enum_derive", version = "0.5.11" },
-     { name = "num_enum", version = "0.5.11" },
-     { name = "proc-macro-crate", version = "1.3.1" },
      { name = "quick-error", version = "<2.0" },
      { name = "rand_chacha", version = "<0.3" },
      { name = "rand_core", version = "<0.6" },
@@ -52,7 +49,6 @@ skip = [
      { name = "sync_wrapper", version = "0.1.2" },
      { name = "syn", version = "1.0.109" },
      { name = "time", version = "<0.3" },
-     { name = "toml_edit", version = "0.19.15" },
      { name = "wasi", version = "<0.11" },
      { name = "windows_aarch64_gnullvm", version = "<0.52" },
      { name = "windows_aarch64_msvc", version = "<0.52" },
@@ -65,7 +61,6 @@ skip = [
      { name = "windows_x86_64_gnullvm", version = "<0.52" },
      { name = "windows_x86_64_gnu", version = "<0.52" },
      { name = "windows_x86_64_msvc", version = "<0.52" },
-     { name = "winnow", version = "0.5.40" },
      { name = "winreg", version = "0.50.0" },
 ]
 
