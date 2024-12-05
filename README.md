@@ -161,7 +161,6 @@ $ cargo bolero test fuzz_format_flowed --release=false -e afl -s NONE
 ## Features
 
 - `vendored`: When using Openssl for TLS, this bundles a vendored version.
-- `nightly`: Enable nightly only performance and security related features.
 
 ## Update Provider Data
 
