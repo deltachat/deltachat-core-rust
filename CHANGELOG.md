@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.151.5] - 2024-12-05
+
+### API-Changes
+
+- [**breaking**] Remove dc_all_work_done().
+
+### Fixes
+
+- Store plaintext in mime_headers of truncated sent messages ([#6273](https://github.com/deltachat/deltachat-core-rust/pull/6273)).
+- cargo: Update rPGP to 0.14.2.
+
+### Documentation
+
+- Document `push` module.
+- Remove mention of non-existent `nightly` feature.
+
+### Tests
+
+- Fix panic in `receive_emails` benchmark ([#6306](https://github.com/deltachat/deltachat-core-rust/pull/6306)).
+
 ## [1.151.4] - 2024-12-03
 
 ### Features / Changes
@@ -5428,3 +5448,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.1..v1.151.2
 [1.151.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.2..v1.151.3
 [1.151.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.3..v1.151.4
+[1.151.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.4..v1.151.5
