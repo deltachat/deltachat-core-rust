@@ -26,15 +26,14 @@
 use anyhow::{anyhow, bail, Context as _, Result};
 use email::Header;
 use futures_lite::StreamExt;
+use iroh::key::{PublicKey, SecretKey};
+use iroh::{Endpoint, NodeAddr, NodeId, RelayMap, RelayMode, RelayUrl};
 use iroh_gossip::net::{Event, Gossip, GossipEvent, JoinOptions, GOSSIP_ALPN};
 use iroh_gossip::proto::TopicId;
-use iroh_net::key::{PublicKey, SecretKey};
-use iroh_net::relay::{RelayMap, RelayUrl};
-use iroh_net::{relay::RelayMode, Endpoint};
-use iroh_net::{NodeAddr, NodeId};
 use parking_lot::Mutex;
 use std::collections::{BTreeSet, HashMap};
 use std::env;
+use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use url::Url;
@@ -54,11 +53,11 @@ const PUBLIC_KEY_STUB: &[u8] = "static_string".as_bytes();
 /// Store iroh peer channels for the context.
 #[derive(Debug)]
 pub struct Iroh {
-    /// [Endpoint] needed for iroh peer channels.
-    pub(crate) endpoint: Endpoint,
+    /// iroh router  needed for iroh peer channels.
+    pub(crate) router: iroh::protocol::Router,
 
     /// [Gossip] needed for iroh peer channels.
-    pub(crate) gossip: Gossip,
+    pub(crate) gossip: Arc<Gossip>,
 
     /// Sequence numbers for gossip channels.
     pub(crate) sequence_numbers: Mutex<HashMap<TopicId, i32>>,
@@ -75,15 +74,12 @@ pub struct Iroh {
 impl Iroh {
     /// Notify the endpoint that the network has changed.
     pub(crate) async fn network_change(&self) {
-        self.endpoint.network_change().await
+        self.router.endpoint().network_change().await
     }
 
     /// Closes the QUIC endpoint.
     pub(crate) async fn close(self) -> Result<()> {
-        self.endpoint
-            .close(0u32.into(), b"")
-            .await
-            .context("Closing iroh endpoint failed")
+        self.router.shutdown().await.context("Closing iroh failed")
     }
 
     /// Join a topic and create the subscriber loop for it.
@@ -121,7 +117,7 @@ impl Iroh {
         // Inform iroh of potentially new node addresses
         for node_addr in &peers {
             if !node_addr.info.is_empty() {
-                self.endpoint.add_node_addr(node_addr.clone())?;
+                self.router.endpoint().add_node_addr(node_addr.clone())?;
             }
         }
 
@@ -148,7 +144,7 @@ impl Iroh {
     pub async fn maybe_add_gossip_peers(&self, topic: TopicId, peers: Vec<NodeAddr>) -> Result<()> {
         if self.iroh_channels.read().await.get(&topic).is_some() {
             for peer in &peers {
-                self.endpoint.add_node_addr(peer.clone())?;
+                self.router.endpoint().add_node_addr(peer.clone())?;
             }
 
             self.gossip.join_with_opts(
@@ -198,7 +194,7 @@ impl Iroh {
 
     /// Get the iroh [NodeAddr] without direct IP addresses.
     pub(crate) async fn get_node_addr(&self) -> Result<NodeAddr> {
-        let mut addr = self.endpoint.node_addr().await?;
+        let mut addr = self.router.endpoint().node_addr().await?;
         addr.info.direct_addresses = BTreeSet::new();
         Ok(addr)
     }
@@ -275,16 +271,19 @@ impl Context {
             max_message_size: 128 * 1024,
             ..Default::default()
         };
-        let gossip = Gossip::from_endpoint(endpoint.clone(), gossip_config, &my_addr.info);
+        let gossip = Arc::new(Gossip::from_endpoint(
+            endpoint.clone(),
+            gossip_config,
+            &my_addr.info,
+        ));
 
-        // spawn endpoint loop that forwards incoming connections to the gossiper
-        let context = self.clone();
-
-        // Shuts down on deltachat shutdown
-        tokio::spawn(endpoint_loop(context, endpoint.clone(), gossip.clone()));
+        let router = iroh::protocol::Router::builder(endpoint)
+            .accept(GOSSIP_ALPN, gossip.clone())
+            .spawn()
+            .await?;
 
         Ok(Iroh {
-            endpoint,
+            router,
             gossip,
             sequence_numbers: Mutex::new(HashMap::new()),
             iroh_channels: RwLock::new(HashMap::new()),
@@ -507,52 +506,11 @@ fn create_random_topic() -> TopicId {
 pub(crate) async fn create_iroh_header(ctx: &Context, msg_id: MsgId) -> Result<Header> {
     let topic = create_random_topic();
     insert_topic_stub(ctx, msg_id, topic).await?;
+    let topic_string = iroh_base::base32::fmt(topic.as_bytes());
     Ok(Header::new(
         HeaderDef::IrohGossipTopic.get_headername().to_string(),
-        topic.to_string(),
+        topic_string,
     ))
-}
-
-async fn endpoint_loop(context: Context, endpoint: Endpoint, gossip: Gossip) {
-    while let Some(conn) = endpoint.accept().await {
-        let conn = match conn.accept() {
-            Ok(conn) => conn,
-            Err(err) => {
-                warn!(context, "Failed to accept iroh connection: {err:#}.");
-                continue;
-            }
-        };
-        info!(context, "IROH_REALTIME: accepting iroh connection");
-        let gossip = gossip.clone();
-        let context = context.clone();
-        tokio::spawn(async move {
-            if let Err(err) = handle_connection(&context, conn, gossip).await {
-                warn!(context, "IROH_REALTIME: iroh connection error: {err}");
-            }
-        });
-    }
-}
-
-async fn handle_connection(
-    context: &Context,
-    mut conn: iroh_net::endpoint::Connecting,
-    gossip: Gossip,
-) -> anyhow::Result<()> {
-    let alpn = conn.alpn().await?;
-    let conn = conn.await?;
-    let peer_id = iroh_net::endpoint::get_remote_node_id(&conn)?;
-
-    match alpn.as_slice() {
-        GOSSIP_ALPN => gossip
-            .handle_connection(conn)
-            .await
-            .context(format!("Gossip connection to {peer_id} failed"))?,
-        _ => warn!(
-            context,
-            "Ignoring connection from {peer_id}: unsupported ALPN protocol"
-        ),
-    }
-    Ok(())
 }
 
 async fn subscribe_loop(
@@ -971,6 +929,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parallel_connect() {
+        eprintln!("START-----");
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;
