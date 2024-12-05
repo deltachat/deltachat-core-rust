@@ -1,3 +1,11 @@
+//! # Push notifications module.
+//!
+//! This module is responsible for Apple Push Notification Service
+//! and Firebase Cloud Messaging push notifications.
+//!
+//! It provides [`PushSubscriber`] type
+//! which holds push notification token for the device,
+//! shared by all accounts.
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
