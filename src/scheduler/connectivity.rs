@@ -535,7 +535,7 @@ impl Context {
     }
 
     /// Returns true if all background work is done.
-    pub async fn all_work_done(&self) -> bool {
+    async fn all_work_done(&self) -> bool {
         let lock = self.scheduler.inner.read().await;
         let stores: Vec<_> = match *lock {
             InnerSchedulerState::Started(ref sched) => sched
@@ -554,5 +554,24 @@ impl Context {
             }
         }
         true
+    }
+
+    /// Waits until background work is finished.
+    pub async fn wait_for_all_work_done(&self) {
+        // Ideally we could wait for connectivity change events,
+        // but sleep loop is good enough.
+
+        // First 100 ms sleep in chunks of 10 ms.
+        for _ in 0..10 {
+            if self.all_work_done().await {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        // If we are not finished in 100 ms, keep waking up every 100 ms.
+        while !self.all_work_done().await {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
     }
 }
