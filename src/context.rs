@@ -553,23 +553,7 @@ impl Context {
 
         if self.scheduler.is_running().await {
             self.scheduler.maybe_network().await;
-
-            // Wait until fetching is finished.
-            // Ideally we could wait for connectivity change events,
-            // but sleep loop is good enough.
-
-            // First 100 ms sleep in chunks of 10 ms.
-            for _ in 0..10 {
-                if self.all_work_done().await {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-
-            // If we are not finished in 100 ms, keep waking up every 100 ms.
-            while !self.all_work_done().await {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            }
+            self.wait_for_all_work_done().await;
         } else {
             // Pause the scheduler to ensure another connection does not start
             // while we are fetching on a dedicated connection.
