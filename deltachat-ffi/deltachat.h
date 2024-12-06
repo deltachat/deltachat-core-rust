@@ -6911,7 +6911,7 @@ void dc_event_unref(dc_event_t* event);
 
 /// "Failed to send message to %1$s."
 ///
-/// Used in status messages.
+/// Unused. Was used in group chat status messages.
 /// - %1$s will be replaced by the name of the contact the message cannot be sent to
 #define DC_STR_FAILED_SENDING_TO          74
 
