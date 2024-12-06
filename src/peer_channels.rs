@@ -563,6 +563,8 @@ async fn subscribe_loop(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::{
         chat::send_msg,
@@ -741,6 +743,13 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_can_reconnect() {
+        tokio::time::timeout(Duration::from_secs(20), test_can_reconnect_impl())
+            .await
+            .unwrap();
+    }
+
+    async fn test_can_reconnect_impl() {
+        tracing_subscriber::fmt::init();
         let mut tcm = TestContextManager::new();
         let alice = &mut tcm.alice().await;
         let bob = &mut tcm.bob().await;

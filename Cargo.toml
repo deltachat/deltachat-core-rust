@@ -123,6 +123,7 @@ proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = { workspace = true }
 testdir = "0.9.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing-subscriber.workspace = true
 
 [workspace]
 members = [
