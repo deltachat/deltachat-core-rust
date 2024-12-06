@@ -4730,7 +4730,7 @@ mod tests {
     use crate::headerdef::HeaderDef;
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::{sync, TestContext, TestContextManager};
+    use crate::test_utils::{sync, TestContext, TestContextManager, TimeShiftFalsePositiveNote};
     use strum::IntoEnumIterator;
     use tokio::fs;
 
@@ -5274,6 +5274,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_modify_chat_disordered() -> Result<()> {
+        let _n = TimeShiftFalsePositiveNote;
+
         // Alice creates a group with Bob, Claire and Daisy and then removes Claire and Daisy
         // (sleep() is needed as otherwise smeared time from Alice looks to Bob like messages from the future which are all set to "now" then)
         let alice = TestContext::new_alice().await;

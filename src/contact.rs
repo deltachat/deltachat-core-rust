@@ -1984,7 +1984,7 @@ mod tests {
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
     use crate::chatlist::Chatlist;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::{self, TestContext, TestContextManager};
+    use crate::test_utils::{self, TestContext, TestContextManager, TimeShiftFalsePositiveNote};
 
     #[test]
     fn test_contact_id_values() {
@@ -2915,6 +2915,8 @@ Hi."#;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_was_seen_recently() -> Result<()> {
+        let _n = TimeShiftFalsePositiveNote;
+
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
@@ -2930,18 +2932,7 @@ Hi."#;
         bob.recv_msg(&sent_msg).await;
         let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
 
-        let green = nu_ansi_term::Color::Green.normal();
-        assert!(
-            contact.was_seen_recently(),
-            "{}",
-            green.paint(
-                "\nNOTE: This test failure is probably a false-positive, caused by tests running in parallel.
-The issue is that `SystemTime::shift()` (a utility function for tests) changes the time for all threads doing tests, and not only for the running test.
-Until the false-positive is fixed:
-- Use `cargo test -- --test-threads 1` instead of `cargo test`
-- Or use `cargo nextest run` (install with `cargo install cargo-nextest --locked`)\n"
-            )
-        );
+        assert!(contact.was_seen_recently());
 
         let self_contact = Contact::get_by_id(&bob, ContactId::SELF).await?;
         assert!(!self_contact.was_seen_recently());

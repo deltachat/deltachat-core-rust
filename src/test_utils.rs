@@ -1351,6 +1351,24 @@ async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut Str
     .unwrap();
 }
 
+/// When dropped after a test failure,
+/// prints a note about a possible false-possible caused by SystemTime::shift().
+pub(crate) struct TimeShiftFalsePositiveNote;
+impl Drop for TimeShiftFalsePositiveNote {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let green = nu_ansi_term::Color::Green.normal();
+            println!("{}", green.paint(
+            "\nNOTE: This test failure may be a false-positive, caused by tests running in parallel.
+The issue is that `SystemTime::shift()` (a utility function for tests) changes the time for all threads doing tests, and not only for the running test.
+Until the false-positive is fixed:
+- Use `cargo test -- --test-threads 1` instead of `cargo test`
+- Or use `cargo nextest run` (install with `cargo install cargo-nextest --locked`)\n")
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
