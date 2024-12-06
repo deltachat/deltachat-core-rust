@@ -868,18 +868,10 @@ async fn test_parse_ndn_group_msg() -> Result<()> {
     assert_eq!(msg.state, MessageState::OutFailed);
 
     let msgs = chat::get_chat_msgs(&t, msg.chat_id).await?;
-    let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
-        msg_id
-    } else {
+    let ChatItem::Message { msg_id } = *msgs.last().unwrap() else {
         panic!("Wrong item type");
     };
-    let last_msg = Message::load_from_db(&t, *msg_id).await?;
-
-    assert_eq!(
-        last_msg.text,
-        stock_str::failed_sending_to(&t, "assidhfaaspocwaeofi@gmail.com").await
-    );
-    assert_eq!(last_msg.from_id, ContactId::INFO);
+    assert_eq!(msg_id, msg.id);
     Ok(())
 }
 
