@@ -149,6 +149,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Message from %1$s"))]
     SubjectForNewContact = 73,
 
+    /// Unused. Was used in group chat status messages.
     #[strum(props(fallback = "Failed to send message to %1$s."))]
     FailedSendingTo = 74,
 
@@ -978,13 +979,6 @@ pub(crate) async fn subject_for_new_contact(context: &Context, self_name: &str) 
     translated(context, StockMessage::SubjectForNewContact)
         .await
         .replace1(self_name)
-}
-
-/// Stock string: `Failed to send message to %1$s.`.
-pub(crate) async fn failed_sending_to(context: &Context, name: &str) -> String {
-    translated(context, StockMessage::FailedSendingTo)
-        .await
-        .replace1(name)
 }
 
 /// Stock string: `Message deletion timer is disabled.`.
