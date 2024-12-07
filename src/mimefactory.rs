@@ -1516,7 +1516,7 @@ async fn build_body_file(
 ) -> Result<(PartBuilder, String)> {
     let blob = msg
         .param
-        .get_blob(Param::File, context, true)
+        .get_blob(Param::File, context)
         .await?
         .context("msg has no file")?;
     let suffix = blob.suffix().unwrap_or("dat");
@@ -2077,7 +2077,7 @@ mod tests {
 
         let mut new_msg = Message::new_text("Hi".to_string());
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t, chat_id, &mut new_msg).await.unwrap();
+        chat::send_msg(&t, chat_id, &mut new_msg).await.unwrap();
 
         let mf = MimeFactory::from_msg(&t, new_msg).await.unwrap();
 
@@ -2184,7 +2184,7 @@ mod tests {
 
         let mut new_msg = Message::new_text("Hi".to_string());
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(context, chat_id, &mut new_msg)
+        chat::send_msg(context, chat_id, &mut new_msg)
             .await
             .unwrap();
 

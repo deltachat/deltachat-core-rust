@@ -964,54 +964,6 @@ uint32_t        dc_get_chat_id_by_contact_id (dc_context_t* context, uint32_t co
 
 
 /**
- * Prepare a message for sending.
- *
- * Call this function if the file to be sent is still in creation.
- * Once you're done with creating the file, call dc_send_msg() as usual
- * and the message will really be sent.
- *
- * This is useful as the user can already send the next messages while
- * e.g. the recoding of a video is not yet finished. Or the user can even forward
- * the message with the file being still in creation to other groups.
- *
- * Files being sent with the increation-method must be placed in the
- * blob directory, see dc_get_blobdir().
- * If the increation-method is not used - which is probably the normal case -
- * dc_send_msg() copies the file to the blob directory if it is not yet there.
- * To distinguish the two cases, msg->state must be set properly. The easiest
- * way to ensure this is to reuse the same object for both calls.
- *
- * Example:
- * ~~~
- * char* blobdir = dc_get_blobdir(context);
- * char* file_to_send = mprintf("%s/%s", blobdir, "send.mp4")
- *
- * dc_msg_t* msg = dc_msg_new(context, DC_MSG_VIDEO);
- * dc_msg_set_file(msg, file_to_send, NULL);
- * dc_prepare_msg(context, chat_id, msg);
- *
- * // ... create the file ...
- *
- * dc_send_msg(context, chat_id, msg);
- *
- * dc_msg_unref(msg);
- * free(file_to_send);
- * dc_str_unref(file_to_send);
- * ~~~
- *
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @param chat_id The chat ID to send the message to.
- * @param msg The message object to send to the chat defined by the chat ID.
- *     On success, msg_id and state of the object are set up,
- *     The function does not take ownership of the object,
- *     so you have to free it using dc_msg_unref() as usual.
- * @return The ID of the message that is being prepared.
- */
-uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t chat_id, dc_msg_t* msg);
-
-
-/**
  * Send a message defined by a dc_msg_t object to a chat.
  *
  * Sends the event #DC_EVENT_MSGS_CHANGED on success.
@@ -1035,13 +987,11 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  * If that fails, is not possible, or the image is already small enough, the image is sent as original.
  * If you want images to be always sent as the original file, use the #DC_MSG_FILE type.
  *
- * Videos and other file types are currently not recoded by the library,
- * with dc_prepare_msg(), however, you can do that from the UI.
+ * Videos and other file types are currently not recoded by the library.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param chat_id The chat ID to send the message to.
- *     If dc_prepare_msg() was called before, this parameter can be 0.
  * @param msg The message object to send to the chat defined by the chat ID.
  *     On success, msg_id of the object is set up,
  *     The function does not take ownership of the object,
@@ -1058,7 +1008,6 @@ uint32_t        dc_send_msg                  (dc_context_t* context, uint32_t ch
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param chat_id The chat ID to send the message to.
- *     If dc_prepare_msg() was called before, this parameter can be 0.
  * @param msg The message object to send to the chat defined by the chat ID.
  *     On success, msg_id of the object is set up,
  *     The function does not take ownership of the object,
@@ -3985,7 +3934,7 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  *
  * Outgoing message states:
  * - @ref DC_STATE_OUT_PREPARING - For files which need time to be prepared before they can be sent,
- *   the message enters this state before @ref DC_STATE_OUT_PENDING.
+ *   the message enters this state before @ref DC_STATE_OUT_PENDING. Deprecated.
  * - @ref DC_STATE_OUT_DRAFT - Message saved as draft using dc_set_draft()
  * - @ref DC_STATE_OUT_PENDING - The user has pressed the "send" button but the
  *   message is not yet sent and is pending in some way. Maybe we're offline (no checkmark).
@@ -4534,20 +4483,6 @@ int             dc_msg_get_info_type          (const dc_msg_t* msg);
  *     Returns NULL if there is no link attached to the info message and on errors.
  */
 char*           dc_msg_get_webxdc_href        (const dc_msg_t* msg);
-
-/**
- * Check if a message is still in creation. A message is in creation between
- * the calls to dc_prepare_msg() and dc_send_msg().
- *
- * Typically, this is used for videos that are recoded by the UI before
- * they can be sent.
- *
- * @memberof dc_msg_t
- * @param msg The message object.
- * @return 1=message is still in creation (dc_send_msg() was not called yet),
- *     0=message no longer in creation.
- */
-int             dc_msg_is_increation          (const dc_msg_t* msg);
 
 
 /**
@@ -5562,6 +5497,8 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Outgoing message being prepared. See dc_msg_get_state() for details.
+ *
+ * @deprecated 2024-12-07
  */
 #define         DC_STATE_OUT_PREPARING       18
 
