@@ -864,7 +864,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
 
                     if p == blobdir
                         && (is_file_in_use(&files_in_use, None, &name_s)
-                            || is_file_in_use(&files_in_use, Some(".increation"), &name_s)
                             || is_file_in_use(&files_in_use, Some(".waveform"), &name_s)
                             || is_file_in_use(&files_in_use, Some("-preview.jpg"), &name_s))
                     {

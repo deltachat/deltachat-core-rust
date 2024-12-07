@@ -2374,17 +2374,6 @@ NAPI_METHOD(dcn_msg_is_forwarded) {
   NAPI_RETURN_INT32(is_forwarded);
 }
 
-NAPI_METHOD(dcn_msg_is_increation) {
-  NAPI_ARGV(1);
-  NAPI_DC_MSG();
-
-  //TRACE("calling..");
-  int is_increation = dc_msg_is_increation(dc_msg);
-  //TRACE("result %d", is_increation);
-
-  NAPI_RETURN_INT32(is_increation);
-}
-
 NAPI_METHOD(dcn_msg_is_info) {
   NAPI_ARGV(1);
   NAPI_DC_MSG();
@@ -3555,7 +3544,6 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(dcn_msg_has_location);
   NAPI_EXPORT_FUNCTION(dcn_msg_has_html);
   NAPI_EXPORT_FUNCTION(dcn_msg_is_forwarded);
-  NAPI_EXPORT_FUNCTION(dcn_msg_is_increation);
   NAPI_EXPORT_FUNCTION(dcn_msg_is_info);
   NAPI_EXPORT_FUNCTION(dcn_msg_is_sent);
   NAPI_EXPORT_FUNCTION(dcn_msg_is_setupmessage);

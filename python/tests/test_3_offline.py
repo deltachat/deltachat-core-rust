@@ -378,30 +378,6 @@ class TestOfflineChat:
         with pytest.raises(ValueError):
             chat1.send_text("msg1")
 
-    def test_prepare_message_and_send(self, ac1, chat1):
-        msg = chat1.prepare_message(Message.new_empty(chat1.account, "text"))
-        msg.set_text("hello world")
-        assert msg.text == "hello world"
-        assert msg.id > 0
-        chat1.send_prepared(msg)
-        assert "Sent" in msg.get_message_info()
-        str(msg)
-        repr(msg)
-        assert msg == ac1.get_message_by_id(msg.id)
-
-    def test_prepare_file(self, ac1, chat1):
-        blobdir = ac1.get_blobdir()
-        p = os.path.join(blobdir, "somedata.txt")
-        with open(p, "w") as f:
-            f.write("some data")
-        message = chat1.prepare_message_file(p)
-        assert message.id > 0
-        message.set_text("hello world")
-        assert message.is_out_preparing()
-        assert message.text == "hello world"
-        chat1.send_prepared(message)
-        assert "Sent" in message.get_message_info()
-
     def test_message_eq_contains(self, chat1):
         msg = chat1.send_text("msg1")
         msg2 = None
@@ -691,8 +667,7 @@ class TestOfflineChat:
         assert os.path.exists(messages[1].filename)
 
     def test_set_get_draft(self, chat1):
-        msg = Message.new_empty(chat1.account, "text")
-        msg1 = chat1.prepare_message(msg)
+        msg1 = Message.new_empty(chat1.account, "text")
         msg1.set_text("hello")
         chat1.set_draft(msg1)
         msg1.set_text("obsolete")
@@ -710,21 +685,6 @@ class TestOfflineChat:
         assert res.is_ask_verifycontact()
         assert not res.is_ask_verifygroup()
         assert res.contact_id == 10
-
-    def test_quote(self, chat1):
-        """Offline quoting test"""
-        msg = Message.new_empty(chat1.account, "text")
-        msg.set_text("Multi\nline\nmessage")
-        assert msg.quoted_text is None
-
-        # Prepare message to assign it a Message-Id.
-        # Messages without Message-Id cannot be quoted.
-        msg = chat1.prepare_message(msg)
-
-        reply_msg = Message.new_empty(chat1.account, "text")
-        reply_msg.set_text("reply")
-        reply_msg.quote = msg
-        assert reply_msg.quoted_text == "Multi\nline\nmessage"
 
     def test_group_chat_many_members_add_remove(self, ac1, lp):
         lp.sec("ac1: creating group chat with 10 other members")

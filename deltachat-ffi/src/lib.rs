@@ -977,27 +977,6 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_prepare_msg(
-    context: *mut dc_context_t,
-    chat_id: u32,
-    msg: *mut dc_msg_t,
-) -> u32 {
-    if context.is_null() || chat_id == 0 || msg.is_null() {
-        eprintln!("ignoring careless call to dc_prepare_msg()");
-        return 0;
-    }
-    let ctx = &mut *context;
-    let ffi_msg: &mut MessageWrapper = &mut *msg;
-
-    block_on(async move {
-        chat::prepare_msg(ctx, ChatId::new(chat_id), &mut ffi_msg.message)
-            .await
-            .unwrap_or_log_default(ctx, "Failed to prepare message")
-    })
-    .to_u32()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_send_msg(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -3711,16 +3690,6 @@ pub unsafe extern "C" fn dc_msg_get_webxdc_href(msg: *mut dc_msg_t) -> *mut libc
 
     let ffi_msg = &*msg;
     ffi_msg.message.get_webxdc_href().strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int {
-    if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_is_increation()");
-        return 0;
-    }
-    let ffi_msg = &*msg;
-    ffi_msg.message.is_increation().into()
 }
 
 #[no_mangle]
