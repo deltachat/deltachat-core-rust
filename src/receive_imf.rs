@@ -2216,9 +2216,7 @@ async fn apply_group_changes(
             if let Some(contact_id) =
                 Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
             {
-                if !recreate_member_list {
-                    added_id = Some(contact_id);
-                }
+                added_id = Some(contact_id);
                 is_new_member = !chat_contacts.contains(&contact_id);
             } else {
                 warn!(context, "Added {added_addr:?} has no contact id.");
@@ -2286,12 +2284,16 @@ async fn apply_group_changes(
             new_members.insert(from_id);
         }
 
+        // These are for adding info messages about implicit membership changes, so they are only
+        // filled when such messages are needed.
+        let mut added_ids = HashSet::<ContactId>::new();
+        let mut removed_ids = HashSet::<ContactId>::new();
+
         if !recreate_member_list {
-            let mut diff = HashSet::<ContactId>::new();
             if sync_member_list {
-                diff = new_members.difference(&chat_contacts).copied().collect();
+                added_ids = new_members.difference(&chat_contacts).copied().collect();
             } else if let Some(added_id) = added_id {
-                diff.insert(added_id);
+                added_ids.insert(added_id);
             }
             new_members.clone_from(&chat_contacts);
             // Don't delete any members locally, but instead add absent ones to provide group
@@ -2305,36 +2307,15 @@ async fn apply_group_changes(
             // will likely recreate the member list from the next received message. The problem
             // occurs only if that "somebody" managed to reply earlier. Really, it's a problem for
             // big groups with high message rate, but let it be for now.
-            new_members.extend(diff.clone());
-            if let Some(added_id) = added_id {
-                diff.remove(&added_id);
-            }
-            if !diff.is_empty() {
-                warn!(context, "Implicit addition of {diff:?} to chat {chat_id}.");
-            }
-            group_changes_msgs.reserve(diff.len());
-            for contact_id in diff {
-                let contact = Contact::get_by_id(context, contact_id).await?;
-                group_changes_msgs.push(
-                    stock_str::msg_add_member_local(
-                        context,
-                        contact.get_addr(),
-                        ContactId::UNDEFINED,
-                    )
-                    .await,
-                );
-            }
+            new_members.extend(added_ids.clone());
         }
         if let Some(removed_id) = removed_id {
             new_members.remove(&removed_id);
         }
         if recreate_member_list {
-            info!(
-                context,
-                "Recreating chat {chat_id} member list with {new_members:?}.",
-            );
-            if !self_added
-                && (chat.blocked == Blocked::Request || !chat_contacts.contains(&ContactId::SELF))
+            if self_added {
+                // ... then `better_msg` is already set.
+            } else if chat.blocked == Blocked::Request || !chat_contacts.contains(&ContactId::SELF)
             {
                 warn!(context, "Implicit addition of SELF to chat {chat_id}.");
                 group_changes_msgs.push(
@@ -2345,7 +2326,44 @@ async fn apply_group_changes(
                     )
                     .await,
                 );
+            } else {
+                added_ids = new_members.difference(&chat_contacts).copied().collect();
+                removed_ids = chat_contacts.difference(&new_members).copied().collect();
             }
+        }
+
+        if let Some(added_id) = added_id {
+            added_ids.remove(&added_id);
+        }
+        if let Some(removed_id) = removed_id {
+            removed_ids.remove(&removed_id);
+        }
+        if !added_ids.is_empty() {
+            warn!(
+                context,
+                "Implicit addition of {added_ids:?} to chat {chat_id}."
+            );
+        }
+        if !removed_ids.is_empty() {
+            warn!(
+                context,
+                "Implicit removal of {removed_ids:?} from chat {chat_id}."
+            );
+        }
+        group_changes_msgs.reserve(added_ids.len() + removed_ids.len());
+        for contact_id in added_ids {
+            let contact = Contact::get_by_id(context, contact_id).await?;
+            group_changes_msgs.push(
+                stock_str::msg_add_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
+                    .await,
+            );
+        }
+        for contact_id in removed_ids {
+            let contact = Contact::get_by_id(context, contact_id).await?;
+            group_changes_msgs.push(
+                stock_str::msg_del_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
+                    .await,
+            );
         }
 
         if new_members != chat_contacts {
