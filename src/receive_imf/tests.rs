@@ -4137,7 +4137,7 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_recreate_contact_list_on_missing_message() -> Result<()> {
+async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
     let alice = TestContext::new_alice().await;
     let bob = TestContext::new_bob().await;
     let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
@@ -4162,25 +4162,33 @@ async fn test_recreate_contact_list_on_missing_message() -> Result<()> {
     remove_contact_from_chat(&bob, bob_chat_id, bob_contact_fiona).await?;
     let remove_msg = bob.pop_sent_msg().await;
 
-    // bob adds a new member
+    // bob adds new members
     let bob_blue = Contact::create(&bob, "blue", "blue@example.net").await?;
     add_contact_to_chat(&bob, bob_chat_id, bob_blue).await?;
-
+    bob.pop_sent_msg().await;
+    let bob_orange = Contact::create(&bob, "orange", "orange@example.net").await?;
+    add_contact_to_chat(&bob, bob_chat_id, bob_orange).await?;
     let add_msg = bob.pop_sent_msg().await;
 
-    // alice only receives the addition of the member
+    // alice only receives the second member addition
     alice.recv_msg(&add_msg).await;
 
-    // since we missed a message, a new contact list should be build
-    assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 3);
+    // since we missed messages, a new contact list should be build
+    assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 4);
 
     // re-add fiona
     add_contact_to_chat(&alice, chat_id, alice_fiona).await?;
 
     // delayed removal of fiona shouldn't remove her
     alice.recv_msg_trash(&remove_msg).await;
-    assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 4);
+    assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 5);
 
+    alice
+        .golden_test_chat(
+            chat_id,
+            "receive_imf_recreate_contact_list_on_missing_messages",
+        )
+        .await;
     Ok(())
 }
 
