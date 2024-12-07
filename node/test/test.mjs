@@ -536,7 +536,6 @@ describe('Offline Tests with unconfigured account', function () {
     strictEqual(msg.getWidth(), 0, 'no message width')
     strictEqual(msg.isDeadDrop(), false, 'not deaddrop')
     strictEqual(msg.isForwarded(), false, 'not forwarded')
-    strictEqual(msg.isIncreation(), false, 'not in creation')
     strictEqual(msg.isInfo(), false, 'not an info message')
     strictEqual(msg.isSent(), false, 'messge is not sent')
     strictEqual(msg.isSetupmessage(), false, 'not an autocrypt setup message')

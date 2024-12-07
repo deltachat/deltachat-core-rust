@@ -888,7 +888,7 @@ impl ChatId {
             _ => {
                 let blob = msg
                     .param
-                    .get_blob(Param::File, context, !msg.is_increation())
+                    .get_blob(Param::File, context)
                     .await?
                     .context("no file stored in params")?;
                 msg.param.set(Param::File, blob.as_name());
@@ -2677,26 +2677,13 @@ impl ChatIdBlocked {
     }
 }
 
-/// Prepares a message for sending.
-pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    ensure!(
-        !chat_id.is_special(),
-        "Cannot prepare message for special chat"
-    );
-
-    let msg_id = prepare_msg_common(context, chat_id, msg, MessageState::OutPreparing).await?;
-    context.emit_msgs_changed(msg.chat_id, msg.id);
-
-    Ok(msg_id)
-}
-
 async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msg.viewtype.has_file() {
         let mut blob = msg
             .param
-            .get_blob(Param::File, context, !msg.is_increation())
+            .get_blob(Param::File, context)
             .await?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
         let send_as_is = msg.viewtype == Viewtype::File;
@@ -2769,75 +2756,6 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
         bail!("Cannot send messages of type #{}.", msg.viewtype);
     }
     Ok(())
-}
-
-/// Prepares a message to be sent out.
-async fn prepare_msg_common(
-    context: &Context,
-    chat_id: ChatId,
-    msg: &mut Message,
-    change_state_to: MessageState,
-) -> Result<MsgId> {
-    let mut chat = Chat::load_from_db(context, chat_id).await?;
-
-    // Check if the chat can be sent to.
-    if let Some(reason) = chat.why_cant_send(context).await? {
-        if matches!(
-            reason,
-            CantSendReason::ProtectionBroken
-                | CantSendReason::ContactRequest
-                | CantSendReason::SecurejoinWait
-        ) && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
-        {
-            // Send out the message, the securejoin message is supposed to repair the verification.
-            // If the chat is a contact request, let the user accept it later.
-        } else {
-            bail!("cannot send to {chat_id}: {reason}");
-        }
-    }
-
-    // Check a quote reply is not leaking data from other chats.
-    // This is meant as a last line of defence, the UI should check that before as well.
-    // (We allow Chattype::Single in general for "Reply Privately";
-    // checking for exact contact_id will produce false positives when ppl just left the group)
-    if chat.typ != Chattype::Single && !context.get_config_bool(Config::Bot).await? {
-        if let Some(quoted_message) = msg.quoted_message(context).await? {
-            if quoted_message.chat_id != chat_id {
-                bail!("Bad quote reply");
-            }
-        }
-    }
-
-    // check current MessageState for drafts (to keep msg_id) ...
-    let update_msg_id = if msg.state == MessageState::OutDraft {
-        msg.hidden = false;
-        if !msg.id.is_special() && msg.chat_id == chat_id {
-            Some(msg.id)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    // ... then change the MessageState in the message object
-    msg.state = change_state_to;
-
-    prepare_msg_blob(context, msg).await?;
-    if !msg.hidden {
-        chat_id.unarchive_if_not_muted(context, msg.state).await?;
-    }
-    msg.id = chat
-        .prepare_msg_raw(
-            context,
-            msg,
-            update_msg_id,
-            create_smeared_timestamp(context),
-        )
-        .await?;
-    msg.chat_id = chat_id;
-
-    Ok(msg.id)
 }
 
 /// Returns whether a contact is in a chat or not.
@@ -2935,27 +2853,73 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
     Ok(msg.id)
 }
 
+/// Prepares a message to be sent out.
+///
 /// Returns row ids of the `smtp` table.
 async fn prepare_send_msg(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
 ) -> Result<Vec<i64>> {
-    // prepare_msg() leaves the message state to OutPreparing, we
-    // only have to change the state to OutPending in this case.
-    // Otherwise we still have to prepare the message, which will set
-    // the state to OutPending.
-    if msg.state != MessageState::OutPreparing {
-        // automatically prepare normal messages
-        prepare_msg_common(context, chat_id, msg, MessageState::OutPending).await?;
-    } else {
-        // update message state of separately prepared messages
-        ensure!(
-            chat_id.is_unset() || chat_id == msg.chat_id,
-            "Inconsistent chat ID"
-        );
-        message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+
+    // Check if the chat can be sent to.
+    if let Some(reason) = chat.why_cant_send(context).await? {
+        if matches!(
+            reason,
+            CantSendReason::ProtectionBroken
+                | CantSendReason::ContactRequest
+                | CantSendReason::SecurejoinWait
+        ) && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
+        {
+            // Send out the message, the securejoin message is supposed to repair the verification.
+            // If the chat is a contact request, let the user accept it later.
+        } else {
+            bail!("cannot send to {chat_id}: {reason}");
+        }
     }
+
+    // Check a quote reply is not leaking data from other chats.
+    // This is meant as a last line of defence, the UI should check that before as well.
+    // (We allow Chattype::Single in general for "Reply Privately";
+    // checking for exact contact_id will produce false positives when ppl just left the group)
+    if chat.typ != Chattype::Single && !context.get_config_bool(Config::Bot).await? {
+        if let Some(quoted_message) = msg.quoted_message(context).await? {
+            if quoted_message.chat_id != chat_id {
+                bail!("Bad quote reply");
+            }
+        }
+    }
+
+    // check current MessageState for drafts (to keep msg_id) ...
+    let update_msg_id = if msg.state == MessageState::OutDraft {
+        msg.hidden = false;
+        if !msg.id.is_special() && msg.chat_id == chat_id {
+            Some(msg.id)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // ... then change the MessageState in the message object
+    msg.state = MessageState::OutPending;
+
+    prepare_msg_blob(context, msg).await?;
+    if !msg.hidden {
+        chat_id.unarchive_if_not_muted(context, msg.state).await?;
+    }
+    msg.id = chat
+        .prepare_msg_raw(
+            context,
+            msg,
+            update_msg_id,
+            create_smeared_timestamp(context),
+        )
+        .await?;
+    msg.chat_id = chat_id;
+
     let row_ids = create_send_msg_jobs(context, msg)
         .await
         .context("Failed to create send jobs")?;
@@ -4173,8 +4137,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             bail!("cannot forward drafts.");
         }
 
-        let original_param = msg.param.clone();
-
         // we tested a sort of broadcast
         // by not marking own forwarded messages as such,
         // however, this turned out to be to confusing and unclear.
@@ -4197,33 +4159,13 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         // do not leak data as group names; a default subject is generated by mimefactory
         msg.subject = "".to_string();
 
-        let new_msg_id: MsgId;
-        if msg.state == MessageState::OutPreparing {
-            new_msg_id = chat
-                .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
-                .await?;
-            curr_timestamp += 1;
-            msg.param = original_param;
-            msg.id = src_msg_id;
-
-            if let Some(old_fwd) = msg.param.get(Param::PrepForwards) {
-                let new_fwd = format!("{} {}", old_fwd, new_msg_id.to_u32());
-                msg.param.set(Param::PrepForwards, new_fwd);
-            } else {
-                msg.param
-                    .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
-            }
-
-            msg.update_param(context).await?;
-        } else {
-            msg.state = MessageState::OutPending;
-            new_msg_id = chat
-                .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
-                .await?;
-            curr_timestamp += 1;
-            if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
-                context.scheduler.interrupt_smtp().await;
-            }
+        msg.state = MessageState::OutPending;
+        let new_msg_id = chat
+            .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
+            .await?;
+        curr_timestamp += 1;
+        if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
+            context.scheduler.interrupt_smtp().await;
         }
         created_chats.push(chat_id);
         created_msgs.push(new_msg_id);
@@ -4866,14 +4808,11 @@ mod tests {
         assert_eq!(test.text, "hello2".to_string());
         assert_eq!(test.state, MessageState::OutDraft);
 
-        let id_after_prepare = prepare_msg(&t, *chat_id, &mut msg).await?;
-        assert_eq!(id_after_prepare, id_after_1st_set);
-        let test = Message::load_from_db(&t, id_after_prepare).await?;
-        assert_eq!(test.state, MessageState::OutPreparing);
-        assert!(!test.hidden); // sent draft must no longer be hidden
-
         let id_after_send = send_msg(&t, *chat_id, &mut msg).await?;
         assert_eq!(id_after_send, id_after_1st_set);
+
+        let test = Message::load_from_db(&t, id_after_send).await?;
+        assert!(!test.hidden); // sent draft must no longer be hidden
 
         Ok(())
     }
@@ -5626,7 +5565,6 @@ mod tests {
 
         let mut msg = Message::new_text("message text".to_string());
         assert!(send_msg(&t, device_chat_id, &mut msg).await.is_err());
-        assert!(prepare_msg(&t, device_chat_id, &mut msg).await.is_err());
 
         let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
         assert!(forward_msgs(&t, &[msg_id], device_chat_id).await.is_err());
