@@ -430,6 +430,9 @@ pub enum StockMessage {
     #[strum(props(fallback = "%1$s reacted %2$s to \"%3$s\""))]
     MsgReactedBy = 177,
 
+    #[strum(props(fallback = "Member %1$s removed."))]
+    MsgDelMember = 178,
+
     #[strum(props(fallback = "Establishing guaranteed end-to-end encryption, please wait…"))]
     SecurejoinWait = 190,
 
@@ -710,7 +713,11 @@ pub(crate) async fn msg_del_member_local(
             .unwrap_or_else(|_| addr.to_string()),
         _ => addr.to_string(),
     };
-    if by_contact == ContactId::SELF {
+    if by_contact == ContactId::UNDEFINED {
+        translated(context, StockMessage::MsgDelMember)
+            .await
+            .replace1(whom)
+    } else if by_contact == ContactId::SELF {
         translated(context, StockMessage::MsgYouDelMember)
             .await
             .replace1(whom)
