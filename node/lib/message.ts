@@ -299,10 +299,6 @@ export class Message {
     return Boolean(binding.dcn_msg_is_forwarded(this.dc_msg))
   }
 
-  isIncreation() {
-    return Boolean(binding.dcn_msg_is_increation(this.dc_msg))
-  }
-
   isInfo() {
     return Boolean(binding.dcn_msg_is_info(this.dc_msg))
   }
