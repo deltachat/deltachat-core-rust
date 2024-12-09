@@ -805,7 +805,6 @@ impl Contact {
         }
 
         let mut name = sanitize_name(name);
-        #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             // The user may accidentally have written to a "noreply" address with another MUA:
             if addr.contains("noreply")
