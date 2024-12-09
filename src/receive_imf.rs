@@ -158,7 +158,7 @@ async fn insert_tombstone(context: &Context, rfc724_mid: &str) -> Result<MsgId> 
 /// If `is_partial_download` is set, it contains the full message size in bytes.
 /// Do not confuse that with `replace_msg_id` that will be set when the full message is loaded
 /// later.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) async fn receive_imf_inner(
     context: &Context,
     folder: &str,
@@ -679,7 +679,7 @@ pub async fn from_field_to_contact_id(
 /// Creates a `ReceivedMsg` from given parts which might consist of
 /// multiple messages (if there are multiple attachments).
 /// Every entry in `mime_parser.parts` produces a new row in the `msgs` table.
-#[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
+#[expect(clippy::too_many_arguments)]
 async fn add_parts(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1836,7 +1836,7 @@ async fn lookup_chat_by_reply(
     Ok(Some((parent_chat.id, parent_chat.blocked)))
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 async fn lookup_chat_or_create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -1971,7 +1971,7 @@ async fn is_probably_private_reply(
 /// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the created (chat_id, chat_blocked) tuple.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 async fn create_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -2091,7 +2091,6 @@ async fn create_group(
 /// just omitted.
 ///
 /// * `is_partial_download` - whether the message is not fully downloaded.
-#[allow(clippy::too_many_arguments)]
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,
