@@ -21,11 +21,9 @@ use tokio::runtime::Handle;
 use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
 
-#[allow(missing_docs)]
 #[cfg(test)]
 pub(crate) const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 
-#[allow(missing_docs)]
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
 
 /// Preferred symmetric encryption algorithm.
