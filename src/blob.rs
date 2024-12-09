@@ -763,7 +763,6 @@ mod tests {
     use fs::File;
 
     use super::*;
-    use crate::chat::{self, create_group_chat, ProtectionStatus};
     use crate::message::{Message, Viewtype};
     use crate::test_utils::{self, TestContext};
 
@@ -1454,40 +1453,6 @@ mod tests {
         let (file_size, _) = image_metadata(&std::fs::File::open(&file_saved)?)?;
         assert_eq!(file_size, bytes.len() as u64);
         check_image_size(file_saved, width, height);
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_increation_in_blobdir() -> Result<()> {
-        let t = TestContext::new_alice().await;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
-
-        let file = t.get_blobdir().join("anyfile.dat");
-        fs::write(&file, b"bla").await?;
-        let mut msg = Message::new(Viewtype::File);
-        msg.set_file(file.to_str().unwrap(), None);
-        let prepared_id = chat::prepare_msg(&t, chat_id, &mut msg).await?;
-        assert_eq!(prepared_id, msg.id);
-        assert!(msg.is_increation());
-
-        let msg = Message::load_from_db(&t, prepared_id).await?;
-        assert!(msg.is_increation());
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_increation_not_blobdir() -> Result<()> {
-        let t = TestContext::new_alice().await;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
-        assert_ne!(t.get_blobdir().to_str(), t.dir.path().to_str());
-
-        let file = t.dir.path().join("anyfile.dat");
-        fs::write(&file, b"bla").await?;
-        let mut msg = Message::new(Viewtype::File);
-        msg.set_file(file.to_str().unwrap(), None);
-        assert!(chat::prepare_msg(&t, chat_id, &mut msg).await.is_err());
-
         Ok(())
     }
 }
