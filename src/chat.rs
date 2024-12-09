@@ -2786,7 +2786,10 @@ pub async fn is_contact_in_chat(
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
 pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    ensure!(!chat_id.is_special(), "chat_id cannot be a special chat: {chat_id}");
+    ensure!(
+        !chat_id.is_special(),
+        "chat_id cannot be a special chat: {chat_id}"
+    );
 
     if msg.state != MessageState::Undefined && msg.state != MessageState::OutPreparing {
         msg.param.remove(Param::GuaranteeE2ee);
