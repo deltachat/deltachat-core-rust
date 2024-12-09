@@ -2793,7 +2793,25 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
         msg.param.remove(Param::ForcePlaintext);
         msg.update_param(context).await?;
     }
-    send_msg_inner(context, chat_id, msg).await
+
+    // protect all system messages against RTLO attacks
+    if msg.is_system_message() {
+        msg.text = sanitize_bidi_characters(&msg.text);
+    }
+
+    if !prepare_send_msg(context, chat_id, msg).await?.is_empty() {
+        if !msg.hidden {
+            context.emit_msgs_changed(msg.chat_id, msg.id);
+        }
+
+        if msg.param.exists(Param::SetLatitude) {
+            context.emit_location_changed(Some(ContactId::SELF)).await?;
+        }
+
+        context.scheduler.interrupt_smtp().await;
+    }
+
+    Ok(msg.id)
 }
 
 /// Tries to send a message synchronously.
@@ -2812,27 +2830,6 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
             .context("failed to send message, queued for later sending")?;
     }
     context.emit_msgs_changed(msg.chat_id, msg.id);
-    Ok(msg.id)
-}
-
-async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    // protect all system messages against RTLO attacks
-    if msg.is_system_message() {
-        msg.text = sanitize_bidi_characters(&msg.text);
-    }
-
-    if !prepare_send_msg(context, chat_id, msg).await?.is_empty() {
-        if !msg.hidden {
-            context.emit_msgs_changed(msg.chat_id, msg.id);
-        }
-
-        if msg.param.exists(Param::SetLatitude) {
-            context.emit_location_changed(Some(ContactId::SELF)).await?;
-        }
-
-        context.scheduler.interrupt_smtp().await;
-    }
-
     Ok(msg.id)
 }
 
