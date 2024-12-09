@@ -2785,25 +2785,8 @@ pub async fn is_contact_in_chat(
 /// However, this does not imply, the message really reached the recipient -
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
-// TODO: Do not allow ChatId to be 0, if prepare_msg had been called
-//   the caller can get it from msg.chat_id.  Forwards would need to
-//   be fixed for this somehow too.
 pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    if chat_id.is_unset() {
-        let forwards = msg.param.get(Param::PrepForwards);
-        if let Some(forwards) = forwards {
-            for forward in forwards.split(' ') {
-                if let Ok(msg_id) = forward.parse::<u32>().map(MsgId::new) {
-                    if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
-                        send_msg_inner(context, chat_id, &mut msg).await?;
-                    };
-                }
-            }
-            msg.param.remove(Param::PrepForwards);
-            msg.update_param(context).await?;
-        }
-        return send_msg_inner(context, chat_id, msg).await;
-    }
+    ensure!(!chat_id.is_special(), "chat_id cannot be a special chat: {chat_id}");
 
     if msg.state != MessageState::Undefined && msg.state != MessageState::OutPreparing {
         msg.param.remove(Param::GuaranteeE2ee);
