@@ -18,6 +18,9 @@ ignore = [
 
     # Unmaintained instant
     "RUSTSEC-2024-0384",
+
+    # idna 0.5.0
+    "RUSTSEC-2024-0421",
 ]
 
 [bans]
