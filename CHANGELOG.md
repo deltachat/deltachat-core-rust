@@ -6,10 +6,19 @@
 
 - [**breaking**] Remove dc_all_work_done().
 
+### Security
+
+- cargo: Update rPGP to 0.14.2.
+
+  This fixes [Panics on Malformed Untrusted Input](https://github.com/rpgp/rpgp/security/advisories/GHSA-9rmp-2568-59rv)
+  and [Potential Resource Exhaustion when handling Untrusted Messages](https://github.com/rpgp/rpgp/security/advisories/GHSA-4grw-m28r-q285).
+  This allows the attacker to crash the application via specially crafted messages and keys.
+  We recommend all users and bot operators to upgrade to the latest version.
+  There is no impact on the confidentiality of the messages and keys so no action other than upgrading is needed.
+
 ### Fixes
 
 - Store plaintext in mime_headers of truncated sent messages ([#6273](https://github.com/deltachat/deltachat-core-rust/pull/6273)).
-- cargo: Update rPGP to 0.14.2.
 
 ### Documentation
 
