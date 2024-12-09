@@ -54,6 +54,9 @@ pub struct ReceivedMsg {
     /// Received message state.
     pub state: MessageState,
 
+    /// Whether the message is hidden.
+    pub hidden: bool,
+
     /// Message timestamp for sorting.
     pub sort_timestamp: i64,
 
@@ -192,6 +195,7 @@ pub(crate) async fn receive_imf_inner(
             return Ok(Some(ReceivedMsg {
                 chat_id: DC_CHAT_ID_TRASH,
                 state: MessageState::Undefined,
+                hidden: false,
                 sort_timestamp: 0,
                 msg_ids,
                 needs_delete_job: false,
@@ -373,6 +377,7 @@ pub(crate) async fn receive_imf_inner(
                 received_msg = Some(ReceivedMsg {
                     chat_id: DC_CHAT_ID_TRASH,
                     state: MessageState::InSeen,
+                    hidden: false,
                     sort_timestamp: mime_parser.timestamp_sent,
                     msg_ids: vec![msg_id],
                     needs_delete_job: res == securejoin::HandshakeMessage::Done,
@@ -611,7 +616,11 @@ pub(crate) async fn receive_imf_inner(
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
-            chat_id.emit_msg_event(context, *msg_id, mime_parser.incoming && fresh);
+            chat_id.emit_msg_event(
+                context,
+                *msg_id,
+                mime_parser.incoming && fresh && !received_msg.hidden,
+            );
         }
     }
     context.new_msgs_notify.notify_one();
@@ -760,7 +769,7 @@ async fn add_parts(
     // (of course, the user can add other chats manually later)
     let to_id: ContactId;
     let state: MessageState;
-    let mut hidden = false;
+    let mut hidden = is_reaction;
     let mut needs_delete_job = false;
     let mut restore_protection = false;
 
@@ -1021,7 +1030,9 @@ async fn add_parts(
         state = if seen
             || fetching_existing_messages
             || is_mdn
-            || is_reaction
+            // Currently only reactions are hidden, so this check is just in case we have other
+            // hidden messages in the future to make `chat::marknoticed_chat()` no-op for them.
+            || (hidden && !is_reaction)
             || chat_id_blocked == Blocked::Yes
         {
             MessageState::InSeen
@@ -1232,7 +1243,7 @@ async fn add_parts(
     }
 
     let orig_chat_id = chat_id;
-    let mut chat_id = if is_mdn || is_reaction {
+    let mut chat_id = if is_mdn {
         DC_CHAT_ID_TRASH
     } else {
         chat_id.unwrap_or_else(|| {
@@ -1407,7 +1418,7 @@ async fn add_parts(
     // that the ui should show button to display the full message.
 
     // a flag used to avoid adding "show full message" button to multiple parts of the message.
-    let mut save_mime_modified = mime_parser.is_mime_modified;
+    let mut save_mime_modified = mime_parser.is_mime_modified && !hidden;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
         let headers = if !mime_parser.decoded_data.is_empty() {
@@ -1599,10 +1610,10 @@ RETURNING id
                     state,
                     is_dc_message,
                     if trash { "" } else { msg },
-                    if trash { None } else { message::normalize_text(msg) },
-                    if trash { "" } else { &subject },
+                    if trash || hidden { None } else { message::normalize_text(msg) },
+                    if trash || hidden { "" } else { &subject },
                     // txt_raw might contain invalid utf8
-                    if trash { "" } else { &txt_raw },
+                    if trash || hidden { "" } else { &txt_raw },
                     if trash {
                         "".to_string()
                     } else {
@@ -1618,7 +1629,7 @@ RETURNING id
                     mime_in_reply_to,
                     mime_references,
                     mime_modified,
-                    part.error.as_deref().unwrap_or_default(),
+                    if trash || hidden { "" } else { part.error.as_deref().unwrap_or_default() },
                     ephemeral_timer,
                     ephemeral_timestamp,
                     if is_partial_download.is_some() {
@@ -1628,7 +1639,7 @@ RETURNING id
                     } else {
                         DownloadState::Done
                     },
-                    mime_parser.hop_info
+                    if trash || hidden { "" } else { &mime_parser.hop_info },
                 ],
                 |row| {
                     let msg_id: MsgId = row.get(0)?;
@@ -1735,6 +1746,7 @@ RETURNING id
     Ok(ReceivedMsg {
         chat_id,
         state,
+        hidden,
         sort_timestamp,
         msg_ids: created_db_entries,
         needs_delete_job,
