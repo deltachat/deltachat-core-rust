@@ -105,14 +105,12 @@ pub(crate) struct MimeMessage {
     /// received.
     pub(crate) footer: Option<String>,
 
-    // if this flag is set, the parts/text/etc. are just close to the original mime-message;
-    // clients should offer a way to view the original message in this case
+    /// If set, this is a modified MIME message; clients should offer a way to view the original
+    /// MIME message in this case.
     pub is_mime_modified: bool,
 
-    /// The decrypted, raw mime structure.
-    ///
-    /// This is non-empty iff `is_mime_modified` and the message was actually encrypted. It is used
-    /// for e.g. late-parsing HTML.
+    /// Decrypted, raw MIME structure. Nonempty iff `is_mime_modified` and the message was actually
+    /// encrypted.
     pub decoded_data: Vec<u8>,
 
     /// Hop info for debugging.
