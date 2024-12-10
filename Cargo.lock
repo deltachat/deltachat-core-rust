@@ -1384,6 +1384,7 @@ dependencies = [
  "tagger",
  "tempfile",
  "testdir",
+ "testresult",
  "textwrap",
  "thiserror 1.0.69",
  "tokio",
@@ -6283,6 +6284,12 @@ dependencies = [
  "sysinfo",
  "whoami",
 ]
+
+[[package]]
+name = "testresult"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "614b328ff036a4ef882c61570f72918f7e9c5bee1da33f8e7f91e01daee7e56c"
 
 [[package]]
 name = "textwrap"
