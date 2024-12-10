@@ -19,6 +19,7 @@ use crate::location::delete_orphaned_poi_locations;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId};
 use crate::net::dns::prune_dns_cache;
+use crate::net::http::http_cache_cleanup;
 use crate::net::prune_connection_history;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -720,6 +721,12 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Can't set config: {e:#}.");
     }
 
+    http_cache_cleanup(context)
+        .await
+        .context("Failed to cleanup HTTP cache")
+        .log_err(context)
+        .ok();
+
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
@@ -845,6 +852,22 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         )
         .await
         .context("housekeeping: failed to SELECT value FROM config")?;
+
+    context
+        .sql
+        .query_map(
+            "SELECT blobname FROM http_cache",
+            (),
+            |row| row.get::<_, String>(0),
+            |rows| {
+                for row in rows {
+                    maybe_add_file(&mut files_in_use, &row?);
+                }
+                Ok(())
+            },
+        )
+        .await
+        .context("Failed to SELECT blobname FROM http_cache")?;
 
     info!(context, "{} files in use.", files_in_use.len());
     /* go through directories and delete unused files */
