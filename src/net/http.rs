@@ -13,7 +13,7 @@ use crate::net::session::SessionStream;
 use crate::net::tls::wrap_rustls;
 
 /// HTTP(S) GET response.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Response {
     /// Response body.
     pub blob: Vec<u8>,
@@ -91,8 +91,14 @@ where
 }
 
 /// Retrieves the binary contents of URL using HTTP GET request.
-pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
-    let mut url = url.to_string();
+pub async fn read_url_blob(context: &Context, original_url: &str) -> Result<Response> {
+    if let Some(response) = context.http_cache.read().get(original_url) {
+        info!(context, "Returning {original_url:?} from cache.");
+        return Ok(response.clone());
+    }
+
+    info!(context, "Not found {original_url:?} in cache.");
+    let mut url = original_url.to_string();
 
     // Follow up to 10 http-redirects
     for _i in 0..10 {
@@ -139,11 +145,17 @@ pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
         });
         let body = response.collect().await?.to_bytes();
         let blob: Vec<u8> = body.to_vec();
-        return Ok(Response {
+        let response = Response {
             blob,
             mimetype,
             encoding,
-        });
+        };
+        info!(context, "Inserting {original_url:?} into cache.");
+        context
+            .http_cache
+            .write()
+            .insert(original_url.to_string(), response.clone());
+        return Ok(response);
     }
 
     Err(anyhow!("Followed 10 redirections"))

@@ -293,6 +293,9 @@ pub struct InnerContext {
 
     /// Iroh for realtime peer channels.
     pub(crate) iroh: Arc<RwLock<Option<Iroh>>>,
+
+    /// Cache for HTTP GET requests.
+    pub(crate) http_cache: parking_lot::RwLock<HashMap<String, crate::net::http::Response>>,
 }
 
 /// The state of ongoing process.
@@ -451,6 +454,7 @@ impl Context {
             push_subscriber,
             push_subscribed: AtomicBool::new(false),
             iroh: Arc::new(RwLock::new(None)),
+            http_cache: Default::default(),
         };
 
         let ctx = Context {
