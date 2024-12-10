@@ -19,6 +19,7 @@ use crate::location::delete_orphaned_poi_locations;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId};
 use crate::net::dns::prune_dns_cache;
+use crate::net::http::http_cache_cleanup;
 use crate::net::prune_connection_history;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -785,6 +786,12 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     delete_orphaned_poi_locations(context)
         .await
         .context("Failed to delete orphaned POI locations")
+        .log_err(context)
+        .ok();
+
+    http_cache_cleanup(context)
+        .await
+        .context("Failed to cleanup HTTP cache")
         .log_err(context)
         .ok();
 
