@@ -271,8 +271,7 @@ class Chat:
 
         :param msg: a :class:`deltachat.message.Message` instance
            previously returned by
-           e.g. :meth:`deltachat.message.Message.new_empty` or
-           :meth:`prepare_file`.
+           e.g. :meth:`deltachat.message.Message.new_empty`.
         :raises ValueError: if message can not be sent.
 
         :returns: a :class:`deltachat.message.Message` instance as
@@ -340,37 +339,6 @@ class Chat:
         if sent_id == 0:
             raise ValueError("message could not be sent")
         return Message.from_db(self.account, sent_id)
-
-    def prepare_message(self, msg):
-        """prepare a message for sending.
-
-        :param msg: the message to be prepared.
-        :returns: a :class:`deltachat.message.Message` instance.
-           This is the same object that was passed in, which
-           has been modified with the new state of the core.
-        """
-        msg_id = lib.dc_prepare_msg(self.account._dc_context, self.id, msg._dc_msg)
-        if msg_id == 0:
-            raise ValueError("message could not be prepared")
-        # modify message in place to avoid bad state for the caller
-        msg._dc_msg = Message.from_db(self.account, msg_id)._dc_msg
-        return msg
-
-    def prepare_message_file(self, path, mime_type=None, view_type="file"):
-        """prepare a message for sending and return the resulting Message instance.
-
-        To actually send the message, call :meth:`send_prepared`.
-        The file must be inside the blob directory.
-
-        :param path: path to the file.
-        :param mime_type: the mime-type of this file, defaults to auto-detection.
-        :param view_type: "text", "image", "gif", "audio", "video", "file"
-        :raises ValueError: if message can not be prepared/chat does not exist.
-        :returns: the resulting :class:`Message` instance
-        """
-        msg = Message.new_empty(self.account, view_type)
-        msg.set_file(path, mime_type)
-        return self.prepare_message(msg)
 
     def send_prepared(self, message):
         """send a previously prepared message.
