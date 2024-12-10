@@ -348,7 +348,7 @@ impl MsgId {
             let server_urls = Self::get_info_server_urls(context, msg.rfc724_mid).await?;
             for server_url in server_urls {
                 // Format as RFC 5092 relative IMAP URL.
-                ret += &format!("\n{server_url}");
+                ret += &format!("\nServer-URL: {server_url}");
             }
         }
         let hop_info = self.hop_info(context).await?;
