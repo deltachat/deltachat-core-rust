@@ -262,7 +262,6 @@ impl Context {
             .await?;
 
         // create gossip
-        let my_addr = endpoint.node_addr().await?;
         let gossip = Gossip::builder()
             .max_message_size(
                 // Allow messages up to 128 KB in size.
