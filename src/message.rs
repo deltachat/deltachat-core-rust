@@ -1082,6 +1082,26 @@ impl Message {
         self.param.set_optional(Param::MimeType, filemime);
     }
 
+    /// Sets the file associated with a message.
+    /// The actual current name of the file is ignored, instead `name` is used.
+    /// The file (may be moved immediately by core) (and must not be modified again after this method was called)
+    ///
+    /// TODO document, also in deltachat.h
+    pub async fn set_file_and_deduplicate(
+        &mut self,
+        context: &Context,
+        file: &Path,
+        filemime: Option<&str>,
+        name: &str,
+    ) -> Result<()> {
+        let blob = BlobObject::create_and_deduplicate(context, file).await?;
+        self.param.set(Param::Filename, name);
+        self.param.set(Param::File, blob.as_name());
+        self.param.set_optional(Param::MimeType, filemime);
+
+        Ok(())
+    }
+
     /// Creates a new blob and sets it as a file associated with a message.
     pub async fn set_file_from_bytes(
         &mut self,
