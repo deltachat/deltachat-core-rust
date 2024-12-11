@@ -33,7 +33,6 @@ use iroh_gossip::proto::TopicId;
 use parking_lot::Mutex;
 use std::collections::{BTreeSet, HashMap};
 use std::env;
-use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use url::Url;
@@ -57,7 +56,7 @@ pub struct Iroh {
     pub(crate) router: iroh::protocol::Router,
 
     /// [Gossip] needed for iroh peer channels.
-    pub(crate) gossip: Arc<Gossip>,
+    pub(crate) gossip: Gossip,
 
     /// Sequence numbers for gossip channels.
     pub(crate) sequence_numbers: Mutex<HashMap<TopicId, i32>>,
@@ -125,7 +124,7 @@ impl Iroh {
 
         let (gossip_sender, gossip_receiver) = self
             .gossip
-            .join_with_opts(topic, JoinOptions::with_bootstrap(node_ids))
+            .subscribe_with_opts(topic, JoinOptions::with_bootstrap(node_ids))
             .split();
 
         let ctx = ctx.clone();
@@ -147,7 +146,7 @@ impl Iroh {
                 self.router.endpoint().add_node_addr(peer.clone())?;
             }
 
-            self.gossip.join_with_opts(
+            self.gossip.subscribe_with_opts(
                 topic,
                 JoinOptions::with_bootstrap(peers.into_iter().map(|peer| peer.node_id)),
             );
@@ -264,18 +263,15 @@ impl Context {
 
         // create gossip
         let my_addr = endpoint.node_addr().await?;
-        let gossip_config = iroh_gossip::proto::topic::Config {
-            // Allow messages up to 128 KB in size.
-            // We set the limit to 128 KiB to account for internal overhead,
-            // but only guarantee 128 KB of payload to WebXDC developers.
-            max_message_size: 128 * 1024,
-            ..Default::default()
-        };
-        let gossip = Arc::new(Gossip::from_endpoint(
-            endpoint.clone(),
-            gossip_config,
-            &my_addr.info,
-        ));
+        let gossip = Gossip::builder()
+            .max_message_size(
+                // Allow messages up to 128 KB in size.
+                // We set the limit to 128 KiB to account for internal overhead,
+                // but only guarantee 128 KB of payload to WebXDC developers.
+                128 * 1024,
+            )
+            .spawn(endpoint.clone())
+            .await?;
 
         let router = iroh::protocol::Router::builder(endpoint)
             .accept(GOSSIP_ALPN, gossip.clone())

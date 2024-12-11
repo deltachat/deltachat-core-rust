@@ -57,15 +57,17 @@ fd-lock = "4"
 futures-lite = { workspace = true }
 futures = { workspace = true }
 hex = "0.4.0"
-hickory-resolver = "=0.25.0-alpha.2"
+hickory-resolver = "=0.25.0-alpha.4"
 http-body-util = "0.1.2"
 humansize = "2"
 hyper = "1"
 hyper-util = "0.1.10"
 image = { version = "0.25.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh-gossip = { version = "0.29", default-features = false, features = ["net"] }
-iroh = { version = "0.29", default-features = false }
-iroh-base = { version = "0.29", features = ["base32"] }
+iroh-gossip = { path = "../iroh-gossip", default-features = false, features = ["net"] }
+# iroh = { version = "0.29", default-features = false }
+# iroh-base = { version = "0.29", features = ["base32"] }
+iroh = { git = "https://github.com/n0-computer/iroh", branch = "main", default-features = false }
+iroh-base = { git = "https://github.com/n0-computer/iroh", branch = "main", features = ["base32"] }
 kamadak-exif = "0.6.1"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = { workspace = true }
@@ -205,3 +207,10 @@ vendored = [
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
+
+# [patch.crates-io]
+# iroh-net-report = { path = "../iroh/iroh-net-report" }
+
+[patch.crates-io]
+iroh-base = { git = "https://github.com/n0-computer/iroh", branch = "main" }
+iroh = { git = "https://github.com/n0-computer/iroh", branch = "main" }
