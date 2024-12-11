@@ -120,7 +120,7 @@ async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Re
     context
         .sql
         .insert(
-            "INSERT OR IGNORE INTO http_cache (url, expires, blobname, mimetype, encoding)
+            "INSERT OR REPLACE INTO http_cache (url, expires, blobname, mimetype, encoding)
              VALUES (?, ?, ?, ?, ?)",
             (
                 url,
