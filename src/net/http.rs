@@ -365,6 +365,7 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
+    use crate::sql::housekeeping;
     use crate::test_utils::TestContext;
     use crate::tools::SystemTime;
 
@@ -403,7 +404,6 @@ mod tests {
             Some(xdc_response.clone())
         );
 
-        http_cache_cleanup(t).await?;
         assert_eq!(
             http_cache_get(t, "https://webxdc.org/").await?,
             Some(html_response.clone())
@@ -420,6 +420,10 @@ mod tests {
         // 35 days later pixel .xdc expires because we did not request it for 35 days and 1 hour.
         // But editor is still there because we did not request it for just 35 days.
         SystemTime::shift(Duration::from_secs(3600 * 24 * 35 - 100));
+
+        // Run housekeeping to test that it does not delete the blob too early.
+        housekeeping(t).await?;
+
         assert_eq!(
             http_cache_get(t, xdc_editor_url).await?,
             Some(xdc_response.clone())
