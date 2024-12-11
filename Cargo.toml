@@ -57,17 +57,17 @@ fd-lock = "4"
 futures-lite = { workspace = true }
 futures = { workspace = true }
 hex = "0.4.0"
-hickory-resolver = "=0.25.0-alpha.4"
+hickory-resolver = "=0.25.0-alpha.2"
 http-body-util = "0.1.2"
 humansize = "2"
 hyper = "1"
 hyper-util = "0.1.10"
 image = { version = "0.25.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh-gossip = { git = "https://github.com/n0-computer/iroh-gossip", branch = "fix-connection-loop-second-try", default-features = false, features = ["net"] }
+iroh-gossip = { git = "https://github.com/n0-computer/iroh-gossip", rev = "1f23174", default-features = false, features = ["net"] }
 # iroh = { version = "0.29", default-features = false }
 # iroh-base = { version = "0.29", features = ["base32"] }
-iroh = { git = "https://github.com/n0-computer/iroh", branch = "main", default-features = false }
-iroh-base = { git = "https://github.com/n0-computer/iroh", branch = "main", features = ["base32"] }
+iroh = { git = "https://github.com/n0-computer/iroh", rev = "8dfbc35d", default-features = false }
+iroh-base = { git = "https://github.com/n0-computer/iroh", rev = "8dfbc35d", features = ["base32"] }
 kamadak-exif = "0.6.1"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = { workspace = true }
@@ -212,5 +212,5 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 # iroh-net-report = { path = "../iroh/iroh-net-report" }
 
 [patch.crates-io]
-iroh-base = { git = "https://github.com/n0-computer/iroh", branch = "main" }
-iroh = { git = "https://github.com/n0-computer/iroh", branch = "main" }
+iroh-base = { git = "https://github.com/n0-computer/iroh", rev = "8dfbc35d" }
+iroh = { git = "https://github.com/n0-computer/iroh", rev = "8dfbc35d" }
