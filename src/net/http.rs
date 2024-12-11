@@ -428,6 +428,14 @@ mod tests {
             Some(xdc_response.clone())
         );
 
+        // Expired cache entry can be renewed
+        // even before housekeeping removes old one.
+        http_cache_put(t, "https://webxdc.org/", &html_response).await?;
+        assert_eq!(
+            http_cache_get(t, "https://webxdc.org/").await?,
+            Some(html_response.clone())
+        );
+
         // 35 days later pixel .xdc expires because we did not request it for 35 days and 1 hour.
         // But editor is still there because we did not request it for just 35 days.
         SystemTime::shift(Duration::from_secs(3600 * 24 * 35 - 100));
