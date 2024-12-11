@@ -405,8 +405,13 @@ mod tests {
         );
 
         http_cache_put(t, xdc_editor_url, &xdc_response).await?;
+        http_cache_put(t, xdc_pixel_url, &xdc_response).await?;
         assert_eq!(
             http_cache_get(t, xdc_editor_url).await?,
+            Some(xdc_response.clone())
+        );
+        assert_eq!(
+            http_cache_get(t, xdc_pixel_url).await?,
             Some(xdc_response.clone())
         );
 
