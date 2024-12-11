@@ -930,7 +930,6 @@ mod tests {
 
         // Alice sends a text message.
         let mut msg = Message::new(Viewtype::Text);
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
         chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
         let sent = alice.pop_sent_msg().await;
 
@@ -957,14 +956,12 @@ mod tests {
 
         // Alice sends message to Bob
         let mut msg = Message::new(Viewtype::Text);
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
         chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
         let sent = alice.pop_sent_msg().await;
         bob.recv_msg(&sent).await;
 
         // Alice sends second message to Bob, with no timer
         let mut msg = Message::new(Viewtype::Text);
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
         chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
         let sent = alice.pop_sent_msg().await;
 
