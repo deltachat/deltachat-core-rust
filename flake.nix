@@ -355,7 +355,7 @@
           };
       in
       {
-        formatter = pkgs.nixpkgs-fmt;
+        formatter = pkgs.nixfmt-rfc-style;
 
         packages =
           mkRustPackages "aarch64-linux" //
