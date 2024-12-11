@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.151.6] - 2024-12-11
+
+### Features / Changes
+
+- Don't add "Failed to send message to ..." info messages to group chats.
+- Add info messages about implicit membership changes if group member list is recreated ([#6314](https://github.com/deltachat/deltachat-core-rust/pull/6314)).
+
+### Fixes
+
+- Add self-addition message to chat when recreating member list.
+- Do not subscribe to heartbeat if already subscribed via metadata.
+
+### Build system
+
+- Add idna 0.5.0 exception into deny.toml.
+
+### Documentation
+
+- Update links to Node.js bindings in the README.
+
+### Refactor
+
+- Factor out `wait_for_all_work_done()`.
+
+### Tests
+
+- Notifiy more prominently & in more tests about false positives when running `cargo test` ([#6308](https://github.com/deltachat/deltachat-core-rust/pull/6308)).
+
 ## [1.151.5] - 2024-12-05
 
 ### API-Changes
@@ -5458,3 +5486,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.2..v1.151.3
 [1.151.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.3..v1.151.4
 [1.151.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.4..v1.151.5
+[1.151.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.5..v1.151.6
