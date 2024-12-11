@@ -3227,6 +3227,7 @@ dependencies = [
 [[package]]
 name = "iroh-gossip"
 version = "0.29.0"
+source = "git+https://github.com/n0-computer/iroh-gossip?branch=fix-connection-loop-second-try#8acb1d59148b7032d0c09f0ce1c9316fe19ace66"
 dependencies = [
  "anyhow",
  "async-channel 2.3.1",

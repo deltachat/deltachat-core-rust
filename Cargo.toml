@@ -63,7 +63,7 @@ humansize = "2"
 hyper = "1"
 hyper-util = "0.1.10"
 image = { version = "0.25.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh-gossip = { path = "../iroh-gossip", default-features = false, features = ["net"] }
+iroh-gossip = { git = "https://github.com/n0-computer/iroh-gossip", branch = "fix-connection-loop-second-try", default-features = false, features = ["net"] }
 # iroh = { version = "0.29", default-features = false }
 # iroh-base = { version = "0.29", features = ["base32"] }
 iroh = { git = "https://github.com/n0-computer/iroh", branch = "main", default-features = false }
