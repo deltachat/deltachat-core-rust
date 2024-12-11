@@ -10,7 +10,6 @@ use tokio::fs;
 
 use crate::blob::BlobObject;
 use crate::context::Context;
-use crate::log::LogExt;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_rustls;
@@ -158,7 +157,18 @@ async fn http_cache_get(context: &Context, url: &str) -> Result<Option<Response>
 
     let blob_object = BlobObject::from_name(context, blob_name)?;
     let blob_abs_path = blob_object.to_abs_path();
-    let blob = fs::read(blob_abs_path).await?;
+    let blob = match fs::read(blob_abs_path)
+        .await
+        .with_context(|| format!("Failed to read blob for {url:?} cache entry."))
+    {
+        Ok(blob) => blob,
+        Err(err) => {
+            // This should not happen, but user may go into the blobdir and remove files,
+            // antivirus may delete the file or there may be a bug in housekeeping.
+            warn!(context, "{err:?}.");
+            return Ok(None);
+        }
+    };
 
     let expires = http_url_cache_expires(url, mimetype.as_deref());
     let response = Response {
@@ -197,11 +207,7 @@ pub(crate) async fn http_cache_cleanup(context: &Context) -> Result<()> {
 
 /// Retrieves the binary contents of URL using HTTP GET request.
 pub async fn read_url_blob(context: &Context, original_url: &str) -> Result<Response> {
-    if let Some(response) = http_cache_get(context, original_url)
-        .await
-        .log_err(context)
-        .unwrap_or_default()
-    {
+    if let Some(response) = http_cache_get(context, original_url).await? {
         info!(context, "Returning {original_url:?} from cache.");
         return Ok(response);
     }
@@ -429,6 +435,21 @@ mod tests {
             Some(xdc_response.clone())
         );
         assert_eq!(http_cache_get(t, xdc_pixel_url).await?, None);
+
+        // Test that if the file is accidentally removed from the blobdir,
+        // there is no error when trying to load the cache entry.
+        for entry in std::fs::read_dir(t.get_blobdir())? {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            std::fs::remove_file(path).expect("Failed to remove blob");
+        }
+
+        assert_eq!(
+            http_cache_get(t, xdc_editor_url)
+                .await
+                .context("Failed to get no cache response")?,
+            None
+        );
 
         Ok(())
     }
