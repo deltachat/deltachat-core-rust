@@ -121,7 +121,7 @@ async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Re
     context
         .sql
         .insert(
-            "INSERT OR IGNORE INTO http_cache (url, expires, blob, mimetype, encoding)
+            "INSERT OR IGNORE INTO http_cache (url, expires, blobname, mimetype, encoding)
              VALUES (?, ?, ?, ?, ?)",
             (
                 url,
@@ -141,7 +141,7 @@ async fn http_cache_get(context: &Context, url: &str) -> Result<Option<Response>
     let Some((blob_name, mimetype, encoding)) = context
         .sql
         .query_row_optional(
-            "SELECT blob, mimetype, encoding
+            "SELECT blobname, mimetype, encoding
              FROM http_cache WHERE url=? AND expires > ?",
             (url, time()),
             |row| {

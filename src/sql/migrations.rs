@@ -1094,7 +1094,7 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
             "CREATE TABLE http_cache (
                 url TEXT PRIMARY KEY,
                 expires INTEGER NOT NULL, -- When the cache entry is considered expired, timestamp in seconds.
-                blob TEXT NOT NULL,
+                blobname TEXT NOT NULL,
                 mimetype TEXT NOT NULL DEFAULT '', -- MIME type extracted from Content-Type header.
                 encoding TEXT NOT NULL DEFAULT '' -- Encoding from Content-Type header.
             ) STRICT",
