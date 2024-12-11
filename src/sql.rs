@@ -721,6 +721,12 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Can't set config: {e:#}.");
     }
 
+    http_cache_cleanup(context)
+        .await
+        .context("Failed to cleanup HTTP cache")
+        .log_err(context)
+        .ok();
+
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
@@ -786,12 +792,6 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     delete_orphaned_poi_locations(context)
         .await
         .context("Failed to delete orphaned POI locations")
-        .log_err(context)
-        .ok();
-
-    http_cache_cleanup(context)
-        .await
-        .context("Failed to cleanup HTTP cache")
         .log_err(context)
         .ok();
 
