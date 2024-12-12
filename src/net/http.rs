@@ -93,19 +93,28 @@ where
     Ok(sender)
 }
 
-/// Converts the URL to expiration timestamp.
-fn http_url_cache_expires(url: &str, mimetype: Option<&str>) -> i64 {
+/// Converts the URL to expiration and stale timestamps.
+fn http_url_cache_timestamps(url: &str, mimetype: Option<&str>) -> (i64, i64) {
     let now = time();
-    if url.ends_with(".xdc") {
-        // WebXDCs expire in 5 weeks.
-        now + 3600 * 24 * 35
+
+    let expires = now + 3600 * 24 * 35;
+    let stale = if url.ends_with(".xdc") {
+        // WebXDCs are never stale, they just expire.
+        expires
     } else if mimetype.is_some_and(|s| s.starts_with("image/")) {
         // Cache images for 1 day.
+        //
+        // As of 2024-12-12 WebXDC icons at <https://webxdc.org/apps/>
+        // use the same path for all app versions,
+        // so may change, but it is not critical if outdated icon is displayed.
         now + 3600 * 24
     } else {
-        // Cache everything else for 1 hour.
+        // Revalidate everything else after 1 hour.
+        //
+        // This includes HTML, CSS and JS.
         now + 3600
-    }
+    };
+    (expires, stale)
 }
 
 /// Places the binary into HTTP cache.
@@ -117,14 +126,16 @@ async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Re
     )
     .await?;
 
+    let (expires, stale) = http_url_cache_timestamps(url, response.mimetype.as_deref());
     context
         .sql
         .insert(
-            "INSERT OR REPLACE INTO http_cache (url, expires, blobname, mimetype, encoding)
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO http_cache (url, expires, stale, blobname, mimetype, encoding)
+             VALUES (?, ?, ?, ?, ?, ?)",
             (
                 url,
-                http_url_cache_expires(url, response.mimetype.as_deref()),
+                expires,
+                stale,
                 blob.as_name(),
                 response.mimetype.as_deref().unwrap_or_default(),
                 response.encoding.as_deref().unwrap_or_default(),
@@ -136,18 +147,22 @@ async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Re
 }
 
 /// Retrieves the binary from HTTP cache.
-async fn http_cache_get(context: &Context, url: &str) -> Result<Option<Response>> {
-    let Some((blob_name, mimetype, encoding)) = context
+///
+/// Also returns if the response is stale and should be revalidated in the background.
+async fn http_cache_get(context: &Context, url: &str) -> Result<Option<(Response, bool)>> {
+    let now = time();
+    let Some((blob_name, mimetype, encoding, is_stale)) = context
         .sql
         .query_row_optional(
-            "SELECT blobname, mimetype, encoding
+            "SELECT blobname, mimetype, encoding, stale
              FROM http_cache WHERE url=? AND expires > ?",
-            (url, time()),
+            (url, now),
             |row| {
                 let blob_name: String = row.get(0)?;
                 let mimetype: Option<String> = Some(row.get(1)?).filter(|s: &String| !s.is_empty());
                 let encoding: Option<String> = Some(row.get(2)?).filter(|s: &String| !s.is_empty());
-                Ok((blob_name, mimetype, encoding))
+                let stale_timestamp: i64 = row.get(3)?;
+                Ok((blob_name, mimetype, encoding, now > stale_timestamp))
             },
         )
         .await?
@@ -170,14 +185,20 @@ async fn http_cache_get(context: &Context, url: &str) -> Result<Option<Response>
         }
     };
 
-    let expires = http_url_cache_expires(url, mimetype.as_deref());
+    let (expires, _stale) = http_url_cache_timestamps(url, mimetype.as_deref());
     let response = Response {
         blob,
         mimetype,
         encoding,
     };
 
-    // Update expiration timestamp.
+    // Update expiration timestamp
+    // to prevent deletion of the file still in use.
+    //
+    // We do not update stale timestamp here
+    // as we have not revalidated the response.
+    // Stale timestamp is updated only
+    // when the URL is sucessfully fetched.
     context
         .sql
         .execute(
@@ -186,7 +207,7 @@ async fn http_cache_get(context: &Context, url: &str) -> Result<Option<Response>
         )
         .await?;
 
-    Ok(Some(response))
+    Ok(Some((response, is_stale)))
 }
 
 /// Removes expired cache entries.
@@ -205,14 +226,10 @@ pub(crate) async fn http_cache_cleanup(context: &Context) -> Result<()> {
     Ok(())
 }
 
-/// Retrieves the binary contents of URL using HTTP GET request.
-pub async fn read_url_blob(context: &Context, original_url: &str) -> Result<Response> {
-    if let Some(response) = http_cache_get(context, original_url).await? {
-        info!(context, "Returning {original_url:?} from cache.");
-        return Ok(response);
-    }
-
-    info!(context, "Not found {original_url:?} in cache.");
+/// Fetches URL and updates the cache.
+///
+/// URL is fetched regardless of whether there is an existing result in the cache.
+async fn fetch_url(context: &Context, original_url: &str) -> Result<Response> {
     let mut url = original_url.to_string();
 
     // Follow up to 10 http-redirects
@@ -271,6 +288,31 @@ pub async fn read_url_blob(context: &Context, original_url: &str) -> Result<Resp
     }
 
     Err(anyhow!("Followed 10 redirections"))
+}
+
+/// Retrieves the binary contents of URL using HTTP GET request.
+pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
+    if let Some((response, is_stale)) = http_cache_get(context, url).await? {
+        info!(context, "Returning {url:?} from cache.");
+        if is_stale {
+            let context = context.clone();
+            let url = url.to_string();
+            tokio::spawn(async move {
+                // Fetch URL in background to update the cache.
+                info!(context, "Fetching stale {url:?} in background.");
+                if let Err(err) = fetch_url(&context, &url).await {
+                    warn!(context, "Failed to revalidate {url:?}: {err:#}.");
+                }
+            });
+        }
+
+        // Return stale result.
+        return Ok(response);
+    }
+
+    info!(context, "Not found {url:?} in cache, fetching.");
+    let response = fetch_url(context, url).await?;
+    Ok(response)
 }
 
 /// Sends an empty POST request to the URL.
@@ -401,43 +443,47 @@ mod tests {
         assert_eq!(http_cache_get(t, xdc_pixel_url).await?, None);
         assert_eq!(
             http_cache_get(t, "https://webxdc.org/").await?,
-            Some(html_response.clone())
+            Some((html_response.clone(), false))
         );
 
         http_cache_put(t, xdc_editor_url, &xdc_response).await?;
         http_cache_put(t, xdc_pixel_url, &xdc_response).await?;
         assert_eq!(
             http_cache_get(t, xdc_editor_url).await?,
-            Some(xdc_response.clone())
+            Some((xdc_response.clone(), false))
         );
         assert_eq!(
             http_cache_get(t, xdc_pixel_url).await?,
-            Some(xdc_response.clone())
+            Some((xdc_response.clone(), false))
         );
 
         assert_eq!(
             http_cache_get(t, "https://webxdc.org/").await?,
-            Some(html_response.clone())
+            Some((html_response.clone(), false))
         );
 
-        // HTML expires after 1 hour, but .xdc does not.
+        // HTML is stale after 1 hour, but .xdc is not.
         SystemTime::shift(Duration::from_secs(3600 + 100));
-        assert_eq!(http_cache_get(t, "https://webxdc.org/").await?, None);
+        assert_eq!(
+            http_cache_get(t, "https://webxdc.org/").await?,
+            Some((html_response.clone(), true))
+        );
         assert_eq!(
             http_cache_get(t, xdc_editor_url).await?,
-            Some(xdc_response.clone())
+            Some((xdc_response.clone(), false))
         );
 
-        // Expired cache entry can be renewed
+        // Stale cache entry can be renewed
         // even before housekeeping removes old one.
         http_cache_put(t, "https://webxdc.org/", &html_response).await?;
         assert_eq!(
             http_cache_get(t, "https://webxdc.org/").await?,
-            Some(html_response.clone())
+            Some((html_response.clone(), false))
         );
 
         // 35 days later pixel .xdc expires because we did not request it for 35 days and 1 hour.
         // But editor is still there because we did not request it for just 35 days.
+        // We have not renewed the editor however, so it becomes stale.
         SystemTime::shift(Duration::from_secs(3600 * 24 * 35 - 100));
 
         // Run housekeeping to test that it does not delete the blob too early.
@@ -445,7 +491,7 @@ mod tests {
 
         assert_eq!(
             http_cache_get(t, xdc_editor_url).await?,
-            Some(xdc_response.clone())
+            Some((xdc_response.clone(), true))
         );
         assert_eq!(http_cache_get(t, xdc_pixel_url).await?, None);
 

@@ -1103,6 +1103,24 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 126)?;
+    if dbversion < migration_version {
+        // Recreate http_cache table with new `stale` column.
+        sql.execute_migration(
+            "DROP TABLE http_cache;
+             CREATE TABLE http_cache (
+                url TEXT PRIMARY KEY,
+                expires INTEGER NOT NULL, -- When the cache entry is considered expired, timestamp in seconds.
+                stale INTEGER NOT NULL, -- When the cache entry is considered stale, timestamp in seconds.
+                blobname TEXT NOT NULL,
+                mimetype TEXT NOT NULL DEFAULT '', -- MIME type extracted from Content-Type header.
+                encoding TEXT NOT NULL DEFAULT '' -- Encoding from Content-Type header.
+            ) STRICT",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
