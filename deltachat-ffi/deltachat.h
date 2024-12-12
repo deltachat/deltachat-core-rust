@@ -5963,7 +5963,7 @@ uint32_t dc_event_get_account_id(dc_event_t* event);
  * @return The json representation of the event as string or NULL.
  *     Must be freed using dc_str_unref().
  */
-uint32_t dc_event_get_json(dc_event_t* event);
+char* dc_event_get_json(dc_event_t* event);
 
 /**
  * Free memory used by an event object.
