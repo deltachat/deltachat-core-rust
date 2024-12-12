@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.152.0] - 2024-12-12
+
+### API-Changes
+
+- [**breaking**] Remove `dc_prepare_msg` and `dc_msg_is_increation`.
+
+### Build system
+
+- Increase MSRV to 1.81.0.
+
+### Features / Changes
+
+- Cache HTTP GET requests.
+- Prefix server-url in info.
+- Set `mime_modified` for the last message part, not the first ([#4462](https://github.com/deltachat/deltachat-core-rust/pull/4462)).
+
+### Fixes
+
+- Render "message" parts in multipart messages' HTML ([#4462](https://github.com/deltachat/deltachat-core-rust/pull/4462)).
+- Ignore garbage at the end of the keys.
+
 ## [1.151.6] - 2024-12-11
 
 ### Features / Changes
@@ -5487,3 +5508,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.3..v1.151.4
 [1.151.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.4..v1.151.5
 [1.151.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.5..v1.151.6
+[1.152.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.6..v1.152.0
