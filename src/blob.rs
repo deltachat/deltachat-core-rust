@@ -811,7 +811,12 @@ mod tests {
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
         tokio::task::block_in_place(move || {
-            let img = image::open(path).expect("failed to open image");
+            let img = ImageReader::open(path)
+                .expect("failed to open image")
+                .with_guessed_format()
+                .expect("failed to guess format")
+                .decode()
+                .expect("failed to decode image");
             assert_eq!(img.width(), width, "invalid width");
             assert_eq!(img.height(), height, "invalid height");
             img
@@ -1057,7 +1062,12 @@ mod tests {
             )
             .unwrap();
             tokio::task::block_in_place(move || {
-                let img = image::open(blob.to_abs_path()).unwrap();
+                let img = ImageReader::open(blob.to_abs_path())
+                    .unwrap()
+                    .with_guessed_format()
+                    .unwrap()
+                    .decode()
+                    .unwrap();
                 assert!(img.width() == img_wh);
                 assert!(img.height() == img_wh);
                 assert_eq!(img.get_pixel(0, 0), Rgba(color));
@@ -1108,7 +1118,12 @@ mod tests {
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
         tokio::task::block_in_place(move || {
-            let img = image::open(avatar_blob).unwrap();
+            let img = ImageReader::open(avatar_blob)
+                .unwrap()
+                .with_guessed_format()
+                .unwrap()
+                .decode()
+                .unwrap();
             assert!(img.width() > 130);
             assert_eq!(img.width(), img.height());
         });
@@ -1414,6 +1429,7 @@ mod tests {
                 .set_config(Config::MediaQuality, Some(media_quality_config))
                 .await?;
             let file = alice.get_blobdir().join("file").with_extension(extension);
+            let file_name = format!("file{extension}");
 
             fs::write(&file, &bytes)
                 .await
@@ -1429,7 +1445,8 @@ mod tests {
             }
 
             let mut msg = Message::new(viewtype);
-            msg.set_file(file.to_str().unwrap(), None);
+            msg.set_file_and_deduplicate(&alice, &file, &file_name, None)
+                .await?;
             let chat = alice.create_chat(&bob).await;
             if set_draft {
                 chat.id.set_draft(&alice, Some(&mut msg)).await.unwrap();
