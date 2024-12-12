@@ -1097,8 +1097,8 @@ impl Message {
         &mut self,
         context: &Context,
         file: &Path,
-        filemime: Option<&str>,
         name: &str,
+        filemime: Option<&str>,
     ) -> Result<()> {
         let blob = BlobObject::create_and_deduplicate(context, file).await?;
         self.param.set(Param::Filename, name);
