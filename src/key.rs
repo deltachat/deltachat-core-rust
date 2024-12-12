@@ -30,7 +30,39 @@ use crate::tools::{self, time_elapsed};
 pub(crate) trait DcKey: Serialize + Deserializable + PublicKeyTrait + Clone {
     /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self> {
-        Ok(<Self as Deserializable>::from_bytes(Cursor::new(bytes))?)
+        let res = <Self as Deserializable>::from_bytes(Cursor::new(bytes));
+        if let Ok(res) = res {
+            return Ok(res);
+        }
+
+        // Workaround for keys imported using
+        // Delta Chat core < 1.0.0.
+        // Old Delta Chat core had a bug
+        // that resulted in treating CRC24 checksum
+        // as part of the key when reading ASCII Armor.
+        // Some users that started using Delta Chat in 2019
+        // have such corrupted keys with garbage bytes at the end.
+        //
+        // Garbage is at least 3 bytes long
+        // and may be longer due to padding
+        // at the end of the real key data
+        // and importing the key multiple times.
+        //
+        // If removing 10 bytes is not enough,
+        // the key is likely actually corrupted.
+        for garbage_bytes in 3..std::cmp::min(bytes.len(), 10) {
+            let res = <Self as Deserializable>::from_bytes(Cursor::new(
+                bytes
+                    .get(..bytes.len().saturating_sub(garbage_bytes))
+                    .unwrap_or_default(),
+            ));
+            if let Ok(res) = res {
+                return Ok(res);
+            }
+        }
+
+        // Removing garbage bytes did not help, return the error.
+        Ok(res?)
     }
 
     /// Create a key from a base64 string.
@@ -562,6 +594,36 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             let slice = &bad_data.get(j..j + 4096 / 2 + j).unwrap();
             assert!(SignedPublicKey::from_slice(slice).is_err());
             assert!(SignedSecretKey::from_slice(slice).is_err());
+        }
+    }
+
+    /// Tests workaround for Delta Chat core < 1.0.0
+    /// which parsed CRC24 at the end of ASCII Armor
+    /// as the part of the key.
+    /// Depending on the alignment and the number of
+    /// `=` characters at the end of the key,
+    /// this resulted in various number of garbage
+    /// octets at the end of the key, starting from 3 octets,
+    /// but possibly 4 or 5 and maybe more octets
+    /// if the key is imported or transferred
+    /// using Autocrypt Setup Message multiple times.
+    #[test]
+    fn test_ignore_trailing_garbage() {
+        // Test several variants of garbage.
+        for garbage in [
+            b"\x02\xfc\xaa\x38\x4b\x5c".as_slice(),
+            b"\x02\xfc\xaa".as_slice(),
+            b"\x01\x02\x03\x04\x05".as_slice(),
+        ] {
+            let private_key = KEYPAIR.secret.clone();
+
+            let mut binary = DcKey::to_bytes(&private_key);
+            binary.extend(garbage);
+
+            let private_key2 =
+                SignedSecretKey::from_slice(&binary).expect("Failed to ignore garbage");
+
+            assert_eq!(private_key.dc_fingerprint(), private_key2.dc_fingerprint());
         }
     }
 
