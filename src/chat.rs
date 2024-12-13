@@ -893,13 +893,12 @@ impl ChatId {
                     .context("no file stored in params")?;
                 msg.param.set(Param::File, blob.as_name());
                 if msg.viewtype == Viewtype::File {
-                    if let Some((better_type, _)) =
-                        message::guess_msgtype_from_suffix(&blob.to_abs_path())
-                            // We do not do an automatic conversion to other viewtypes here so that
-                            // users can send images as "files" to preserve the original quality
-                            // (usually we compress images). The remaining conversions are done by
-                            // `prepare_msg_blob()` later.
-                            .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
+                    if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg)
+                        // We do not do an automatic conversion to other viewtypes here so that
+                        // users can send images as "files" to preserve the original quality
+                        // (usually we compress images). The remaining conversions are done by
+                        // `prepare_msg_blob()` later.
+                        .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
                     {
                         msg.viewtype = better_type;
                     }
@@ -2695,8 +2694,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             // Typical conversions:
             // - from FILE to AUDIO/VIDEO/IMAGE
             // - from FILE/IMAGE to GIF */
-            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(&blob.to_abs_path())
-            {
+            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg) {
                 if better_type != Viewtype::Webxdc
                     || context
                         .ensure_sendable_webxdc_file(&blob.to_abs_path())
@@ -2729,6 +2727,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
         msg.param.set(Param::File, blob.as_name());
+        // TODO not sure if we still need the next part
         if let (Some(filename), Some(blob_ext)) = (msg.param.get(Param::Filename), blob.suffix()) {
             let stem = match filename.rsplit_once('.') {
                 Some((stem, _)) => stem,
@@ -2739,7 +2738,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
         }
 
         if !msg.param.exists(Param::MimeType) {
-            if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
+            if let Some((_, mime)) = message::guess_msgtype_from_suffix(msg) {
                 msg.param.set(Param::MimeType, mime);
             }
         }
