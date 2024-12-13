@@ -620,8 +620,8 @@ impl Message {
     pub fn get_filemime(&self) -> Option<String> {
         if let Some(m) = self.param.get(Param::MimeType) {
             return Some(m.to_string());
-        } else if let Some(file) = self.param.get(Param::File) {
-            if let Some((_, mime)) = guess_msgtype_from_suffix(Path::new(file)) {
+        } else if self.param.exists(Param::File) {
+            if let Some((_, mime)) = guess_msgtype_from_suffix(self) {
                 return Some(mime.to_string());
             }
             // we have a file but no mimetype, let's use a generic one
@@ -1103,6 +1103,7 @@ impl Message {
     }
 
     /// Creates a new blob and sets it as a file associated with a message.
+    /// TODO this could also deduplicate
     pub async fn set_file_from_bytes(
         &mut self,
         context: &Context,
@@ -1455,7 +1456,14 @@ pub async fn get_msg_read_receipts(
         .await
 }
 
-pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
+pub(crate) fn guess_msgtype_from_suffix(msg: &Message) -> Option<(Viewtype, &'static str)> {
+    msg.param
+        .get(Param::Filename)
+        .or_else(|| msg.param.get(Param::File))
+        .and_then(|file| guess_msgtype_from_path_suffix(Path::new(file)))
+}
+
+pub(crate) fn guess_msgtype_from_path_suffix(path: &Path) -> Option<(Viewtype, &'static str)> {
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
     let info = match extension {
         // before using viewtype other than Viewtype::File,
@@ -2200,15 +2208,15 @@ mod tests {
     #[test]
     fn test_guess_msgtype_from_suffix() {
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/bar-sth.mp3")),
+            guess_msgtype_from_path_suffix(Path::new("foo/bar-sth.mp3")),
             Some((Viewtype::Audio, "audio/mpeg"))
         );
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/file.html")),
+            guess_msgtype_from_path_suffix(Path::new("foo/file.html")),
             Some((Viewtype::File, "text/html"))
         );
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/file.xdc")),
+            guess_msgtype_from_path_suffix(Path::new("foo/file.xdc")),
             Some((Viewtype::Webxdc, "application/webxdc+zip"))
         );
     }
