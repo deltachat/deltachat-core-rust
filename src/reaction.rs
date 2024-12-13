@@ -397,7 +397,7 @@ mod tests {
     use deltachat_contact_tools::ContactAddress;
 
     use super::*;
-    use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};
+    use crate::chat::{forward_msgs, get_chat_msgs, marknoticed_chat, send_text_msg};
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::{Contact, Origin};
@@ -664,7 +664,7 @@ Here's my footer -- bob@example.net"
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
         let alice_reaction_msg = alice.recv_msg_hidden(&bob_reaction_msg).await;
-        assert_eq!(alice_reaction_msg.state, MessageState::InSeen);
+        assert_eq!(alice_reaction_msg.state, MessageState::InFresh);
         assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 2);
 
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
@@ -680,6 +680,20 @@ Here's my footer -- bob@example.net"
             .await?;
         expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍").await?;
         expect_no_unwanted_events(&alice).await;
+
+        marknoticed_chat(&alice, chat_alice.id).await?;
+        assert_eq!(
+            alice_reaction_msg.id.get_state(&alice).await?,
+            MessageState::InSeen
+        );
+        // Reactions don't request MDNs.
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM smtp_mdns", ())
+                .await?,
+            0
+        );
 
         // Alice reacts to own message.
         send_reaction(&alice, alice_msg.sender_msg_id, "👍 😀")
