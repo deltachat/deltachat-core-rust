@@ -145,10 +145,9 @@ impl<'a> BlobObject<'a> {
         context: &'a Context,
         src: &Path,
     ) -> Result<BlobObject<'a>> {
-        // `update_reader()` uses std::fs, so we need to call task::block_in_place().
+        // `update_reader()` uses std::fs, so we need to use task::block_in_place().
         // Tokio io also just calls spawn_blocking() internally (e.g. https://docs.rs/tokio/1.42.0/src/tokio/fs/file.rs.html#606 and https://docs.rs/tokio/latest/src/tokio/fs/mod.rs.html#310)
         // so we are doing essentially the same here.
-
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
             if !(src.starts_with(blobdir) || src.starts_with("$BLOBDIR/")) {
