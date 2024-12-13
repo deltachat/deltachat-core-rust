@@ -1429,7 +1429,7 @@ mod tests {
                 .set_config(Config::MediaQuality, Some(media_quality_config))
                 .await?;
             let file = alice.get_blobdir().join("file").with_extension(extension);
-            let file_name = format!("file{extension}");
+            let file_name = format!("file.{extension}");
 
             fs::write(&file, &bytes)
                 .await
@@ -1462,6 +1462,8 @@ mod tests {
                 .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
             alice_msg.save_file(&alice, &file_saved).await?;
             check_image_size(file_saved, compressed_width, compressed_height);
+
+            println!("{}", sent.payload());
 
             let bob_msg = bob.recv_msg(&sent).await;
             assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
