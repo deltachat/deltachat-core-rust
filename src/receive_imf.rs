@@ -760,7 +760,7 @@ async fn add_parts(
     // (of course, the user can add other chats manually later)
     let to_id: ContactId;
     let state: MessageState;
-    let mut hidden = false;
+    let mut hidden = is_reaction;
     let mut needs_delete_job = false;
     let mut restore_protection = false;
 
@@ -1232,7 +1232,7 @@ async fn add_parts(
     }
 
     let orig_chat_id = chat_id;
-    let mut chat_id = if is_mdn || is_reaction {
+    let mut chat_id = if is_mdn {
         DC_CHAT_ID_TRASH
     } else {
         chat_id.unwrap_or_else(|| {
@@ -1597,10 +1597,10 @@ RETURNING id
                     state,
                     is_dc_message,
                     if trash { "" } else { msg },
-                    if trash { None } else { message::normalize_text(msg) },
-                    if trash { "" } else { &subject },
+                    if trash || hidden { None } else { message::normalize_text(msg) },
+                    if trash || hidden { "" } else { &subject },
                     // txt_raw might contain invalid utf8
-                    if trash { "" } else { &txt_raw },
+                    if trash || hidden { "" } else { &txt_raw },
                     if trash {
                         "".to_string()
                     } else {
@@ -1616,7 +1616,7 @@ RETURNING id
                     mime_in_reply_to,
                     mime_references,
                     save_mime_modified,
-                    part.error.as_deref().unwrap_or_default(),
+                    if trash || hidden { "" } else { part.error.as_deref().unwrap_or_default() },
                     ephemeral_timer,
                     ephemeral_timestamp,
                     if is_partial_download.is_some() {
@@ -1626,7 +1626,7 @@ RETURNING id
                     } else {
                         DownloadState::Done
                     },
-                    mime_parser.hop_info
+                    if trash || hidden { "" } else { &mime_parser.hop_info },
                 ],
                 |row| {
                     let msg_id: MsgId = row.get(0)?;
