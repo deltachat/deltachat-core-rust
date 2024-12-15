@@ -752,6 +752,9 @@ impl Contact {
 
         let addr_normalized = addr_normalize(addr);
 
+        if addr_normalized == ContactId::DEVICE_ADDR {
+            return Ok(Some(ContactId::DEVICE));
+        }
         if context.is_self_addr(&addr_normalized).await? {
             return Ok(Some(ContactId::SELF));
         }
@@ -810,8 +813,11 @@ impl Contact {
         ensure!(!addr.is_empty(), "Can not add_or_lookup empty address");
         ensure!(origin != Origin::Unknown, "Missing valid origin");
 
+        if addr.as_ref() == ContactId::DEVICE_ADDR {
+            return Ok((ContactId::DEVICE, Modifier::None));
+        }
         if context.is_self_addr(addr).await? {
-            return Ok((ContactId::SELF, sth_modified));
+            return Ok((ContactId::SELF, Modifier::None));
         }
 
         let mut name = sanitize_name(name);

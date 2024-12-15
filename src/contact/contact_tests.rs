@@ -249,6 +249,10 @@ async fn test_add_or_lookup() {
     assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
     assert_eq!(contact.get_addr(), ""); // we're not configured
     assert!(!contact.is_blocked());
+
+    let contact = Contact::get_by_id(&t, ContactId::DEVICE).await.unwrap();
+    assert_eq!(contact.get_addr(), "device@localhost");
+    assert!(!contact.is_blocked());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -705,6 +709,11 @@ async fn test_lookup_id_by_addr() {
         .await
         .unwrap();
     assert_eq!(id, Some(ContactId::SELF));
+
+    let id = Contact::lookup_id_by_addr(&alice.ctx, ContactId::DEVICE_ADDR, Origin::Unknown)
+        .await
+        .unwrap();
+    assert_eq!(id, Some(ContactId::DEVICE));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
