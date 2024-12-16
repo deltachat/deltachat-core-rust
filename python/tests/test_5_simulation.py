@@ -19,8 +19,9 @@ class Relay:
         self.peers.extend(newpeers)
         return newpeers
 
-    def receive_all(self):
-        for peer in self.peers:
+    def receive_all(self, peers=None):
+        peers = peers if peers else self.peers
+        for peer in peers:
             for from_peer in self.peers:
                 drain_mailbox(peer, from_peer)
 
@@ -51,7 +52,6 @@ class Peer:
         self.id = f"p{num}"
         self.members = set()
         self.from2mailbox = {}
-        assert isinstance(relay, Relay)
 
     def __eq__(self, other):
         return self.id == other.id
@@ -86,7 +86,7 @@ class Peer:
             peer.from2mailbox.setdefault(self, []).append(msg)
 
 
-### Naive Algorithm for processing group membership message
+### processing group membership message
 
 
 def drain_mailbox(peer, from_peer):
@@ -135,6 +135,29 @@ def test_concurrent_add(relay):
     p0.send_chatmessage()
     p1.send_chatmessage()
     relay.receive_all()
+    # only now do p0 and p1 know of each others additions
+    # so p0 or p1 needs to send another message to get consistent membership
     p0.send_chatmessage()
     relay.receive_all()
     relay.assert_same_members()
+
+
+def test_add_remove_and_stale_old_suddenly_sends(relay):
+    p0, p1, p2, p3 = relay.make_peers(4)
+
+    p0.immediate_create_group([p1, p2, p3])
+
+    # p3 is offline and a member get deleted
+    p0.del_member(p2)
+    relay.receive_all([p0, p1, p2])
+
+    # p3 sends a message with old memberlist and goes online
+    p3.send_chatmessage()
+    relay.receive_all()
+
+    # p0 sends a message which should update all peers' members
+    p0.send_chatmessage()
+    relay.receive_all()
+
+    relay.assert_same_members()
+    assert p0.members == set([p0, p1, p3])
