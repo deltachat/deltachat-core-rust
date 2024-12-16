@@ -65,9 +65,8 @@ class Peer:
     def immediate_create_group(self, peers):
         assert not self.members
         self.members.add(self)
-        self.members.update(peers)
         for peer in peers:
-            peer.members.update(self.members)
+            self.add_member(peer)
         self.relay.receive_all()
 
     def add_member(self, newmember):
