@@ -6,29 +6,34 @@ def relay():
     return Relay()
 
 
-def repr_peers(peers):
-    return ",".join(p.id for p in peers)
-
-
 class Relay:
     def __init__(self):
-        self.peers = []
+        self.peers = {}
+        self.clock = 1
+
+    def time(self):
+        self.clock += 1
+        return self.clock
 
     def make_peers(self, num):
-        newpeers = [Peer(self, i) for i in range(num)]
-        self.peers.extend(newpeers)
-        return newpeers
+        for i in range(num):
+            newpeer = Peer(relay=self, num=i)
+            self.peers[newpeer.id] = newpeer
+        return self.peers.values()
 
     def receive_all(self, peers=None):
-        peers = peers if peers else self.peers
+        peers = peers if peers else list(self.peers.values())
         for peer in peers:
-            for from_peer in self.peers:
-                drain_mailbox(peer, from_peer)
+            # drain peer mailbox by reading messages from each sender separately
+            for from_peer in self.peers.values():
+                for msg in peer.from2mailbox.get(from_peer, []):
+                    msg.receive_imf(peer)
 
     def assert_same_members(self):
-        for peer1, peer2 in zip(self.peers, self.peers[1:]):
+        peers = list(self.peers.values())
+        for peer1, peer2 in zip(peers, peers[1:]):
             assert peer1.members == peer2.members
-            nums = repr_peers(peer1.members)
+            nums = ",".join(peer1.members)
             print(f"{peer1.id} and {peer2.id} have same members {nums}")
 
 
@@ -36,14 +41,18 @@ class Message:
     def __init__(self, sender, **payload):
         self.sender = sender
         self.recipients = list(sender.members)
+        self.relay = sender.relay
         self.payload = payload
 
     def __repr__(self):
-        nums = repr_peers(self.recipients)
+        nums = ",".join(self.recipients)
         return f"<{self.__class__.__name__} {self.sender.id}->{nums} {self.payload}"
 
     def send(self):
-        for peer in self.sender.members:
+        relay = self.sender.relay
+        self.payload["sender_clock"] = relay.time()
+        for peer_id in self.sender.members:
+            peer = relay.peers[peer_id]
             peer.from2mailbox.setdefault(self.sender, []).append(self)
 
 
@@ -81,36 +90,26 @@ class Peer:
         return int(self.id[1:])
 
     def __repr__(self):
-        return f"<Peer {self.id} members={repr_peers(self.members)}>"
+        return f"<Peer {self.id} members={','.join(self.members)}>"
 
     def immediate_create_group(self, peers):
         assert not self.members
-        self.members.add(self)
+        self.members.add(self.id)
         for peer in peers:
             self.add_member(peer)
         self.relay.receive_all()
 
     def add_member(self, newmember):
-        self.members.add(newmember)
-        message = AddMemberMessage(self, newmember=newmember)
-        message.send()
+        self.members.add(newmember.id)
+        AddMemberMessage(self, newmember=newmember.id).send()
 
     def del_member(self, member):
-        message = DelMemberMessage(self, member=member)
-        message.send()
-        self.members.remove(member)
+        assert member.id in self.members
+        DelMemberMessage(self, member=member.id).send()
+        self.members.remove(member.id)
 
     def send_chatmessage(self):
-        message = ChatMessage(self)
-        message.send()
-
-
-### processing group membership message
-
-
-def drain_mailbox(peer, from_peer):
-    for msg in peer.from2mailbox.get(from_peer, []):
-        msg.receive_imf(peer)
+        ChatMessage(self).send()
 
 
 ### Tests
@@ -121,7 +120,7 @@ def test_add_and_remove(relay):
 
     # create group
     p0.immediate_create_group([p1])
-    assert p0.members == p1.members == set([p0, p1])
+    assert p0.members == p1.members == set([p0.id, p1.id])
 
     # add members
     p0.add_member(p2)
@@ -171,4 +170,4 @@ def test_add_remove_and_stale_old_suddenly_sends(relay):
     relay.receive_all()
 
     relay.assert_same_members()
-    assert p0.members == set([p0, p1, p3])
+    assert p0.members == set([p0.id, p1.id, p3.id])
