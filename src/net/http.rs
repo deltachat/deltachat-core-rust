@@ -151,7 +151,7 @@ async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Re
 /// Also returns if the response is stale and should be revalidated in the background.
 async fn http_cache_get(context: &Context, url: &str) -> Result<Option<(Response, bool)>> {
     let now = time();
-    let Some((blob_name, mimetype, encoding, is_stale)) = context
+    let Some((blob_name, mimetype, encoding, stale_timestamp)) = context
         .sql
         .query_row_optional(
             "SELECT blobname, mimetype, encoding, stale
@@ -162,13 +162,14 @@ async fn http_cache_get(context: &Context, url: &str) -> Result<Option<(Response
                 let mimetype: Option<String> = Some(row.get(1)?).filter(|s: &String| !s.is_empty());
                 let encoding: Option<String> = Some(row.get(2)?).filter(|s: &String| !s.is_empty());
                 let stale_timestamp: i64 = row.get(3)?;
-                Ok((blob_name, mimetype, encoding, now > stale_timestamp))
+                Ok((blob_name, mimetype, encoding, stale_timestamp))
             },
         )
         .await?
     else {
         return Ok(None);
     };
+    let is_stale = now > stale_timestamp;
 
     let blob_object = BlobObject::from_name(context, blob_name)?;
     let blob_abs_path = blob_object.to_abs_path();
@@ -195,15 +196,16 @@ async fn http_cache_get(context: &Context, url: &str) -> Result<Option<(Response
     // Update expiration timestamp
     // to prevent deletion of the file still in use.
     //
-    // We do not update stale timestamp here
-    // as we have not revalidated the response.
-    // Stale timestamp is updated only
-    // when the URL is sucessfully fetched.
+    // If the response is stale, the caller should revalidate it in the background, so update
+    // `stale` timestamp to avoid revalidating too frequently (and have many parallel revalidation
+    // tasks) if revalidation fails or the HTTP request takes some time. The stale period >= 1 hour,
+    // so 1 more minute won't be a problem.
+    let stale_timestamp = if is_stale { now + 60 } else { stale_timestamp };
     context
         .sql
         .execute(
-            "UPDATE http_cache SET expires=? WHERE url=?",
-            (expires, url),
+            "UPDATE http_cache SET expires=?, stale=? WHERE url=?",
+            (expires, stale_timestamp, url),
         )
         .await?;
 
@@ -305,8 +307,6 @@ pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
                 }
             });
         }
-
-        // Return stale result.
         return Ok(response);
     }
 
@@ -494,6 +494,22 @@ mod tests {
             Some((xdc_response.clone(), true))
         );
         assert_eq!(http_cache_get(t, xdc_pixel_url).await?, None);
+
+        // If we get the blob the second time quickly, it shouldn't be stale because it's supposed
+        // that we've already run a revalidation task which will update the blob soon.
+        assert_eq!(
+            http_cache_get(t, xdc_editor_url).await?,
+            Some((xdc_response.clone(), false))
+        );
+        // But if the revalidation task hasn't succeeded after some time, the blob is stale again
+        // even if we continue to get it frequently.
+        for i in (0..100).rev() {
+            SystemTime::shift(Duration::from_secs(6));
+            if let Some((_, true)) = http_cache_get(t, xdc_editor_url).await? {
+                break;
+            }
+            assert!(i > 0);
+        }
 
         // Test that if the file is accidentally removed from the blobdir,
         // there is no error when trying to load the cache entry.
