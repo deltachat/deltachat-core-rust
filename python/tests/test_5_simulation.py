@@ -42,17 +42,23 @@ class Message:
         nums = repr_peers(self.recipients)
         return f"<{self.__class__.__name__} {self.sender.id}->{nums} {self.payload}"
 
+    def send(self):
+        for peer in self.sender.members:
+            peer.from2mailbox.setdefault(self.sender, []).append(self)
+
 
 class AddMemberMessage(Message):
     def receive_imf(self, peer):
         peer.members.add(self.payload["newmember"])
         peer.members.update(self.recipients)
 
+
 class DelMemberMessage(Message):
     def receive_imf(self, peer):
         member = self.payload["member"]
         if member in peer.members:
             peer.members.remove(member)
+
 
 class ChatMessage(Message):
     def receive_imf(self, peer):
@@ -87,28 +93,24 @@ class Peer:
     def add_member(self, newmember):
         self.members.add(newmember)
         message = AddMemberMessage(self, newmember=newmember)
-        self.queue_message(message)
+        message.send()
 
     def del_member(self, member):
         message = DelMemberMessage(self, member=member)
-        self.queue_message(message)
+        message.send()
         self.members.remove(member)
 
     def send_chatmessage(self):
         message = ChatMessage(self)
-        self.queue_message(message)
-
-    def queue_message(self, message):
-        for peer in self.members:
-            peer.from2mailbox.setdefault(self, []).append(message)
+        message.send()
 
 
 ### processing group membership message
 
+
 def drain_mailbox(peer, from_peer):
     for msg in peer.from2mailbox.get(from_peer, []):
         msg.receive_imf(peer)
-
 
 
 ### Tests
