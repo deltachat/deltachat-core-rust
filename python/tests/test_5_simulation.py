@@ -9,11 +9,6 @@ def relay():
 class Relay:
     def __init__(self):
         self.peers = {}
-        self.clock = 1
-
-    def time(self):
-        self.clock += 1
-        return self.clock
 
     def make_peers(self, num):
         for i in range(num):
@@ -28,6 +23,7 @@ class Relay:
             for from_peer in self.peers.values():
                 for msg in peer.from2mailbox.get(from_peer, []):
                     msg.receive_imf(peer)
+                    peer.current_clock = max(peer.current_clock, msg.clock) + 1
 
     def assert_same_members(self):
         peers = list(self.peers.values())
@@ -43,16 +39,15 @@ class Message:
         self.recipients = list(sender.members)
         self.relay = sender.relay
         self.payload = payload
+        self.clock = sender.current_clock
 
     def __repr__(self):
         nums = ",".join(self.recipients)
         return f"<{self.__class__.__name__} {self.sender.id}->{nums} {self.payload}"
 
     def send(self):
-        relay = self.sender.relay
-        self.payload["sender_clock"] = relay.time()
         for peer_id in self.sender.members:
-            peer = relay.peers[peer_id]
+            peer = self.relay.peers[peer_id]
             peer.from2mailbox.setdefault(self.sender, []).append(self)
 
 
@@ -71,7 +66,9 @@ class DelMemberMessage(Message):
 
 class ChatMessage(Message):
     def receive_imf(self, peer):
-        peer.members.update(self.recipients)
+        if peer.current_clock < self.clock:
+            peer.members = set(self.recipients)
+            peer.current_clock = self.clock
 
 
 class Peer:
@@ -82,6 +79,7 @@ class Peer:
         self.id = f"p{num}"
         self.members = set()
         self.from2mailbox = {}
+        self.current_clock = 0
 
     def __eq__(self, other):
         return self.id == other.id
@@ -90,7 +88,8 @@ class Peer:
         return int(self.id[1:])
 
     def __repr__(self):
-        return f"<Peer {self.id} members={','.join(self.members)}>"
+        clock = self.current_clock
+        return f"<Peer {self.id} members={','.join(self.members)} clock={clock}>"
 
     def immediate_create_group(self, peers):
         assert not self.members
@@ -105,7 +104,8 @@ class Peer:
 
     def del_member(self, member):
         assert member.id in self.members
-        DelMemberMessage(self, member=member.id).send()
+        msg = DelMemberMessage(self, member=member.id)
+        msg.send()
         self.members.remove(member.id)
 
     def send_chatmessage(self):
