@@ -366,20 +366,15 @@ impl Params {
     ///
     /// This parses the parameter value as a [ParamsFile] and than
     /// tries to return a [BlobObject] for that file.  If the file is
-    /// not yet a valid blob, one will be created by copying the file
-    /// only if `create` is set to `true`, otherwise an error is
-    /// returned.
+    /// not yet a valid blob, one will be created by copying the file.
     ///
     /// Note that in the [ParamsFile::FsPath] case the blob can be
     /// created without copying if the path already refers to a valid
-    /// blob.  If so a [BlobObject] will be returned regardless of the
-    /// `create` argument.
-    #[allow(clippy::needless_lifetimes)]
+    /// blob.  If so a [BlobObject] will be returned.
     pub async fn get_blob<'a>(
         &self,
         key: Param,
         context: &'a Context,
-        create: bool,
     ) -> Result<Option<BlobObject<'a>>> {
         let val = match self.get(key) {
             Some(val) => val,
@@ -387,10 +382,7 @@ impl Params {
         };
         let file = ParamsFile::from_param(context, val)?;
         let blob = match file {
-            ParamsFile::FsPath(path) => match create {
-                true => BlobObject::new_from_path(context, &path).await?,
-                false => BlobObject::from_path(context, &path)?,
-            },
+            ParamsFile::FsPath(path) => BlobObject::new_from_path(context, &path).await?,
             ParamsFile::Blob(blob) => blob,
         };
         Ok(Some(blob))
@@ -546,23 +538,20 @@ mod tests {
         let path: PathBuf = p.get_path(Param::File, &t).unwrap().unwrap();
         assert_eq!(path, fname);
 
-        // Blob does not exist yet, expect error.
-        assert!(p.get_blob(Param::File, &t, false).await.is_err());
-
         fs::write(fname, b"boo").await.unwrap();
-        let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
+        let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
         assert!(blob.as_file_name().starts_with("foo"));
 
         // Blob in blobdir, expect blob.
         let bar_path = t.get_blobdir().join("bar");
         p.set(Param::File, bar_path.to_str().unwrap());
-        let blob = p.get_blob(Param::File, &t, false).await.unwrap().unwrap();
+        let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
         assert_eq!(blob, BlobObject::from_name(&t, "bar".to_string()).unwrap());
 
         p.remove(Param::File);
         assert!(p.get_file(Param::File, &t).unwrap().is_none());
         assert!(p.get_path(Param::File, &t).unwrap().is_none());
-        assert!(p.get_blob(Param::File, &t, false).await.unwrap().is_none());
+        assert!(p.get_blob(Param::File, &t).await.unwrap().is_none());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

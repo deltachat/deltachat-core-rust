@@ -6,14 +6,17 @@ use http_body_util::BodyExt;
 use hyper_util::rt::TokioIo;
 use mime::Mime;
 use serde::Serialize;
+use tokio::fs;
 
+use crate::blob::BlobObject;
 use crate::context::Context;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_rustls;
+use crate::tools::{create_id, time};
 
 /// HTTP(S) GET response.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Response {
     /// Response body.
     pub blob: Vec<u8>,
@@ -90,9 +93,144 @@ where
     Ok(sender)
 }
 
-/// Retrieves the binary contents of URL using HTTP GET request.
-pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
-    let mut url = url.to_string();
+/// Converts the URL to expiration and stale timestamps.
+fn http_url_cache_timestamps(url: &str, mimetype: Option<&str>) -> (i64, i64) {
+    let now = time();
+
+    let expires = now + 3600 * 24 * 35;
+    let stale = if url.ends_with(".xdc") {
+        // WebXDCs are never stale, they just expire.
+        expires
+    } else if mimetype.is_some_and(|s| s.starts_with("image/")) {
+        // Cache images for 1 day.
+        //
+        // As of 2024-12-12 WebXDC icons at <https://webxdc.org/apps/>
+        // use the same path for all app versions,
+        // so may change, but it is not critical if outdated icon is displayed.
+        now + 3600 * 24
+    } else {
+        // Revalidate everything else after 1 hour.
+        //
+        // This includes HTML, CSS and JS.
+        now + 3600
+    };
+    (expires, stale)
+}
+
+/// Places the binary into HTTP cache.
+async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Result<()> {
+    let blob = BlobObject::create(
+        context,
+        &format!("http_cache_{}", create_id()),
+        response.blob.as_slice(),
+    )
+    .await?;
+
+    let (expires, stale) = http_url_cache_timestamps(url, response.mimetype.as_deref());
+    context
+        .sql
+        .insert(
+            "INSERT OR REPLACE INTO http_cache (url, expires, stale, blobname, mimetype, encoding)
+             VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                url,
+                expires,
+                stale,
+                blob.as_name(),
+                response.mimetype.as_deref().unwrap_or_default(),
+                response.encoding.as_deref().unwrap_or_default(),
+            ),
+        )
+        .await?;
+
+    Ok(())
+}
+
+/// Retrieves the binary from HTTP cache.
+///
+/// Also returns if the response is stale and should be revalidated in the background.
+async fn http_cache_get(context: &Context, url: &str) -> Result<Option<(Response, bool)>> {
+    let now = time();
+    let Some((blob_name, mimetype, encoding, is_stale)) = context
+        .sql
+        .query_row_optional(
+            "SELECT blobname, mimetype, encoding, stale
+             FROM http_cache WHERE url=? AND expires > ?",
+            (url, now),
+            |row| {
+                let blob_name: String = row.get(0)?;
+                let mimetype: Option<String> = Some(row.get(1)?).filter(|s: &String| !s.is_empty());
+                let encoding: Option<String> = Some(row.get(2)?).filter(|s: &String| !s.is_empty());
+                let stale_timestamp: i64 = row.get(3)?;
+                Ok((blob_name, mimetype, encoding, now > stale_timestamp))
+            },
+        )
+        .await?
+    else {
+        return Ok(None);
+    };
+
+    let blob_object = BlobObject::from_name(context, blob_name)?;
+    let blob_abs_path = blob_object.to_abs_path();
+    let blob = match fs::read(blob_abs_path)
+        .await
+        .with_context(|| format!("Failed to read blob for {url:?} cache entry."))
+    {
+        Ok(blob) => blob,
+        Err(err) => {
+            // This should not happen, but user may go into the blobdir and remove files,
+            // antivirus may delete the file or there may be a bug in housekeeping.
+            warn!(context, "{err:?}.");
+            return Ok(None);
+        }
+    };
+
+    let (expires, _stale) = http_url_cache_timestamps(url, mimetype.as_deref());
+    let response = Response {
+        blob,
+        mimetype,
+        encoding,
+    };
+
+    // Update expiration timestamp
+    // to prevent deletion of the file still in use.
+    //
+    // We do not update stale timestamp here
+    // as we have not revalidated the response.
+    // Stale timestamp is updated only
+    // when the URL is sucessfully fetched.
+    context
+        .sql
+        .execute(
+            "UPDATE http_cache SET expires=? WHERE url=?",
+            (expires, url),
+        )
+        .await?;
+
+    Ok(Some((response, is_stale)))
+}
+
+/// Removes expired cache entries.
+pub(crate) async fn http_cache_cleanup(context: &Context) -> Result<()> {
+    // Remove cache entries that are already expired
+    // or entries that will not expire in a year
+    // to make sure we don't have invalid timestamps that are way forward in the future.
+    context
+        .sql
+        .execute(
+            "DELETE FROM http_cache
+             WHERE ?1 > expires OR expires > ?1 + 31536000",
+            (time(),),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Fetches URL and updates the cache.
+///
+/// URL is fetched regardless of whether there is an existing result in the cache.
+async fn fetch_url(context: &Context, original_url: &str) -> Result<Response> {
+    let mut url = original_url.to_string();
 
     // Follow up to 10 http-redirects
     for _i in 0..10 {
@@ -139,14 +277,42 @@ pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
         });
         let body = response.collect().await?.to_bytes();
         let blob: Vec<u8> = body.to_vec();
-        return Ok(Response {
+        let response = Response {
             blob,
             mimetype,
             encoding,
-        });
+        };
+        info!(context, "Inserting {original_url:?} into cache.");
+        http_cache_put(context, &url, &response).await?;
+        return Ok(response);
     }
 
     Err(anyhow!("Followed 10 redirections"))
+}
+
+/// Retrieves the binary contents of URL using HTTP GET request.
+pub async fn read_url_blob(context: &Context, url: &str) -> Result<Response> {
+    if let Some((response, is_stale)) = http_cache_get(context, url).await? {
+        info!(context, "Returning {url:?} from cache.");
+        if is_stale {
+            let context = context.clone();
+            let url = url.to_string();
+            tokio::spawn(async move {
+                // Fetch URL in background to update the cache.
+                info!(context, "Fetching stale {url:?} in background.");
+                if let Err(err) = fetch_url(&context, &url).await {
+                    warn!(context, "Failed to revalidate {url:?}: {err:#}.");
+                }
+            });
+        }
+
+        // Return stale result.
+        return Ok(response);
+    }
+
+    info!(context, "Not found {url:?} in cache, fetching.");
+    let response = fetch_url(context, url).await?;
+    Ok(response)
 }
 
 /// Sends an empty POST request to the URL.
@@ -240,4 +406,110 @@ pub(crate) async fn post_form<T: Serialize + ?Sized>(
     let response = sender.send_request(request).await?;
     let bytes = response.collect().await?.to_bytes();
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    use crate::sql::housekeeping;
+    use crate::test_utils::TestContext;
+    use crate::tools::SystemTime;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_http_cache() -> Result<()> {
+        let t = &TestContext::new().await;
+
+        assert_eq!(http_cache_get(t, "https://webxdc.org/").await?, None);
+
+        let html_response = Response {
+            blob: b"<!DOCTYPE html> ...".to_vec(),
+            mimetype: Some("text/html".to_string()),
+            encoding: None,
+        };
+
+        let xdc_response = Response {
+            blob: b"PK...".to_vec(),
+            mimetype: Some("application/octet-stream".to_string()),
+            encoding: None,
+        };
+        let xdc_editor_url = "https://apps.testrun.org/webxdc-editor-v3.2.0.xdc";
+        let xdc_pixel_url = "https://apps.testrun.org/webxdc-pixel-v2.xdc";
+
+        http_cache_put(t, "https://webxdc.org/", &html_response).await?;
+
+        assert_eq!(http_cache_get(t, xdc_editor_url).await?, None);
+        assert_eq!(http_cache_get(t, xdc_pixel_url).await?, None);
+        assert_eq!(
+            http_cache_get(t, "https://webxdc.org/").await?,
+            Some((html_response.clone(), false))
+        );
+
+        http_cache_put(t, xdc_editor_url, &xdc_response).await?;
+        http_cache_put(t, xdc_pixel_url, &xdc_response).await?;
+        assert_eq!(
+            http_cache_get(t, xdc_editor_url).await?,
+            Some((xdc_response.clone(), false))
+        );
+        assert_eq!(
+            http_cache_get(t, xdc_pixel_url).await?,
+            Some((xdc_response.clone(), false))
+        );
+
+        assert_eq!(
+            http_cache_get(t, "https://webxdc.org/").await?,
+            Some((html_response.clone(), false))
+        );
+
+        // HTML is stale after 1 hour, but .xdc is not.
+        SystemTime::shift(Duration::from_secs(3600 + 100));
+        assert_eq!(
+            http_cache_get(t, "https://webxdc.org/").await?,
+            Some((html_response.clone(), true))
+        );
+        assert_eq!(
+            http_cache_get(t, xdc_editor_url).await?,
+            Some((xdc_response.clone(), false))
+        );
+
+        // Stale cache entry can be renewed
+        // even before housekeeping removes old one.
+        http_cache_put(t, "https://webxdc.org/", &html_response).await?;
+        assert_eq!(
+            http_cache_get(t, "https://webxdc.org/").await?,
+            Some((html_response.clone(), false))
+        );
+
+        // 35 days later pixel .xdc expires because we did not request it for 35 days and 1 hour.
+        // But editor is still there because we did not request it for just 35 days.
+        // We have not renewed the editor however, so it becomes stale.
+        SystemTime::shift(Duration::from_secs(3600 * 24 * 35 - 100));
+
+        // Run housekeeping to test that it does not delete the blob too early.
+        housekeeping(t).await?;
+
+        assert_eq!(
+            http_cache_get(t, xdc_editor_url).await?,
+            Some((xdc_response.clone(), true))
+        );
+        assert_eq!(http_cache_get(t, xdc_pixel_url).await?, None);
+
+        // Test that if the file is accidentally removed from the blobdir,
+        // there is no error when trying to load the cache entry.
+        for entry in std::fs::read_dir(t.get_blobdir())? {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            std::fs::remove_file(path).expect("Failed to remove blob");
+        }
+
+        assert_eq!(
+            http_cache_get(t, xdc_editor_url)
+                .await
+                .context("Failed to get no cache response")?,
+            None
+        );
+
+        Ok(())
+    }
 }

@@ -1,15 +1,73 @@
 # Changelog
 
+## [1.152.0] - 2024-12-12
+
+### API-Changes
+
+- [**breaking**] Remove `dc_prepare_msg` and `dc_msg_is_increation`.
+
+### Build system
+
+- Increase MSRV to 1.81.0.
+
+### Features / Changes
+
+- Cache HTTP GET requests.
+- Prefix server-url in info.
+- Set `mime_modified` for the last message part, not the first ([#4462](https://github.com/deltachat/deltachat-core-rust/pull/4462)).
+
+### Fixes
+
+- Render "message" parts in multipart messages' HTML ([#4462](https://github.com/deltachat/deltachat-core-rust/pull/4462)).
+- Ignore garbage at the end of the keys.
+
+## [1.151.6] - 2024-12-11
+
+### Features / Changes
+
+- Don't add "Failed to send message to ..." info messages to group chats.
+- Add info messages about implicit membership changes if group member list is recreated ([#6314](https://github.com/deltachat/deltachat-core-rust/pull/6314)).
+
+### Fixes
+
+- Add self-addition message to chat when recreating member list.
+- Do not subscribe to heartbeat if already subscribed via metadata.
+
+### Build system
+
+- Add idna 0.5.0 exception into deny.toml.
+
+### Documentation
+
+- Update links to Node.js bindings in the README.
+
+### Refactor
+
+- Factor out `wait_for_all_work_done()`.
+
+### Tests
+
+- Notifiy more prominently & in more tests about false positives when running `cargo test` ([#6308](https://github.com/deltachat/deltachat-core-rust/pull/6308)).
+
 ## [1.151.5] - 2024-12-05
 
 ### API-Changes
 
 - [**breaking**] Remove dc_all_work_done().
 
+### Security
+
+- cargo: Update rPGP to 0.14.2.
+
+  This fixes [Panics on Malformed Untrusted Input](https://github.com/rpgp/rpgp/security/advisories/GHSA-9rmp-2568-59rv)
+  and [Potential Resource Exhaustion when handling Untrusted Messages](https://github.com/rpgp/rpgp/security/advisories/GHSA-4grw-m28r-q285).
+  This allows the attacker to crash the application via specially crafted messages and keys.
+  We recommend all users and bot operators to upgrade to the latest version.
+  There is no impact on the confidentiality of the messages and keys so no action other than upgrading is needed.
+
 ### Fixes
 
 - Store plaintext in mime_headers of truncated sent messages ([#6273](https://github.com/deltachat/deltachat-core-rust/pull/6273)).
-- cargo: Update rPGP to 0.14.2.
 
 ### Documentation
 
@@ -5449,3 +5507,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.2..v1.151.3
 [1.151.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.3..v1.151.4
 [1.151.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.4..v1.151.5
+[1.151.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.5..v1.151.6
+[1.152.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.6..v1.152.0

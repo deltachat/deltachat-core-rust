@@ -105,14 +105,12 @@ pub(crate) struct MimeMessage {
     /// received.
     pub(crate) footer: Option<String>,
 
-    // if this flag is set, the parts/text/etc. are just close to the original mime-message;
-    // clients should offer a way to view the original message in this case
+    /// If set, this is a modified MIME message; clients should offer a way to view the original
+    /// MIME message in this case.
     pub is_mime_modified: bool,
 
-    /// The decrypted, raw mime structure.
-    ///
-    /// This is non-empty iff `is_mime_modified` and the message was actually encrypted. It is used
-    /// for e.g. late-parsing HTML.
+    /// Decrypted, raw MIME structure. Nonempty iff `is_mime_modified` and the message was actually
+    /// encrypted.
     pub decoded_data: Vec<u8>,
 
     /// Hop info for debugging.
@@ -1281,7 +1279,7 @@ impl MimeMessage {
         Ok(self.parts.len() > old_part_count)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     async fn do_add_single_file_part(
         &mut self,
         context: &Context,
@@ -3091,11 +3089,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
         // Make sure the file is there even though the html is wrong:
         let param = &message.parts[0].param;
-        let blob: BlobObject = param
-            .get_blob(Param::File, &t, false)
-            .await
-            .unwrap()
-            .unwrap();
+        let blob: BlobObject = param.get_blob(Param::File, &t).await.unwrap().unwrap();
         let f = tokio::fs::File::open(blob.to_abs_path()).await.unwrap();
         let size = f.metadata().await.unwrap().len();
         assert_eq!(size, 154);

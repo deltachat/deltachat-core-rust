@@ -1366,10 +1366,9 @@ def test_quote_encrypted(acfactory, lp):
         msg_draft.quote = quoted_msg
         chat.set_draft(msg_draft)
 
-        # Get the draft, prepare and send it.
+        # Get the draft and send it.
         msg_draft = chat.get_draft()
-        msg_out = chat.prepare_message(msg_draft)
-        chat.send_prepared(msg_out)
+        chat.send_msg(msg_draft)
 
         chat.set_draft(None)
         assert chat.get_draft() is None
@@ -2291,9 +2290,8 @@ def test_group_quote(acfactory, lp):
     reply_msg = Message.new_empty(msg.chat.account, "text")
     reply_msg.set_text("reply")
     reply_msg.quote = msg
-    reply_msg = msg.chat.prepare_message(reply_msg)
     assert reply_msg.quoted_text == "hello"
-    msg.chat.send_prepared(reply_msg)
+    msg.chat.send_msg(reply_msg)
 
     lp.sec("ac3: receiving reply")
     received_reply = ac3._evtracker.wait_next_incoming_message()

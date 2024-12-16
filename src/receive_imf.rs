@@ -158,7 +158,7 @@ async fn insert_tombstone(context: &Context, rfc724_mid: &str) -> Result<MsgId> 
 /// If `is_partial_download` is set, it contains the full message size in bytes.
 /// Do not confuse that with `replace_msg_id` that will be set when the full message is loaded
 /// later.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) async fn receive_imf_inner(
     context: &Context,
     folder: &str,
@@ -679,7 +679,7 @@ pub async fn from_field_to_contact_id(
 /// Creates a `ReceivedMsg` from given parts which might consist of
 /// multiple messages (if there are multiple attachments).
 /// Every entry in `mime_parser.parts` produces a new row in the `msgs` table.
-#[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
+#[expect(clippy::too_many_arguments)]
 async fn add_parts(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1406,10 +1406,11 @@ async fn add_parts(
     // we save the full mime-message and add a flag
     // that the ui should show button to display the full message.
 
-    // a flag used to avoid adding "show full message" button to multiple parts of the message.
-    let mut save_mime_modified = mime_parser.is_mime_modified;
+    // We add "Show Full Message" button to the last message bubble (part) if this flag evaluates to
+    // `true` finally.
+    let mut save_mime_modified = false;
 
-    let mime_headers = if save_mime_headers || save_mime_modified {
+    let mime_headers = if save_mime_headers || mime_parser.is_mime_modified {
         let headers = if !mime_parser.decoded_data.is_empty() {
             mime_parser.decoded_data.clone()
         } else {
@@ -1475,7 +1476,8 @@ async fn add_parts(
         }
     }
 
-    for part in &mime_parser.parts {
+    let mut parts = mime_parser.parts.iter().peekable();
+    while let Some(part) = parts.next() {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
             let is_incoming_fresh = mime_parser.incoming && !seen && !fetching_existing_messages;
@@ -1519,14 +1521,11 @@ async fn add_parts(
         } else {
             (&part.msg, part.typ)
         };
-
         let part_is_empty =
             typ == Viewtype::Text && msg.is_empty() && part.param.get(Param::Quote).is_none();
-        let mime_modified = save_mime_modified && !part_is_empty;
-        if mime_modified {
-            // Avoid setting mime_modified for more than one part.
-            save_mime_modified = false;
-        }
+
+        save_mime_modified |= mime_parser.is_mime_modified && !part_is_empty && !hidden;
+        let save_mime_modified = save_mime_modified && parts.peek().is_none();
 
         if part.typ == Viewtype::Text {
             let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
@@ -1546,8 +1545,7 @@ async fn add_parts(
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash =
-            chat_id.is_trash() || (is_location_kml && msg.is_empty() && typ == Viewtype::Text);
+        let trash = chat_id.is_trash() || (is_location_kml && part_is_empty && !save_mime_modified);
 
         let row_id = context
             .sql
@@ -1610,14 +1608,14 @@ RETURNING id
                     },
                     hidden,
                     part.bytes as isize,
-                    if (save_mime_headers || mime_modified) && !trash {
+                    if (save_mime_headers || save_mime_modified) && !trash {
                         mime_headers.clone()
                     } else {
                         Vec::new()
                     },
                     mime_in_reply_to,
                     mime_references,
-                    mime_modified,
+                    save_mime_modified,
                     part.error.as_deref().unwrap_or_default(),
                     ephemeral_timer,
                     ephemeral_timestamp,
@@ -1843,7 +1841,7 @@ async fn lookup_chat_by_reply(
     Ok(Some((parent_chat.id, parent_chat.blocked)))
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 async fn lookup_chat_or_create_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
@@ -1978,7 +1976,7 @@ async fn is_probably_private_reply(
 /// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the created (chat_id, chat_blocked) tuple.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 async fn create_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -2098,7 +2096,6 @@ async fn create_group(
 /// just omitted.
 ///
 /// * `is_partial_download` - whether the message is not fully downloaded.
-#[allow(clippy::too_many_arguments)]
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,

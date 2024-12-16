@@ -1047,7 +1047,6 @@ impl MimeFactory {
         part.body(text)
     }
 
-    #[allow(clippy::cognitive_complexity)]
     async fn render_message(
         &mut self,
         context: &Context,
@@ -1516,7 +1515,7 @@ async fn build_body_file(
 ) -> Result<(PartBuilder, String)> {
     let blob = msg
         .param
-        .get_blob(Param::File, context, true)
+        .get_blob(Param::File, context)
         .await?
         .context("msg has no file")?;
     let suffix = blob.suffix().unwrap_or("dat");
@@ -1905,7 +1904,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let new_msg = incoming_msg_to_reply_msg(
+        let mut new_msg = incoming_msg_to_reply_msg(
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: bob@example.com\n\
                  To: alice@example.org\n\
@@ -1931,6 +1930,9 @@ mod tests {
                  Original-Message-ID: <2893@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
                  \n", &t).await;
+        chat::send_msg(&t, new_msg.chat_id, &mut new_msg)
+            .await
+            .unwrap();
         let mf = MimeFactory::from_msg(&t, new_msg).await.unwrap();
         // The subject string should not be "Re: message opened"
         assert_eq!("Re: Hello, Bob", mf.subject_str(&t).await.unwrap());
@@ -2077,7 +2079,7 @@ mod tests {
 
         let mut new_msg = Message::new_text("Hi".to_string());
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t, chat_id, &mut new_msg).await.unwrap();
+        chat::send_msg(&t, chat_id, &mut new_msg).await.unwrap();
 
         let mf = MimeFactory::from_msg(&t, new_msg).await.unwrap();
 
@@ -2134,7 +2136,7 @@ mod tests {
     ) -> String {
         let t = TestContext::new_alice().await;
         let mut new_msg = incoming_msg_to_reply_msg(imf_raw, &t).await;
-        let incoming_msg = get_chat_msg(&t, new_msg.chat_id, 0, 2).await;
+        let incoming_msg = get_chat_msg(&t, new_msg.chat_id, 0, 1).await;
 
         if delete_original_msg {
             incoming_msg.id.trash(&t, false).await.unwrap();
@@ -2164,6 +2166,9 @@ mod tests {
             new_msg.set_quote(&t, Some(&incoming_msg)).await.unwrap();
         }
 
+        chat::send_msg(&t, new_msg.chat_id, &mut new_msg)
+            .await
+            .unwrap();
         let mf = MimeFactory::from_msg(&t, new_msg).await.unwrap();
         mf.subject_str(&t).await.unwrap()
     }
@@ -2184,9 +2189,6 @@ mod tests {
 
         let mut new_msg = Message::new_text("Hi".to_string());
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(context, chat_id, &mut new_msg)
-            .await
-            .unwrap();
 
         new_msg
     }
@@ -2197,7 +2199,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         let context = &t;
 
-        let msg = incoming_msg_to_reply_msg(
+        let mut msg = incoming_msg_to_reply_msg(
             b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                 From: Charlie <charlie@example.com>\n\
                 To: alice@example.org\n\
@@ -2210,6 +2212,7 @@ mod tests {
             context,
         )
         .await;
+        chat::send_msg(&t, msg.chat_id, &mut msg).await.unwrap();
 
         let mimefactory = MimeFactory::from_msg(&t, msg).await.unwrap();
 

@@ -348,7 +348,7 @@ impl MsgId {
             let server_urls = Self::get_info_server_urls(context, msg.rfc724_mid).await?;
             for server_url in server_urls {
                 // Format as RFC 5092 relative IMAP URL.
-                ret += &format!("\n{server_url}");
+                ret += &format!("\nServer-URL: {server_url}");
             }
         }
         let hop_info = self.hop_info(context).await?;
@@ -951,18 +951,6 @@ impl Message {
     pub fn is_system_message(&self) -> bool {
         let cmd = self.param.get_cmd();
         cmd != SystemMessage::Unknown
-    }
-
-    /// Whether the message is still being created.
-    ///
-    /// Messages with attachments might be created before the
-    /// attachment is ready.  In this case some more restrictions on
-    /// the attachment apply, e.g. if the file to be attached is still
-    /// being written to or otherwise will still change it can not be
-    /// copied to the blobdir.  Thus those attachments need to be
-    /// created immediately in the blobdir with a valid filename.
-    pub fn is_increation(&self) -> bool {
-        self.viewtype.has_file() && self.state == MessageState::OutPreparing
     }
 
     /// Returns true if the message is an Autocrypt Setup Message.
@@ -2207,38 +2195,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_prepare_message_and_send() {
-        let d = test::TestContext::new().await;
-        let ctx = &d.ctx;
-
-        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await
-            .unwrap();
-
-        let chat = d.create_chat_with_contact("", "dest@example.com").await;
-
-        let mut msg = Message::new(Viewtype::Text);
-
-        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
-
-        let _msg2 = Message::load_from_db(ctx, msg_id).await.unwrap();
-        assert_eq!(_msg2.get_filemime(), None);
-    }
-
-    /// Tests that message can be prepared even if account has no configured address.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_prepare_not_configured() {
-        let d = test::TestContext::new().await;
-        let ctx = &d.ctx;
-
-        let chat = d.create_chat_with_contact("", "dest@example.com").await;
-
-        let mut msg = Message::new(Viewtype::Text);
-
-        assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_ok());
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_webrtc_instance() {
         let (webrtc_type, url) = Message::parse_webrtc_instance("basicwebrtc:https://foo/bar");
         assert_eq!(webrtc_type, VideochatType::BasicWebrtc);
@@ -2357,9 +2313,9 @@ mod tests {
 
         let mut msg = Message::new_text("Quoted message".to_string());
 
-        // Prepare message for sending, so it gets a Message-Id.
+        // Send message, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
-        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
+        let msg_id = chat::send_msg(ctx, chat.id, &mut msg).await.unwrap();
         let msg = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert!(!msg.rfc724_mid.is_empty());
 
