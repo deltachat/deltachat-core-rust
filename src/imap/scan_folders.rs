@@ -34,6 +34,7 @@ impl Imap {
         let watched_folders = get_watched_folders(context).await?;
 
         let mut folder_configs = BTreeMap::new();
+        let mut folder_names = Vec::new();
 
         for folder in folders {
             let folder_meaning = get_folder_meaning_by_attrs(folder.attributes());
@@ -44,6 +45,7 @@ impl Imap {
                 // already been moved and left it in the inbox.
                 continue;
             }
+            folder_names.push(folder.name().to_string());
             let folder_name_meaning = get_folder_meaning_by_name(folder.name());
 
             if let Some(config) = folder_meaning.to_config() {
@@ -91,6 +93,7 @@ impl Imap {
             }
         }
 
+        info!(context, "Found folders: {folder_names:?}.");
         last_scan.replace(tools::Time::now());
         Ok(true)
     }

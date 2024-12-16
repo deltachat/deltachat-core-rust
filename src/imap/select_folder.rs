@@ -111,7 +111,8 @@ impl ImapSession {
         }
     }
 
-    /// Selects a folder and takes care of UIDVALIDITY changes.
+    /// Selects a folder optionally creating it and takes care of UIDVALIDITY changes. Returns false
+    /// iff `folder` doesn't exist.
     ///
     /// When selecting a folder for the first time, sets the uid_next to the current
     /// mailbox.uid_next so that no old emails are fetched.
@@ -123,11 +124,24 @@ impl ImapSession {
         &mut self,
         context: &Context,
         folder: &str,
-    ) -> Result<()> {
-        let newly_selected = self
-            .select_or_create_folder(context, folder)
-            .await
-            .with_context(|| format!("failed to select or create folder {folder}"))?;
+        create: bool,
+    ) -> Result<bool> {
+        let newly_selected = if create {
+            self.select_or_create_folder(context, folder)
+                .await
+                .with_context(|| format!("failed to select or create folder {folder}"))?
+        } else {
+            match self.select_folder(context, folder).await {
+                Ok(newly_selected) => newly_selected,
+                Err(err) => match err {
+                    Error::NoFolder(..) => return Ok(false),
+                    _ => {
+                        return Err(err)
+                            .with_context(|| format!("failed to select folder {folder}"))?
+                    }
+                },
+            }
+        };
         let mailbox = self
             .selected_mailbox
             .as_mut()
@@ -199,7 +213,7 @@ impl ImapSession {
                 }
             }
 
-            return Ok(());
+            return Ok(true);
         }
 
         // UIDVALIDITY is modified, reset highest seen MODSEQ.
@@ -233,7 +247,7 @@ impl ImapSession {
             old_uid_next,
             old_uid_validity,
         );
-        Ok(())
+        Ok(true)
     }
 }
 
