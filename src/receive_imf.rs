@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
+use data_encoding::BASE32_NOPAD;
 use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, sanitize_single_line, ContactAddress};
 use iroh_gossip::proto::TopicId;
 use mailparse::SingleInfo;
@@ -1652,8 +1653,12 @@ RETURNING id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
                 // default encoding of topic ids is `hex`.
-                let topic_raw: [u8; 32] =
-                    iroh_base::base32::parse_array(topic).context("wrong gossip topic header")?;
+                let mut topic_raw = [0u8; 32];
+                BASE32_NOPAD
+                    .decode_mut(topic.to_ascii_uppercase().as_bytes(), &mut topic_raw)
+                    .map_err(|e| e.error)
+                    .context("wrong gossip topic header")?;
+
                 let topic = TopicId::from_bytes(topic_raw);
                 insert_topic_stub(context, *msg_id, topic).await?;
             } else {
