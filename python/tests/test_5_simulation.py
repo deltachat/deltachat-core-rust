@@ -15,7 +15,7 @@ class Relay:
         self.peers = []
 
     def make_peers(self, num):
-        newpeers = [Peer(relay, i) for i in range(num)]
+        newpeers = [Peer(self, i) for i in range(num)]
         self.peers.extend(newpeers)
         return newpeers
 
@@ -51,6 +51,7 @@ class Peer:
         self.id = f"p{num}"
         self.members = set()
         self.from2mailbox = {}
+        assert isinstance(relay, Relay)
 
     def __eq__(self, other):
         return self.id == other.id
@@ -60,6 +61,14 @@ class Peer:
 
     def __repr__(self):
         return f"<Peer {self.id} members={repr_peers(self.members)}>"
+
+    def immediate_create_group(self, peers):
+        assert not self.members
+        self.members.add(self)
+        self.members.update(peers)
+        for peer in peers:
+            peer.members.update(self.members)
+        self.relay.receive_all()
 
     def add_member(self, newmember):
         self.members.add(newmember)
@@ -76,11 +85,6 @@ class Peer:
         msg = Message(self, list(self.members), msgtype, payload)
         for peer in self.members:
             peer.from2mailbox.setdefault(self, []).append(msg)
-
-
-def create_group(peers):
-    for peer in peers:
-        peer.members.update(peers)
 
 
 ### Naive Algorithm for processing group membership message
@@ -105,10 +109,11 @@ def drain_mailbox(peer, from_peer):
 def test_add_and_remove(relay):
     p0, p1, p2, p3 = relay.make_peers(4)
 
-    create_group([p0, p1])
-    assert p0.members == p1.members
-    assert not p2.members and not p3.members
+    # create group
+    p0.immediate_create_group([p1])
+    assert p0.members == p1.members == set([p0, p1])
 
+    # add members
     p0.add_member(p2)
     p0.add_member(p3)
     relay.receive_all()
@@ -122,8 +127,7 @@ def test_add_and_remove(relay):
 def test_concurrent_add(relay):
     p0, p1, p2, p3 = relay.make_peers(4)
 
-    create_group([p0, p1])
-    assert not p2.members and not p3.members
+    p0.immediate_create_group([p1])
     # concurrent adding and then let base set send a chat message
     p1.add_member(p2)
     p0.add_member(p3)
