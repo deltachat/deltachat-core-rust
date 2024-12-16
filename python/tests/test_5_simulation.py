@@ -21,12 +21,11 @@ class Relay:
 
     def receive_all(self):
         for peer in self.peers:
-            drain_mailbox(peer)
+            for from_peer in self.peers:
+                drain_mailbox(peer, from_peer)
 
     def assert_same_members(self):
-        peers = list(self.peers)
-        for peer1, peer2 in zip(peers, peers[1:]):
-            print(f"checking {peer1.id}.members == {peer2.id}.members")
+        for peer1, peer2 in zip(self.peers, self.peers[1:]):
             assert peer1.members == peer2.members
             nums = repr_peers(peer1.members)
             print(f"{peer1.id} and {peer2.id} have same members {nums}")
@@ -51,7 +50,7 @@ class Peer:
         self.relay = relay
         self.id = f"p{num}"
         self.members = set()
-        self.mailbox = []
+        self.from2mailbox = {}
 
     def __eq__(self, other):
         return self.id == other.id
@@ -59,25 +58,24 @@ class Peer:
     def __hash__(self):
         return int(self.id[1:])
 
-    def add_member(self, newmember):
-        self.members.add(newmember)
-        send_message(sender=self, msgtype="addmember", newmember=newmember)
-
-    def del_member(self, member):
-        send_message(sender=self, msgtype="delmember", member=member)
-        self.members.remove(member)
-
-    def send_chatmessage(self):
-        send_message(sender=self, msgtype="chatmessage")
-
     def __repr__(self):
         return f"<Peer {self.id} members={repr_peers(self.members)}>"
 
+    def add_member(self, newmember):
+        self.members.add(newmember)
+        self.queue_message(msgtype="addmember", newmember=newmember)
 
-def send_message(sender, msgtype, **payload):
-    msg = Message(sender, list(sender.members), msgtype, payload)
-    for peer in sender.members:
-        peer.mailbox.append(msg)
+    def del_member(self, member):
+        self.queue_message(msgtype="delmember", member=member)
+        self.members.remove(member)
+
+    def send_chatmessage(self):
+        self.queue_message(msgtype="chatmessage")
+
+    def queue_message(self, msgtype, **payload):
+        msg = Message(self, list(self.members), msgtype, payload)
+        for peer in self.members:
+            peer.from2mailbox.setdefault(self, []).append(msg)
 
 
 def create_group(peers):
@@ -88,9 +86,8 @@ def create_group(peers):
 ### Naive Algorithm for processing group membership message
 
 
-def drain_mailbox(peer):
-    while peer.mailbox:
-        msg = peer.mailbox.pop(0)
+def drain_mailbox(peer, from_peer):
+    for msg in peer.from2mailbox.get(from_peer, []):
         if msg.msgtype == "addmember":
             peer.members.add(msg.payload["newmember"])
             peer.members.update(msg.recipients)
