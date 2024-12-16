@@ -33,15 +33,30 @@ class Relay:
 
 
 class Message:
-    def __init__(self, sender, recipients, msgtype, payload):
+    def __init__(self, sender, **payload):
         self.sender = sender
-        self.recipients = recipients
-        self.msgtype = msgtype
+        self.recipients = list(sender.members)
         self.payload = payload
 
     def __repr__(self):
         nums = repr_peers(self.recipients)
-        return f"<Message {self.sender.id}->{nums} {self.msgtype} {self.payload}"
+        return f"<{self.__class__.__name__} {self.sender.id}->{nums} {self.payload}"
+
+
+class AddMemberMessage(Message):
+    def receive_imf(self, peer):
+        peer.members.add(self.payload["newmember"])
+        peer.members.update(self.recipients)
+
+class DelMemberMessage(Message):
+    def receive_imf(self, peer):
+        member = self.payload["member"]
+        if member in peer.members:
+            peer.members.remove(member)
+
+class ChatMessage(Message):
+    def receive_imf(self, peer):
+        peer.members.update(self.recipients)
 
 
 class Peer:
@@ -71,35 +86,29 @@ class Peer:
 
     def add_member(self, newmember):
         self.members.add(newmember)
-        self.queue_message(msgtype="addmember", newmember=newmember)
+        message = AddMemberMessage(self, newmember=newmember)
+        self.queue_message(message)
 
     def del_member(self, member):
-        self.queue_message(msgtype="delmember", member=member)
+        message = DelMemberMessage(self, member=member)
+        self.queue_message(message)
         self.members.remove(member)
 
     def send_chatmessage(self):
-        self.queue_message(msgtype="chatmessage")
+        message = ChatMessage(self)
+        self.queue_message(message)
 
-    def queue_message(self, msgtype, **payload):
-        msg = Message(self, list(self.members), msgtype, payload)
+    def queue_message(self, message):
         for peer in self.members:
-            peer.from2mailbox.setdefault(self, []).append(msg)
+            peer.from2mailbox.setdefault(self, []).append(message)
 
 
 ### processing group membership message
 
-
 def drain_mailbox(peer, from_peer):
     for msg in peer.from2mailbox.get(from_peer, []):
-        if msg.msgtype == "addmember":
-            peer.members.add(msg.payload["newmember"])
-            peer.members.update(msg.recipients)
-        elif msg.msgtype == "delmember":
-            member = msg.payload["member"]
-            if member in peer.members:
-                peer.members.remove(member)
-        elif msg.msgtype == "chatmessage":
-            peer.members.update(msg.recipients)
+        msg.receive_imf(peer)
+
 
 
 ### Tests
