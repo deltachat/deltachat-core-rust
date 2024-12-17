@@ -40,7 +40,7 @@ class Relay:
         for peer1, peer2 in zip(peers, peers[1:]):
             assert peer1.members == peer2.members
             assert peer1.current_clock == peer2.current_clock
-            nums = ",".join(peer1.members)
+            nums = ",".join(sorted(peer1.members))
             print(f"{peer1.id} and {peer2.id} have same members {nums}")
 
 
@@ -189,7 +189,7 @@ def test_concurrent_add(relay):
     relay.assert_group_consistency()
 
 
-def test_add_remove_and_stale_old_suddenly_sends(relay):
+def test_add_remove_and_stale_member_sends_chatmessage(relay):
     p0, p1, p2, p3 = relay.make_peers(4)
 
     p0.immediate_create_group([p1, p2, p3])
@@ -202,3 +202,28 @@ def test_add_remove_and_stale_old_suddenly_sends(relay):
     ChatMessage(p3)
     relay.receive_all()
     relay.assert_group_consistency()
+    ChatMessage(p0)
+    relay.receive_all()
+    assert p0.members == set(["p0", "p1", "p3"])
+
+
+def test_add_remove_and_stale_member_sends_addition(relay):
+    p0, p1, p2, p3, p4 = relay.make_peers(5)
+
+    p0.immediate_create_group([p1, p2, p3])
+
+    # p3 is offline and p0 deletes p2
+    DelMemberMessage(p0, member=p2.id)
+    relay.receive_all([p0, p1, p2])
+
+    # p3 sends a message with member addition and goes online
+    AddMemberMessage(p3, member=p4.id)
+    relay.receive_all()
+    relay.dump("after p3 is online")
+
+    # we need a chat message from a higher clock state to heal consistency
+    ChatMessage(p0)
+    relay.receive_all()
+    relay.dump("after p0 sent chatmessage")
+    relay.assert_group_consistency()
+    assert p0.members == set(["p0", "p1", "p3", "p4"])
