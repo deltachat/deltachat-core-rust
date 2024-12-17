@@ -1,9 +1,9 @@
 //! Internet Message Format reception pipeline.
 
 use std::collections::HashSet;
-use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
+use data_encoding::BASE32_NOPAD;
 use deltachat_contact_tools::{addr_cmp, may_be_valid_addr, sanitize_single_line, ContactAddress};
 use iroh_gossip::proto::TopicId;
 use mailparse::SingleInfo;
@@ -1556,8 +1556,8 @@ INSERT INTO msgs
   (
     id,
     rfc724_mid, chat_id,
-    from_id, to_id, timestamp, timestamp_sent, 
-    timestamp_rcvd, type, state, msgrmsg, 
+    from_id, to_id, timestamp, timestamp_sent,
+    timestamp_rcvd, type, state, msgrmsg,
     txt, txt_normalized, subject, txt_raw, param, hidden,
     bytes, mime_headers, mime_compressed, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
@@ -1650,7 +1650,14 @@ RETURNING id
         // check if any part contains a webxdc topic id
         if part.typ == Viewtype::Webxdc {
             if let Some(topic) = mime_parser.get_header(HeaderDef::IrohGossipTopic) {
-                let topic = TopicId::from_str(topic).context("wrong gossip topic header")?;
+                // default encoding of topic ids is `hex`.
+                let mut topic_raw = [0u8; 32];
+                BASE32_NOPAD
+                    .decode_mut(topic.to_ascii_uppercase().as_bytes(), &mut topic_raw)
+                    .map_err(|e| e.error)
+                    .context("wrong gossip topic header")?;
+
+                let topic = TopicId::from_bytes(topic_raw);
                 insert_topic_stub(context, *msg_id, topic).await?;
             } else {
                 warn!(context, "webxdc doesn't have a gossip topic")
