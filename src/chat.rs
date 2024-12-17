@@ -2943,7 +2943,8 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
     // because BCC-self messages are also used to detect
     // that message was sent if SMTP server is slow to respond
     // and connection is frequently lost
-    // before receiving status line.
+    // before receiving status line. NB: This is not a problem for chatmail servers, so `BccSelf`
+    // disabled by default is fine.
     //
     // `from` must be the last addr, see `receive_imf_inner()` why.
     if context.get_config_bool(Config::BccSelf).await?

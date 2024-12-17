@@ -416,7 +416,7 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
             .context("cannot import unpacked database");
     }
     if res.is_ok() {
-        res = adjust_delete_server_after(context).await;
+        res = adjust_bcc_self(context).await;
     }
     fs::remove_file(unpacked_database)
         .await
@@ -796,7 +796,7 @@ async fn export_database(
         .to_str()
         .with_context(|| format!("path {} is not valid unicode", dest.display()))?;
 
-    adjust_delete_server_after(context).await?;
+    adjust_bcc_self(context).await?;
     context
         .sql
         .set_raw_config_int("backup_time", timestamp)
@@ -826,15 +826,14 @@ async fn export_database(
         .await
 }
 
-/// Sets `Config::DeleteServerAfter` to "never" if needed so that new messages are present on the
-/// server after a backup restoration or available for all devices in multi-device case.
-/// NB: Calling this after a backup import isn't reliable as we can crash in between, but this is a
-/// problem only for old backups, new backups already have `DeleteServerAfter` set if necessary.
-async fn adjust_delete_server_after(context: &Context) -> Result<()> {
-    if context.is_chatmail().await? && !context.config_exists(Config::DeleteServerAfter).await? {
-        context
-            .set_config(Config::DeleteServerAfter, Some("0"))
-            .await?;
+/// Sets `Config::BccSelf` (and `DeleteServerAfter` to "never" in effect) if needed so that new
+/// messages are present on the server after a backup restoration or available for all devices in
+/// multi-device case. NB: Calling this after a backup import isn't reliable as we can crash in
+/// between, but this is a problem only for old backups, new backups already have `BccSelf` set if
+/// necessary.
+async fn adjust_bcc_self(context: &Context) -> Result<()> {
+    if context.is_chatmail().await? && !context.config_exists(Config::BccSelf).await? {
+        context.set_config(Config::BccSelf, Some("1")).await?;
     }
     Ok(())
 }
@@ -1030,12 +1029,20 @@ mod tests {
 
         let context1 = &TestContext::new_alice().await;
 
-        // Check that the setting is displayed correctly.
+        // Check that the settings are displayed correctly.
+        assert_eq!(
+            context1.get_config(Config::BccSelf).await?,
+            Some("1".to_string())
+        );
         assert_eq!(
             context1.get_config(Config::DeleteServerAfter).await?,
             Some("0".to_string())
         );
         context1.set_config_bool(Config::IsChatmail, true).await?;
+        assert_eq!(
+            context1.get_config(Config::BccSelf).await?,
+            Some("0".to_string())
+        );
         assert_eq!(
             context1.get_config(Config::DeleteServerAfter).await?,
             Some("1".to_string())
@@ -1058,6 +1065,10 @@ mod tests {
         assert!(context2.is_configured().await?);
         assert!(context2.is_chatmail().await?);
         for ctx in [context1, context2] {
+            assert_eq!(
+                ctx.get_config(Config::BccSelf).await?,
+                Some("1".to_string())
+            );
             assert_eq!(
                 ctx.get_config(Config::DeleteServerAfter).await?,
                 Some("0".to_string())

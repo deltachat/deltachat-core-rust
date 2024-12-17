@@ -1121,6 +1121,23 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 127)?;
+    if dbversion < migration_version {
+        // Existing chatmail configurations having `delete_server_after` disabled should get
+        // `bcc_self` enabled, they may be multidevice configurations because before,
+        // `delete_server_after` was set to 0 upon a backup export for them, but together with this
+        // migration `bcc_self` is enabled instead (whose default is changed to 0 for chatmail). We
+        // don't check `is_chatmail` for simplicity.
+        sql.execute_migration(
+            "INSERT OR IGNORE INTO config (keyname, value)
+             SELECT 'bcc_self', '1'
+             FROM config WHERE keyname='delete_server_after' AND value='0'
+            ",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
