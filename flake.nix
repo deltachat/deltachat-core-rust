@@ -1,19 +1,14 @@
 {
   description = "Delta Chat core";
   inputs = {
-    # Old Rust to build releases.
     fenix.url = "github:nix-community/fenix?rev=85f4139f3c092cf4afd9f9906d7ed218ef262c97";
-
-    # New Rust for development shell.
-    new-fenix.url = "github:nix-community/fenix";
-
     flake-utils.url = "github:numtide/flake-utils";
     naersk.url = "github:nix-community/naersk";
     nix-filter.url = "github:numtide/nix-filter";
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     android.url = "github:tadfisher/android-nixpkgs";
   };
-  outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix, new-fenix, android }:
+  outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix, android }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -543,13 +538,13 @@
           let
             pkgs = import nixpkgs {
               system = system;
-              overlays = [ new-fenix.overlays.default ];
+              overlays = [ fenix.overlays.default ];
             };
           in
           pkgs.mkShell {
 
             buildInputs = with pkgs; [
-              (new-fenix.packages.${system}.complete.withComponents [
+              (fenix.packages.${system}.complete.withComponents [
                 "cargo"
                 "clippy"
                 "rust-src"
