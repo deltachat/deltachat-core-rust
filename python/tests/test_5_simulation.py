@@ -49,6 +49,7 @@ class Message:
         self.recipients = set(sender.members)
         sender.current_clock += self.inc
         self.clock = sender.current_clock
+        self.send()
 
     def __repr__(self):
         nums = ",".join(self.recipients)
@@ -135,7 +136,7 @@ class Peer:
         assert not self.members
         self.members.add(self.id)
         for peer in peers:
-            AddMemberMessage(self, member=peer.id).send()
+            AddMemberMessage(self, member=peer.id)
         self.relay.receive_all()
 
 
@@ -150,12 +151,12 @@ def test_add_and_remove(relay):
     assert p0.members == p1.members == set([p0.id, p1.id])
 
     # add members
-    AddMemberMessage(p0, member=p2.id).send()
-    AddMemberMessage(p0, member=p3.id).send()
+    AddMemberMessage(p0, member=p2.id)
+    AddMemberMessage(p0, member=p3.id)
     relay.receive_all()
     relay.assert_same_members()
 
-    DelMemberMessage(p3, member=p0.id).send()
+    DelMemberMessage(p3, member=p0.id)
     relay.receive_all()
     relay.assert_same_members()
 
@@ -165,14 +166,14 @@ def test_concurrent_add(relay):
 
     p0.immediate_create_group([p1])
     # concurrent adding and then let base set send a chat message
-    AddMemberMessage(p1, member=p2.id).send()
-    AddMemberMessage(p0, member=p3.id).send()
+    AddMemberMessage(p1, member=p2.id)
+    AddMemberMessage(p0, member=p3.id)
     relay.receive_all()
 
     relay.dump("after concurrent add")
     # only now do p0 and p1 know of each others additions
     # so p0 or p1 needs to send another message to get consistent membership
-    ChatMessage(p0).send()
+    ChatMessage(p0)
     relay.receive_all()
     relay.assert_same_members()
 
@@ -183,17 +184,17 @@ def test_add_remove_and_stale_old_suddenly_sends(relay):
     p0.immediate_create_group([p1, p2, p3])
 
     # p3 is offline and p0 deletes p2
-    DelMemberMessage(p0, member=p2.id).send()
+    DelMemberMessage(p0, member=p2.id)
     relay.receive_all([p0, p1, p2])
     relay.dump("p0 has deleted p3")
 
     # p3 sends a message with old memberlist and goes online
-    ChatMessage(p3).send()
+    ChatMessage(p3)
     relay.receive_all()
 
     relay.dump("after p3 sent an old memberlist")
     # p0 sends a message which should update all peers' members
-    ChatMessage(p0).send()
+    ChatMessage(p0)
     relay.receive_all()
     relay.dump("final")
 
