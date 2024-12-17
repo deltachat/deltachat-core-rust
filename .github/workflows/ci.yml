@@ -103,9 +103,9 @@ jobs:
           - os: macos-latest
             rust: 1.83.0
 
-          # Minimum Supported Rust Version = 1.81.0
+          # Minimum Supported Rust Version = 1.77.0
           - os: ubuntu-latest
-            rust: 1.81.0
+            rust: 1.77.0
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

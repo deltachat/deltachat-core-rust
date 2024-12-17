@@ -371,6 +371,7 @@ impl Params {
     /// Note that in the [ParamsFile::FsPath] case the blob can be
     /// created without copying if the path already refers to a valid
     /// blob.  If so a [BlobObject] will be returned.
+    #[allow(clippy::needless_lifetimes)]
     pub async fn get_blob<'a>(
         &self,
         key: Param,

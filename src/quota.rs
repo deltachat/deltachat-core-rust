@@ -187,7 +187,7 @@ mod tests {
         Ok(())
     }
 
-    #[expect(clippy::assertions_on_constants)]
+    #[allow(clippy::assertions_on_constants)]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quota_thresholds() -> anyhow::Result<()> {
         assert!(QUOTA_ALLCLEAR_PERCENTAGE > 50);
