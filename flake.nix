@@ -1,7 +1,7 @@
 {
   description = "Delta Chat core";
   inputs = {
-    fenix.url = "github:nix-community/fenix?rev=85f4139f3c092cf4afd9f9906d7ed218ef262c97";
+    fenix.url = "github:nix-community/fenix";
     flake-utils.url = "github:numtide/flake-utils";
     naersk.url = "github:nix-community/naersk";
     nix-filter.url = "github:numtide/nix-filter";
