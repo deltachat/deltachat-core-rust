@@ -95,18 +95,20 @@ class Peer:
         assert not self.members
         self.members.add(self.id)
         for peer in peers:
-            self.add_member(peer)
+            self.add_member(peer.id)
         self.relay.receive_all()
 
     def add_member(self, newmember):
-        self.members.add(newmember.id)
-        AddMemberMessage(self, newmember=newmember.id).send()
+        assert isinstance(newmember, str)
+        self.members.add(newmember)
+        AddMemberMessage(self, newmember=newmember).send()
 
     def del_member(self, member):
-        assert member.id in self.members
-        msg = DelMemberMessage(self, member=member.id)
+        assert isinstance(member, str)
+        assert member in self.members
+        msg = DelMemberMessage(self, member=member)
         msg.send()
-        self.members.remove(member.id)
+        self.members.remove(member)
 
     def send_chatmessage(self):
         ChatMessage(self).send()
@@ -123,12 +125,12 @@ def test_add_and_remove(relay):
     assert p0.members == p1.members == set([p0.id, p1.id])
 
     # add members
-    p0.add_member(p2)
-    p0.add_member(p3)
+    p0.add_member(p2.id)
+    p0.add_member(p3.id)
     relay.receive_all()
     relay.assert_same_members()
 
-    p3.del_member(p0)
+    p3.del_member(p0.id)
     relay.receive_all()
     relay.assert_same_members()
 
@@ -138,8 +140,8 @@ def test_concurrent_add(relay):
 
     p0.immediate_create_group([p1])
     # concurrent adding and then let base set send a chat message
-    p1.add_member(p2)
-    p0.add_member(p3)
+    p1.add_member(p2.id)
+    p0.add_member(p3.id)
 
     # now p0 and p1 send a regular message
     p0.send_chatmessage()
@@ -158,7 +160,7 @@ def test_add_remove_and_stale_old_suddenly_sends(relay):
     p0.immediate_create_group([p1, p2, p3])
 
     # p3 is offline and a member get deleted
-    p0.del_member(p2)
+    p0.del_member(p2.id)
     relay.receive_all([p0, p1, p2])
 
     # p3 sends a message with old memberlist and goes online
