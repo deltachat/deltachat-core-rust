@@ -1445,9 +1445,14 @@ impl ChatId {
                 .query_row_optional(
                     "SELECT MAX(timestamp), MAX(IIF(state=?,timestamp_sent,0))
                      FROM msgs
-                     WHERE chat_id=? AND hidden=0 AND state>?
+                     WHERE chat_id=? AND hidden=0 AND state>? AND state!=?
                      HAVING COUNT(*) > 0",
-                    (MessageState::InSeen, self, MessageState::InFresh),
+                    (
+                        MessageState::InSeen,
+                        self,
+                        MessageState::InFresh,
+                        MessageState::OutRcvd,
+                    ),
                     |row| {
                         let ts: i64 = row.get(0)?;
                         let ts_sent_seen: i64 = row.get(1)?;
@@ -4198,6 +4203,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             MessageState::OutPending
             | MessageState::OutFailed
             | MessageState::OutDelivered
+            | MessageState::OutRcvd
             | MessageState::OutMdnRcvd => {
                 message::update_msg_state(context, msg.id, MessageState::OutPending).await?
             }
