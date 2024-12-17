@@ -178,6 +178,7 @@ impl BackupProvider {
         }
 
         info!(context, "Received valid backup authentication token.");
+        // Emit a nonzero progress so that UIs can display smth like "Transferring...".
         context.emit_event(EventType::ImexProgress(1));
 
         let blobdir = BlobDirContents::new(&context).await?;
@@ -309,6 +310,10 @@ pub async fn get_backup2(
     let mut file_size_buf = [0u8; 8];
     recv_stream.read_exact(&mut file_size_buf).await?;
     let file_size = u64::from_be_bytes(file_size_buf);
+    info!(context, "Received backup file size.");
+    // Emit a nonzero progress so that UIs can display smth like "Transferring...".
+    context.emit_event(EventType::ImexProgress(1));
+
     import_backup_stream(context, recv_stream, file_size, passphrase)
         .await
         .context("Failed to import backup from QUIC stream")?;
@@ -434,12 +439,14 @@ mod tests {
         assert!(msg.save_file(&ctx1, &path).await.is_err());
 
         // Check that both received the ImexProgress events.
-        ctx0.evtracker
-            .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
-            .await;
-        ctx1.evtracker
-            .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
-            .await;
+        for ctx in [&ctx0, &ctx1] {
+            ctx.evtracker
+                .get_matching(|ev| matches!(ev, EventType::ImexProgress(1)))
+                .await;
+            ctx.evtracker
+                .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
+                .await;
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
