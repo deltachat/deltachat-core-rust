@@ -45,7 +45,7 @@ async fn new_smtp_transport<S: AsyncBufRead + AsyncWrite + Unpin>(
     Ok(transport)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) async fn connect_and_auth(
     context: &Context,
     proxy_config: &Option<ProxyConfig>,
