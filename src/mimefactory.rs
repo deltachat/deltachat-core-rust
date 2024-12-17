@@ -1150,7 +1150,6 @@ impl MimeFactory {
         part.body(text)
     }
 
-    #[allow(clippy::cognitive_complexity)]
     async fn render_message(
         &mut self,
         context: &Context,

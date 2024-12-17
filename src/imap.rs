@@ -1331,7 +1331,7 @@ impl Session {
     /// Returns the last UID fetched successfully and the info about each downloaded message.
     /// If the message is incorrect or there is a failure to write a message to the database,
     /// it is skipped and the error is logged.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub(crate) async fn fetch_many_msgs(
         &mut self,
         context: &Context,
@@ -2726,7 +2726,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn check_target_folder_combination(
         folder: &str,
         mvbox_move: bool,

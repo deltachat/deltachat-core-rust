@@ -3,7 +3,7 @@ name = "deltachat"
 version = "1.154.3"
 edition = "2021"
 license = "MPL-2.0"
-rust-version = "1.77"
+rust-version = "1.81"
 repository = "https://github.com/deltachat/deltachat-core-rust"
 
 [profile.dev]

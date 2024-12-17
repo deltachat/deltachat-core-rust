@@ -313,7 +313,7 @@ impl ChatId {
 
     /// Create a group or mailinglist raw database record with the given parameters.
     /// The function does not add SELF nor checks if the record already exists.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub(crate) async fn create_multiuser_record(
         context: &Context,
         chattype: Chattype,
@@ -4616,7 +4616,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 ///
 /// For example, it can be a message showing that a member was added to a group.
 /// Doesn't fail if the chat doesn't exist.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) async fn add_info_msg_with_cmd(
     context: &Context,
     chat_id: ChatId,
