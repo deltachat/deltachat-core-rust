@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.152.1] - 2024-12-17
+
+### Build system
+
+- Downgrade Rust version used to build binaries.
+- Reduce MSRV to 1.77.0.
+
 ## [1.152.0] - 2024-12-12
 
 ### API-Changes
@@ -5509,3 +5516,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.4..v1.151.5
 [1.151.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.5..v1.151.6
 [1.152.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.6..v1.152.0
+[1.152.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.0..v1.152.1
