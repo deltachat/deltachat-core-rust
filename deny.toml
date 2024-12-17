@@ -31,6 +31,8 @@ skip = [
      { name = "fiat-crypto", version = "0.1.20" },
      { name = "futures-lite", version = "1.13.0" },
      { name = "getrandom", version = "<0.2" },
+     { name = "hashbrown", version = "0.14.5" },
+     { name = "hashbrown", version = "0.15.2" },
      { name = "hostname", version = "0.3.1" },
      { name = "http", version = "0.2.12" },
      { name = "netlink-packet-route", version = "0.17.1" },
@@ -81,7 +83,6 @@ allow = [
     "MPL-2.0",
     "OpenSSL",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "Zlib",
 ]
 
