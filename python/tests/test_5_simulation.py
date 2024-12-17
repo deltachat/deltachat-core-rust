@@ -17,11 +17,11 @@ class Relay:
         return self.peers.values()
 
     def receive_all(self, peers=None):
-        peers = peers if peers else list(self.peers.values())
+        peers = peers if peers else self.peers.values()
         for peer in peers:
             # drain peer mailbox by reading messages from each sender separately
             for from_peer in self.peers.values():
-                for msg in peer.from2mailbox.get(from_peer, []):
+                for msg in peer.from2mailbox.pop(from_peer, []):
                     msg.receive_imf(peer)
                     peer.current_clock = max(peer.current_clock, msg.clock) + 1
 
