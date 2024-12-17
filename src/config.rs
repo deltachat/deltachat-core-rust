@@ -7,13 +7,14 @@ use std::str::FromStr;
 use anyhow::{ensure, Context as _, Result};
 use base64::Engine as _;
 use deltachat_contact_tools::{addr_cmp, sanitize_single_line};
+use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use tokio::fs;
 
 use crate::blob::BlobObject;
-use crate::constants;
+use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -664,6 +665,18 @@ impl Context {
         }
     }
 
+    pub(crate) async fn max_image_wh_and_size(&self) -> Result<(u32, usize)> {
+        match MediaQuality::from_i32(self.get_config_int(Config::MediaQuality).await?)
+            .unwrap_or_default()
+        {
+            MediaQuality::Balanced => Ok((
+                constants::BALANCED_IMAGE_SIZE,
+                constants::BALANCED_IMAGE_BYTES,
+            )),
+            MediaQuality::Worse => Ok((constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES)),
+        }
+    }
+
     /// Executes [`SyncData::Config`] item sent by other device.
     pub(crate) async fn sync_config(&self, key: &Config, value: &str) -> Result<()> {
         let config_value;
@@ -749,7 +762,8 @@ impl Context {
                 match value {
                     Some(path) => {
                         let mut blob = BlobObject::new_from_path(self, path.as_ref()).await?;
-                        blob.recode_to_avatar_size(self).await?;
+                        let protected = true;
+                        blob.recode_to_avatar_size(self, protected).await?;
                         self.sql
                             .set_raw_config(key.as_ref(), Some(blob.as_name()))
                             .await?;
