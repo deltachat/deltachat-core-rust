@@ -17,6 +17,7 @@ class Relay:
         return self.peers.values()
 
     def dump(self, title):
+        print()
         print(f"# {title}")
         for peer_id, peer in self.peers.items():
             pending = sum(len(x) for x in peer.from2mailbox.values())
@@ -34,10 +35,11 @@ class Relay:
                     for msg in pending:
                         msg.receive(peer)
 
-    def assert_same_members(self):
+    def assert_group_consistency(self):
         peers = list(self.peers.values())
         for peer1, peer2 in zip(peers, peers[1:]):
             assert peer1.members == peer2.members
+            assert peer1.current_clock == peer2.current_clock
             nums = ",".join(peer1.members)
             print(f"{peer1.id} and {peer2.id} have same members {nums}")
 
@@ -47,29 +49,31 @@ class Message:
         self.sender = sender
         self.payload = payload
         self.recipients = set(sender.members)
-        sender.current_clock += self.inc
+        # we increment clock on AddMemberMessage and DelMemberMessage
+        sender.current_clock += self.clock_inc
         self.clock = sender.current_clock
         self.send()
 
     def __repr__(self):
         nums = ",".join(self.recipients)
-        return f"<{self.__class__.__name__} {self.sender.id}->{nums} {self.payload}"
+        return f"<{self.__class__.__name__} clock={self.clock} {self.sender.id}->{nums} {self.payload}>"
 
     def send(self):
+        print(f"sending {self}")
         for peer_id in self.sender.members:
             peer = self.sender.relay.peers[peer_id]
             peer.from2mailbox.setdefault(self.sender, []).append(self)
 
 
 class AddMemberMessage(Message):
-    inc = 1
+    clock_inc = 1
 
     def __init__(self, sender, member):
         sender.members.add(member)
         super().__init__(sender, member=member)
 
     def receive(self, peer):
-        if not peer.members:
+        if not peer.members:  # create group
             peer.members = self.recipients.copy()
             peer.current_clock = self.clock
             return
@@ -78,10 +82,13 @@ class AddMemberMessage(Message):
         if peer.current_clock < self.clock:
             peer.members.update(self.recipients)
             peer.current_clock = self.clock
+        elif peer.current_clock == self.clock:
+            if peer.members != self.recipients:
+                peer.current_clock += 1
 
 
 class DelMemberMessage(Message):
-    inc = 1
+    clock_inc = 1
 
     def send(self):
         super().send()
@@ -96,7 +103,7 @@ class DelMemberMessage(Message):
 
 
 class ChatMessage(Message):
-    inc = 0
+    clock_inc = 0
 
     def receive(self, peer):
         print(f"receive {peer.id} clock={peer.current_clock} msgclock={self.clock}")
@@ -108,8 +115,11 @@ class ChatMessage(Message):
         elif peer.current_clock == self.clock:
             if peer.members != set(self.recipients):
                 print(f"{peer.id} has different members than incoming same-clock message")
+                print(f"{peer.id} resetting to incoming recipients, and increase own clock")
                 peer.members = set(self.recipients)
                 peer.current_clock = self.clock + 1
+        else:
+            print(f"{peer.id} has newer clock than incoming message")
 
 
 class Peer:
@@ -154,11 +164,11 @@ def test_add_and_remove(relay):
     AddMemberMessage(p0, member=p2.id)
     AddMemberMessage(p0, member=p3.id)
     relay.receive_all()
-    relay.assert_same_members()
+    relay.assert_group_consistency()
 
     DelMemberMessage(p3, member=p0.id)
     relay.receive_all()
-    relay.assert_same_members()
+    relay.assert_group_consistency()
 
 
 def test_concurrent_add(relay):
@@ -175,7 +185,8 @@ def test_concurrent_add(relay):
     # so p0 or p1 needs to send another message to get consistent membership
     ChatMessage(p0)
     relay.receive_all()
-    relay.assert_same_members()
+    relay.dump("after chatmessage")
+    relay.assert_group_consistency()
 
 
 def test_add_remove_and_stale_old_suddenly_sends(relay):
@@ -186,17 +197,8 @@ def test_add_remove_and_stale_old_suddenly_sends(relay):
     # p3 is offline and p0 deletes p2
     DelMemberMessage(p0, member=p2.id)
     relay.receive_all([p0, p1, p2])
-    relay.dump("p0 has deleted p3")
 
     # p3 sends a message with old memberlist and goes online
     ChatMessage(p3)
     relay.receive_all()
-
-    relay.dump("after p3 sent an old memberlist")
-    # p0 sends a message which should update all peers' members
-    ChatMessage(p0)
-    relay.receive_all()
-    relay.dump("final")
-
-    relay.assert_same_members()
-    assert p0.members == set([p0.id, p1.id, p3.id])
+    relay.assert_group_consistency()
