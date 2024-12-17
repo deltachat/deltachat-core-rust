@@ -1279,7 +1279,7 @@ impl MimeMessage {
         Ok(self.parts.len() > old_part_count)
     }
 
-    #[expect(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     async fn do_add_single_file_part(
         &mut self,
         context: &Context,
