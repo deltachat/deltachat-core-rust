@@ -394,7 +394,9 @@ mod tests {
         let file = ctx0.get_blobdir().join("hello.txt");
         fs::write(&file, "i am attachment").await.unwrap();
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file(file.to_str().unwrap(), Some("text/plain"));
+        msg.set_file_and_deduplicate(&ctx0, &file, "hello.txt", Some("text/plain"))
+            .await
+            .unwrap();
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 
         // Prepare to transfer backup.
@@ -428,7 +430,12 @@ mod tests {
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
 
         let path = msg.get_file(&ctx1).unwrap();
-        assert_eq!(path.with_file_name("hello.txt"), path);
+        assert_eq!(
+            // That's the hash of the file:
+            path.with_file_name("ac1d2d284757656a8d41dc40aae4136ff2bbb95c582d8adb8fdde38d224ec3c1"),
+            path
+        );
+        assert_eq!("hello.txt", msg.get_filename().unwrap());
         let text = fs::read_to_string(&path).await.unwrap();
         assert_eq!(text, "i am attachment");
 
