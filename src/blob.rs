@@ -1152,10 +1152,8 @@ mod tests {
             .await
             .unwrap();
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
-        assert_eq!(
-            avatar_cfg,
-            avatar_src.with_extension("png").to_str().unwrap()
-        );
+        assert!(avatar_cfg
+            .ends_with("9e7f409ac5c92b942cc4f31cee2770ab3f69cf621fb5eb4e430ff6d21b3f37fd"));
 
         check_image_size(
             avatar_cfg,
