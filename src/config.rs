@@ -143,7 +143,7 @@ pub enum Config {
     /// Send BCC copy to self.
     ///
     /// Should be enabled for multidevice setups.
-    #[strum(props(default = "1"))]
+    /// Default is 0 for chatmail accounts before a backup export, 1 otherwise.
     BccSelf,
 
     /// True if encryption is preferred according to Autocrypt standard.
@@ -202,7 +202,7 @@ pub enum Config {
     /// Value 1 is treated as "delete at once": messages are deleted
     /// immediately, without moving to DeltaChat folder.
     ///
-    /// Default is 1 for chatmail accounts before a backup export, 0 otherwise.
+    /// Default is 1 for chatmail accounts without `BccSelf`, 0 otherwise.
     DeleteServerAfter,
 
     /// Timer in seconds after which the message is deleted from the
@@ -519,11 +519,19 @@ impl Context {
 
         // Default values
         let val = match key {
-            Config::ConfiguredInboxFolder => Some("INBOX"),
-            Config::DeleteServerAfter => match Box::pin(self.is_chatmail()).await? {
-                false => Some("0"),
-                true => Some("1"),
+            Config::BccSelf => match Box::pin(self.is_chatmail()).await? {
+                false => Some("1"),
+                true => Some("0"),
             },
+            Config::ConfiguredInboxFolder => Some("INBOX"),
+            Config::DeleteServerAfter => {
+                match !Box::pin(self.get_config_bool(Config::BccSelf)).await?
+                    && Box::pin(self.is_chatmail()).await?
+                {
+                    true => Some("1"),
+                    false => Some("0"),
+                }
+            }
             _ => key.get_str("default"),
         };
         Ok(val.map(|s| s.to_string()))
@@ -1102,6 +1110,28 @@ mod tests {
         assert!(t.should_send_mdns().await?);
         assert!(t.get_config_bool_opt(Config::MdnsEnabled).await?.is_none());
         assert!(t.get_config_bool(Config::MdnsEnabled).await?);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_server_after_default() -> Result<()> {
+        let t = &TestContext::new_alice().await;
+
+        // Check that the settings are displayed correctly.
+        assert_eq!(t.get_config(Config::BccSelf).await?, Some("1".to_string()));
+        assert_eq!(
+            t.get_config(Config::DeleteServerAfter).await?,
+            Some("0".to_string())
+        );
+
+        // Leaving emails on the server even w/o `BccSelf` is a good default at least because other
+        // MUAs do so even if the server doesn't save sent messages to some sentbox (like Gmail
+        // does).
+        t.set_config_bool(Config::BccSelf, false).await?;
+        assert_eq!(
+            t.get_config(Config::DeleteServerAfter).await?,
+            Some("0".to_string())
+        );
         Ok(())
     }
 
