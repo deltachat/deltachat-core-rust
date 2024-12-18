@@ -3248,7 +3248,9 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
         tokio::fs::write(&attachment, content.as_bytes()).await?;
 
         let mut msg_alice = Message::new(Viewtype::File);
-        msg_alice.set_file(attachment.to_str().unwrap(), None);
+        msg_alice
+            .set_file_and_deduplicate(&alice, &attachment, filename_sent, None)
+            .await?;
         let alice_chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;
         println!("{}", sent.payload());
@@ -3262,9 +3264,10 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
             let path = msg.get_file(t).unwrap();
             let path2 = path.with_file_name("saved.txt");
             msg.save_file(t, &path2).await.unwrap();
-            assert!(
-                path.to_str().unwrap().ends_with(".tar.gz"),
-                "path {path:?} doesn't end with .tar.gz"
+            assert_eq!(
+                path.file_name().unwrap().to_str().unwrap(),
+                "a9ee651cbe76ce2c5ff4bf50e41a66d431ab11f3f7d4727a3e765f6101482bdd",
+                "The hash of the content should always be the same"
             );
             assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
             assert_eq!(fs::read_to_string(&path2).await.unwrap(), content);
