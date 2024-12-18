@@ -286,6 +286,8 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::chat::ChatId;
     use crate::param::Param;
@@ -305,56 +307,96 @@ mod tests {
             .unwrap();
         let some_text = " bla \t\n\tbla\n\t".to_string();
 
+        async fn write_file_to_blobdir(d: &TestContext) -> PathBuf {
+            let bytes = &[38, 209, 39, 29]; // Just some random bytes
+            let file = d.get_blobdir().join("random_filename_392438");
+            tokio::fs::write(&file, bytes).await.unwrap();
+            file
+        }
+
         let msg = Message::new_text(some_text.to_string());
         assert_summary_texts(&msg, ctx, "bla bla").await; // for simple text, the type is not added to the summary
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file("foo.jpg", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.jpg", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "📷 Image").await; // file names are not added for images
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Image);
         msg.set_text(some_text.to_string());
-        msg.set_file("foo.jpg", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.jpg", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "📷 bla bla").await; // type is visible by emoji if text is set
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Video);
-        msg.set_file("foo.mp4", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.mp4", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "🎥 Video").await; // file names are not added for videos
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Video);
         msg.set_text(some_text.to_string());
-        msg.set_file("foo.mp4", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.mp4", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "🎥 bla bla").await; // type is visible by emoji if text is set
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Gif);
-        msg.set_file("foo.gif", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.gif", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "GIF").await; // file names are not added for GIFs
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Gif);
         msg.set_text(some_text.to_string());
-        msg.set_file("foo.gif", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.gif", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "GIF \u{2013} bla bla").await; // file names are not added for GIFs
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file("foo.png", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.png", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "Sticker").await; // file names are not added for stickers
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Voice);
-        msg.set_file("foo.mp3", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.mp3", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "🎤 Voice message").await; // file names are not added for voice messages
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Voice);
         msg.set_text(some_text.clone());
-        msg.set_file("foo.mp3", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.mp3", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "🎤 bla bla").await;
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Audio);
-        msg.set_file("foo.mp3", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.mp3", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "🎵 foo.mp3").await; // file name is added for audio
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::Audio);
         msg.set_text(some_text.clone());
-        msg.set_file("foo.mp3", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.mp3", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "🎵 foo.mp3 \u{2013} bla bla").await; // file name and text added for audio
 
         let mut msg = Message::new(Viewtype::File);
@@ -369,18 +411,27 @@ mod tests {
         chat_id.set_draft(ctx, Some(&mut msg)).await.unwrap();
         assert_summary_texts(&msg, ctx, "nice app! \u{2013} bla bla").await;
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file("foo.bar", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.bar", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "📎 foo.bar").await; // file name is added for files
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::File);
         msg.set_text(some_text.clone());
-        msg.set_file("foo.bar", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.bar", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "📎 foo.bar \u{2013} bla bla").await; // file name is added for files
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::VideochatInvitation);
         msg.set_text(some_text.clone());
-        msg.set_file("foo.bar", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.bar", None)
+            .await
+            .unwrap();
         assert_summary_texts(&msg, ctx, "Video chat invitation").await; // text is not added for videochat invitations
 
         let mut msg = Message::new(Viewtype::Vcard);
@@ -419,9 +470,12 @@ mod tests {
         assert_eq!(msg.get_summary_text(ctx).await, "Forwarded: bla bla"); // for simple text, the type is not added to the summary
         assert_eq!(msg.get_summary_text_without_prefix(ctx).await, "bla bla"); // skipping prefix used for reactions summaries
 
+        let file = write_file_to_blobdir(&d).await;
         let mut msg = Message::new(Viewtype::File);
         msg.set_text(some_text.clone());
-        msg.set_file("foo.bar", None);
+        msg.set_file_and_deduplicate(&d, &file, "foo.bar", None)
+            .await
+            .unwrap();
         msg.param.set_int(Param::Forwarded, 1);
         assert_eq!(
             msg.get_summary_text(ctx).await,
