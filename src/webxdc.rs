@@ -421,6 +421,7 @@ impl Context {
                     notify_list.get(&self_addr).or_else(|| notify_list.get("*"))
                 {
                     self.emit_event(EventType::IncomingWebxdcNotify {
+                        chat_id: instance.chat_id,
                         contact_id: from_id,
                         msg_id: notify_msg_id,
                         text: notify_text.clone(),
