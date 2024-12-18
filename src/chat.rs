@@ -7546,6 +7546,27 @@ mod tests {
         Ok(())
     }
 
+    /// Tests that user actions on device chats are synced despite they are different chats.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_device_chats() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let a0dev_chat_id = ChatId::get_for_contact(alice0, ContactId::DEVICE).await?;
+        let a1dev_chat_id = ChatId::get_for_contact(alice1, ContactId::DEVICE).await?;
+        let a1dev_chat = Chat::load_from_db(alice1, a1dev_chat_id).await?;
+        assert_eq!(a1dev_chat.get_visibility(), ChatVisibility::Normal);
+        a0dev_chat_id
+            .set_visibility(alice0, ChatVisibility::Pinned)
+            .await?;
+        sync(alice0, alice1).await;
+        let a1dev_chat = Chat::load_from_db(alice1, a1dev_chat_id).await?;
+        assert_eq!(a1dev_chat.get_visibility(), ChatVisibility::Pinned);
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sync_muted() -> Result<()> {
         let alice0 = &TestContext::new_alice().await;
