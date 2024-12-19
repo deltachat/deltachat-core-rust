@@ -180,6 +180,28 @@ impl<'a> BlobObject<'a> {
         })
     }
 
+    pub async fn create_and_deduplicate_blob(
+        context: &'a Context,
+        data: &[u8],
+    ) -> Result<BlobObject<'a>> {
+        task::block_in_place(|| {
+            let blobdir = context.get_blobdir();
+
+            let hash = blake3::hash(&data).to_hex();
+            let hash = hash.as_str();
+            let new_path = context.get_blobdir().join(hash);
+
+            std::fs::write(&new_path, &data).context("failed to write blob to file")?;
+
+            let blob = BlobObject {
+                blobdir: blobdir,
+                name: format!("$BLOBDIR/{hash}"),
+            };
+            context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
+            Ok(blob)
+        })
+    }
+
     /// Creates a blob from a file, possibly copying it to the blobdir.
     ///
     /// If the source file is not a path to into the blob directory
