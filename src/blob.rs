@@ -827,8 +827,6 @@ fn add_white_bg(img: &mut DynamicImage) {
 
 #[cfg(test)]
 mod tests {
-    use fs::File;
-
     use super::*;
     use crate::message::{Message, Viewtype};
     use crate::test_utils::{self, TestContext};
