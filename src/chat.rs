@@ -893,13 +893,12 @@ impl ChatId {
                     .context("no file stored in params")?;
                 msg.param.set(Param::File, blob.as_name());
                 if msg.viewtype == Viewtype::File {
-                    if let Some((better_type, _)) =
-                        message::guess_msgtype_from_suffix(&blob.to_abs_path())
-                            // We do not do an automatic conversion to other viewtypes here so that
-                            // users can send images as "files" to preserve the original quality
-                            // (usually we compress images). The remaining conversions are done by
-                            // `prepare_msg_blob()` later.
-                            .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
+                    if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg)
+                        // We do not do an automatic conversion to other viewtypes here so that
+                        // users can send images as "files" to preserve the original quality
+                        // (usually we compress images). The remaining conversions are done by
+                        // `prepare_msg_blob()` later.
+                        .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
                     {
                         msg.viewtype = better_type;
                     }
@@ -2695,8 +2694,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             // Typical conversions:
             // - from FILE to AUDIO/VIDEO/IMAGE
             // - from FILE/IMAGE to GIF */
-            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(&blob.to_abs_path())
-            {
+            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg) {
                 if better_type != Viewtype::Webxdc
                     || context
                         .ensure_sendable_webxdc_file(&blob.to_abs_path())
@@ -2721,14 +2719,21 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             && (msg.viewtype == Viewtype::Image
                 || maybe_sticker && !msg.param.exists(Param::ForceSticker))
         {
-            blob.recode_to_image_size(context, &mut maybe_sticker)
+            let new_name = blob
+                .recode_to_image_size(
+                    context,
+                    msg.get_filename().unwrap_or_else(|| "file".to_string()),
+                    &mut maybe_sticker,
+                )
                 .await?;
+            msg.param.set(Param::Filename, new_name);
 
             if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
             }
         }
         msg.param.set(Param::File, blob.as_name());
+        // TODO not sure if we still need the next part
         if let (Some(filename), Some(blob_ext)) = (msg.param.get(Param::Filename), blob.suffix()) {
             let stem = match filename.rsplit_once('.') {
                 Some((stem, _)) => stem,
@@ -2739,7 +2744,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
         }
 
         if !msg.param.exists(Param::MimeType) {
-            if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
+            if let Some((_, mime)) = message::guess_msgtype_from_suffix(msg) {
                 msg.param.set(Param::MimeType, mime);
             }
         }
@@ -6461,7 +6466,8 @@ mod tests {
         tokio::fs::write(&file, bytes).await?;
 
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, filename, None)
+            .await?;
 
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let mime = sent_msg.payload();
@@ -6510,7 +6516,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_sticker_jpeg_force() {
+    async fn test_sticker_jpeg_force() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -6525,14 +6531,19 @@ mod tests {
 
         // Images without force_sticker should be turned into [Viewtype::Image]
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "sticker.jpg", None)
+            .await
+            .unwrap();
+        let file = msg.get_file(&alice).unwrap();
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.get_viewtype(), Viewtype::Image);
 
         // Images with `force_sticker = true` should keep [Viewtype::Sticker]
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "sticker.jpg", None)
+            .await
+            .unwrap();
         msg.force_sticker();
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
@@ -6541,7 +6552,9 @@ mod tests {
         // Images with `force_sticker = true` should keep [Viewtype::Sticker]
         // even on drafted messages
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "sticker.jpg", None)
+            .await
+            .unwrap();
         msg.force_sticker();
         alice_chat
             .id
@@ -6552,6 +6565,8 @@ mod tests {
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -6580,7 +6595,8 @@ mod tests {
         let file = alice.get_blobdir().join(file_name);
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "sticker.jpg", None)
+            .await?;
 
         // send sticker to bob
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
@@ -7175,7 +7191,7 @@ mod tests {
             let file = t.get_blobdir().join(name);
             tokio::fs::write(&file, bytes).await?;
             let mut msg = Message::new(msg_type);
-            msg.set_file(file.to_str().unwrap(), None);
+            msg.set_file_and_deduplicate(t, &file, name, None).await?;
             send_msg(t, chat_id, &mut msg).await
         }
 
@@ -7326,17 +7342,21 @@ mod tests {
             Contact::create(&alice, "bob", "bob@example.net").await?,
         )
         .await?;
-        let dir = tempfile::tempdir()?;
-        let file = dir.path().join("harmless_file.\u{202e}txt.exe");
+        let file = alice.get_blobdir().join("harmless_file.\u{202e}txt.exe");
         fs::write(&file, "aaa").await?;
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "harmless_file.\u{202e}txt.exe", None)
+            .await?;
         let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
 
         // the file bob receives should not contain BIDI-control characters
         assert_eq!(
-            Some("$BLOBDIR/harmless_file.txt.exe"),
+            Some("$BLOBDIR/30c0f9c6a167fc2a91285c85be7ea341569b3b39fcc5f77fd34534cade971d20"),
             msg.param.get(Param::File),
+        );
+        assert_eq!(
+            Some("harmless_file.txt.exe"),
+            msg.param.get(Param::Filename),
         );
         Ok(())
     }
@@ -7665,7 +7685,8 @@ mod tests {
         let file = alice.get_blobdir().join("screenshot.png");
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "screenshot.png", None)
+            .await?;
 
         let alice_chat = alice.create_chat(&bob).await;
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;

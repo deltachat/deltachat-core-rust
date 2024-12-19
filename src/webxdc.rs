@@ -238,7 +238,9 @@ const STATUS_UPDATE_SIZE_MAX: usize = 100 << 10;
 impl Context {
     /// check if a file is an acceptable webxdc for sending or receiving.
     pub(crate) async fn is_webxdc_file(&self, filename: &str, file: &[u8]) -> Result<bool> {
+        println!("is_webxdc_file");
         if !filename.ends_with(WEBXDC_SUFFIX) {
+            println!("Ends not with suffix");
             return Ok(false);
         }
 
@@ -255,15 +257,13 @@ impl Context {
             return Ok(false);
         }
 
+        println!("Is webxdc");
         Ok(true)
     }
 
     /// Ensure that a file is an acceptable webxdc for sending.
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
-        if !filename.ends_with(WEBXDC_SUFFIX) {
-            bail!("{} is not a valid webxdc file", filename);
-        }
 
         let valid = match FsZipFileReader::new(path).await {
             Ok(archive) => {
