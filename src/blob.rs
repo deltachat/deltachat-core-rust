@@ -8,7 +8,7 @@ use std::iter::FusedIterator;
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use anyhow::{format_err, Context as _, Result};
+use anyhow::{bail, format_err, Context as _, Result};
 use base64::Engine as _;
 use futures::StreamExt;
 use image::codecs::jpeg::JpegEncoder;
@@ -16,7 +16,7 @@ use image::ImageReader;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageFormat, Pixel, Rgba};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
-use tokio::{fs, io};
+use tokio::{fs, io, task};
 use tokio_stream::wrappers::ReadDirStream;
 
 use crate::config::Config;
@@ -137,6 +137,69 @@ impl<'a> BlobObject<'a> {
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
+    }
+
+    /// TODO document
+    /// TODO what about race conditions when the same file is created multiple times concurrently
+    pub async fn create_and_deduplicate(
+        context: &'a Context,
+        src: &Path,
+    ) -> Result<BlobObject<'a>> {
+        // `update_reader()` uses std::fs, so we need to use task::block_in_place().
+        // Tokio io also just calls spawn_blocking() internally (e.g. https://docs.rs/tokio/1.42.0/src/tokio/fs/file.rs.html#606 and https://docs.rs/tokio/latest/src/tokio/fs/mod.rs.html#310)
+        // so we are doing essentially the same here.
+        task::block_in_place(|| {
+            let blobdir = context.get_blobdir();
+            if !(src.starts_with(blobdir) || src.starts_with("$BLOBDIR/")) {
+                bail!("The file needs to be in the blob dir already and will be renamed. To attach a different file, copy it to the blobdir first.");
+            }
+
+            let mut hasher = blake3::Hasher::new();
+            let mut src_file = std::fs::File::open(src)
+                .with_context(|| format!("failed to open file {}", src.display()))?;
+            hasher.update_reader(&mut src_file)?;
+            drop(src_file);
+            let hash = hasher.finalize().to_hex();
+            let hash = hash.as_str();
+            let new_path = blobdir.join(hash);
+
+            // This will also replace an already-existing file:
+            if let Err(_) = std::fs::rename(src, &new_path) {
+                // Try a second time in case there was some temporary error.
+                // There is no need to try and create the blobdir since create_and_deduplicate()
+                // only works for files that already are in the blobdir, anyway.
+                std::fs::rename(src, &new_path)?;
+            };
+
+            let blob = BlobObject {
+                blobdir: blobdir,
+                name: format!("$BLOBDIR/{hash}"),
+            };
+            context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
+            Ok(blob)
+        })
+    }
+
+    pub async fn create_and_deduplicate_blob(
+        context: &'a Context,
+        data: &[u8],
+    ) -> Result<BlobObject<'a>> {
+        task::block_in_place(|| {
+            let blobdir = context.get_blobdir();
+
+            let hash = blake3::hash(&data).to_hex();
+            let hash = hash.as_str();
+            let new_path = context.get_blobdir().join(hash);
+
+            std::fs::write(&new_path, &data).context("failed to write blob to file")?;
+
+            let blob = BlobObject {
+                blobdir: blobdir,
+                name: format!("$BLOBDIR/{hash}"),
+            };
+            context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
+            Ok(blob)
+        })
     }
 
     /// Creates a blob from a file, possibly copying it to the blobdir.
@@ -354,8 +417,6 @@ impl<'a> BlobObject<'a> {
     }
 
     pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
-        let blob_abs = self.to_abs_path();
-
         let img_wh =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
@@ -368,16 +429,15 @@ impl<'a> BlobObject<'a> {
         let strict_limits = true;
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        if let Some(new_name) = self.recode_to_size(
+        self.recode_to_size(
             context,
-            blob_abs,
+            "".to_string(), // The name of an avatar doesn't matter
             maybe_sticker,
             img_wh,
             20_000,
             strict_limits,
-        )? {
-            self.name = new_name;
-        }
+        )?;
+
         Ok(())
     }
 
@@ -391,9 +451,9 @@ impl<'a> BlobObject<'a> {
     pub async fn recode_to_image_size(
         &mut self,
         context: &Context,
+        name: String,
         maybe_sticker: &mut bool,
-    ) -> Result<()> {
-        let blob_abs = self.to_abs_path();
+    ) -> Result<String> {
         let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
@@ -405,35 +465,36 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => (constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES),
             };
         let strict_limits = false;
-        if let Some(new_name) = self.recode_to_size(
+        let new_name = self.recode_to_size(
             context,
-            blob_abs,
+            name,
             maybe_sticker,
             img_wh,
             max_bytes,
             strict_limits,
-        )? {
-            self.name = new_name;
-        }
-        Ok(())
+        )?;
+
+        Ok(new_name)
     }
 
     /// If `!strict_limits`, then if `max_bytes` is exceeded, reduce the image to `img_wh` and just
     /// proceed with the result.
+    /// TODO documentation
     fn recode_to_size(
         &mut self,
         context: &Context,
-        mut blob_abs: PathBuf,
+        mut name: String,
         maybe_sticker: &mut bool,
         mut img_wh: u32,
         max_bytes: usize,
         strict_limits: bool,
-    ) -> Result<Option<String>> {
+    ) -> Result<String> {
         // Add white background only to avatars to spare the CPU.
         let mut add_white_bg = img_wh <= constants::BALANCED_AVATAR_SIZE;
         let mut no_exif = false;
         let no_exif_ref = &mut no_exif;
-        let res = tokio::task::block_in_place(move || {
+        let original_name = name.clone();
+        let res: Result<String> = tokio::task::block_in_place(move || {
             let mut file = std::fs::File::open(self.to_abs_path())?;
             let (nr_bytes, exif) = image_metadata(&file)?;
             *no_exif_ref = exif.is_none();
@@ -447,7 +508,7 @@ impl<'a> BlobObject<'a> {
                     file.rewind()?;
                     ImageReader::with_format(
                         std::io::BufReader::new(&file),
-                        ImageFormat::from_path(&blob_abs)?,
+                        ImageFormat::from_path(&self.to_abs_path())?,
                     )
                 }
             };
@@ -455,7 +516,6 @@ impl<'a> BlobObject<'a> {
             let mut img = imgreader.decode().context("image decode failure")?;
             let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
-            let mut changed_name = None;
 
             if *maybe_sticker {
                 let x_max = img.width().saturating_sub(1);
@@ -467,7 +527,7 @@ impl<'a> BlobObject<'a> {
                         || img.get_pixel(x_max, y_max).0[3] == 0);
             }
             if *maybe_sticker && exif.is_none() {
-                return Ok(None);
+                return Ok(name);
             }
 
             img = match orientation {
@@ -564,10 +624,10 @@ impl<'a> BlobObject<'a> {
                 if !matches!(fmt, ImageFormat::Jpeg)
                     && matches!(ofmt, ImageOutputFormat::Jpeg { .. })
                 {
-                    blob_abs = blob_abs.with_extension("jpg");
-                    let file_name = blob_abs.file_name().context("No image file name (???)")?;
-                    let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
-                    changed_name = Some(format!("$BLOBDIR/{file_name}"));
+                    name = Path::new(&name)
+                        .with_extension("jpg")
+                        .to_string_lossy()
+                        .into_owned();
                 }
 
                 if encoded.is_empty() {
@@ -577,11 +637,16 @@ impl<'a> BlobObject<'a> {
                     encode_img(&img, ofmt, &mut encoded)?;
                 }
 
-                std::fs::write(&blob_abs, &encoded)
+                let hash = blake3::hash(&encoded).to_hex();
+                let hash = hash.as_str();
+                let new_path = context.get_blobdir().join(hash);
+
+                std::fs::write(&new_path, &encoded)
                     .context("failed to write recoded blob to file")?;
+                self.name = format!("$BLOBDIR/{hash}");
             }
 
-            Ok(changed_name)
+            Ok(name)
         });
         match res {
             Ok(_) => res,
@@ -591,7 +656,7 @@ impl<'a> BlobObject<'a> {
                         context,
                         "Cannot recode image, using original data: {err:#}.",
                     );
-                    Ok(None)
+                    Ok(original_name)
                 } else {
                     Err(err)
                 }
@@ -768,7 +833,12 @@ mod tests {
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
         tokio::task::block_in_place(move || {
-            let img = image::open(path).expect("failed to open image");
+            let img = ImageReader::open(path)
+                .expect("failed to open image")
+                .with_guessed_format()
+                .expect("failed to guess format")
+                .decode()
+                .expect("failed to decode image");
             assert_eq!(img.width(), width, "invalid width");
             assert_eq!(img.height(), height, "invalid height");
             img
@@ -1002,7 +1072,7 @@ mod tests {
             let strict_limits = true;
             blob.recode_to_size(
                 &t,
-                blob.to_abs_path(),
+                "avatar.png".to_string(),
                 maybe_sticker,
                 img_wh,
                 20_000,
@@ -1010,7 +1080,12 @@ mod tests {
             )
             .unwrap();
             tokio::task::block_in_place(move || {
-                let img = image::open(blob.to_abs_path()).unwrap();
+                let img = ImageReader::open(blob.to_abs_path())
+                    .unwrap()
+                    .with_guessed_format()
+                    .unwrap()
+                    .decode()
+                    .unwrap();
                 assert!(img.width() == img_wh);
                 assert!(img.height() == img_wh);
                 assert_eq!(img.get_pixel(0, 0), Rgba(color));
@@ -1020,19 +1095,26 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_selfavatar_outside_blobdir() {
+        async fn file_size(path_buf: &Path) -> u64 {
+            fs::metadata(path_buf).await.unwrap().len()
+        }
+
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         fs::write(&avatar_src, avatar_bytes).await.unwrap();
-        let avatar_blob = t.get_blobdir().join("avatar.jpg");
-        assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        assert!(avatar_blob.exists());
-        assert!(fs::metadata(&avatar_blob).await.unwrap().len() < avatar_bytes.len() as u64);
-        let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
-        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+        let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
+        let avatar_path = Path::new(&avatar_blob);
+        assert!(
+            avatar_blob
+                .ends_with("d98cd30ed8f2129bf3968420208849d4663bb4e9e124e208b45f43d68acda18e"),
+            "The avatar filename should be its hash, put instead it's {avatar_blob}"
+        );
+        let scaled_avatar_size = file_size(&avatar_path).await;
+        assert!(scaled_avatar_size < avatar_bytes.len() as u64);
 
         check_image_size(avatar_src, 1000, 1000);
         check_image_size(
@@ -1041,27 +1123,32 @@ mod tests {
             constants::BALANCED_AVATAR_SIZE,
         );
 
-        async fn file_size(path_buf: &Path) -> u64 {
-            let file = File::open(path_buf).await.unwrap();
-            file.metadata().await.unwrap().len()
-        }
-
-        let mut blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
+        let mut blob = BlobObject::new_from_path(&t, avatar_path).await.unwrap();
         let maybe_sticker = &mut false;
         let strict_limits = true;
         blob.recode_to_size(
             &t,
-            blob.to_abs_path(),
+            "avatar.jpg".to_string(),
             maybe_sticker,
             1000,
             3000,
             strict_limits,
         )
         .unwrap();
-        assert!(file_size(&avatar_blob).await <= 3000);
-        assert!(file_size(&avatar_blob).await > 2000);
+        let new_file_size = file_size(&blob.to_abs_path()).await;
+        assert!(new_file_size <= 3000);
+        assert!(new_file_size > 2000);
+        // The new file should be smaller:
+        assert!(new_file_size < scaled_avatar_size);
+        // And the original file should not be touched:
+        assert_eq!(file_size(&avatar_path).await, scaled_avatar_size);
         tokio::task::block_in_place(move || {
-            let img = image::open(avatar_blob).unwrap();
+            let img = ImageReader::open(&blob.to_abs_path())
+                .unwrap()
+                .with_guessed_format()
+                .unwrap()
+                .decode()
+                .unwrap();
             assert!(img.width() > 130);
             assert_eq!(img.width(), img.height());
         });
@@ -1081,10 +1168,8 @@ mod tests {
             .await
             .unwrap();
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
-        assert_eq!(
-            avatar_cfg,
-            avatar_src.with_extension("png").to_str().unwrap()
-        );
+        assert!(avatar_cfg
+            .ends_with("9e7f409ac5c92b942cc4f31cee2770ab3f69cf621fb5eb4e430ff6d21b3f37fd"));
 
         check_image_size(
             avatar_cfg,
@@ -1367,6 +1452,7 @@ mod tests {
                 .set_config(Config::MediaQuality, Some(media_quality_config))
                 .await?;
             let file = alice.get_blobdir().join("file").with_extension(extension);
+            let file_name = format!("file.{extension}");
 
             fs::write(&file, &bytes)
                 .await
@@ -1382,7 +1468,8 @@ mod tests {
             }
 
             let mut msg = Message::new(viewtype);
-            msg.set_file(file.to_str().unwrap(), None);
+            msg.set_file_and_deduplicate(&alice, &file, &file_name, None)
+                .await?;
             let chat = alice.create_chat(&bob).await;
             if set_draft {
                 chat.id.set_draft(&alice, Some(&mut msg)).await.unwrap();
@@ -1398,6 +1485,8 @@ mod tests {
                 .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
             alice_msg.save_file(&alice, &file_saved).await?;
             check_image_size(file_saved, compressed_width, compressed_height);
+
+            println!("{}", sent.payload());
 
             let bob_msg = bob.recv_msg(&sent).await;
             assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
@@ -1438,7 +1527,8 @@ mod tests {
             .await
             .context("failed to write file")?;
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(&alice, &file, "file.gif", None)
+            .await?;
         let chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(chat.id, &mut msg).await;
         let bob_msg = bob.recv_msg(&sent).await;
@@ -1453,6 +1543,38 @@ mod tests {
         let (file_size, _) = image_metadata(&std::fs::File::open(&file_saved)?)?;
         assert_eq!(file_size, bytes.len() as u64);
         check_image_size(file_saved, width, height);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_deduplication() -> Result<()> {
+        let t = TestContext::new().await;
+
+        let path = t.get_blobdir().join("anyfile.dat");
+        fs::write(&path, b"bla").await?;
+        let blob = BlobObject::create_and_deduplicate(&t, &path).await?;
+        assert_eq!(
+            blob.name,
+            "$BLOBDIR/ce940175885d7b78f7b7e9f1396611ff3e6828ebba2ca0d8b6e0f860ef2baf66"
+        );
+        assert_eq!(path.exists(), false);
+
+        fs::write(&path, b"bla").await?;
+        let blob2 = BlobObject::create_and_deduplicate(&t, &path).await?;
+        assert_eq!(blob2.name, blob.name);
+
+        let path_outside_blobdir = t.dir.path().join("anyfile.dat");
+        fs::write(&path_outside_blobdir, b"bla").await?;
+        let blob_res = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir).await;
+        assert!(
+            blob_res.is_err(),
+            "Files outside the blobdir should not be allowed in create_and_deduplicate()"
+        );
+
+        fs::write(&path, b"blabla").await?;
+        let blob3 = BlobObject::create_and_deduplicate(&t, &path).await?;
+        assert_ne!(blob3.name, blob.name);
+
         Ok(())
     }
 }
