@@ -1664,8 +1664,12 @@ async fn test_pdf_filename_simple() {
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
     let file_path = msg.param.get(Param::File).unwrap();
-    assert!(file_path.starts_with("$BLOBDIR/simple"));
-    assert!(file_path.ends_with(".pdf"));
+    assert_eq!(
+        file_path,
+        // That's the blake3 hash of the file content:
+        "$BLOBDIR/24a6af459cec5d733374aeaa19a6133bd4830864e407a7c0395678f97a7ec8a1"
+    );
+    assert_eq!(msg.param.get(Param::Filename).unwrap(), "simple.pdf");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1680,8 +1684,8 @@ async fn test_pdf_filename_continuation() {
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
     let file_path = msg.param.get(Param::File).unwrap();
-    assert!(file_path.starts_with("$BLOBDIR/test pdf äöüß"));
-    assert!(file_path.ends_with(".pdf"));
+    assert!(file_path.starts_with("$BLOBDIR/"));
+    assert_eq!(msg.get_filename().unwrap(), "test pdf äöüß.pdf");
 }
 
 /// HTML-images may come with many embedded images, eg. tiny icons, corners for formatting,
@@ -3244,7 +3248,7 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
         "a. tar.tar.gz",
     ] {
         let attachment = alice.blobdir.join(filename_sent);
-        let content = format!("File content of {filename_sent}");
+        let content = format!("File content of tar.gz archive");
         tokio::fs::write(&attachment, content.as_bytes()).await?;
 
         let mut msg_alice = Message::new(Viewtype::File);
@@ -3266,7 +3270,7 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
             msg.save_file(t, &path2).await.unwrap();
             assert_eq!(
                 path.file_name().unwrap().to_str().unwrap(),
-                "a9ee651cbe76ce2c5ff4bf50e41a66d431ab11f3f7d4727a3e765f6101482bdd",
+                "79402cb76f44c5761888f9036992a768fe8f6cdb67846c5adcf0140cbb478180",
                 "The hash of the content should always be the same"
             );
             assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
