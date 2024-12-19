@@ -1384,7 +1384,7 @@ impl MimeMessage {
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
-        let blob = match BlobObject::create(context, filename, decoded_data).await {
+        let blob = match BlobObject::create_and_deduplicate_blob(context, decoded_data).await {
             Ok(blob) => blob,
             Err(err) => {
                 error!(
@@ -3953,8 +3953,8 @@ Message.
             "this is a classic email – I attached the .EML file".to_string()
         );
         assert_eq!(
-            mime_message.parts[0].param.get(Param::File),
-            Some("$BLOBDIR/.eml")
+            mime_message.parts[0].param.get(Param::Filename),
+            Some(".eml")
         );
 
         assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));
