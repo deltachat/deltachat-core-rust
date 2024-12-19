@@ -237,7 +237,7 @@ impl From<MessageState> for LotState {
             OutDraft => LotState::MsgOutDraft,
             OutPending => LotState::MsgOutPending,
             OutFailed => LotState::MsgOutFailed,
-            OutDelivered => LotState::MsgOutDelivered,
+            OutDelivered | OutRcvd => LotState::MsgOutDelivered,
             OutMdnRcvd => LotState::MsgOutMdnRcvd,
         }
     }
