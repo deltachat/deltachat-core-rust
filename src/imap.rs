@@ -1020,10 +1020,11 @@ impl Session {
             .sql
             .query_map(
                 "SELECT id, uid, target FROM imap
-        WHERE folder = ?
-        AND target != folder
-        ORDER BY target, uid",
-                (folder,),
+                WHERE folder = ?
+                    AND target != folder
+                    AND target_min_smtp_id <= (SELECT IFNULL((SELECT MIN(id) FROM smtp), ?))
+                ORDER BY target, uid",
+                (folder, i64::MAX),
                 |row| {
                     let rowid: i64 = row.get(0)?;
                     let uid: u32 = row.get(1)?;

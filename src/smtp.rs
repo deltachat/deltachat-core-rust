@@ -514,6 +514,27 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
             .await
             .context("Failed to send message")?;
     }
+    let folders = context
+        .sql
+        .query_map(
+            "SELECT DISTINCT(folder) FROM imap
+            WHERE target_min_smtp_id <= (SELECT IFNULL((SELECT MIN(id) FROM smtp), ?))",
+            (i64::MAX,),
+            |row| {
+                let folder: String = row.get(0)?;
+                Ok(Some(folder))
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?;
+    if folders.contains(&context.get_config(Config::ConfiguredInboxFolder).await?) {
+        context.scheduler.interrupt_inbox().await;
+    }
+    if folders.contains(&context.get_config(Config::ConfiguredMvboxFolder).await?)
+        || folders.contains(&context.get_config(Config::ConfiguredSentboxFolder).await?)
+    {
+        context.scheduler.interrupt_oboxes().await;
+    }
 
     // although by slow sending, ratelimit may have been expired meanwhile,
     // do not attempt to send MDNs if ratelimited happened before on status-updates/sync:

@@ -1121,6 +1121,18 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 127)?;
+    if dbversion < migration_version {
+        // Emails must be moved to `target` or deleted only when `smtp.id` reaches
+        // `target_min_smtp_id` to keep SecureJoin working for multi-device and in case of a local
+        // state loss.
+        sql.execute_migration(
+            "ALTER TABLE imap ADD COLUMN target_min_smtp_id INTEGER NOT NULL DEFAULT 0",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

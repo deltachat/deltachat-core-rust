@@ -60,7 +60,8 @@ pub struct ReceivedMsg {
     /// IDs of inserted rows in messages table.
     pub msg_ids: Vec<MsgId>,
 
-    /// Whether IMAP messages should be immediately deleted.
+    /// Whether IMAP messages should be deleted. Deletion is done after necessary auto-generated
+    /// messages are sent which is important for SecureJoin.
     pub needs_delete_job: bool,
 
     /// Whether the From address was repeated in the signed part
@@ -587,10 +588,20 @@ pub(crate) async fn receive_imf_inner(
                 Some(_) => "target=?1,",
                 None => "",
             };
+            let target_min_smtp_id_subst = match received_msg.needs_delete_job {
+                true => "target_min_smtp_id=(SELECT IFNULL((SELECT MAX(id)+1 FROM smtp),0)),",
+                false => "",
+            };
             context
                 .sql
                 .execute(
-                    &format!("UPDATE imap SET {target_subst} rfc724_mid=?2 WHERE rfc724_mid=?3"),
+                    &format!(
+                        "UPDATE imap SET
+                            {target_subst}
+                            {target_min_smtp_id_subst}
+                            rfc724_mid=?2
+                        WHERE rfc724_mid=?3"
+                    ),
                     (
                         target.as_deref().unwrap_or_default(),
                         rfc724_mid_orig,
