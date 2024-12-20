@@ -547,6 +547,32 @@ Here's my footer -- bob@example.net"
         let reactions = get_msg_reactions(&alice, msg.id).await?;
         assert_eq!(reactions.to_string(), "😀1");
 
+        // Alice receives a seen reaction to her message from Bob. Reactions are assigned to the
+        // trash chat and shouldn't cause emitting `MsgsNoticed`.
+        alice.evtracker.clear_events();
+        let seen = true;
+        receive_imf(
+            &alice,
+            "To: alice@example.org\n\
+From: bob@example.net\n\
+Date: Today, 29 February 2021 00:00:10 -800\n\
+Message-ID: 56791@example.net\n\
+In-Reply-To: 12345@example.org\n\
+Subject: Meeting\n\
+Mime-Version: 1.0 (1.0)\n\
+Content-Type: text/plain; charset=utf-8\n\
+Content-Disposition: reaction\n\
+\n\
+\u{1F44D}"
+                .as_bytes(),
+            seen,
+        )
+        .await?;
+        let ev = alice
+            .evtracker
+            .get_matching_opt(&alice, |e| matches!(e, EventType::MsgsNoticed { .. }))
+            .await;
+        assert!(ev.is_none());
         Ok(())
     }
 
