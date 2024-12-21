@@ -1461,4 +1461,23 @@ mod tests {
         check_image_size(file_saved, width, height);
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_gif_as_sticker() -> Result<()> {
+        let bytes = include_bytes!("../test-data/image/image100x50.gif");
+        let alice = &TestContext::new_alice().await;
+        let file = alice.get_blobdir().join("file").with_extension("gif");
+        fs::write(&file, &bytes)
+            .await
+            .context("failed to write file")?;
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        let chat = alice.get_self_chat().await;
+        let sent = alice.send_msg(chat.id, &mut msg).await;
+        let msg = Message::load_from_db(alice, sent.sender_msg_id).await?;
+        // Message::force_sticker() wasn't used, still Viewtype::Sticker is preserved because of the
+        // extension.
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+        Ok(())
+    }
 }

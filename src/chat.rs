@@ -2692,7 +2692,10 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
         let send_as_is = msg.viewtype == Viewtype::File;
 
-        if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
+        if msg.viewtype == Viewtype::File
+            || msg.viewtype == Viewtype::Image
+            || msg.viewtype == Viewtype::Sticker && !msg.param.exists(Param::ForceSticker)
+        {
             // Correct the type, take care not to correct already very special
             // formats as GIF or VOICE.
             //
@@ -2701,7 +2704,12 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             // - from FILE/IMAGE to GIF */
             if let Some((better_type, _)) = message::guess_msgtype_from_suffix(&blob.to_abs_path())
             {
-                if better_type != Viewtype::Webxdc
+                if msg.viewtype == Viewtype::Sticker {
+                    if better_type != Viewtype::Image {
+                        // UIs don't want conversions of `Sticker` to anything other than `Image`.
+                        msg.param.set_int(Param::ForceSticker, 1);
+                    }
+                } else if better_type != Viewtype::Webxdc
                     || context
                         .ensure_sendable_webxdc_file(&blob.to_abs_path())
                         .await
