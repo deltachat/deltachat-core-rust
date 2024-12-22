@@ -46,7 +46,6 @@ use crate::receive_imf::{
     from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
 };
 use crate::scheduler::connectivity::ConnectivityStore;
-use crate::sql;
 use crate::stock_str;
 use crate::tools::{self, create_id, duration_to_str};
 
@@ -911,15 +910,15 @@ impl Session {
             .await?;
         context
             .sql
-            .execute(
-                &format!(
-                    "DELETE FROM imap WHERE id IN ({})",
-                    sql::repeat_vars(row_ids.len())
-                ),
-                rusqlite::params_from_iter(row_ids),
-            )
+            .transaction(|transaction| {
+                let mut stmt = transaction.prepare("DELETE FROM imap WHERE id = ?")?;
+                for row_id in row_ids {
+                    stmt.execute((row_id,))?;
+                }
+                Ok(())
+            })
             .await
-            .context("cannot remove deleted messages from imap table")?;
+            .context("Cannot remove deleted messages from imap table")?;
 
         context.emit_event(EventType::ImapMessageDeleted(format!(
             "IMAP messages {uid_set} marked as deleted"
@@ -942,15 +941,15 @@ impl Session {
                     // Messages are moved or don't exist, IMAP returns OK response in both cases.
                     context
                         .sql
-                        .execute(
-                            &format!(
-                                "DELETE FROM imap WHERE id IN ({})",
-                                sql::repeat_vars(row_ids.len())
-                            ),
-                            rusqlite::params_from_iter(row_ids),
-                        )
+                        .transaction(|transaction| {
+                            let mut stmt = transaction.prepare("DELETE FROM imap WHERE id = ?")?;
+                            for row_id in row_ids {
+                                stmt.execute((row_id,))?;
+                            }
+                            Ok(())
+                        })
                         .await
-                        .context("cannot delete moved messages from imap table")?;
+                        .context("Cannot delete moved messages from imap table")?;
                     context.emit_event(EventType::ImapMessageMoved(format!(
                         "IMAP messages {set} moved to {target}"
                     )));
@@ -996,15 +995,15 @@ impl Session {
         }
         context
             .sql
-            .execute(
-                &format!(
-                    "UPDATE imap SET target='' WHERE id IN ({})",
-                    sql::repeat_vars(row_ids.len())
-                ),
-                rusqlite::params_from_iter(row_ids),
-            )
+            .transaction(|transaction| {
+                let mut stmt = transaction.prepare("UPDATE imap SET target='' WHERE id = ?")?;
+                for row_id in row_ids {
+                    stmt.execute((row_id,))?;
+                }
+                Ok(())
+            })
             .await
-            .context("cannot plan deletion of messages")?;
+            .context("Cannot plan deletion of messages")?;
         if copy {
             context.emit_event(EventType::ImapMessageMoved(format!(
                 "IMAP messages {set} copied to {target}"
@@ -1147,15 +1146,16 @@ impl Session {
                 );
                 context
                     .sql
-                    .execute(
-                        &format!(
-                            "DELETE FROM imap_markseen WHERE id IN ({})",
-                            sql::repeat_vars(rowid_set.len())
-                        ),
-                        rusqlite::params_from_iter(rowid_set),
-                    )
+                    .transaction(|transaction| {
+                        let mut stmt =
+                            transaction.prepare("DELETE FROM imap_markseen WHERE id = ?")?;
+                        for rowid in rowid_set {
+                            stmt.execute((rowid,))?;
+                        }
+                        Ok(())
+                    })
                     .await
-                    .context("cannot remove messages marked as seen from imap_markseen table")?;
+                    .context("Cannot remove messages marked as seen from imap_markseen table")?;
             }
         }
 

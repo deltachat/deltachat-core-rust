@@ -21,7 +21,6 @@ use crate::mimefactory::MimeFactory;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionBufStream;
 use crate::scheduler::connectivity::ConnectivityStore;
-use crate::sql;
 use crate::stock_str::unencrypted_email;
 use crate::tools::{self, time_elapsed};
 
@@ -585,18 +584,16 @@ async fn send_mdn_rfc724_mid(
             info!(context, "Successfully sent MDN for {rfc724_mid}.");
             context
                 .sql
-                .execute("DELETE FROM smtp_mdns WHERE rfc724_mid = ?", (rfc724_mid,))
+                .transaction(|transaction| {
+                    let mut stmt =
+                        transaction.prepare("DELETE FROM smtp_mdns WHERE rfc724_mid = ?")?;
+                    stmt.execute((rfc724_mid,))?;
+                    for additional_rfc724_mid in additional_rfc724_mids {
+                        stmt.execute((additional_rfc724_mid,))?;
+                    }
+                    Ok(())
+                })
                 .await?;
-            if !additional_rfc724_mids.is_empty() {
-                let q = format!(
-                    "DELETE FROM smtp_mdns WHERE rfc724_mid IN({})",
-                    sql::repeat_vars(additional_rfc724_mids.len())
-                );
-                context
-                    .sql
-                    .execute(&q, rusqlite::params_from_iter(additional_rfc724_mids))
-                    .await?;
-            }
             Ok(true)
         }
         SendResult::Retry => {
