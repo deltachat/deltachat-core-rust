@@ -84,7 +84,6 @@ use crate::location;
 use crate::log::LogExt;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
-use crate::sql::{self, params_iter};
 use crate::stock_str;
 use crate::tools::{duration_to_str, time, SystemTime};
 
@@ -329,23 +328,22 @@ pub(crate) async fn start_ephemeral_timers_msgids(
     msg_ids: &[MsgId],
 ) -> Result<()> {
     let now = time();
-    let count = context
+    let should_interrupt =
+    context
         .sql
-        .execute(
-            &format!(
-                "UPDATE msgs SET ephemeral_timestamp = ? + ephemeral_timer
-         WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ? + ephemeral_timer) AND ephemeral_timer > 0
-         AND id IN ({})",
-                sql::repeat_vars(msg_ids.len())
-            ),
-            rusqlite::params_from_iter(
-                std::iter::once(&now as &dyn crate::sql::ToSql)
-                    .chain(std::iter::once(&now as &dyn crate::sql::ToSql))
-                    .chain(params_iter(msg_ids)),
-            ),
-        )
-        .await?;
-    if count > 0 {
+        .transaction(move |transaction| {
+            let mut should_interrupt = false;
+            let mut stmt =
+                transaction.prepare(
+                    "UPDATE msgs SET ephemeral_timestamp = ?1 + ephemeral_timer
+                     WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ?1 + ephemeral_timer) AND ephemeral_timer > 0
+                     AND id=?2")?;
+            for msg_id in msg_ids {
+                should_interrupt |= stmt.execute((now, msg_id))? > 0;
+            }
+            Ok(should_interrupt)
+        }).await?;
+    if should_interrupt {
         context.scheduler.interrupt_ephemeral_task().await;
     }
     Ok(())

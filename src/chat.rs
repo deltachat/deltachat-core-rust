@@ -3267,14 +3267,17 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
 
         context
             .sql
-            .execute(
-                &format!(
-                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden=0 AND chat_id IN ({});",
-                    sql::repeat_vars(chat_ids_in_archive.len())
-                ),
-                rusqlite::params_from_iter(&chat_ids_in_archive),
-            )
+            .transaction(|transaction| {
+                let mut stmt = transaction.prepare(
+                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden=0 AND chat_id = ?",
+                )?;
+                for chat_id_in_archive in &chat_ids_in_archive {
+                    stmt.execute((chat_id_in_archive,))?;
+                }
+                Ok(())
+            })
             .await?;
+
         for chat_id_in_archive in chat_ids_in_archive {
             context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
             chatlist_events::emit_chatlist_item_changed(context, chat_id_in_archive);

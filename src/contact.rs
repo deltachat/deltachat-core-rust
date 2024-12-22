@@ -129,17 +129,14 @@ impl ContactId {
     ) -> Result<()> {
         context
             .sql
-            .execute(
-                &format!(
-                    "UPDATE contacts SET origin=? WHERE id IN ({}) AND origin<?",
-                    sql::repeat_vars(ids.len())
-                ),
-                rusqlite::params_from_iter(
-                    params_iter(&[origin])
-                        .chain(params_iter(ids))
-                        .chain(params_iter(&[origin])),
-                ),
-            )
+            .transaction(|transaction| {
+                let mut stmt = transaction
+                    .prepare("UPDATE contacts SET origin=?1 WHERE id = ?2 AND origin < ?1")?;
+                for id in ids {
+                    stmt.execute((origin, id))?;
+                }
+                Ok(())
+            })
             .await?;
         Ok(())
     }
