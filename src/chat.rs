@@ -28,7 +28,7 @@ use crate::contact::{self, Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
-use crate::ephemeral::Timer as EphemeralTimer;
+use crate::ephemeral::{start_chat_ephemeral_timers, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::location;
@@ -3282,20 +3282,24 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
             chatlist_events::emit_chatlist_item_changed(context, chat_id_in_archive);
         }
-    } else if context
-        .sql
-        .execute(
-            "UPDATE msgs
+    } else {
+        start_chat_ephemeral_timers(context, chat_id).await?;
+
+        if context
+            .sql
+            .execute(
+                "UPDATE msgs
             SET state=?
           WHERE state=?
             AND hidden=0
             AND chat_id=?;",
-            (MessageState::InNoticed, MessageState::InFresh, chat_id),
-        )
-        .await?
-        == 0
-    {
-        return Ok(());
+                (MessageState::InNoticed, MessageState::InFresh, chat_id),
+            )
+            .await?
+            == 0
+        {
+            return Ok(());
+        }
     }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
@@ -3367,6 +3371,7 @@ pub(crate) async fn mark_old_messages_as_noticed(
     }
 
     for c in changed_chats {
+        start_chat_ephemeral_timers(context, c).await?;
         context.emit_event(EventType::MsgsNoticed(c));
         chatlist_events::emit_chatlist_item_changed(context, c);
     }
