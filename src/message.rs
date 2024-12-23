@@ -1613,15 +1613,15 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         modified_chat_ids.insert(msg.chat_id);
 
         let target = context.get_delete_msgs_target().await?;
-        let update_db = |conn: &mut rusqlite::Connection| {
-            conn.execute(
+        let update_db = |trans: &mut rusqlite::Transaction| {
+            trans.execute(
                 "UPDATE imap SET target=? WHERE rfc724_mid=?",
                 (target, msg.rfc724_mid),
             )?;
-            conn.execute("DELETE FROM smtp WHERE msg_id=?", (msg_id,))?;
+            trans.execute("DELETE FROM smtp WHERE msg_id=?", (msg_id,))?;
             Ok(())
         };
-        if let Err(e) = context.sql.call_write(update_db).await {
+        if let Err(e) = context.sql.transaction(update_db).await {
             error!(context, "delete_msgs: failed to update db: {e:#}.");
             res = Err(e);
             continue;
