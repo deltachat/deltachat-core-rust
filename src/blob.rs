@@ -279,7 +279,9 @@ impl<'a> BlobObject<'a> {
         let ext: String = name
             .chars()
             .rev()
-            .take_while(|c| !c.is_whitespace())
+            .take_while(|c| {
+                (!c.is_ascii_punctuation() || *c == '.') && !c.is_whitespace() && !c.is_control()
+            })
             .take(33)
             .collect::<Vec<_>>()
             .iter()
@@ -982,6 +984,10 @@ mod tests {
         let (stem, ext) = BlobObject::sanitise_name("a. tar.tar.gz");
         assert_eq!(stem, "a. tar");
         assert_eq!(ext, ".tar.gz");
+
+        let (stem, ext) = BlobObject::sanitise_name("Guia_uso_GNB (v0.8).pdf");
+        assert_eq!(stem, "Guia_uso_GNB (v0.8)");
+        assert_eq!(ext, ".pdf");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
