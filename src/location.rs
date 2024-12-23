@@ -707,9 +707,6 @@ pub(crate) async fn save(
                     ))?;
 
                     if timestamp > newest_timestamp {
-                        // okay to drop, as we use cached prepared statements
-                        drop(stmt_test);
-                        drop(stmt_insert);
                         newest_timestamp = timestamp;
                         newest_location_id = Some(u32::try_from(conn.last_insert_rowid())?);
                     }
