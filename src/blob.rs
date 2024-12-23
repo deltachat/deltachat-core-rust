@@ -170,6 +170,7 @@ impl<'a> BlobObject<'a> {
                 // only works for files that already are in the blobdir, anyway.
                 std::fs::rename(src, &new_path)?;
             };
+            set_readonly(&new_path).log_err(context).ok();
 
             let blob = BlobObject {
                 blobdir: blobdir,
@@ -191,7 +192,16 @@ impl<'a> BlobObject<'a> {
             let hash = hash.as_str();
             let new_path = context.get_blobdir().join(hash);
 
-            std::fs::write(&new_path, &data).context("failed to write blob to file")?;
+            if let Err(e) = std::fs::write(&new_path, &data) {
+                if new_path.exists() {
+                    // Looks like the file is read-only and exists already
+                    // TODO: Maybe we should check if the file contents are the same,
+                    // or at least if the length is the same, and overwrite if not.
+                } else {
+                    bail!("Failed to write file: {e:#}");
+                }
+            }
+            set_readonly(&new_path).log_err(context).ok();
 
             let blob = BlobObject {
                 blobdir: blobdir,
@@ -665,6 +675,13 @@ impl<'a> BlobObject<'a> {
             }
         }
     }
+}
+
+fn set_readonly(new_path: &Path) -> Result<()> {
+    let mut perms = std::fs::metadata(&new_path)?.permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&new_path, perms)?;
+    Ok(())
 }
 
 /// Returns image file size and Exif.
@@ -1570,7 +1587,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_deduplication() -> Result<()> {
+    async fn test_create_and_deduplicate() -> Result<()> {
         let t = TestContext::new().await;
 
         let path = t.get_blobdir().join("anyfile.dat");
@@ -1581,6 +1598,12 @@ mod tests {
             "$BLOBDIR/ce940175885d7b78f7b7e9f1396611ff3e6828ebba2ca0d8b6e0f860ef2baf66"
         );
         assert_eq!(path.exists(), false);
+
+        // The file should be read-only:
+        fs::write(&blob.to_abs_path(), b"bla blub")
+            .await
+            .unwrap_err();
+        assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
 
         fs::write(&path, b"bla").await?;
         let blob2 = BlobObject::create_and_deduplicate(&t, &path).await?;
@@ -1596,6 +1619,31 @@ mod tests {
 
         fs::write(&path, b"blabla").await?;
         let blob3 = BlobObject::create_and_deduplicate(&t, &path).await?;
+        assert_ne!(blob3.name, blob.name);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_create_and_deduplicate_blob() -> Result<()> {
+        let t = TestContext::new().await;
+
+        let blob = BlobObject::create_and_deduplicate_blob(&t, b"bla").await?;
+        assert_eq!(
+            blob.name,
+            "$BLOBDIR/ce940175885d7b78f7b7e9f1396611ff3e6828ebba2ca0d8b6e0f860ef2baf66"
+        );
+
+        // The file should be read-only:
+        fs::write(&blob.to_abs_path(), b"bla blub")
+            .await
+            .unwrap_err();
+        assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
+
+        let blob2 = BlobObject::create_and_deduplicate_blob(&t, b"bla").await?;
+        assert_eq!(blob2.name, blob.name);
+
+        let blob3 = BlobObject::create_and_deduplicate_blob(&t, b"blabla").await?;
         assert_ne!(blob3.name, blob.name);
 
         Ok(())
