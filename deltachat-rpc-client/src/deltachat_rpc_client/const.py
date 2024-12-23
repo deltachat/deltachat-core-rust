@@ -41,6 +41,7 @@ class EventType(str, Enum):
     REACTIONS_CHANGED = "ReactionsChanged"
     INCOMING_MSG = "IncomingMsg"
     INCOMING_MSG_BUNCH = "IncomingMsgBunch"
+    INCOMING_REACTION = "IncomingReaction"
     MSGS_NOTICED = "MsgsNoticed"
     MSG_DELIVERED = "MsgDelivered"
     MSG_FAILED = "MsgFailed"
