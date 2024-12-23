@@ -349,6 +349,28 @@ pub(crate) async fn start_ephemeral_timers_msgids(
     Ok(())
 }
 
+/// Starts ephemeral timer for all messages in the chat.
+///
+/// This should be called when chat is marked as noticed.
+pub(crate) async fn start_chat_ephemeral_timers(context: &Context, chat_id: ChatId) -> Result<()> {
+    let now = time();
+    let should_interrupt = context
+        .sql
+        .execute(
+            "UPDATE msgs SET ephemeral_timestamp = ?1 + ephemeral_timer
+             WHERE chat_id = ?2
+             AND ephemeral_timer > 0
+             AND (ephemeral_timestamp == 0 OR ephemeral_timestamp > ?1 + ephemeral_timer)",
+            (now, chat_id),
+        )
+        .await?
+        > 0;
+    if should_interrupt {
+        context.scheduler.interrupt_ephemeral_task().await;
+    }
+    Ok(())
+}
+
 /// Selects messages which are expired according to
 /// `delete_device_after` setting or `ephemeral_timestamp` column.
 ///
@@ -693,6 +715,7 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::marknoticed_chat;
     use crate::config::Config;
     use crate::download::DownloadState;
     use crate::location;
@@ -1418,6 +1441,31 @@ mod tests {
         let chat_id = ChatId::new(12345);
         assert!(chat_id.get_ephemeral_timer(&context).await.is_err());
 
+        Ok(())
+    }
+
+    /// Tests that ephemeral timer is started when the chat is noticed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_noticed_ephemeral_timer() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let chat = alice.create_chat(bob).await;
+        let duration = 60;
+        chat.id
+            .set_ephemeral_timer(alice, Timer::Enabled { duration })
+            .await?;
+        let bob_received_message = tcm.send_recv(alice, bob, "Hello!").await;
+
+        marknoticed_chat(bob, bob_received_message.chat_id).await?;
+        SystemTime::shift(Duration::from_secs(100));
+
+        delete_expired_messages(bob, time()).await?;
+
+        assert!(Message::load_from_db_optional(bob, bob_received_message.id)
+            .await?
+            .is_none());
         Ok(())
     }
 }
