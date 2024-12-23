@@ -24,6 +24,7 @@ use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
+use crate::tools::SystemTime;
 
 /// Represents a file in the blob directory.
 ///
@@ -197,6 +198,10 @@ impl<'a> BlobObject<'a> {
                     // Looks like the file is read-only and exists already
                     // TODO: Maybe we should check if the file contents are the same,
                     // or at least if the length is the same, and overwrite if not.
+
+                    // Set the file to be modified "now", so that it's not deleted during housekeeping
+                    let f = std::fs::File::open(&new_path).context("File::open")?;
+                    f.set_modified(SystemTime::now()).context("set_modified")?;
                 } else {
                     bail!("Failed to write file: {e:#}");
                 }
@@ -844,8 +849,11 @@ fn add_white_bg(img: &mut DynamicImage) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::message::{Message, Viewtype};
+    use crate::sql;
     use crate::test_utils::{self, TestContext};
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
@@ -1639,9 +1647,24 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
+        let modified1 = blob.to_abs_path().metadata()?.modified()?;
+
+        // Create a temporary file & shift the time for 1 hour
+        // so that we can later test whether everything works fine with housekeeping:
+        let temp_file = t.get_blobdir().join("temp.txt");
+        fs::write(&temp_file, b"temporary data").await?;
+        SystemTime::shift(Duration::from_secs(65 * 60));
 
         let blob2 = BlobObject::create_and_deduplicate_blob(&t, b"bla").await?;
         assert_eq!(blob2.name, blob.name);
+
+        // The modification time of the file should be updated
+        // so that it's not deleted during housekeeping:
+        let modified2 = blob.to_abs_path().metadata()?.modified()?;
+        assert_ne!(modified1, modified2);
+        sql::housekeeping(&t).await?;
+        assert!(blob2.to_abs_path().exists());
+        assert_eq!(temp_file.exists(), false);
 
         let blob3 = BlobObject::create_and_deduplicate_blob(&t, b"blabla").await?;
         assert_ne!(blob3.name, blob.name);
