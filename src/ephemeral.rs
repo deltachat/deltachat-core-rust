@@ -502,7 +502,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
         }
 
         for modified_chat_id in modified_chat_ids {
-            context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+            context.emit_msgs_changed_without_msg_id(modified_chat_id);
         }
 
         for msg_id in webxdc_deleted {

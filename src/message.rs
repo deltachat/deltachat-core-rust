@@ -1637,7 +1637,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     res?;
 
     for modified_chat_id in modified_chat_ids {
-        context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+        context.emit_msgs_changed_without_msg_id(modified_chat_id);
         chatlist_events::emit_chatlist_item_changed(context, modified_chat_id);
     }
 
