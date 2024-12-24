@@ -3231,19 +3231,6 @@ pub async fn get_chat_msgs_ex(
     Ok(items)
 }
 
-pub(crate) async fn marknoticed_chat_if_older_than(
-    context: &Context,
-    chat_id: ChatId,
-    timestamp: i64,
-) -> Result<()> {
-    if let Some(chat_timestamp) = chat_id.get_timestamp(context).await? {
-        if timestamp > chat_timestamp {
-            marknoticed_chat(context, chat_id).await?;
-        }
-    }
-    Ok(())
-}
-
 /// Marks all messages in the chat as noticed.
 /// If the given chat-id is the archive-link, marks all messages in all archived chats as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
