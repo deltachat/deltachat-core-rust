@@ -1690,11 +1690,6 @@ RETURNING id
         "Message has {icnt} parts and is assigned to chat #{chat_id}."
     );
 
-    // new outgoing message from another device marks the chat as noticed.
-    if !mime_parser.incoming && !chat_id.is_special() {
-        chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
-    }
-
     if !is_mdn {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
 
