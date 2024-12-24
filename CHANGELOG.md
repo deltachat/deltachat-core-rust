@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.152.2] - 2024-12-24
+
+### Features / Changes
+
+- Emit ImexProgress(1) after receiving backup size.
+- `delete_msgs`: Use `transaction()` instead of `call_write()`.
+- Start ephemeral timers when the chat is noticed.
+- Start ephemeral timers when the chat is archived.
+- Revalidate HTTP cache entries once per minute maximum.
+
+### Fixes
+
+- Reduce number of `repeat_vars()` calls.
+- `sanitise_name`: Don't consider punctuation and control chars as part of file extension ([#6362](https://github.com/deltachat/deltachat-core-rust/pull/6362)).
+
+### Refactor
+
+- Remove marknoticed_chat_if_older_than().
+
+### Miscellaneous Tasks
+
+- Remove contrib/ directory.
+
 ## [1.152.1] - 2024-12-17
 
 ### Build system
@@ -5517,3 +5540,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.151.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.5..v1.151.6
 [1.152.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.6..v1.152.0
 [1.152.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.0..v1.152.1
+[1.152.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.1..v1.152.2
