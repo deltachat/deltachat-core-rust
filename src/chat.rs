@@ -747,7 +747,7 @@ impl ChatId {
                 .await?;
             if unread_cnt == 1 {
                 // Added the first unread message in the chat.
-                context.emit_msgs_changed(DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0));
+                context.emit_msgs_changed_without_msg_id(DC_CHAT_ID_ARCHIVED_LINK);
             }
             return Ok(());
         }
@@ -762,6 +762,8 @@ impl ChatId {
     /// shown.
     pub(crate) fn emit_msg_event(self, context: &Context, msg_id: MsgId, important: bool) {
         if important {
+            debug_assert!(!msg_id.is_unset());
+
             context.emit_incoming_msg(self, msg_id);
         } else {
             context.emit_msgs_changed(self, msg_id);
@@ -823,17 +825,14 @@ impl ChatId {
         };
 
         if changed {
-            context.emit_msgs_changed(
-                self,
-                if msg.is_some() {
-                    match self.get_draft_msg_id(context).await? {
-                        Some(msg_id) => msg_id,
-                        None => MsgId::new(0),
-                    }
-                } else {
-                    MsgId::new(0)
-                },
-            );
+            if msg.is_some() {
+                match self.get_draft_msg_id(context).await? {
+                    Some(msg_id) => context.emit_msgs_changed(self, msg_id),
+                    None => context.emit_msgs_changed_without_msg_id(self),
+                }
+            } else {
+                context.emit_msgs_changed_without_msg_id(self)
+            }
         }
 
         Ok(())
@@ -4649,7 +4648,7 @@ impl Context {
     /// a noticed chat is archived. Emitting events should be cheap, a false-positive `MsgsChanged`
     /// is ok.
     pub(crate) fn on_archived_chats_maybe_noticed(&self) {
-        self.emit_msgs_changed(DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0));
+        self.emit_msgs_changed_without_msg_id(DC_CHAT_ID_ARCHIVED_LINK);
     }
 }
 

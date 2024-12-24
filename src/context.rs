@@ -643,14 +643,36 @@ impl Context {
     }
 
     /// Emits a MsgsChanged event with specified chat and message ids
+    ///
+    /// If IDs are unset, [`Self::emit_msgs_changed_without_ids`]
+    /// or [`Self::emit_msgs_changed_without_msg_id`] should be used
+    /// instead of this function.
     pub fn emit_msgs_changed(&self, chat_id: ChatId, msg_id: MsgId) {
+        debug_assert!(!chat_id.is_unset());
+        debug_assert!(!msg_id.is_unset());
+
         self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+        chatlist_events::emit_chatlist_changed(self);
+        chatlist_events::emit_chatlist_item_changed(self, chat_id);
+    }
+
+    /// Emits a MsgsChanged event with specified chat and without message id.
+    pub fn emit_msgs_changed_without_msg_id(&self, chat_id: ChatId) {
+        debug_assert!(!chat_id.is_unset());
+
+        self.emit_event(EventType::MsgsChanged {
+            chat_id,
+            msg_id: MsgId::new(0),
+        });
         chatlist_events::emit_chatlist_changed(self);
         chatlist_events::emit_chatlist_item_changed(self, chat_id);
     }
 
     /// Emits an IncomingMsg event with specified chat and message ids
     pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
+        debug_assert!(!chat_id.is_unset());
+        debug_assert!(!msg_id.is_unset());
+
         self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
         chatlist_events::emit_chatlist_changed(self);
         chatlist_events::emit_chatlist_item_changed(self, chat_id);
