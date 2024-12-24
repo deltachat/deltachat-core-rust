@@ -688,6 +688,10 @@ impl ChatId {
             })
             .await?;
 
+        if visibility == ChatVisibility::Archived {
+            start_chat_ephemeral_timers(context, self).await?;
+        }
+
         context.emit_msgs_changed_without_ids();
         chatlist_events::emit_chatlist_changed(context);
         chatlist_events::emit_chatlist_item_changed(context, self);
@@ -3242,10 +3246,10 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             .query_map(
                 "SELECT DISTINCT(m.chat_id) FROM msgs m
                     LEFT JOIN chats c ON m.chat_id=c.id
-                    WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.blocked=0 AND c.archived=1",
-                    (),
+                    WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.archived=1",
+                (),
                 |row| row.get::<_, ChatId>(0),
-                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
             )
             .await?;
         if chat_ids_in_archive.is_empty() {
@@ -3266,6 +3270,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             .await?;
 
         for chat_id_in_archive in chat_ids_in_archive {
+            start_chat_ephemeral_timers(context, chat_id_in_archive).await?;
             context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
             chatlist_events::emit_chatlist_item_changed(context, chat_id_in_archive);
         }

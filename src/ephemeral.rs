@@ -715,8 +715,9 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::marknoticed_chat;
+    use crate::chat::{marknoticed_chat, set_muted, ChatVisibility, MuteDuration};
     use crate::config::Config;
+    use crate::constants::DC_CHAT_ID_ARCHIVED_LINK;
     use crate::download::DownloadState;
     use crate::location;
     use crate::message::markseen_msgs;
@@ -1466,6 +1467,54 @@ mod tests {
         assert!(Message::load_from_db_optional(bob, bob_received_message.id)
             .await?
             .is_none());
+        Ok(())
+    }
+
+    /// Tests that archiving the chat starts ephemeral timer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_archived_ephemeral_timer() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let chat = alice.create_chat(bob).await;
+        let duration = 60;
+        chat.id
+            .set_ephemeral_timer(alice, Timer::Enabled { duration })
+            .await?;
+        let bob_received_message = tcm.send_recv(alice, bob, "Hello!").await;
+
+        bob_received_message
+            .chat_id
+            .set_visibility(bob, ChatVisibility::Archived)
+            .await?;
+        SystemTime::shift(Duration::from_secs(100));
+
+        delete_expired_messages(bob, time()).await?;
+
+        assert!(Message::load_from_db_optional(bob, bob_received_message.id)
+            .await?
+            .is_none());
+
+        // Bob mutes the chat so it is not unarchived.
+        set_muted(bob, bob_received_message.chat_id, MuteDuration::Forever).await?;
+
+        // Now test that for already archived chat
+        // timer is started if all archived chats are marked as noticed.
+        let bob_received_message_2 = tcm.send_recv(alice, bob, "Hello again!").await;
+        assert_eq!(bob_received_message_2.state, MessageState::InFresh);
+
+        marknoticed_chat(bob, DC_CHAT_ID_ARCHIVED_LINK).await?;
+        SystemTime::shift(Duration::from_secs(100));
+
+        delete_expired_messages(bob, time()).await?;
+
+        assert!(
+            Message::load_from_db_optional(bob, bob_received_message_2.id)
+                .await?
+                .is_none()
+        );
+
         Ok(())
     }
 }
