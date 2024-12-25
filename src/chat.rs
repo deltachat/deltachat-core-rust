@@ -1991,9 +1991,6 @@ impl Chat {
                 .ok();
         }
 
-        // reset encrypt error state eg. for forwarding
-        msg.param.remove(Param::ErroneousE2ee);
-
         let is_bot = context.get_config_bool(Config::Bot).await?;
         msg.param
             .set_optional(Param::Bot, Some("1").filter(|_| is_bot));
