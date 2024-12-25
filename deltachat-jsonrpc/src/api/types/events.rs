@@ -109,6 +109,7 @@ pub enum EventType {
     /// Incoming webxdc info or summary update, should be notified.
     #[serde(rename_all = "camelCase")]
     IncomingWebxdcNotify {
+        chat_id: u32,
         contact_id: u32,
         msg_id: u32,
         text: String,
@@ -343,11 +344,13 @@ impl From<CoreEventType> for EventType {
                 reaction: reaction.as_str().to_string(),
             },
             CoreEventType::IncomingWebxdcNotify {
+                chat_id,
                 contact_id,
                 msg_id,
                 text,
                 href,
             } => IncomingWebxdcNotify {
+                chat_id: chat_id.to_u32(),
                 contact_id: contact_id.to_u32(),
                 msg_id: msg_id.to_u32(),
                 text,
