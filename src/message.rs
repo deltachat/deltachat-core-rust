@@ -293,13 +293,7 @@ impl MsgId {
             ret += ", Location sent";
         }
 
-        let e2ee_errors = msg.param.get_int(Param::ErroneousE2ee).unwrap_or_default();
-
-        if 0 != e2ee_errors {
-            if 0 != e2ee_errors & 0x2 {
-                ret += ", Encrypted, no valid signature";
-            }
-        } else if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
+        if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
             ret += ", Encrypted";
         }
 

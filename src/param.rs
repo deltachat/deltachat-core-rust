@@ -55,6 +55,8 @@ pub enum Param {
 
     /// For Messages: decrypted with validation errors or without mutual set, if neither
     /// 'c' nor 'e' are preset, the messages is only transport encrypted.
+    ///
+    /// Deprecated on 2024-12-25.
     ErroneousE2ee = b'e',
 
     /// For Messages: force unencrypted message, a value from `ForcePlaintext` enum.
