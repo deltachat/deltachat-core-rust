@@ -73,21 +73,24 @@ def test_qr_securejoin(acfactory, protect, tmp_path):
     qr_code = alice_chat.get_qr_code()
     bob.secure_join(qr_code)
 
-    # Check that at least some of the handshake messages are deleted.
+    # Alice deletes "vg-request".
+    while True:
+        event = alice.wait_for_event()
+        if event["kind"] == "ImapMessageDeleted":
+            break
+    alice.wait_for_securejoin_inviter_success()
+    # Bob deletes "vg-auth-required", Alice deletes "vg-request-with-auth".
     for ac in [alice, bob]:
         while True:
             event = ac.wait_for_event()
             if event["kind"] == "ImapMessageDeleted":
                 break
-
-    alice.wait_for_securejoin_inviter_success()
+    bob.wait_for_securejoin_joiner_success()
 
     # Test that Alice verified Bob's profile.
     alice_contact_bob = alice.get_contact_by_addr(bob.get_config("addr"))
     alice_contact_bob_snapshot = alice_contact_bob.get_snapshot()
     assert alice_contact_bob_snapshot.is_verified
-
-    bob.wait_for_securejoin_joiner_success()
 
     snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Member Me ({}) added by {}.".format(bob.get_config("addr"), alice.get_config("addr"))

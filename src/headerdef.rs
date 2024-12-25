@@ -73,6 +73,7 @@ pub enum HeaderDef {
 
     /// [Autocrypt](https://autocrypt.org/) header.
     Autocrypt,
+    AutocryptGossip,
     AutocryptSetupMessage,
     SecureJoin,
 
