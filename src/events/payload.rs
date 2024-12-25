@@ -109,7 +109,7 @@ pub enum EventType {
 
     /// A webxdc wants an info message or a changed summary to be notified.
     IncomingWebxdcNotify {
-        /// ID of the chat which the message belongs to.
+        /// ID of the chat.
         chat_id: ChatId,
 
         /// ID of the contact sending.
