@@ -454,6 +454,9 @@ pub(crate) async fn handle_securejoin_handshake(
                     .await?;
                 inviter_progress(context, contact_id, 800);
                 inviter_progress(context, contact_id, 1000);
+                // IMAP-delete the message to avoid handling it by another device and adding the
+                // member twice. Another device will know the member's key from Autocrypt-Gossip.
+                Ok(HandshakeMessage::Done)
             } else {
                 // Setup verified contact.
                 secure_connection_established(
@@ -468,8 +471,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     .context("failed sending vc-contact-confirm message")?;
 
                 inviter_progress(context, contact_id, 1000);
+                Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
             }
-            Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
         }
         /*=======================================================
         ====             Bob - the joiner's side             ====
@@ -1353,6 +1356,8 @@ mod tests {
         // explicit user action, the Auto-Submitted header shouldn't be present. Otherwise it would
         // be strange to have it in "member-added" messages of verified groups only.
         assert!(msg.get_header(HeaderDef::AutoSubmitted).is_none());
+        // This is a two-member group, but Alice must Autocrypt-gossip to her other devices.
+        assert!(msg.get_header(HeaderDef::AutocryptGossip).is_some());
 
         {
             // Now Alice's chat with Bob should still be hidden, the verified message should
