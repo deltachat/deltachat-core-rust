@@ -7419,7 +7419,7 @@ mod tests {
 
         // the file bob receives should not contain BIDI-control characters
         assert_eq!(
-            Some("$BLOBDIR/30c0f9c6a167fc2a91285c85be7ea341569b3b39fcc5f77fd34534cade971d20"),
+            Some("$BLOBDIR/30c0f9c6a167fc2a91285c85be7ea34"),
             msg.param.get(Param::File),
         );
         assert_eq!(

@@ -432,7 +432,7 @@ mod tests {
         let path = msg.get_file(&ctx1).unwrap();
         assert_eq!(
             // That's the hash of the file:
-            path.with_file_name("ac1d2d284757656a8d41dc40aae4136ff2bbb95c582d8adb8fdde38d224ec3c1"),
+            path.with_file_name("ac1d2d284757656a8d41dc40aae4136"),
             path
         );
         assert_eq!("hello.txt", msg.get_filename().unwrap());
