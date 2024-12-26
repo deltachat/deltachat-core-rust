@@ -146,9 +146,6 @@ impl<'a> BlobObject<'a> {
         context: &'a Context,
         src: &Path,
     ) -> Result<BlobObject<'a>> {
-        // `update_reader()` uses std::fs, so we need to use task::block_in_place().
-        // Tokio io also just calls spawn_blocking() internally (e.g. https://docs.rs/tokio/1.42.0/src/tokio/fs/file.rs.html#606 and https://docs.rs/tokio/latest/src/tokio/fs/mod.rs.html#310)
-        // so we are doing essentially the same here.
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
             if !(src.starts_with(blobdir) || src.starts_with("$BLOBDIR/")) {
@@ -160,9 +157,8 @@ impl<'a> BlobObject<'a> {
                 .with_context(|| format!("failed to open file {}", src.display()))?;
             hasher.update_reader(&mut src_file)?;
             drop(src_file);
-            let hash = hasher.finalize().to_hex();
-            let hash = hash.as_str();
-            let new_path = blobdir.join(hash);
+            let blob = BlobObject::new_from_hash(blobdir, hasher.finalize())?;
+            let new_path = blob.to_abs_path();
 
             // This will also replace an already-existing file:
             if let Err(_) = std::fs::rename(src, &new_path) {
@@ -171,12 +167,8 @@ impl<'a> BlobObject<'a> {
                 // only works for files that already are in the blobdir, anyway.
                 std::fs::rename(src, &new_path)?;
             };
-            set_readonly(&new_path).log_err(context).ok();
 
-            let blob = BlobObject {
-                blobdir: blobdir,
-                name: format!("$BLOBDIR/{hash}"),
-            };
+            set_readonly(&new_path).log_err(context).ok();
             context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
             Ok(blob)
         })
@@ -193,11 +185,8 @@ impl<'a> BlobObject<'a> {
         context: &'a Context,
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
-        let blobdir = context.get_blobdir();
-
-        let hash = blake3::hash(&data).to_hex();
-        let hash = hash.as_str();
-        let new_path = context.get_blobdir().join(hash);
+        let blob = BlobObject::new_from_hash(context.get_blobdir(), blake3::hash(&data))?;
+        let new_path = blob.to_abs_path();
 
         if let Err(e) = std::fs::write(&new_path, &data) {
             if new_path.exists() {
@@ -212,13 +201,19 @@ impl<'a> BlobObject<'a> {
                 bail!("Failed to write file: {e:#}");
             }
         }
-        set_readonly(&new_path).log_err(context).ok();
 
+        set_readonly(&new_path).log_err(context).ok();
+        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
+        Ok(blob)
+    }
+
+    fn new_from_hash(blobdir: &Path, hash: blake3::Hash) -> Result<BlobObject<'_>> {
+        let hash = hash.to_hex();
+        let hash = hash.as_str().get(0..31).context("Too short hash")?;
         let blob = BlobObject {
             blobdir: blobdir,
             name: format!("$BLOBDIR/{hash}"),
         };
-        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 
@@ -1139,8 +1134,7 @@ mod tests {
         let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         let avatar_path = Path::new(&avatar_blob);
         assert!(
-            avatar_blob
-                .ends_with("d98cd30ed8f2129bf3968420208849d4663bb4e9e124e208b45f43d68acda18e"),
+            avatar_blob.ends_with("d98cd30ed8f2129bf3968420208849d"),
             "The avatar filename should be its hash, put instead it's {avatar_blob}"
         );
         let scaled_avatar_size = file_size(&avatar_path).await;
@@ -1198,8 +1192,10 @@ mod tests {
             .await
             .unwrap();
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
-        assert!(avatar_cfg
-            .ends_with("9e7f409ac5c92b942cc4f31cee2770ab3f69cf621fb5eb4e430ff6d21b3f37fd"));
+        assert!(
+            avatar_cfg.ends_with("9e7f409ac5c92b942cc4f31cee2770a"),
+            "Avatar file name {avatar_cfg} should end with its hash"
+        );
 
         check_image_size(
             avatar_cfg,
@@ -1602,10 +1598,7 @@ mod tests {
         let path = t.get_blobdir().join("anyfile.dat");
         fs::write(&path, b"bla").await?;
         let blob = BlobObject::create_and_deduplicate(&t, &path).await?;
-        assert_eq!(
-            blob.name,
-            "$BLOBDIR/ce940175885d7b78f7b7e9f1396611ff3e6828ebba2ca0d8b6e0f860ef2baf66"
-        );
+        assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
         assert_eq!(path.exists(), false);
 
         // The file should be read-only:
@@ -1638,10 +1631,7 @@ mod tests {
         let t = TestContext::new().await;
 
         let blob = BlobObject::create_and_deduplicate_blob(&t, b"bla").await?;
-        assert_eq!(
-            blob.name,
-            "$BLOBDIR/ce940175885d7b78f7b7e9f1396611ff3e6828ebba2ca0d8b6e0f860ef2baf66"
-        );
+        assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
         // The file should be read-only:
         fs::write(&blob.to_abs_path(), b"bla blub")

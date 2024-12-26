@@ -1667,7 +1667,7 @@ async fn test_pdf_filename_simple() {
     assert_eq!(
         file_path,
         // That's the blake3 hash of the file content:
-        "$BLOBDIR/24a6af459cec5d733374aeaa19a6133bd4830864e407a7c0395678f97a7ec8a1"
+        "$BLOBDIR/24a6af459cec5d733374aeaa19a6133"
     );
     assert_eq!(msg.param.get(Param::Filename).unwrap(), "simple.pdf");
 }
@@ -3270,7 +3270,7 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
             msg.save_file(t, &path2).await.unwrap();
             assert_eq!(
                 path.file_name().unwrap().to_str().unwrap(),
-                "79402cb76f44c5761888f9036992a768fe8f6cdb67846c5adcf0140cbb478180",
+                "79402cb76f44c5761888f9036992a76",
                 "The hash of the content should always be the same"
             );
             assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
