@@ -186,35 +186,40 @@ impl<'a> BlobObject<'a> {
         context: &'a Context,
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
-        task::block_in_place(|| {
-            let blobdir = context.get_blobdir();
+        task::block_in_place(|| BlobObject::create_and_deduplicate_blob_inner(context, data))
+    }
 
-            let hash = blake3::hash(&data).to_hex();
-            let hash = hash.as_str();
-            let new_path = context.get_blobdir().join(hash);
+    fn create_and_deduplicate_blob_inner(
+        context: &'a Context,
+        data: &[u8],
+    ) -> Result<BlobObject<'a>> {
+        let blobdir = context.get_blobdir();
 
-            if let Err(e) = std::fs::write(&new_path, &data) {
-                if new_path.exists() {
-                    // Looks like the file is read-only and exists already
-                    // TODO: Maybe we should check if the file contents are the same,
-                    // or at least if the length is the same, and overwrite if not.
+        let hash = blake3::hash(&data).to_hex();
+        let hash = hash.as_str();
+        let new_path = context.get_blobdir().join(hash);
 
-                    // Set the file to be modified "now", so that it's not deleted during housekeeping
-                    let f = std::fs::File::open(&new_path).context("File::open")?;
-                    f.set_modified(SystemTime::now()).context("set_modified")?;
-                } else {
-                    bail!("Failed to write file: {e:#}");
-                }
+        if let Err(e) = std::fs::write(&new_path, &data) {
+            if new_path.exists() {
+                // Looks like the file is read-only and exists already
+                // TODO: Maybe we should check if the file contents are the same,
+                // or at least if the length is the same, and overwrite if not.
+
+                // Set the file to be modified "now", so that it's not deleted during housekeeping
+                let f = std::fs::File::open(&new_path).context("File::open")?;
+                f.set_modified(SystemTime::now()).context("set_modified")?;
+            } else {
+                bail!("Failed to write file: {e:#}");
             }
-            set_readonly(&new_path).log_err(context).ok();
+        }
+        set_readonly(&new_path).log_err(context).ok();
 
-            let blob = BlobObject {
-                blobdir: blobdir,
-                name: format!("$BLOBDIR/{hash}"),
-            };
-            context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
-            Ok(blob)
-        })
+        let blob = BlobObject {
+            blobdir: blobdir,
+            name: format!("$BLOBDIR/{hash}"),
+        };
+        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
+        Ok(blob)
     }
 
     /// Creates a blob from a file, possibly copying it to the blobdir.
@@ -654,13 +659,9 @@ impl<'a> BlobObject<'a> {
                     encode_img(&img, ofmt, &mut encoded)?;
                 }
 
-                let hash = blake3::hash(&encoded).to_hex();
-                let hash = hash.as_str();
-                let new_path = context.get_blobdir().join(hash);
-
-                std::fs::write(&new_path, &encoded)
-                    .context("failed to write recoded blob to file")?;
-                self.name = format!("$BLOBDIR/{hash}");
+                self.name = BlobObject::create_and_deduplicate_blob_inner(context, &encoded)
+                    .context("failed to write recoded blob to file")?
+                    .name;
             }
 
             Ok(name)
