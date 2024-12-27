@@ -1663,8 +1663,12 @@ async fn test_pdf_filename_simple() {
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
     let file_path = msg.param.get(Param::File).unwrap();
-    assert!(file_path.starts_with("$BLOBDIR/simple"));
-    assert!(file_path.ends_with(".pdf"));
+    assert_eq!(
+        file_path,
+        // That's the blake3 hash of the file content:
+        "$BLOBDIR/24a6af459cec5d733374aeaa19a6133"
+    );
+    assert_eq!(msg.param.get(Param::Filename).unwrap(), "simple.pdf");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1679,8 +1683,8 @@ async fn test_pdf_filename_continuation() {
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
     let file_path = msg.param.get(Param::File).unwrap();
-    assert!(file_path.starts_with("$BLOBDIR/test pdf äöüß"));
-    assert!(file_path.ends_with(".pdf"));
+    assert!(file_path.starts_with("$BLOBDIR/"));
+    assert_eq!(msg.get_filename().unwrap(), "test pdf äöüß.pdf");
 }
 
 /// HTML-images may come with many embedded images, eg. tiny icons, corners for formatting,
@@ -3219,11 +3223,13 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
         "a. tar.tar.gz",
     ] {
         let attachment = alice.blobdir.join(filename_sent);
-        let content = format!("File content of {filename_sent}");
+        let content = format!("File content of tar.gz archive");
         tokio::fs::write(&attachment, content.as_bytes()).await?;
 
         let mut msg_alice = Message::new(Viewtype::File);
-        msg_alice.set_file(attachment.to_str().unwrap(), None);
+        msg_alice
+            .set_file_and_deduplicate(&alice, &attachment, filename_sent, None)
+            .await?;
         let alice_chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;
         println!("{}", sent.payload());
@@ -3237,9 +3243,10 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
             let path = msg.get_file(t).unwrap();
             let path2 = path.with_file_name("saved.txt");
             msg.save_file(t, &path2).await.unwrap();
-            assert!(
-                path.to_str().unwrap().ends_with(".tar.gz"),
-                "path {path:?} doesn't end with .tar.gz"
+            assert_eq!(
+                path.file_name().unwrap().to_str().unwrap(),
+                "79402cb76f44c5761888f9036992a76",
+                "The hash of the content should always be the same"
             );
             assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
             assert_eq!(fs::read_to_string(&path2).await.unwrap(), content);
