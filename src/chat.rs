@@ -2765,7 +2765,6 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
         msg.param.set(Param::File, blob.as_name());
-        // TODO not sure if we still need the next part
         if let (Some(filename), Some(blob_ext)) = (msg.param.get(Param::Filename), blob.suffix()) {
             let stem = match filename.rsplit_once('.') {
                 Some((stem, _)) => stem,
