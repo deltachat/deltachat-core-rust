@@ -1083,10 +1083,11 @@ impl Message {
     }
 
     /// Sets the file associated with a message.
-    /// The actual current name of the file is ignored, instead `name` is used.
-    /// The file (may be moved immediately by core) (and must not be modified again after this method was called)
     ///
-    /// TODO document, also in deltachat.h
+    /// The actual current name of the file is ignored, instead `name` is used.
+    /// In order to deduplicate files that contain the same data,
+    /// the file will be renamed to a hash of the file data.
+    /// The file must not be modified after this function was called.
     pub async fn set_file_and_deduplicate(
         &mut self,
         context: &Context,
@@ -1103,6 +1104,10 @@ impl Message {
     }
 
     /// Creates a new blob and sets it as a file associated with a message.
+    ///
+    /// In order to deduplicate files that contain the same data,
+    /// the filename will be a hash of the file data.
+    /// The file must not be modified after this function was called.
     pub async fn set_file_from_bytes(
         &mut self,
         context: &Context,
