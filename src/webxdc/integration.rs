@@ -190,8 +190,7 @@ mod tests {
             "mapstest.xdc",
             include_bytes!("../../test-data/webxdc/mapstest-integration-unset.xdc"),
             None,
-        )
-        .await?;
+        )?;
         t.send_msg(self_chat.id, &mut msg).await;
         assert_integration(&t, "with some icon").await?; // still the default integration
 
@@ -202,8 +201,7 @@ mod tests {
             "mapstest.xdc",
             include_bytes!("../../test-data/webxdc/mapstest-integration-set.xdc"),
             None,
-        )
-        .await?;
+        )?;
         let sent = t.send_msg(self_chat.id, &mut msg).await;
         let info = msg.get_webxdc_info(&t).await?;
         assert!(info.summary.contains("Used as map"));

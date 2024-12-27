@@ -3252,9 +3252,7 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
         tokio::fs::write(&attachment, content.as_bytes()).await?;
 
         let mut msg_alice = Message::new(Viewtype::File);
-        msg_alice
-            .set_file_and_deduplicate(&alice, &attachment, None, None)
-            .await?;
+        msg_alice.set_file_and_deduplicate(&alice, &attachment, None, None)?;
         let alice_chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;
         println!("{}", sent.payload());
@@ -4707,8 +4705,7 @@ async fn test_create_group_with_big_msg() -> Result<()> {
     let bob_grp_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
     add_contact_to_chat(&bob, bob_grp_id, ba_contact).await?;
     let mut msg = Message::new(Viewtype::Image);
-    msg.set_file_from_bytes(&bob, "a.jpg", file_bytes, None)
-        .await?;
+    msg.set_file_from_bytes(&bob, "a.jpg", file_bytes, None)?;
     let sent_msg = bob.send_msg(bob_grp_id, &mut msg).await;
     assert!(!msg.get_showpadlock());
 
@@ -4744,8 +4741,7 @@ async fn test_create_group_with_big_msg() -> Result<()> {
     let bob_grp_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "Group1").await?;
     add_contact_to_chat(&bob, bob_grp_id, ba_contact).await?;
     let mut msg = Message::new(Viewtype::Image);
-    msg.set_file_from_bytes(&bob, "a.jpg", file_bytes, None)
-        .await?;
+    msg.set_file_from_bytes(&bob, "a.jpg", file_bytes, None)?;
     let sent_msg = bob.send_msg(bob_grp_id, &mut msg).await;
     assert!(msg.get_showpadlock());
 
@@ -5186,8 +5182,7 @@ async fn test_prefer_references_to_downloaded_msgs() -> Result<()> {
 
     let file_bytes = include_bytes!("../../test-data/image/screenshot.gif");
     let mut msg = Message::new(Viewtype::File);
-    msg.set_file_from_bytes(alice, "file", file_bytes, None)
-        .await?;
+    msg.set_file_from_bytes(alice, "file", file_bytes, None)?;
     let mut sent = alice.send_msg(alice_chat_id, &mut msg).await;
     sent.payload = sent
         .payload
@@ -5199,8 +5194,7 @@ async fn test_prefer_references_to_downloaded_msgs() -> Result<()> {
     assert_eq!(received.chat_id, bob.get_chat(alice).await.id);
 
     let mut msg = Message::new(Viewtype::File);
-    msg.set_file_from_bytes(alice, "file", file_bytes, None)
-        .await?;
+    msg.set_file_from_bytes(alice, "file", file_bytes, None)?;
     let sent = alice.send_msg(alice_chat_id, &mut msg).await;
     let received = bob.recv_msg(&sent).await;
     assert_eq!(received.download_state, DownloadState::Available);
@@ -5259,7 +5253,6 @@ async fn test_receive_vcard() -> Result<()> {
             .as_bytes(),
             None,
         )
-        .await
         .unwrap();
 
         let alice_bob_chat = alice.create_chat(bob).await;

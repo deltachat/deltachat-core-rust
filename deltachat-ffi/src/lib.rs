@@ -3849,20 +3849,17 @@ pub unsafe extern "C" fn dc_msg_set_file_and_deduplicate(
     let ffi_msg = &mut *msg;
     let ctx = &*ffi_msg.context;
 
-    block_on(async move {
-        ffi_msg
-            .message
-            .set_file_and_deduplicate(
-                ctx,
-                &as_path(file),
-                to_opt_string_lossy(name).as_deref(),
-                to_opt_string_lossy(filemime).as_deref(),
-            )
-            .await
-            .context("failed to set file")
-            .log_err(&*ffi_msg.context)
-            .ok();
-    });
+    ffi_msg
+        .message
+        .set_file_and_deduplicate(
+            ctx,
+            &as_path(file),
+            to_opt_string_lossy(name).as_deref(),
+            to_opt_string_lossy(filemime).as_deref(),
+        )
+        .context("failed to set file")
+        .log_err(&*ffi_msg.context)
+        .ok();
 }
 
 #[no_mangle]

@@ -1384,8 +1384,7 @@ impl MimeMessage {
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
-        let blob = match BlobObject::create_and_deduplicate_from_bytes(context, decoded_data).await
-        {
+        let blob = match BlobObject::create_and_deduplicate_from_bytes(context, decoded_data) {
             Ok(blob) => blob,
             Err(err) => {
                 error!(
