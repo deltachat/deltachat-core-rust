@@ -1512,7 +1512,7 @@ pub(crate) fn wrapped_base64_encode(buf: &[u8]) -> String {
 async fn build_body_file(
     context: &Context,
     msg: &Message,
-    base_name: &str, // TODO unused parameter
+    base_name: &str,
 ) -> Result<(PartBuilder, String)> {
     let file_name = msg.get_filename().context("msg has no file")?;
     let suffix = Path::new(&file_name)
