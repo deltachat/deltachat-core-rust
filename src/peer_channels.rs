@@ -629,7 +629,6 @@ mod tests {
                 include_bytes!("../test-data/webxdc/minimal.xdc"),
                 None,
             )
-            .await
             .unwrap();
 
         send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
@@ -801,7 +800,6 @@ mod tests {
                 include_bytes!("../test-data/webxdc/minimal.xdc"),
                 None,
             )
-            .await
             .unwrap();
 
         send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
@@ -985,7 +983,6 @@ mod tests {
                 include_bytes!("../test-data/webxdc/minimal.xdc"),
                 None,
             )
-            .await
             .unwrap();
         send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
         let alice_webxdc = alice.get_last_msg().await;
