@@ -168,7 +168,7 @@ impl<'a> BlobObject<'a> {
 
             // This will also replace an already-existing file.
             // Renaming is atomic, so this will avoid race conditions.
-            if let Err(_) = std::fs::rename(src, &new_path) {
+            if std::fs::rename(src, &new_path).is_err() {
                 // Try a second time in case there was some temporary error.
                 // There is no need to try and create the blobdir since create_and_deduplicate()
                 // only works for files that already are in the blobdir, anyway.
@@ -198,11 +198,11 @@ impl<'a> BlobObject<'a> {
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
         let blobdir = context.get_blobdir();
-        let blob = BlobObject::from_hash(blobdir, blake3::hash(&data))?;
+        let blob = BlobObject::from_hash(blobdir, blake3::hash(data))?;
         let new_path = blob.to_abs_path();
 
         // This call to `std::fs::write` is thread safe because all threads write the same data.
-        if let Err(_) = std::fs::write(&new_path, &data) {
+        if std::fs::write(&new_path, data).is_err() {
             if new_path.exists() {
                 // Looks like the file is read-only and exists already
                 // TODO: Maybe we should check if the file contents are the same,
@@ -214,7 +214,7 @@ impl<'a> BlobObject<'a> {
             } else {
                 // Try to create the blob directory
                 std::fs::create_dir_all(blobdir).log_err(context).ok();
-                std::fs::write(&new_path, &data).context("fs::write")?;
+                std::fs::write(&new_path, data).context("fs::write")?;
             }
         }
 
@@ -227,7 +227,7 @@ impl<'a> BlobObject<'a> {
         let hash = hash.to_hex();
         let hash = hash.as_str().get(0..31).context("Too short hash")?;
         let blob = BlobObject {
-            blobdir: blobdir,
+            blobdir,
             name: format!("$BLOBDIR/{hash}"),
         };
         Ok(blob)
@@ -541,7 +541,7 @@ impl<'a> BlobObject<'a> {
                     file.rewind()?;
                     ImageReader::with_format(
                         std::io::BufReader::new(&file),
-                        ImageFormat::from_path(&self.to_abs_path())?,
+                        ImageFormat::from_path(self.to_abs_path())?,
                     )
                 }
             };
@@ -695,9 +695,9 @@ impl<'a> BlobObject<'a> {
 }
 
 fn set_readonly(new_path: &Path) -> Result<()> {
-    let mut perms = std::fs::metadata(&new_path)?.permissions();
+    let mut perms = std::fs::metadata(new_path)?.permissions();
     perms.set_readonly(true);
-    std::fs::set_permissions(&new_path, perms)?;
+    std::fs::set_permissions(new_path, perms)?;
     Ok(())
 }
 
@@ -1153,7 +1153,7 @@ mod tests {
             avatar_blob.ends_with("d98cd30ed8f2129bf3968420208849d"),
             "The avatar filename should be its hash, put instead it's {avatar_blob}"
         );
-        let scaled_avatar_size = file_size(&avatar_path).await;
+        let scaled_avatar_size = file_size(avatar_path).await;
         assert!(scaled_avatar_size < avatar_bytes.len() as u64);
 
         check_image_size(avatar_src, 1000, 1000);
@@ -1181,9 +1181,9 @@ mod tests {
         // The new file should be smaller:
         assert!(new_file_size < scaled_avatar_size);
         // And the original file should not be touched:
-        assert_eq!(file_size(&avatar_path).await, scaled_avatar_size);
+        assert_eq!(file_size(avatar_path).await, scaled_avatar_size);
         tokio::task::block_in_place(move || {
-            let img = ImageReader::open(&blob.to_abs_path())
+            let img = ImageReader::open(blob.to_abs_path())
                 .unwrap()
                 .with_guessed_format()
                 .unwrap()

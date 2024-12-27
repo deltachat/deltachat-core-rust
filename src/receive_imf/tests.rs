@@ -3248,7 +3248,7 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
         "a. tar.tar.gz",
     ] {
         let attachment = alice.blobdir.join(filename_sent);
-        let content = format!("File content of tar.gz archive");
+        let content = "File content of tar.gz archive".to_string();
         tokio::fs::write(&attachment, content.as_bytes()).await?;
 
         let mut msg_alice = Message::new(Viewtype::File);
