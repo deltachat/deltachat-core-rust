@@ -4729,7 +4729,9 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
 /**
  * Sets the file associated with a message.
  *
- * The actual current name of the file is ignored, instead `name` is used.
+ * If `name` is non-null, it is used as the file name
+ * and the actual current name of the file is ignored.
+ *
  * In order to deduplicate files that contain the same data,
  * the file will be renamed to a hash of the file data.
  * The file must not be modified after this function was called.

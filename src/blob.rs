@@ -1510,7 +1510,7 @@ mod tests {
             }
 
             let mut msg = Message::new(viewtype);
-            msg.set_file_and_deduplicate(&alice, &file, &file_name, None)
+            msg.set_file_and_deduplicate(&alice, &file, Some(&file_name), None)
                 .await?;
             let chat = alice.create_chat(&bob).await;
             if set_draft {
@@ -1569,7 +1569,7 @@ mod tests {
             .await
             .context("failed to write file")?;
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_and_deduplicate(&alice, &file, "file.gif", None)
+        msg.set_file_and_deduplicate(&alice, &file, Some("file.gif"), None)
             .await?;
         let chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(chat.id, &mut msg).await;

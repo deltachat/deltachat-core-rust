@@ -3253,7 +3253,7 @@ async fn test_weird_and_duplicated_filenames() -> Result<()> {
 
         let mut msg_alice = Message::new(Viewtype::File);
         msg_alice
-            .set_file_and_deduplicate(&alice, &attachment, filename_sent, None)
+            .set_file_and_deduplicate(&alice, &attachment, None, None)
             .await?;
         let alice_chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(alice_chat.id, &mut msg_alice).await;

@@ -441,7 +441,7 @@ mod tests {
         tokio::fs::write(&file, include_bytes!("../test-data/webxdc/minimal.xdc")).await?;
         let mut instance = Message::new(Viewtype::File);
         instance
-            .set_file_and_deduplicate(&alice, &file, "minimal.xdc", None)
+            .set_file_and_deduplicate(&alice, &file, None, None)
             .await?;
         let _sent1 = alice.send_msg(chat_id, &mut instance).await;
 

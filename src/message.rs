@@ -1,6 +1,7 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -1084,7 +1085,9 @@ impl Message {
 
     /// Sets the file associated with a message.
     ///
-    /// The actual current name of the file is ignored, instead `name` is used.
+    /// If `name` is Some, it is used as the file name
+    /// and the actual current name of the file is ignored.
+    ///
     /// In order to deduplicate files that contain the same data,
     /// the file will be renamed to a hash of the file data.
     /// The file must not be modified after this function was called.
@@ -1092,11 +1095,16 @@ impl Message {
         &mut self,
         context: &Context,
         file: &Path,
-        name: &str,
+        name: Option<&str>,
         filemime: Option<&str>,
     ) -> Result<()> {
         let blob = BlobObject::create_and_deduplicate(context, file).await?;
-        self.param.set(Param::Filename, name);
+        if let Some(name) = name {
+            self.param.set(Param::Filename, name);
+        } else {
+            let file_name = file.file_name().map(OsStr::to_string_lossy);
+            self.param.set_optional(Param::Filename, file_name);
+        }
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);
 
