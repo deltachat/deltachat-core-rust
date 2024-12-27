@@ -1106,15 +1106,14 @@ impl Message {
     }
 
     /// Creates a new blob and sets it as a file associated with a message.
-    /// TODO this is set as pub(crate) now since it's not used in any API
-    pub(crate) async fn set_file_from_bytes(
+    pub async fn set_file_from_bytes(
         &mut self,
         context: &Context,
         name: &str,
         data: &[u8],
         filemime: Option<&str>,
     ) -> Result<()> {
-        let blob = BlobObject::create_and_deduplicate_blob(context, data).await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(context, data).await?;
         self.param.set(Param::Filename, name);
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);

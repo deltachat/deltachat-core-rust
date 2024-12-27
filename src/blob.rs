@@ -157,7 +157,7 @@ impl<'a> BlobObject<'a> {
                 .with_context(|| format!("failed to open file {}", src.display()))?;
             hasher.update_reader(&mut src_file)?;
             drop(src_file);
-            let blob = BlobObject::new_from_hash(blobdir, hasher.finalize())?;
+            let blob = BlobObject::from_hash(blobdir, hasher.finalize())?;
             let new_path = blob.to_abs_path();
 
             // This will also replace an already-existing file:
@@ -174,18 +174,18 @@ impl<'a> BlobObject<'a> {
         })
     }
 
-    pub async fn create_and_deduplicate_blob(
+    pub async fn create_and_deduplicate_from_bytes(
         context: &'a Context,
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
-        task::block_in_place(|| BlobObject::create_and_deduplicate_blob_inner(context, data))
+        task::block_in_place(|| BlobObject::create_and_deduplicate_from_bytes_inner(context, data))
     }
 
-    fn create_and_deduplicate_blob_inner(
+    fn create_and_deduplicate_from_bytes_inner(
         context: &'a Context,
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
-        let blob = BlobObject::new_from_hash(context.get_blobdir(), blake3::hash(&data))?;
+        let blob = BlobObject::from_hash(context.get_blobdir(), blake3::hash(&data))?;
         let new_path = blob.to_abs_path();
 
         if let Err(e) = std::fs::write(&new_path, &data) {
@@ -207,7 +207,7 @@ impl<'a> BlobObject<'a> {
         Ok(blob)
     }
 
-    fn new_from_hash(blobdir: &Path, hash: blake3::Hash) -> Result<BlobObject<'_>> {
+    fn from_hash(blobdir: &Path, hash: blake3::Hash) -> Result<BlobObject<'_>> {
         let hash = hash.to_hex();
         let hash = hash.as_str().get(0..31).context("Too short hash")?;
         let blob = BlobObject {
@@ -654,7 +654,7 @@ impl<'a> BlobObject<'a> {
                     encode_img(&img, ofmt, &mut encoded)?;
                 }
 
-                self.name = BlobObject::create_and_deduplicate_blob_inner(context, &encoded)
+                self.name = BlobObject::create_and_deduplicate_from_bytes_inner(context, &encoded)
                     .context("failed to write recoded blob to file")?
                     .name;
             }
@@ -1630,7 +1630,7 @@ mod tests {
     async fn test_create_and_deduplicate_blob() -> Result<()> {
         let t = TestContext::new().await;
 
-        let blob = BlobObject::create_and_deduplicate_blob(&t, b"bla").await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla").await?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
         // The file should be read-only:
@@ -1646,7 +1646,7 @@ mod tests {
         fs::write(&temp_file, b"temporary data").await?;
         SystemTime::shift(Duration::from_secs(65 * 60));
 
-        let blob2 = BlobObject::create_and_deduplicate_blob(&t, b"bla").await?;
+        let blob2 = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla").await?;
         assert_eq!(blob2.name, blob.name);
 
         // The modification time of the file should be updated
@@ -1657,7 +1657,7 @@ mod tests {
         assert!(blob2.to_abs_path().exists());
         assert_eq!(temp_file.exists(), false);
 
-        let blob3 = BlobObject::create_and_deduplicate_blob(&t, b"blabla").await?;
+        let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla").await?;
         assert_ne!(blob3.name, blob.name);
 
         Ok(())
