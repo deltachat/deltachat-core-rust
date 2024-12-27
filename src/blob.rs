@@ -185,10 +185,11 @@ impl<'a> BlobObject<'a> {
         context: &'a Context,
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
-        let blob = BlobObject::from_hash(context.get_blobdir(), blake3::hash(&data))?;
+        let blobdir = context.get_blobdir();
+        let blob = BlobObject::from_hash(blobdir, blake3::hash(&data))?;
         let new_path = blob.to_abs_path();
 
-        if let Err(e) = std::fs::write(&new_path, &data) {
+        if let Err(_) = std::fs::write(&new_path, &data) {
             if new_path.exists() {
                 // Looks like the file is read-only and exists already
                 // TODO: Maybe we should check if the file contents are the same,
@@ -198,7 +199,9 @@ impl<'a> BlobObject<'a> {
                 let f = std::fs::File::open(&new_path).context("File::open")?;
                 f.set_modified(SystemTime::now()).context("set_modified")?;
             } else {
-                bail!("Failed to write file: {e:#}");
+                // Try to create the blob directory
+                std::fs::create_dir_all(blobdir).log_err(context).ok();
+                std::fs::write(&new_path, &data).context("fs::write")?;
             }
         }
 
@@ -1627,9 +1630,10 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_create_and_deduplicate_blob() -> Result<()> {
+    async fn test_create_and_deduplicate_from_bytes() -> Result<()> {
         let t = TestContext::new().await;
 
+        fs::remove_dir(t.get_blobdir()).await?;
         let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla").await?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
