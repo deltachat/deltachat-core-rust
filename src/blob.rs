@@ -75,7 +75,9 @@ impl<'a> BlobObject<'a> {
         Ok(blob)
     }
 
-    // Creates a new file, returning a tuple of the name and the handle.
+    /// Creates a new file, returning a tuple of the name and the handle.
+    /// This uses `create_new(true)` to avoid race conditions
+    /// when multiple files with the same name are created.
     async fn create_new_file(
         context: &Context,
         dir: &Path,
@@ -140,8 +142,12 @@ impl<'a> BlobObject<'a> {
         Ok(blob)
     }
 
-    /// TODO document
-    /// TODO what about race conditions when the same file is created multiple times concurrently
+    /// Creates a blob object from a file that already exists in the blob directory.
+    /// In order to deduplicate files that contain the same data,
+    /// the file will be renamed to a hash of the file data.
+    ///
+    /// This is done in a in way which avoids race-conditions when multiple files are
+    /// concurrently created.
     pub async fn create_and_deduplicate(
         context: &'a Context,
         src: &Path,
@@ -160,7 +166,8 @@ impl<'a> BlobObject<'a> {
             let blob = BlobObject::from_hash(blobdir, hasher.finalize())?;
             let new_path = blob.to_abs_path();
 
-            // This will also replace an already-existing file:
+            // This will also replace an already-existing file.
+            // Renaming is atomic, so this will avoid race conditions.
             if let Err(_) = std::fs::rename(src, &new_path) {
                 // Try a second time in case there was some temporary error.
                 // There is no need to try and create the blobdir since create_and_deduplicate()
@@ -174,6 +181,11 @@ impl<'a> BlobObject<'a> {
         })
     }
 
+    /// Creates a new blob object with the file contents in `data`.
+    /// In order to deduplicate files that contain the same data,
+    /// the file will be renamed to a hash of the file data.
+    ///
+    /// The `data` will be written into the file without race-conditions.
     pub async fn create_and_deduplicate_from_bytes(
         context: &'a Context,
         data: &[u8],
@@ -189,6 +201,7 @@ impl<'a> BlobObject<'a> {
         let blob = BlobObject::from_hash(blobdir, blake3::hash(&data))?;
         let new_path = blob.to_abs_path();
 
+        // This call to `std::fs::write` is thread safe because all threads write the same data.
         if let Err(_) = std::fs::write(&new_path, &data) {
             if new_path.exists() {
                 // Looks like the file is read-only and exists already
