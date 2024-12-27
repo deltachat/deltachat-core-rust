@@ -1369,7 +1369,7 @@ impl MimeFactory {
 
         // add attachment part
         if msg.viewtype.has_file() {
-            let (file_part, _) = build_body_file(context, &msg, "").await?;
+            let (file_part, _) = build_body_file(context, &msg).await?;
             parts.push(file_part);
         }
 
@@ -1509,11 +1509,7 @@ pub(crate) fn wrapped_base64_encode(buf: &[u8]) -> String {
         .join("\r\n")
 }
 
-async fn build_body_file(
-    context: &Context,
-    msg: &Message,
-    base_name: &str,
-) -> Result<(PartBuilder, String)> {
+async fn build_body_file(context: &Context, msg: &Message) -> Result<(PartBuilder, String)> {
     let blob = msg
         .param
         .get_blob(Param::File, context)
@@ -1539,17 +1535,13 @@ async fn build_body_file(
         ),
         Viewtype::Image | Viewtype::Gif => format!(
             "image_{}.{}",
-            if base_name.is_empty() {
-                chrono::Utc
-                    .timestamp_opt(msg.timestamp_sort, 0)
-                    .single()
-                    .map_or_else(
-                        || "YY-mm-dd_hh:mm:ss".to_string(),
-                        |ts| ts.format("%Y-%m-%d_%H-%M-%S").to_string(),
-                    )
-            } else {
-                base_name.to_string()
-            },
+            chrono::Utc
+                .timestamp_opt(msg.timestamp_sort, 0)
+                .single()
+                .map_or_else(
+                    || "YY-mm-dd_hh:mm:ss".to_string(),
+                    |ts| ts.format("%Y-%m-%d_%H-%M-%S").to_string(),
+                ),
             &suffix,
         ),
         Viewtype::Video => format!(
