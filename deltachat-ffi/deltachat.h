@@ -1960,10 +1960,10 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
 /**
  * Forward messages to another chat.
  *
- * All types of messages can be forwarded,
- * however, they will be flagged as such (dc_msg_is_forwarded() is set).
- *
- * Original sender, info-state and webxdc updates are not forwarded on purpose.
+ * Unless forwarded to "Saved Messages",
+ * UI should mark forwarded messages as such.
+ * Whether to mark a message as forwarded can be determined by dc_msg_is_forwarded().
+ * Original sender, webxdc updates and other metadata are not forwarded on purpose.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4384,10 +4384,9 @@ int             dc_msg_is_sent                (const dc_msg_t* msg);
 
 
 /**
- * Check if the message is a forwarded message.
+ * Check if the message should be marked as forwarded message.
  *
  * Forwarded messages may not be created by the contact given as "from".
- *
  * Typically, the UI shows a little text for a symbol above forwarded messages.
  *
  * For privacy reasons, we do not provide the name or the e-mail address of the
@@ -4866,6 +4865,49 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
  *     Must be freed using dc_msg_unref() after usage.
  */
 dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
+
+
+/**
+ * Get original chat ID for a saved message from the "Saved Messages" chat.
+ *
+ * Additionally, you can use dc_msg_get_original_msg_id() to find out the original message,
+ * which, however, may be deleted.
+ *
+ * To save a message, use dc_forward_msgs().
+ * To check if a message is saved, use dc_msgs_get_saved_msg_id().
+ *
+ * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
+ * @return The chat ID  of the original message.
+ *     0 if the given message object is not a "Saved Message"
+ *     or if the original chat does no longer exist.
+ */
+uint32_t        dc_msg_get_original_chat_id   (const dc_msg_t* msg);
+
+
+/**
+ * Get original message ID for a saved message from the "Saved Messages" chat.
+ *
+ * Usually, UI will check dc_msg_get_original_chat_id() as well.
+ *
+ * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
+ * @return The message ID of the original message.
+ *     0 if the given message object is not a "Saved Message"
+ *     or if the original message does no longer exist.
+ */
+uint32_t        dc_msg_get_original_msg_id    (const dc_msg_t* msg);
+
+
+/**
+ * Check if a message was saved and return its ID inside "Saved Messages".
+ *
+ * The returned ID can be used to un-save a message.
+ * The state "is saved" can be used to show some icon to indicate that a message was saved.
+ *
+ * @param msg The message object. Usually, this refers to a a message outside "Saved Messages".
+ * @return The message ID inside "Saved Messages", if any.
+ *     0 if the given message object is not saved.
+ */
+uint32_t        dc_msg_get_saved_msg_id     (const dc_msg_t* msg);
 
 
 /**

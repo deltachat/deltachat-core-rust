@@ -4099,6 +4099,11 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     if let Some(reason) = chat.why_cant_send(context).await? {
         bail!("cannot send to {}: {}", chat_id, reason);
     }
+
+    if chat.is_self_talk() {
+        return save_copies_in_self_talk_and_sync(context, msg_ids).await;
+    }
+
     curr_timestamp = create_smeared_timestamps(context, msg_ids.len());
     let ids = context
         .sql
@@ -4157,6 +4162,79 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         context.emit_msgs_changed(*chat_id, *msg_id);
     }
     Ok(())
+}
+
+async fn save_copies_in_self_talk_and_sync(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
+    for src_msg_id in msg_ids {
+        let dest_rfc724_mid = create_outgoing_rfc724_mid();
+        let src_rfc724_mid = save_copy_in_self_talk(context, src_msg_id, &dest_rfc724_mid).await?;
+        context
+            .add_sync_item(SyncData::SaveMessage {
+                src: src_rfc724_mid,
+                dest: dest_rfc724_mid,
+            })
+            .await?;
+    }
+    context.send_sync_msg().await?;
+    Ok(())
+}
+
+/// Saves a copy of the given message in "Saved Messages" using the given RFC724 id.
+/// To allow UIs to have a "show in context" button,
+/// the copy contains a reference to the original message
+/// as well as to the original chat in case the original message gets deleted.
+/// Returns data needed to add a `SaveMessage` sync item.
+pub(crate) async fn save_copy_in_self_talk(
+    context: &Context,
+    src_msg_id: &MsgId,
+    dest_rfc724_mid: &String,
+) -> Result<String> {
+    let dest_chat_id = ChatId::create_for_contact(context, ContactId::SELF).await?;
+    let mut msg = Message::load_from_db(context, *src_msg_id).await?;
+    msg.param.remove(Param::Cmd);
+    msg.param.remove(Param::WebxdcDocument);
+    msg.param.remove(Param::WebxdcDocumentTimestamp);
+    msg.param.remove(Param::WebxdcSummary);
+    msg.param.remove(Param::WebxdcSummaryTimestamp);
+    msg.param
+        .set_int(Param::OriginalChatId, msg.chat_id.to_u32() as i32);
+    let original_msg_id = if !msg.original_msg_id.is_special() {
+        msg.original_msg_id
+    } else {
+        *src_msg_id
+    };
+
+    let copy_fields = "from_id, to_id, timestamp_sent, timestamp_rcvd, type, txt, txt_raw, \
+                             mime_modified, mime_headers, mime_compressed, mime_in_reply_to, subject, msgrmsg";
+    let row_id = context
+        .sql
+        .insert(
+            &format!(
+                "INSERT INTO msgs ({copy_fields}, chat_id, rfc724_mid, state, timestamp, param, starred) \
+                            SELECT {copy_fields}, ?, ?, ?, ?, ?, ? \
+                            FROM msgs WHERE id=?;"
+            ),
+            (
+                dest_chat_id,
+                dest_rfc724_mid,
+                if msg.from_id == ContactId::SELF {
+                    MessageState::OutDelivered
+                } else {
+                    MessageState::InSeen
+                },
+                create_smeared_timestamp(context),
+                msg.param.to_string(),
+                original_msg_id,
+                src_msg_id,
+            ),
+        )
+        .await?;
+    let dest_msg_id = MsgId::new(row_id.try_into()?);
+
+    context.emit_msgs_changed(msg.chat_id, *src_msg_id);
+    context.emit_msgs_changed(dest_chat_id, dest_msg_id);
+
+    Ok(msg.rfc724_mid)
 }
 
 /// Resends given messages with the same Message-ID.
@@ -4653,7 +4731,7 @@ mod tests {
     use crate::chatlist::get_archived_cnt;
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::headerdef::HeaderDef;
-    use crate::message::delete_msgs;
+    use crate::message::{delete_msgs, MessengerMessage};
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{sync, TestContext, TestContextManager, TimeShiftFalsePositiveNote};
     use strum::IntoEnumIterator;
@@ -6764,6 +6842,134 @@ mod tests {
             assert!(!sent_msg.payload().contains("secretname"));
             assert!(!sent_msg.payload().contains("alice"));
         }
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_forward_to_saved() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+
+        let sent = alice.send_text(alice_chat.get_id(), "hi, bob").await;
+        let sent_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert!(sent_msg.get_saved_msg_id(&alice).await?.is_none());
+        assert!(sent_msg.get_original_msg_id(&alice).await?.is_none());
+        assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
+
+        let self_chat = alice.get_self_chat().await;
+        forward_msgs(&alice, &[sent.sender_msg_id], self_chat.id).await?;
+
+        let saved_msg = alice.get_last_msg_in(self_chat.id).await;
+        assert_ne!(saved_msg.get_id(), sent.sender_msg_id);
+        assert!(saved_msg.get_saved_msg_id(&alice).await?.is_none());
+        assert_eq!(
+            saved_msg.get_original_msg_id(&alice).await?.unwrap(),
+            sent.sender_msg_id
+        );
+        assert_eq!(
+            saved_msg.get_original_chat_id(&alice).await?.unwrap(),
+            sent_msg.chat_id
+        );
+        assert_eq!(saved_msg.get_text(), "hi, bob");
+        assert!(!saved_msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
+        assert_eq!(saved_msg.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(saved_msg.get_from_id(), ContactId::SELF);
+        assert_eq!(saved_msg.get_state(), MessageState::OutDelivered);
+        assert_ne!(saved_msg.rfc724_mid(), sent_msg.rfc724_mid());
+
+        let sent_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert_eq!(
+            sent_msg.get_saved_msg_id(&alice).await?.unwrap(),
+            saved_msg.id
+        );
+        assert!(sent_msg.get_original_msg_id(&alice).await?.is_none());
+        assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
+
+        let rcvd_msg = bob.recv_msg(&sent).await;
+        let self_chat = bob.get_self_chat().await;
+        forward_msgs(&bob, &[rcvd_msg.id], self_chat.id).await?;
+        let saved_msg = bob.get_last_msg_in(self_chat.id).await;
+        assert_ne!(saved_msg.get_id(), rcvd_msg.id);
+        assert_eq!(
+            saved_msg.get_original_msg_id(&bob).await?.unwrap(),
+            rcvd_msg.id
+        );
+        assert_eq!(
+            saved_msg.get_original_chat_id(&bob).await?.unwrap(),
+            rcvd_msg.chat_id
+        );
+        assert_eq!(saved_msg.get_text(), "hi, bob");
+        assert!(!saved_msg.is_forwarded());
+        assert_eq!(saved_msg.is_dc_message, MessengerMessage::Yes);
+        assert_ne!(saved_msg.get_from_id(), ContactId::SELF);
+        assert_eq!(saved_msg.get_state(), MessageState::InSeen);
+        assert_ne!(saved_msg.rfc724_mid(), rcvd_msg.rfc724_mid());
+
+        // delete original message
+        delete_msgs(&bob, &[rcvd_msg.id]).await?;
+        let saved_msg = Message::load_from_db(&bob, saved_msg.id).await?;
+        assert!(saved_msg.get_original_msg_id(&bob).await?.is_none());
+        assert_eq!(
+            saved_msg.get_original_chat_id(&bob).await?.unwrap(),
+            rcvd_msg.chat_id
+        );
+
+        // delete original chat
+        rcvd_msg.chat_id.delete(&bob).await?;
+        let msg = Message::load_from_db(&bob, saved_msg.id).await?;
+        assert!(msg.get_original_chat_id(&bob).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_forward_to_saved_is_not_added_to_shared_chats() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let bob_chat = bob.create_chat(&alice).await;
+
+        let sent = alice.send_text(alice_chat.id, "hi, bob").await;
+        bob.recv_msg(&sent).await;
+        let msg = bob.get_last_msg_in(bob_chat.id).await;
+
+        let self_chat = bob.get_self_chat().await;
+        forward_msgs(&bob, &[msg.id], self_chat.id).await?;
+        let msg = bob.get_last_msg_in(self_chat.id).await;
+        let contact = Contact::get_by_id(&bob, msg.get_from_id()).await?;
+        assert_eq!(contact.get_addr(), "alice@example.org");
+
+        let shared_chats = Chatlist::try_load(&bob, 0, None, Some(contact.id)).await?;
+        assert_eq!(shared_chats.len(), 1);
+        assert_eq!(shared_chats.get_chat_id(0).unwrap(), bob_chat.id);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_forward_from_saved_to_saved() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let sent = alice.send_text(alice.create_chat(&bob).await.id, "k").await;
+
+        bob.recv_msg(&sent).await;
+        let orig = bob.get_last_msg().await;
+        let self_chat = bob.get_self_chat().await;
+        forward_msgs(&bob, &[orig.id], self_chat.id).await?;
+        let saved1 = bob.get_last_msg().await;
+        assert_eq!(
+            saved1.get_original_msg_id(&bob).await?.unwrap(),
+            sent.sender_msg_id
+        );
+
+        forward_msgs(&bob, &[saved1.id], self_chat.id).await?;
+        let saved2 = bob.get_last_msg().await;
+        assert_eq!(
+            saved2.get_original_msg_id(&bob).await?.unwrap(),
+            sent.sender_msg_id
+        );
 
         Ok(())
     }
