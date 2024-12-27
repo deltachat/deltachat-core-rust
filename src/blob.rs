@@ -148,10 +148,11 @@ impl<'a> BlobObject<'a> {
     ///
     /// This is done in a in way which avoids race-conditions when multiple files are
     /// concurrently created.
-    pub async fn create_and_deduplicate(
-        context: &'a Context,
-        src: &Path,
-    ) -> Result<BlobObject<'a>> {
+    pub fn create_and_deduplicate(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
+        // `create_and_deduplicate{_from_bytes}()` do blocking I/O, but can still be called
+        // from an async context thanks to `block_in_place()`.
+        // Tokio's "async" I/O functions are also just thin wrappers around the blocking I/O syscalls,
+        // so we are doing essentially the same here.
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
             if !(src.starts_with(blobdir) || src.starts_with("$BLOBDIR/")) {
@@ -186,41 +187,39 @@ impl<'a> BlobObject<'a> {
     /// the file will be renamed to a hash of the file data.
     ///
     /// The `data` will be written into the file without race-conditions.
-    pub async fn create_and_deduplicate_from_bytes(
+    ///
+    /// This function does blocking I/O, but it can still be called from an async context
+    /// because `block_in_place()` is used to leave the async runtime if necessary.
+    pub fn create_and_deduplicate_from_bytes(
         context: &'a Context,
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
-        task::block_in_place(|| BlobObject::create_and_deduplicate_from_bytes_inner(context, data))
-    }
+        task::block_in_place(|| {
+            let blobdir = context.get_blobdir();
+            let blob = BlobObject::from_hash(blobdir, blake3::hash(data))?;
+            let new_path = blob.to_abs_path();
 
-    fn create_and_deduplicate_from_bytes_inner(
-        context: &'a Context,
-        data: &[u8],
-    ) -> Result<BlobObject<'a>> {
-        let blobdir = context.get_blobdir();
-        let blob = BlobObject::from_hash(blobdir, blake3::hash(data))?;
-        let new_path = blob.to_abs_path();
+            // This call to `std::fs::write` is thread safe because all threads write the same data.
+            if std::fs::write(&new_path, data).is_err() {
+                if new_path.exists() {
+                    // Looks like the file is read-only and exists already
+                    // TODO: Maybe we should check if the file contents are the same,
+                    // or at least if the length is the same, and overwrite if not.
 
-        // This call to `std::fs::write` is thread safe because all threads write the same data.
-        if std::fs::write(&new_path, data).is_err() {
-            if new_path.exists() {
-                // Looks like the file is read-only and exists already
-                // TODO: Maybe we should check if the file contents are the same,
-                // or at least if the length is the same, and overwrite if not.
-
-                // Set the file to be modified "now", so that it's not deleted during housekeeping
-                let f = std::fs::File::open(&new_path).context("File::open")?;
-                f.set_modified(SystemTime::now()).context("set_modified")?;
-            } else {
-                // Try to create the blob directory
-                std::fs::create_dir_all(blobdir).log_err(context).ok();
-                std::fs::write(&new_path, data).context("fs::write")?;
+                    // Set the file to be modified "now", so that it's not deleted during housekeeping
+                    let f = std::fs::File::open(&new_path).context("File::open")?;
+                    f.set_modified(SystemTime::now()).context("set_modified")?;
+                } else {
+                    // Try to create the blob directory
+                    std::fs::create_dir_all(blobdir).log_err(context).ok();
+                    std::fs::write(&new_path, data).context("fs::write")?;
+                }
             }
-        }
 
-        set_readonly(&new_path).log_err(context).ok();
-        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
-        Ok(blob)
+            set_readonly(&new_path).log_err(context).ok();
+            context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
+            Ok(blob)
+        })
     }
 
     fn from_hash(blobdir: &Path, hash: blake3::Hash) -> Result<BlobObject<'_>> {
@@ -670,7 +669,7 @@ impl<'a> BlobObject<'a> {
                     encode_img(&img, ofmt, &mut encoded)?;
                 }
 
-                self.name = BlobObject::create_and_deduplicate_from_bytes_inner(context, &encoded)
+                self.name = BlobObject::create_and_deduplicate_from_bytes(context, &encoded)
                     .context("failed to write recoded blob to file")?
                     .name;
             }
@@ -1510,8 +1509,7 @@ mod tests {
             }
 
             let mut msg = Message::new(viewtype);
-            msg.set_file_and_deduplicate(&alice, &file, Some(&file_name), None)
-                .await?;
+            msg.set_file_and_deduplicate(&alice, &file, Some(&file_name), None)?;
             let chat = alice.create_chat(&bob).await;
             if set_draft {
                 chat.id.set_draft(&alice, Some(&mut msg)).await.unwrap();
@@ -1569,8 +1567,7 @@ mod tests {
             .await
             .context("failed to write file")?;
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_and_deduplicate(&alice, &file, Some("file.gif"), None)
-            .await?;
+        msg.set_file_and_deduplicate(&alice, &file, Some("file.gif"), None)?;
         let chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(chat.id, &mut msg).await;
         let bob_msg = bob.recv_msg(&sent).await;
@@ -1613,7 +1610,7 @@ mod tests {
 
         let path = t.get_blobdir().join("anyfile.dat");
         fs::write(&path, b"bla").await?;
-        let blob = BlobObject::create_and_deduplicate(&t, &path).await?;
+        let blob = BlobObject::create_and_deduplicate(&t, &path)?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
         assert_eq!(path.exists(), false);
 
@@ -1624,19 +1621,19 @@ mod tests {
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
 
         fs::write(&path, b"bla").await?;
-        let blob2 = BlobObject::create_and_deduplicate(&t, &path).await?;
+        let blob2 = BlobObject::create_and_deduplicate(&t, &path)?;
         assert_eq!(blob2.name, blob.name);
 
         let path_outside_blobdir = t.dir.path().join("anyfile.dat");
         fs::write(&path_outside_blobdir, b"bla").await?;
-        let blob_res = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir).await;
+        let blob_res = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir);
         assert!(
             blob_res.is_err(),
             "Files outside the blobdir should not be allowed in create_and_deduplicate()"
         );
 
         fs::write(&path, b"blabla").await?;
-        let blob3 = BlobObject::create_and_deduplicate(&t, &path).await?;
+        let blob3 = BlobObject::create_and_deduplicate(&t, &path)?;
         assert_ne!(blob3.name, blob.name);
 
         Ok(())
@@ -1647,7 +1644,7 @@ mod tests {
         let t = TestContext::new().await;
 
         fs::remove_dir(t.get_blobdir()).await?;
-        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla").await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
         // The file should be read-only:
@@ -1663,7 +1660,7 @@ mod tests {
         fs::write(&temp_file, b"temporary data").await?;
         SystemTime::shift(Duration::from_secs(65 * 60));
 
-        let blob2 = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla").await?;
+        let blob2 = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
         assert_eq!(blob2.name, blob.name);
 
         // The modification time of the file should be updated
@@ -1674,7 +1671,7 @@ mod tests {
         assert!(blob2.to_abs_path().exists());
         assert_eq!(temp_file.exists(), false);
 
-        let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla").await?;
+        let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
         assert_ne!(blob3.name, blob.name);
 
         Ok(())

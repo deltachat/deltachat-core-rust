@@ -395,7 +395,6 @@ mod tests {
         fs::write(&file, "i am attachment").await.unwrap();
         let mut msg = Message::new(Viewtype::File);
         msg.set_file_and_deduplicate(&ctx0, &file, Some("hello.txt"), Some("text/plain"))
-            .await
             .unwrap();
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 

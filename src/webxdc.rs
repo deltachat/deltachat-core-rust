@@ -1049,7 +1049,7 @@ mod tests {
 
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
         let mut instance = Message::new(Viewtype::File);
-        instance.set_file_from_bytes(t, name, bytes, None).await?;
+        instance.set_file_from_bytes(t, name, bytes, None)?;
         Ok(instance)
     }
 
@@ -1078,9 +1078,7 @@ mod tests {
 
         // sending using bad extension is not working, even when setting Viewtype to webxdc
         let mut instance = Message::new(Viewtype::Webxdc);
-        instance
-            .set_file_from_bytes(&t, "index.html", b"<html>ola!</html>", None)
-            .await?;
+        instance.set_file_from_bytes(&t, "index.html", b"<html>ola!</html>", None)?;
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
         Ok(())
@@ -1105,14 +1103,12 @@ mod tests {
 
         // sending invalid .xdc as Viewtype::Webxdc should fail already on sending
         let mut instance = Message::new(Viewtype::Webxdc);
-        instance
-            .set_file_from_bytes(
-                &t,
-                "invalid2.xdc",
-                include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
-                None,
-            )
-            .await?;
+        instance.set_file_from_bytes(
+            &t,
+            "invalid2.xdc",
+            include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
+            None,
+        )?;
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
         Ok(())

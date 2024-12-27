@@ -1091,14 +1091,14 @@ impl Message {
     /// In order to deduplicate files that contain the same data,
     /// the file will be renamed to a hash of the file data.
     /// The file must not be modified after this function was called.
-    pub async fn set_file_and_deduplicate(
+    pub fn set_file_and_deduplicate(
         &mut self,
         context: &Context,
         file: &Path,
         name: Option<&str>,
         filemime: Option<&str>,
     ) -> Result<()> {
-        let blob = BlobObject::create_and_deduplicate(context, file).await?;
+        let blob = BlobObject::create_and_deduplicate(context, file)?;
         if let Some(name) = name {
             self.param.set(Param::Filename, name);
         } else {
@@ -1116,14 +1116,14 @@ impl Message {
     /// In order to deduplicate files that contain the same data,
     /// the filename will be a hash of the file data.
     /// The file must not be modified after this function was called.
-    pub async fn set_file_from_bytes(
+    pub fn set_file_from_bytes(
         &mut self,
         context: &Context,
         name: &str,
         data: &[u8],
         filemime: Option<&str>,
     ) -> Result<()> {
-        let blob = BlobObject::create_and_deduplicate_from_bytes(context, data).await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(context, data)?;
         self.param.set(Param::Filename, name);
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);
@@ -1140,7 +1140,6 @@ impl Message {
         );
         let vcard = contact::make_vcard(context, contacts).await?;
         self.set_file_from_bytes(context, "vcard.vcf", vcard.as_bytes(), None)
-            .await
     }
 
     /// Updates message state from the vCard attachment.
@@ -2600,8 +2599,7 @@ mod tests {
 
         let file_bytes = include_bytes!("../test-data/image/screenshot.png");
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)
-            .await?;
+        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)?;
         let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
         let msg = alice.recv_msg(&sent_msg).await;
         assert_eq!(msg.download_state, DownloadState::Available);
@@ -2670,8 +2668,7 @@ mod tests {
 
         let file_bytes = include_bytes!("../test-data/image/screenshot.png");
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)
-            .await?;
+        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)?;
         let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
         let msg = alice.recv_msg(&sent_msg).await;
         assert_eq!(msg.download_state, DownloadState::Available);

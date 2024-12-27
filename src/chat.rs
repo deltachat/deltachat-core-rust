@@ -6533,8 +6533,7 @@ mod tests {
         tokio::fs::write(&file, bytes).await?;
 
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file_and_deduplicate(&alice, &file, Some(filename), None)
-            .await?;
+        msg.set_file_and_deduplicate(&alice, &file, Some(filename), None)?;
 
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let mime = sent_msg.payload();
@@ -6599,7 +6598,6 @@ mod tests {
         // Images without force_sticker should be turned into [Viewtype::Image]
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
-            .await
             .unwrap();
         let file = msg.get_file(&alice).unwrap();
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
@@ -6609,7 +6607,6 @@ mod tests {
         // Images with `force_sticker = true` should keep [Viewtype::Sticker]
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
-            .await
             .unwrap();
         msg.force_sticker();
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
@@ -6620,7 +6617,6 @@ mod tests {
         // even on drafted messages
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
-            .await
             .unwrap();
         msg.force_sticker();
         alice_chat
@@ -6662,8 +6658,7 @@ mod tests {
         let file = alice.get_blobdir().join(file_name);
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
-            .await?;
+        msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)?;
 
         // send sticker to bob
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
@@ -7258,8 +7253,7 @@ mod tests {
             let file = t.get_blobdir().join(name);
             tokio::fs::write(&file, bytes).await?;
             let mut msg = Message::new(msg_type);
-            msg.set_file_and_deduplicate(t, &file, Some(name), None)
-                .await?;
+            msg.set_file_and_deduplicate(t, &file, Some(name), None)?;
             send_msg(t, chat_id, &mut msg).await
         }
 
@@ -7413,8 +7407,7 @@ mod tests {
         let file = alice.get_blobdir().join("harmless_file.\u{202e}txt.exe");
         fs::write(&file, "aaa").await?;
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file_and_deduplicate(&alice, &file, Some("harmless_file.\u{202e}txt.exe"), None)
-            .await?;
+        msg.set_file_and_deduplicate(&alice, &file, Some("harmless_file.\u{202e}txt.exe"), None)?;
         let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
 
         // the file bob receives should not contain BIDI-control characters
@@ -7753,8 +7746,7 @@ mod tests {
         let file = alice.get_blobdir().join("screenshot.png");
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_and_deduplicate(&alice, &file, Some("screenshot.png"), None)
-            .await?;
+        msg.set_file_and_deduplicate(&alice, &file, Some("screenshot.png"), None)?;
 
         let alice_chat = alice.create_chat(&bob).await;
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
