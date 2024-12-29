@@ -116,7 +116,15 @@ pub(crate) struct MimeMessage {
     /// Hop info for debugging.
     pub(crate) hop_info: String,
 
-    /// Whether the contact sending this should be marked as bot or non-bot.
+    /// Whether the message is auto-generated.
+    ///
+    /// If chat message (with `Chat-Version` header) is auto-generated,
+    /// the contact sending this should be marked as bot.
+    ///
+    /// If non-chat message is auto-generated,
+    /// it could be a holiday notice auto-reply,
+    /// in which case the message should be marked as bot-generated,
+    /// but the contact should not be.
     pub(crate) is_bot: Option<bool>,
 
     /// When the message was received, in secs since epoch.
@@ -563,10 +571,8 @@ impl MimeMessage {
         };
 
         if parser.mdn_reports.is_empty() && parser.webxdc_status_update.is_none() {
-            // "Auto-Submitted" is also set by holiday-notices so we also check "chat-version".
-            let is_bot = parser.headers.get("auto-submitted")
-                == Some(&"auto-generated".to_string())
-                && parser.headers.contains_key("chat-version");
+            let is_bot =
+                parser.headers.get("auto-submitted") == Some(&"auto-generated".to_string());
             parser.is_bot = Some(is_bot);
         }
         parser.maybe_remove_bad_parts();
