@@ -2707,6 +2707,29 @@ mod tests {
     async fn test_is_bot() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
+        // Alice receives an auto-generated non-chat message.
+        //
+        // This could be a holiday notice,
+        // in which case the message should be marked as bot-generated,
+        // but the contact should not.
+        receive_imf(
+            &alice,
+            b"From: Claire <claire@example.com>\n\
+                    To: alice@example.org\n\
+                    Message-ID: <789@example.com>\n\
+                    Auto-Submitted: auto-generated\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello\n",
+            false,
+        )
+        .await?;
+        let msg = alice.get_last_msg().await;
+        assert_eq!(msg.get_text(), "hello".to_string());
+        assert!(msg.is_bot());
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+        assert!(!contact.is_bot());
+
         // Alice receives a message from Bob the bot.
         receive_imf(
             &alice,
