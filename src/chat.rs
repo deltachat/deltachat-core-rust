@@ -42,7 +42,6 @@ use crate::peerstate::Peerstate;
 use crate::receive_imf::ReceivedMsg;
 use crate::securejoin::BobState;
 use crate::smtp::send_msg_to_smtp;
-use crate::sql;
 use crate::stock_str;
 use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
@@ -4144,7 +4143,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     ensure!(!msg_ids.is_empty(), "empty msgs_ids: nothing to forward");
     ensure!(!chat_id.is_special(), "can not forward to special chat");
 
-    let mut created_chats: Vec<ChatId> = Vec::new();
     let mut created_msgs: Vec<MsgId> = Vec::new();
     let mut curr_timestamp: i64;
 
@@ -4156,20 +4154,17 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         bail!("cannot send to {}: {}", chat_id, reason);
     }
     curr_timestamp = create_smeared_timestamps(context, msg_ids.len());
-    let ids = context
-        .sql
-        .query_map(
-            &format!(
-                "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                sql::repeat_vars(msg_ids.len())
-            ),
-            rusqlite::params_from_iter(msg_ids),
-            |row| row.get::<_, MsgId>(0),
-            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-        )
-        .await?;
-
-    for id in ids {
+    let mut msgs = Vec::with_capacity(msg_ids.len());
+    for id in msg_ids {
+        let ts: i64 = context
+            .sql
+            .query_get_value("SELECT timestamp FROM msgs WHERE id=?", (id,))
+            .await?
+            .context("No message {id}")?;
+        msgs.push((ts, *id));
+    }
+    msgs.sort_unstable();
+    for (_, id) in msgs {
         let src_msg_id: MsgId = id;
         let mut msg = Message::load_from_db(context, src_msg_id).await?;
         if msg.state == MessageState::OutDraft {
@@ -4206,11 +4201,10 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
             context.scheduler.interrupt_smtp().await;
         }
-        created_chats.push(chat_id);
         created_msgs.push(new_msg_id);
     }
-    for (chat_id, msg_id) in created_chats.iter().zip(created_msgs.iter()) {
-        context.emit_msgs_changed(*chat_id, *msg_id);
+    for msg_id in created_msgs {
+        context.emit_msgs_changed(chat_id, msg_id);
     }
     Ok(())
 }

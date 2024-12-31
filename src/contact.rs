@@ -1,7 +1,7 @@
 //! Contacts module
 
 use std::cmp::{min, Reverse};
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -34,7 +34,6 @@ use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
-use crate::sql::{self, params_iter};
 use crate::sync::{self, Sync::*};
 use crate::tools::{duration_to_str, get_abs_path, smeared_time, time, SystemTime};
 use crate::{chat, chatlist_events, stock_str};
@@ -1040,7 +1039,11 @@ impl Contact {
         listflags: u32,
         query: Option<&str>,
     ) -> Result<Vec<ContactId>> {
-        let self_addrs = context.get_all_self_addrs().await?;
+        let self_addrs = context
+            .get_all_self_addrs()
+            .await?
+            .into_iter()
+            .collect::<HashSet<_>>();
         let mut add_self = false;
         let mut ret = Vec::new();
         let flag_verified_only = (listflags & DC_GCL_VERIFIED_ONLY) != 0;
@@ -1055,29 +1058,32 @@ impl Contact {
             context
                 .sql
                 .query_map(
-                    &format!(
-                        "SELECT c.id FROM contacts c \
+                    "SELECT c.id, c.addr FROM contacts c
                  LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                 WHERE c.addr NOT IN ({})
-                 AND c.id>? \
+                 WHERE c.id>?
                  AND c.origin>=? \
                  AND c.blocked=0 \
                  AND (iif(c.name='',c.authname,c.name) LIKE ? OR c.addr LIKE ?) \
                  AND (1=? OR LENGTH(ps.verified_key_fingerprint)!=0)  \
                  ORDER BY c.last_seen DESC, c.id DESC;",
-                        sql::repeat_vars(self_addrs.len())
-                    ),
-                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
+                    (
                         ContactId::LAST_SPECIAL,
                         minimal_origin,
-                        s3str_like_cmd,
-                        s3str_like_cmd,
-                        if flag_verified_only { 0i32 } else { 1i32 }
-                    ])),
-                    |row| row.get::<_, ContactId>(0),
-                    |ids| {
-                        for id in ids {
-                            ret.push(id?);
+                        &s3str_like_cmd,
+                        &s3str_like_cmd,
+                        if flag_verified_only { 0i32 } else { 1i32 },
+                    ),
+                    |row| {
+                        let id: ContactId = row.get(0)?;
+                        let addr: String = row.get(1)?;
+                        Ok((id, addr))
+                    },
+                    |rows| {
+                        for row in rows {
+                            let (id, addr) = row?;
+                            if !self_addrs.contains(&addr) {
+                                ret.push(id);
+                            }
                         }
                         Ok(())
                     },
@@ -1110,23 +1116,23 @@ impl Contact {
             context
                 .sql
                 .query_map(
-                    &format!(
-                        "SELECT id FROM contacts
-                 WHERE addr NOT IN ({})
-                 AND id>?
+                    "SELECT id, addr FROM contacts
+                 WHERE id>?
                  AND origin>=?
                  AND blocked=0
                  ORDER BY last_seen DESC, id DESC;",
-                        sql::repeat_vars(self_addrs.len())
-                    ),
-                    rusqlite::params_from_iter(
-                        params_iter(&self_addrs)
-                            .chain(params_slice![ContactId::LAST_SPECIAL, minimal_origin]),
-                    ),
-                    |row| row.get::<_, ContactId>(0),
-                    |ids| {
-                        for id in ids {
-                            ret.push(id?);
+                    (ContactId::LAST_SPECIAL, minimal_origin),
+                    |row| {
+                        let id: ContactId = row.get(0)?;
+                        let addr: String = row.get(1)?;
+                        Ok((id, addr))
+                    },
+                    |rows| {
+                        for row in rows {
+                            let (id, addr) = row?;
+                            if !self_addrs.contains(&addr) {
+                                ret.push(id);
+                            }
                         }
                         Ok(())
                     },
