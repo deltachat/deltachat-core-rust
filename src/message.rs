@@ -1669,12 +1669,12 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         .set_config_internal(Config::LastMsgId, Some(&last_msg_id.to_u32().to_string()))
         .await?;
 
-    let msgs = context
-        .sql
-        .query_map(
-            &format!(
+    let mut msgs = Vec::with_capacity(msg_ids.len());
+    for &id in &msg_ids {
+        if let Some(msg) = context
+            .sql
+            .query_row_optional(
                 "SELECT
-                    m.id AS id,
                     m.chat_id AS chat_id,
                     m.state AS state,
                     m.download_state as download_state,
@@ -1685,39 +1685,39 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                     c.archived AS archived,
                     c.blocked AS blocked
                  FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id
-                 WHERE m.id IN ({}) AND m.chat_id>9",
-                sql::repeat_vars(msg_ids.len())
-            ),
-            rusqlite::params_from_iter(&msg_ids),
-            |row| {
-                let id: MsgId = row.get("id")?;
-                let chat_id: ChatId = row.get("chat_id")?;
-                let state: MessageState = row.get("state")?;
-                let download_state: DownloadState = row.get("download_state")?;
-                let param: Params = row.get::<_, String>("param")?.parse().unwrap_or_default();
-                let from_id: ContactId = row.get("from_id")?;
-                let rfc724_mid: String = row.get("rfc724_mid")?;
-                let visibility: ChatVisibility = row.get("archived")?;
-                let blocked: Option<Blocked> = row.get("blocked")?;
-                let ephemeral_timer: EphemeralTimer = row.get("ephemeral_timer")?;
-                Ok((
-                    (
-                        id,
-                        chat_id,
-                        state,
-                        download_state,
-                        param,
-                        from_id,
-                        rfc724_mid,
-                        visibility,
-                        blocked.unwrap_or_default(),
-                    ),
-                    ephemeral_timer,
-                ))
-            },
-            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-        )
-        .await?;
+                 WHERE m.id=? AND m.chat_id>9",
+                (id,),
+                |row| {
+                    let chat_id: ChatId = row.get("chat_id")?;
+                    let state: MessageState = row.get("state")?;
+                    let download_state: DownloadState = row.get("download_state")?;
+                    let param: Params = row.get::<_, String>("param")?.parse().unwrap_or_default();
+                    let from_id: ContactId = row.get("from_id")?;
+                    let rfc724_mid: String = row.get("rfc724_mid")?;
+                    let visibility: ChatVisibility = row.get("archived")?;
+                    let blocked: Option<Blocked> = row.get("blocked")?;
+                    let ephemeral_timer: EphemeralTimer = row.get("ephemeral_timer")?;
+                    Ok((
+                        (
+                            id,
+                            chat_id,
+                            state,
+                            download_state,
+                            param,
+                            from_id,
+                            rfc724_mid,
+                            visibility,
+                            blocked.unwrap_or_default(),
+                        ),
+                        ephemeral_timer,
+                    ))
+                },
+            )
+            .await?
+        {
+            msgs.push(msg);
+        }
+    }
 
     if msgs
         .iter()

@@ -44,12 +44,6 @@ macro_rules! params_slice {
     };
 }
 
-pub(crate) fn params_iter(
-    iter: &[impl crate::sql::ToSql],
-) -> impl Iterator<Item = &dyn crate::sql::ToSql> {
-    iter.iter().map(|item| item as &dyn crate::sql::ToSql)
-}
-
 mod migrations;
 mod pool;
 
@@ -441,7 +435,7 @@ impl Sql {
         .await
     }
 
-    /// Execute the function inside a transaction assuming that it does write queries.
+    /// Execute the function inside a transaction assuming that it does writes.
     ///
     /// If the function returns an error, the transaction will be rolled back. If it does not return an
     /// error, the transaction will be committed.
@@ -450,7 +444,28 @@ impl Sql {
         H: Send + 'static,
         G: Send + FnOnce(&mut rusqlite::Transaction<'_>) -> Result<H>,
     {
-        self.call_write(move |conn| {
+        let query_only = false;
+        self.transaction_ex(query_only, callback).await
+    }
+
+    /// Execute the function inside a transaction.
+    ///
+    /// * `query_only` - Whether the function only executes read statements (queries) and can be run
+    ///   in parallel with other transactions. NB: Creating and modifying temporary tables are also
+    ///   allowed with `query_only`, temporary tables aren't visible in other connections, but you
+    ///   need to pass `PRAGMA query_only=0;` to SQLite before that:
+    ///     `pragma_update(None, "query_only", "0")`.
+    ///   Also temporary tables need to be dropped because the connection is returned to the pool
+    ///   then.
+    ///
+    /// If the function returns an error, the transaction will be rolled back. If it does not return
+    /// an error, the transaction will be committed.
+    pub async fn transaction_ex<G, H>(&self, query_only: bool, callback: G) -> Result<H>
+    where
+        H: Send + 'static,
+        G: Send + FnOnce(&mut rusqlite::Transaction<'_>) -> Result<H>,
+    {
+        self.call(query_only, move |conn| {
             let mut transaction = conn.transaction()?;
             let ret = callback(&mut transaction);
 
@@ -1022,16 +1037,6 @@ async fn prune_tombstones(sql: &Sql) -> Result<()> {
     )
     .await?;
     Ok(())
-}
-
-/// Helper function to return comma-separated sequence of `?` chars.
-///
-/// Use this together with [`rusqlite::ParamsFromIter`] to use dynamically generated
-/// parameter lists.
-pub fn repeat_vars(count: usize) -> String {
-    let mut s = "?,".repeat(count);
-    s.pop(); // Remove trailing comma
-    s
 }
 
 #[cfg(test)]
