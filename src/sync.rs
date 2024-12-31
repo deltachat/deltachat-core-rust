@@ -566,6 +566,10 @@ mod tests {
         assert!(token::exists(&alice2, token::Namespace::Auth, "testtoken").await?);
         assert_eq!(Chatlist::try_load(&alice2, 0, None, None).await?.len(), 0);
 
+        // Sync messages are "auto-generated", but they mustn't make the self-contact a bot.
+        let self_contact = alice2.add_or_lookup_contact(&alice2).await;
+        assert!(!self_contact.is_bot());
+
         // the same sync message sent to bob must not be executed
         let bob = TestContext::new_bob().await;
         bob.recv_msg(&sent_msg).await;

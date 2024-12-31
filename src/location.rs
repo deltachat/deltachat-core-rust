@@ -1127,6 +1127,10 @@ Content-Disposition: attachment; filename="location.kml"
         assert_eq!(get_range(alice, None, None, 0, 0).await?.len(), 1);
         assert_eq!(get_range(bob, None, None, 0, 0).await?.len(), 1);
 
+        // Location-only messages are "auto-generated", but they mustn't make the contact a bot.
+        let contact = bob.add_or_lookup_contact(alice).await;
+        assert!(!contact.is_bot());
+
         // Day later Bob removes location.
         SystemTime::shift(Duration::from_secs(86400));
         delete_expired(alice, time()).await?;
