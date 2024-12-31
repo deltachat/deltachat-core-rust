@@ -652,7 +652,9 @@ impl MimeFactory {
 
         let peerstates = self.peerstates_for_recipients(context).await?;
         let is_encrypted = !self.should_force_plaintext()
-            && encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
+            && encrypt_helper
+                .should_encrypt(context, e2ee_guaranteed, &peerstates)
+                .await?;
         let is_securejoin_message = if let Loaded::Message { msg, .. } = &self.loaded {
             msg.param.get_cmd() == SystemMessage::SecurejoinMessage
         } else {

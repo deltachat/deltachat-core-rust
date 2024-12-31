@@ -40,20 +40,17 @@ impl EncryptHelper {
 
     /// Determines if we can and should encrypt.
     ///
-    /// For encryption to be enabled, `e2ee_guaranteed` should be true, or strictly more than a half
-    /// of peerstates should prefer encryption. Own preference is counted equally to peer
-    /// preferences, even if message copy is not sent to self.
-    ///
     /// `e2ee_guaranteed` should be set to true for replies to encrypted messages (as required by
     /// Autocrypt Level 1, version 1.1) and for messages sent in protected groups.
     ///
     /// Returns an error if `e2ee_guaranteed` is true, but one or more keys are missing.
-    pub fn should_encrypt(
+    pub(crate) async fn should_encrypt(
         &self,
         context: &Context,
         e2ee_guaranteed: bool,
         peerstates: &[(Option<Peerstate>, String)],
     ) -> Result<bool> {
+        let is_chatmail = context.is_chatmail().await?;
         let mut prefer_encrypt_count = if self.prefer_encrypt == EncryptPreference::Mutual {
             1
         } else {
@@ -64,10 +61,15 @@ impl EncryptHelper {
                 Some(peerstate) => {
                     let prefer_encrypt = peerstate.prefer_encrypt;
                     info!(context, "Peerstate for {addr:?} is {prefer_encrypt}.");
-                    match peerstate.prefer_encrypt {
-                        EncryptPreference::NoPreference | EncryptPreference::Reset => {}
-                        EncryptPreference::Mutual => prefer_encrypt_count += 1,
-                    };
+                    if match peerstate.prefer_encrypt {
+                        EncryptPreference::NoPreference | EncryptPreference::Reset => {
+                            (peerstate.prefer_encrypt != EncryptPreference::Reset || is_chatmail)
+                                && self.prefer_encrypt == EncryptPreference::Mutual
+                        }
+                        EncryptPreference::Mutual => true,
+                    } {
+                        prefer_encrypt_count += 1;
+                    }
                 }
                 None => {
                     let msg = format!("Peerstate for {addr:?} missing, cannot encrypt");
@@ -170,9 +172,11 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::send_text_msg;
     use crate::key::DcKey;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::{bob_keypair, TestContext, TestContextManager};
 
     mod ensure_secret_key_exists {
@@ -320,29 +324,109 @@ Sent with my Delta Chat Messenger: https://delta.chat";
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_should_encrypt() {
+    async fn test_should_encrypt() -> Result<()> {
         let t = TestContext::new_alice().await;
+        assert!(t.get_config_bool(Config::E2eeEnabled).await?);
         let encrypt_helper = EncryptHelper::new(&t).await.unwrap();
 
-        // test with EncryptPreference::NoPreference:
-        // if e2ee_eguaranteed is unset, there is no encryption as not more than half of peers want encryption
         let ps = new_peerstates(EncryptPreference::NoPreference);
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).await?);
+        // Own preference is `Mutual` and we have the peer's key.
+        assert!(encrypt_helper.should_encrypt(&t, false, &ps).await?);
 
-        // test with EncryptPreference::Reset
         let ps = new_peerstates(EncryptPreference::Reset);
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).await?);
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).await?);
 
-        // test with EncryptPreference::Mutual (self is also Mutual)
         let ps = new_peerstates(EncryptPreference::Mutual);
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
-        assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).await?);
+        assert!(encrypt_helper.should_encrypt(&t, false, &ps).await?);
 
         // test with missing peerstate
         let ps = vec![(None, "bob@foo.bar".to_string())];
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
-        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(&t, true, &ps).await.is_err());
+        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).await?);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_should_encrypt_e2ee_disabled() -> Result<()> {
+        let t = &TestContext::new_alice().await;
+        t.set_config_bool(Config::E2eeEnabled, false).await?;
+        let encrypt_helper = EncryptHelper::new(t).await.unwrap();
+
+        let ps = new_peerstates(EncryptPreference::NoPreference);
+        assert!(!encrypt_helper.should_encrypt(t, false, &ps).await?);
+
+        let ps = new_peerstates(EncryptPreference::Reset);
+        assert!(encrypt_helper.should_encrypt(t, true, &ps).await?);
+
+        let mut ps = new_peerstates(EncryptPreference::Mutual);
+        // Own preference is `NoPreference` and there's no majority with `Mutual`.
+        assert!(!encrypt_helper.should_encrypt(t, false, &ps).await?);
+        // Now the majority wants to encrypt. Let's encrypt, anyway there are other cases when we
+        // can't send unencrypted, e.g. protected groups.
+        ps.push(ps[0].clone());
+        assert!(encrypt_helper.should_encrypt(t, false, &ps).await?);
+
+        // Test with missing peerstate.
+        let ps = vec![(None, "bob@foo.bar".to_string())];
+        assert!(encrypt_helper.should_encrypt(t, true, &ps).await.is_err());
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_chatmail_prefers_to_encrypt() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+        bob.set_config_bool(Config::IsChatmail, true).await?;
+
+        let bob_chat_id = tcm
+            .send_recv_accept(alice, bob, "Hello from DC")
+            .await
+            .chat_id;
+        receive_imf(
+            bob,
+            b"From: alice@example.org\n\
+            To: bob@example.net\n\
+            Message-ID: <2222@example.org>\n\
+            Date: Sun, 22 Mar 3000 22:37:58 +0000\n\
+            \n\
+            Hello from another MUA\n",
+            false,
+        )
+        .await?;
+        send_text_msg(bob, bob_chat_id, "hi".to_string()).await?;
+        let sent_msg = bob.pop_sent_msg().await;
+        let msg = Message::load_from_db(bob, sent_msg.sender_msg_id).await?;
+        assert!(msg.get_showpadlock());
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_chatmail_can_send_unencrypted() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let bob = &tcm.bob().await;
+        bob.set_config_bool(Config::IsChatmail, true).await?;
+        let bob_chat_id = receive_imf(
+            bob,
+            b"From: alice@example.org\n\
+            To: bob@example.net\n\
+            Message-ID: <2222@example.org>\n\
+            Date: Sun, 22 Mar 3000 22:37:58 +0000\n\
+            \n\
+            Hello\n",
+            false,
+        )
+        .await?
+        .unwrap()
+        .chat_id;
+        bob_chat_id.accept(bob).await?;
+        send_text_msg(bob, bob_chat_id, "hi".to_string()).await?;
+        let sent_msg = bob.pop_sent_msg().await;
+        let msg = Message::load_from_db(bob, sent_msg.sender_msg_id).await?;
+        assert!(!msg.get_showpadlock());
+        Ok(())
     }
 }
