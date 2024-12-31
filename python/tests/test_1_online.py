@@ -1253,7 +1253,10 @@ def test_no_old_msg_is_fresh(acfactory, lp):
 
 def test_prefer_encrypt(acfactory, lp):
     """Test quorum rule for encryption preference in 1:1 and group chat."""
-    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
+    ac1 = acfactory.new_online_configuring_account(fix_is_chatmail=True)
+    ac2 = acfactory.new_online_configuring_account(fix_is_chatmail=True)
+    ac3 = acfactory.new_online_configuring_account(fix_is_chatmail=True)
+    acfactory.bring_accounts_online()
     ac1.set_config("e2ee_enabled", "0")
     ac2.set_config("e2ee_enabled", "1")
     ac3.set_config("e2ee_enabled", "0")
@@ -1276,7 +1279,8 @@ def test_prefer_encrypt(acfactory, lp):
     lp.sec("ac2: sending message to ac1")
     chat2 = ac2.create_chat(ac1)
     msg2 = chat2.send_text("message2")
-    assert not msg2.is_encrypted()
+    # Own preference is `Mutual` and we have the peer's key.
+    assert msg2.is_encrypted()
     ac1._evtracker.wait_next_incoming_message()
 
     lp.sec("ac1: sending message to group chat with ac2 and ac3")
@@ -1292,8 +1296,8 @@ def test_prefer_encrypt(acfactory, lp):
     ac3.set_config("e2ee_enabled", "1")
     chat3 = ac3.create_chat(ac1)
     msg4 = chat3.send_text("message4")
-    # ac1 still does not prefer encryption
-    assert not msg4.is_encrypted()
+    # Own preference is `Mutual` and we have the peer's key.
+    assert msg4.is_encrypted()
     ac1._evtracker.wait_next_incoming_message()
 
     lp.sec("ac1: sending another message to group chat with ac2 and ac3")
