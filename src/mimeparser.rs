@@ -570,7 +570,12 @@ impl MimeMessage {
             },
         };
 
-        if parser.mdn_reports.is_empty() && parser.webxdc_status_update.is_none() {
+        let is_location_only = parser.location_kml.is_some() && parser.parts.is_empty();
+        if parser.mdn_reports.is_empty()
+            && !is_location_only
+            && parser.sync_items.is_none()
+            && parser.webxdc_status_update.is_none()
+        {
             let is_bot =
                 parser.headers.get("auto-submitted") == Some(&"auto-generated".to_string());
             parser.is_bot = Some(is_bot);
