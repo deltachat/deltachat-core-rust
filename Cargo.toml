@@ -102,7 +102,7 @@ textwrap = "0.16.1"
 thiserror = { workspace = true }
 tokio-io-timeout = "1.2.0"
 tokio-rustls = { version = "0.26.0", default-features = false }
-tokio-stream = { version = "0.1.16", features = ["fs"] }
+tokio-stream = { version = "0.1.17", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
 tokio-util = { workspace = true }
 tokio = { workspace = true, features = ["fs", "rt-multi-thread", "macros"] }
