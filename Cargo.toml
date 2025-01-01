@@ -169,7 +169,7 @@ harness = false
 anyhow = "1"
 async-channel = "2.3.1"
 base64 = "0.22"
-chrono = { version = "0.4.38", default-features = false }
+chrono = { version = "0.4.39", default-features = false }
 deltachat-contact-tools = { path = "deltachat-contact-tools" }
 deltachat-jsonrpc = { path = "deltachat-jsonrpc", default-features = false }
 deltachat = { path = ".", default-features = false }
