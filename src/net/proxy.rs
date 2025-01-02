@@ -640,6 +640,9 @@ mod tests {
     fn test_invalid_proxy_url() {
         assert!(ProxyConfig::from_url("foobar://127.0.0.1:9050").is_err());
         assert!(ProxyConfig::from_url("abc").is_err());
+
+        // This caused panic before shadowsocks 1.22.0.
+        assert!(ProxyConfig::from_url("ss://foo:bar@127.0.0.1:9999").is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -51,6 +51,8 @@ skip = [
      { name = "regex-syntax", version = "0.6.29" },
      { name = "sync_wrapper", version = "0.1.2" },
      { name = "syn", version = "1.0.109" },
+     { name = "thiserror-impl", version = "1.0.69" },
+     { name = "thiserror", version = "1.0.69" },
      { name = "time", version = "<0.3" },
      { name = "wasi", version = "<0.11" },
      { name = "windows_aarch64_gnullvm", version = "<0.52" },

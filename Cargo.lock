@@ -219,7 +219,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.69",
  "time 0.3.36",
 ]
 
@@ -315,7 +315,7 @@ dependencies = [
  "pin-utils",
  "self_cell",
  "stop-token",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -335,7 +335,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9343dc5acf07e79ff82d0c37899f079db3534d99f189a1837c8e549c99405bec"
 dependencies = [
  "native-tls",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "url",
 ]
@@ -363,7 +363,7 @@ dependencies = [
  "log",
  "nom",
  "pin-project",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -388,7 +388,7 @@ dependencies = [
  "crc32fast",
  "futures-lite 2.5.0",
  "pin-project",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-util",
 ]
@@ -1381,7 +1381,7 @@ dependencies = [
  "tempfile",
  "testdir",
  "textwrap",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-io-timeout",
  "tokio-rustls",
@@ -1488,7 +1488,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "yerpc",
 ]
@@ -1718,6 +1718,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 
 [[package]]
+name = "dynosaur"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92fac44672fabad44990176319b9e94393f3a38b960b5ca2af6cd90f5ecd1497"
+dependencies = [
+ "dynosaur_derive",
+ "trait-variant",
+]
+
+[[package]]
+name = "dynosaur_derive"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16c187d1e575ef546d24f0fcd7701cc04abfe6b5e7e2758aabc450b99e835ac3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
+]
+
+[[package]]
 name = "eax"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1839,7 +1860,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "regex",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2087,7 +2108,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "log",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
 ]
@@ -2607,7 +2628,7 @@ dependencies = [
  "ipnet",
  "once_cell",
  "rand 0.8.5",
- "thiserror",
+ "thiserror 1.0.69",
  "time 0.3.36",
  "tinyvec",
  "tokio",
@@ -2631,7 +2652,7 @@ dependencies = [
  "rand 0.8.5",
  "resolv-conf",
  "smallvec",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -3151,7 +3172,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "ssh-key",
- "thiserror",
+ "thiserror 1.0.69",
  "ttl_cache",
  "url",
  "zeroize",
@@ -3281,7 +3302,7 @@ dependencies = [
  "strum",
  "stun-rs",
  "surge-ping",
- "thiserror",
+ "thiserror 1.0.69",
  "time 0.3.36",
  "tokio",
  "tokio-rustls",
@@ -3313,7 +3334,7 @@ dependencies = [
  "rustc-hash 2.0.0",
  "rustls",
  "socket2",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -3331,7 +3352,7 @@ dependencies = [
  "rustls",
  "rustls-platform-verifier",
  "slab",
- "thiserror",
+ "thiserror 1.0.69",
  "tinyvec",
  "tracing",
 ]
@@ -3407,7 +3428,7 @@ dependencies = [
  "combine",
  "jni-sys",
  "log",
- "thiserror",
+ "thiserror 1.0.69",
  "walkdir",
 ]
 
@@ -3627,7 +3648,7 @@ dependencies = [
  "serde_bencode",
  "serde_bytes",
  "sha1_smol",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
 ]
 
@@ -3798,7 +3819,7 @@ dependencies = [
  "anyhow",
  "byteorder",
  "paste",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3812,7 +3833,7 @@ dependencies = [
  "log",
  "netlink-packet-core",
  "netlink-sys",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -3850,7 +3871,7 @@ dependencies = [
  "rtnetlink",
  "serde",
  "socket2",
- "thiserror",
+ "thiserror 1.0.69",
  "time 0.3.36",
  "tokio",
  "tracing",
@@ -4294,7 +4315,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "560131c633294438da9f7c4b08189194b20946c8274c6b9e38881a7874dc8ee8"
 dependencies = [
  "memchr",
- "thiserror",
+ "thiserror 1.0.69",
  "ucd-trie",
 ]
 
@@ -4342,7 +4363,7 @@ dependencies = [
  "aes-gcm",
  "aes-kw",
  "argon2",
- "base64 0.22.1",
+ "base64 0.21.7",
  "bitfield",
  "block-padding",
  "blowfish",
@@ -4392,7 +4413,7 @@ dependencies = [
  "sha3",
  "signature",
  "smallvec",
- "thiserror",
+ "thiserror 1.0.69",
  "twofish",
  "x25519-dalek",
  "x448",
@@ -4448,7 +4469,7 @@ dependencies = [
  "mainline",
  "self_cell",
  "simple-dns",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "ureq",
  "wasm-bindgen",
@@ -4617,7 +4638,7 @@ dependencies = [
  "serde",
  "smallvec",
  "socket2",
- "thiserror",
+ "thiserror 1.0.69",
  "time 0.3.36",
  "tokio",
  "tokio-util",
@@ -4895,7 +4916,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 1.1.0",
  "rustls",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -4912,7 +4933,7 @@ dependencies = [
  "rustc-hash 2.0.0",
  "rustls",
  "slab",
- "thiserror",
+ "thiserror 1.0.69",
  "tinyvec",
  "tracing",
 ]
@@ -5116,7 +5137,7 @@ checksum = "a18479200779601e498ada4e8c1e1f50e3ee19deb0259c25825a98b5603b2cb4"
 dependencies = [
  "getrandom 0.2.12",
  "libredox",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5309,7 +5330,7 @@ dependencies = [
  "netlink-proto",
  "netlink-sys",
  "nix 0.26.4",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -5808,17 +5829,17 @@ dependencies = [
 
 [[package]]
 name = "shadowsocks"
-version = "1.21.0"
+version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ecb3780dfbc654de9383758015b9bb95c6e32fecace36ebded09d67e854d130"
+checksum = "1678a9acd37add020f89bfe05d45b9b8a6e8ad5d09f54ac2af3e0dcf0557b481"
 dependencies = [
  "aes",
- "async-trait",
  "base64 0.22.1",
  "blake3",
  "byte_string",
  "bytes",
  "cfg-if",
+ "dynosaur",
  "futures",
  "libc",
  "log",
@@ -5834,18 +5855,19 @@ dependencies = [
  "shadowsocks-crypto",
  "socket2",
  "spin",
- "thiserror",
+ "thiserror 2.0.9",
  "tokio",
  "tokio-tfo",
+ "trait-variant",
  "url",
  "windows-sys 0.59.0",
 ]
 
 [[package]]
 name = "shadowsocks-crypto"
-version = "0.5.5"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9e49ecfad8b27f3df28848af11f08aa10df0c6b74b45748131753913be23373"
+checksum = "bc77ecb3a97509d22751b76665894fcffad2d10df8758f4e3f20c92ccde6bf4f"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -6136,7 +6158,7 @@ dependencies = [
  "pnet_packet",
  "rand 0.8.5",
  "socket2",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -6283,7 +6305,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f072643fd0190df67a8bab670c20ef5d8737177d6ac6b2e9a236cb096206b2cc"
+dependencies = [
+ "thiserror-impl 2.0.9",
 ]
 
 [[package]]
@@ -6295,6 +6326,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.94",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b50fa271071aae2e6ee85f842e2e28ba8cd2c5fb67f11fcb1fd70b276f9e7d4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
 ]
 
 [[package]]
@@ -6499,7 +6541,7 @@ dependencies = [
  "http 1.1.0",
  "httparse",
  "js-sys",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
  "wasm-bindgen",
@@ -6647,6 +6689,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "trait-variant"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70977707304198400eb4835a78f6a9f928bf41bba420deb8fdb175cd965d77a7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6675,7 +6728,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "sha1",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "utf-8",
 ]
@@ -7004,7 +7057,7 @@ dependencies = [
  "event-listener 4.0.3",
  "futures-util",
  "parking_lot",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -7338,7 +7391,7 @@ dependencies = [
  "futures",
  "log",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
  "windows 0.52.0",
 ]
 
@@ -7390,7 +7443,7 @@ dependencies = [
  "nom",
  "oid-registry",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.69",
  "time 0.3.36",
 ]
 
