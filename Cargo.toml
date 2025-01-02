@@ -52,7 +52,7 @@ chrono = { workspace = true, features = ["alloc", "clock", "std"] }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
 escaper = "0.1"
-fast-socks5 = "0.9"
+fast-socks5 = "0.10"
 fd-lock = "4"
 futures-lite = { workspace = true }
 futures = { workspace = true }
