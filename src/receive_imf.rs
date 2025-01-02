@@ -778,6 +778,11 @@ async fn add_parts(
         }
     }
 
+    if chat_id.is_none() && is_mdn {
+        chat_id = Some(DC_CHAT_ID_TRASH);
+        info!(context, "Message is an MDN (TRASH).",);
+    }
+
     if mime_parser.incoming {
         to_id = ContactId::SELF;
 
@@ -787,11 +792,6 @@ async fn add_parts(
             chat_id = Some(DC_CHAT_ID_TRASH);
             info!(context, "Message is a DSN (TRASH).",);
             markseen_on_imap_table(context, rfc724_mid).await.ok();
-        }
-
-        if chat_id.is_none() && is_mdn {
-            chat_id = Some(DC_CHAT_ID_TRASH);
-            info!(context, "Message is an MDN (TRASH).",);
         }
 
         let create_blocked_default = if is_bot {
@@ -977,7 +977,6 @@ async fn add_parts(
                 // the 1:1 chat accordingly.
                 let chat = match is_partial_download.is_none()
                     && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
-                    && !is_mdn
                 {
                     true => Some(Chat::load_from_db(context, chat_id).await?)
                         .filter(|chat| chat.typ == Chattype::Single),
@@ -1236,7 +1235,7 @@ async fn add_parts(
     }
 
     let orig_chat_id = chat_id;
-    let mut chat_id = if is_mdn || is_reaction {
+    let mut chat_id = if is_reaction {
         DC_CHAT_ID_TRASH
     } else {
         chat_id.unwrap_or_else(|| {
@@ -1694,7 +1693,7 @@ RETURNING id
         "Message has {icnt} parts and is assigned to chat #{chat_id}."
     );
 
-    if !is_mdn {
+    if !chat_id.is_trash() {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
 
         // In contrast to most other update-timestamps,
