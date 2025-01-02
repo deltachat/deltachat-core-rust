@@ -33,7 +33,7 @@ base64 = { workspace = true }
 
 # optional dependencies
 axum = { version = "0.7", optional = true, features = ["ws"] }
-env_logger = { version = "0.11.5", optional = true }
+env_logger = { version = "0.11.6", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "rt-multi-thread"] }
