@@ -44,12 +44,6 @@ macro_rules! params_slice {
     };
 }
 
-pub(crate) fn params_iter(
-    iter: &[impl crate::sql::ToSql],
-) -> impl Iterator<Item = &dyn crate::sql::ToSql> {
-    iter.iter().map(|item| item as &dyn crate::sql::ToSql)
-}
-
 mod migrations;
 mod pool;
 
@@ -1022,16 +1016,6 @@ async fn prune_tombstones(sql: &Sql) -> Result<()> {
     )
     .await?;
     Ok(())
-}
-
-/// Helper function to return comma-separated sequence of `?` chars.
-///
-/// Use this together with [`rusqlite::ParamsFromIter`] to use dynamically generated
-/// parameter lists.
-pub fn repeat_vars(count: usize) -> String {
-    let mut s = "?,".repeat(count);
-    s.pop(); // Remove trailing comma
-    s
 }
 
 #[cfg(test)]

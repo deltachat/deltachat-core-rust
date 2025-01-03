@@ -33,9 +33,9 @@ use crate::param::{Param, Params};
 use crate::peer_channels::{add_gossip_peer_from_header, insert_topic_stub};
 use crate::peerstate::Peerstate;
 use crate::reaction::{set_msg_reaction, Reaction};
+use crate::rusqlite::OptionalExtension;
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::simplify;
-use crate::sql::{self, params_iter};
 use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::{self, buf_compress, remove_subject_prefix};
@@ -1876,10 +1876,19 @@ async fn lookup_chat_or_create_adhoc_group(
     if !contact_ids.contains(&from_id) {
         contact_ids.push(from_id);
     }
-    if let Some((chat_id, blocked)) = context
-        .sql
-        .query_row_optional(
-            &format!(
+    let trans_fn = |t: &mut rusqlite::Transaction| {
+        t.execute(
+            "CREATE TABLE contacts_tmp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT
+            ) STRICT",
+            (),
+        )?;
+        let mut stmt = t.prepare("INSERT INTO contacts_tmp(id) VALUES (?)")?;
+        for &id in &contact_ids {
+            stmt.execute((id,))?;
+        }
+        let val = t
+            .query_row(
                 "SELECT c.id, c.blocked
                 FROM chats c INNER JOIN msgs m ON c.id=m.chat_id
                 WHERE m.hidden=0 AND c.grpid='' AND c.name=?
@@ -1887,23 +1896,20 @@ async fn lookup_chat_or_create_adhoc_group(
                     WHERE chat_id=c.id)=?
                 AND (SELECT COUNT(*) FROM chats_contacts
                     WHERE chat_id=c.id
-                    AND contact_id NOT IN ({}))=0
+                    AND contact_id NOT IN (SELECT id FROM contacts_tmp))=0
                 ORDER BY m.timestamp DESC",
-                sql::repeat_vars(contact_ids.len()),
-            ),
-            rusqlite::params_from_iter(
-                params_iter(&[&grpname])
-                    .chain(params_iter(&[contact_ids.len()]))
-                    .chain(params_iter(&contact_ids)),
-            ),
-            |row| {
-                let id: ChatId = row.get(0)?;
-                let blocked: Blocked = row.get(1)?;
-                Ok((id, blocked))
-            },
-        )
-        .await?
-    {
+                (&grpname, contact_ids.len()),
+                |row| {
+                    let id: ChatId = row.get(0)?;
+                    let blocked: Blocked = row.get(1)?;
+                    Ok((id, blocked))
+                },
+            )
+            .optional()?;
+        t.execute("DROP TABLE contacts_tmp", ())?;
+        Ok(val)
+    };
+    if let Some((chat_id, blocked)) = context.sql.transaction(trans_fn).await? {
         info!(
             context,
             "Assigning message to ad-hoc group {chat_id} with matching name and members."
@@ -2815,38 +2821,27 @@ async fn mark_recipients_as_verified(
     to_ids: Vec<ContactId>,
     mimeparser: &MimeMessage,
 ) -> Result<()> {
-    if to_ids.is_empty() {
-        return Ok(());
-    }
-
     if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
         return Ok(());
     }
-
-    let rows = context
-        .sql
-        .query_map(
-            &format!(
-                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
-             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-                sql::repeat_vars(to_ids.len())
-            ),
-            rusqlite::params_from_iter(&to_ids),
-            |row| {
-                let to_addr: String = row.get(0)?;
-                let is_verified: i32 = row.get(1).unwrap_or(0);
-                Ok((to_addr, is_verified != 0))
-            },
-            |rows| {
-                rows.collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
-
     let contact = Contact::get_by_id(context, from_id).await?;
-
-    for (to_addr, is_verified) in rows {
+    for id in to_ids {
+        let Some((to_addr, is_verified)) = context
+            .sql
+            .query_row_optional(
+                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint) FROM contacts c
+                LEFT JOIN acpeerstates ps ON c.addr=ps.addr WHERE c.id=?",
+                (id,),
+                |row| {
+                    let to_addr: String = row.get(0)?;
+                    let is_verified: i32 = row.get(1).unwrap_or(0);
+                    Ok((to_addr, is_verified != 0))
+                },
+            )
+            .await?
+        else {
+            continue;
+        };
         // mark gossiped keys (if any) as verified
         if let Some(gossiped_key) = mimeparser.gossiped_keys.get(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
