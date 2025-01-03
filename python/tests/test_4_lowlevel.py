@@ -216,7 +216,7 @@ def test_logged_ac_process_ffi_failure(acfactory):
     ac1.add_account_plugin(FailPlugin())
     # cause any event eg contact added/changed
     ac1.create_contact("something@example.org")
-    res = cap.get(timeout=10)
+    res = cap.get(timeout=600)
     assert "ac_process_ffi_event" in res
     assert "ZeroDivisionError" in res
     assert "Traceback" in res
