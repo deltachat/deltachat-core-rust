@@ -120,7 +120,7 @@ nu-ansi-term = { workspace = true }
 pretty_assertions = "1.4.1"
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = { workspace = true }
-testdir = "0.9.0"
+testdir = "0.9.3"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [workspace]
