@@ -1,6 +1,7 @@
 use anyhow::Result;
 use pretty_assertions::assert_eq;
 
+use crate::blob;
 use crate::chat::{self, add_contact_to_chat, Chat, ProtectionStatus};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
@@ -950,6 +951,37 @@ async fn test_no_unencrypted_name_if_encrypted() -> Result<()> {
 
         assert_eq!(Contact::get_display_name(&contact), "Bob Smith");
     }
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_contact_avatar() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    enable_verified_oneonone_chats(&[alice]).await;
+    let bob = &tcm.bob().await;
+    mark_as_verified(alice, bob).await;
+    let alice_bob_chat = alice.create_chat(bob).await;
+    let file = alice.dir.path().join("avatar.jpg");
+    let bytes = include_bytes!("../../test-data/image/avatar1000x1000.jpg");
+    tokio::fs::write(&file, bytes).await?;
+    alice
+        .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+        .await?;
+    let sent_msg = alice
+        .send_text(alice_bob_chat.id, "hello, I have a new avatar")
+        .await;
+    bob.recv_msg(&sent_msg).await;
+    let bob_alice_contact = bob.add_or_lookup_contact(alice).await;
+    let avatar_path = bob_alice_contact.get_profile_image(bob).await?.unwrap();
+    tokio::task::block_in_place(move || {
+        let (_, exif) = blob::image_metadata(&std::fs::File::open(&avatar_path)?)?;
+        assert!(exif.is_none());
+        let img = image::open(&avatar_path)?;
+        assert_eq!(img.width(), 1000);
+        assert_eq!(img.height(), 1000);
+        Result::<()>::Ok(())
+    })?;
     Ok(())
 }
 
