@@ -326,7 +326,7 @@ async fn test_read_receipt_and_unarchive() -> Result<()> {
     let msg = get_chat_msg(&t, group_id, 0, 1).await;
     assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
     assert_eq!(msg.text, "hello");
-    assert_eq!(msg.state, MessageState::OutDelivered);
+    assert_eq!(msg.state, MessageState::OutRcvd);
     let group = Chat::load_from_db(&t, group_id).await?;
     assert!(group.get_visibility() == ChatVisibility::Normal);
 
@@ -793,7 +793,7 @@ async fn test_parse_ndn(
         if error_msg.is_some() {
             MessageState::OutFailed
         } else {
-            MessageState::OutDelivered
+            MessageState::OutRcvd
         }
     );
 
@@ -4651,7 +4651,7 @@ async fn test_outgoing_msg_forgery() -> Result<()> {
 
     let sent_msg = malice.send_text(malice_chat_id, "hi from malice").await;
     let msg = alice.recv_msg(&sent_msg).await;
-    assert_eq!(msg.state, MessageState::OutDelivered);
+    assert_eq!(msg.state, MessageState::OutRcvd);
     assert!(!msg.get_showpadlock());
 
     Ok(())
