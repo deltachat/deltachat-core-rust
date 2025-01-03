@@ -6253,12 +6253,13 @@ dependencies = [
 
 [[package]]
 name = "testdir"
-version = "0.9.1"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee79e927b64d193f5abb60d20a0eb56be0ee5a242fdeb8ce3bf054177006de52"
+checksum = "c9ffa013be124f7e8e648876190de818e3a87088ed97ccd414a398b403aec8c8"
 dependencies = [
  "anyhow",
  "backtrace",
+ "cargo-platform",
  "cargo_metadata",
  "once_cell",
  "sysinfo",
