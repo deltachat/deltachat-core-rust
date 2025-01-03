@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use anyhow::Context as _;
 use deltachat::{
     context::Context,
     message::{Message, MsgId},
@@ -72,7 +75,11 @@ impl WebxdcMessageInfo {
             source_code_url: maybe_empty_string_to_option(source_code_url),
             internet_access,
             self_addr,
-            send_update_interval,
+            send_update_interval: send_update_interval
+                .checked_add(Duration::from_micros(999))
+                .context("Overflow occurred")?
+                .as_millis()
+                .try_into()?,
             send_update_max_size,
         })
     }
