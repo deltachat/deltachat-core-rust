@@ -739,6 +739,9 @@ impl Contact {
 
         let addr_normalized = addr_normalize(addr);
 
+        if addr_normalized == ContactId::DEVICE_ADDR {
+            return Ok(Some(ContactId::DEVICE));
+        }
         if context.is_self_addr(&addr_normalized).await? {
             return Ok(Some(ContactId::SELF));
         }
@@ -797,8 +800,11 @@ impl Contact {
         ensure!(!addr.is_empty(), "Can not add_or_lookup empty address");
         ensure!(origin != Origin::Unknown, "Missing valid origin");
 
+        if addr.as_ref() == ContactId::DEVICE_ADDR {
+            return Ok((ContactId::DEVICE, Modifier::None));
+        }
         if context.is_self_addr(addr).await? {
-            return Ok((ContactId::SELF, sth_modified));
+            return Ok((ContactId::SELF, Modifier::None));
         }
 
         let mut name = sanitize_name(name);
@@ -2226,6 +2232,10 @@ mod tests {
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
+
+        let contact = Contact::get_by_id(&t, ContactId::DEVICE).await.unwrap();
+        assert_eq!(contact.get_addr(), "device@localhost");
+        assert!(!contact.is_blocked());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2682,6 +2692,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(id, Some(ContactId::SELF));
+
+        let id = Contact::lookup_id_by_addr(&alice.ctx, ContactId::DEVICE_ADDR, Origin::Unknown)
+            .await
+            .unwrap();
+        assert_eq!(id, Some(ContactId::DEVICE));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
