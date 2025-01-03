@@ -212,8 +212,13 @@ def test_logged_ac_process_ffi_failure(acfactory):
             0 / 0
 
     cap = Queue()
-    ac1.log = cap.put
+
+    # Make sure the next attempt to log an event fails.
     ac1.add_account_plugin(FailPlugin())
+
+    # Start capturing events.
+    ac1.log = cap.put
+
     # cause any event eg contact added/changed
     ac1.create_contact("something@example.org")
     res = cap.get(timeout=10)
