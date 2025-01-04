@@ -1043,7 +1043,7 @@ async fn add_parts(
         // self-sent messages in Saved Messages with own address in the `To` field.
         // New Delta Chat versions may use empty `To` field
         // with only a single `hidden-recipients` group in this case.
-        let self_sent = to_ids.is_empty() || (to_ids.len() == 1 && to_id == ContactId::SELF);
+        let self_sent = to_ids.len() <= 1 && to_id == ContactId::SELF;
 
         if mime_parser.sync_items.is_some() && self_sent {
             chat_id = Some(DC_CHAT_ID_TRASH);
