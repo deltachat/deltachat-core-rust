@@ -1181,6 +1181,22 @@ async fn add_parts(
             .await?;
         }
 
+        if chat_id.is_none() {
+            // Check if the message belongs to a broadcast list.
+            if let Some(mailinglist_header) = mime_parser.get_mailinglist_header() {
+                let listid = mailinglist_header_listid(mailinglist_header)?;
+                chat_id = Some(
+                    if let Some((id, ..)) = chat::get_chat_id_by_grpid(context, &listid).await? {
+                        id
+                    } else {
+                        let name =
+                            compute_mailinglist_name(mailinglist_header, &listid, mime_parser);
+                        chat::create_broadcast_list_ex(context, Nosync, listid, name).await?
+                    },
+                );
+            }
+        }
+
         if chat_id.is_none() && self_sent {
             // from_id==to_id==ContactId::SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Message
@@ -1198,22 +1214,6 @@ async fn add_parts(
                     chat_id.unblock_ex(context, Nosync).await?;
                     // Not assigning `chat_id_blocked = Blocked::Not` to avoid unused_assignments warning.
                 }
-            }
-        }
-
-        if chat_id.is_none() {
-            // Check if the message belongs to a broadcast list.
-            if let Some(mailinglist_header) = mime_parser.get_mailinglist_header() {
-                let listid = mailinglist_header_listid(mailinglist_header)?;
-                chat_id = Some(
-                    if let Some((id, ..)) = chat::get_chat_id_by_grpid(context, &listid).await? {
-                        id
-                    } else {
-                        let name =
-                            compute_mailinglist_name(mailinglist_header, &listid, mime_parser);
-                        chat::create_broadcast_list_ex(context, Nosync, listid, name).await?
-                    },
-                );
             }
         }
     }
