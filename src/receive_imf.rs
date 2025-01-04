@@ -1039,7 +1039,11 @@ async fn add_parts(
         state = MessageState::OutDelivered;
         to_id = to_ids.first().copied().unwrap_or_default();
 
-        let self_sent = to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);
+        // Older Delta Chat versions with core <=1.152.2 only accepted
+        // self-sent messages in Saved Messages with own address in the `To` field.
+        // New Delta Chat versions may use empty `To` field
+        // with only a single `hidden-recipients` group in this case.
+        let self_sent = to_ids.is_empty() || (to_ids.len() == 1 && to_id == ContactId::SELF);
 
         if mime_parser.sync_items.is_some() && self_sent {
             chat_id = Some(DC_CHAT_ID_TRASH);
