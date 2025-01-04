@@ -39,6 +39,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::receive_imf::ReceivedMsg;
+use crate::rusqlite::OptionalExtension;
 use crate::securejoin::BobState;
 use crate::smtp::send_msg_to_smtp;
 use crate::sql;
@@ -3243,15 +3244,16 @@ pub async fn get_chat_msgs_ex(
 /// Marks all messages in the chat as noticed.
 /// If the given chat-id is the archive-link, marks all messages in all archived chats as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
-    // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
-    // the additional SELECT statement may speed up things as no write-blocking is needed.
+    // `WHERE` statements below use the index `(state, hidden, chat_id)`, that's why we enumerate
+    // `hidden` values, see `get_fresh_msg_cnt()` for reasoning.
+    // The additional `SELECT` statement may speed up things as no write-blocking is needed.
     if chat_id.is_archived_link() {
         let chat_ids_in_archive = context
             .sql
             .query_map(
                 "SELECT DISTINCT(m.chat_id) FROM msgs m
                     LEFT JOIN chats c ON m.chat_id=c.id
-                    WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.archived=1",
+                    WHERE m.state=10 AND m.hidden IN (0,1) AND m.chat_id>9 AND c.archived=1",
                 (),
                 |row| row.get::<_, ChatId>(0),
                 |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
@@ -3265,7 +3267,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             .sql
             .transaction(|transaction| {
                 let mut stmt = transaction.prepare(
-                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden=0 AND chat_id = ?",
+                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden IN (0,1) AND chat_id=?",
                 )?;
                 for chat_id_in_archive in &chat_ids_in_archive {
                     stmt.execute((chat_id_in_archive,))?;
@@ -3281,21 +3283,55 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
         }
     } else {
         start_chat_ephemeral_timers(context, chat_id).await?;
-
-        if context
-            .sql
-            .execute(
+        let conn_fn = |conn: &mut rusqlite::Connection| {
+            // This is to trigger emitting `MsgsNoticed` on other devices when reactions are noticed
+            // locally. We filter out `InNoticed` messages because they are normally a result of
+            // `mark_old_messages_as_noticed()` which happens on all devices anyway. Also we limit
+            // this to one message because the effect is the same anyway.
+            //
+            // Even if `message::markseen_msgs()` fails then, in the worst case other devices won't
+            // emit `MsgsNoticed` and app notifications won't be removed. The bigger problem is that
+            // another device may have more reactions received and not yet seen notifications are
+            // removed from it, but the same problem already exists for "usual" messages, so let's
+            // not solve it for now.
+            let mut stmt = conn.prepare(
+                "SELECT id, state FROM msgs
+                    WHERE (state=? OR state=? OR state=?)
+                        AND hidden=1
+                        AND chat_id=?
+                    ORDER BY id DESC LIMIT 1",
+            )?;
+            let id_to_markseen = stmt
+                .query_row(
+                    (
+                        MessageState::InFresh,
+                        MessageState::InNoticed,
+                        MessageState::InSeen,
+                        chat_id,
+                    ),
+                    |row| {
+                        let id: MsgId = row.get(0)?;
+                        let state: MessageState = row.get(1)?;
+                        Ok((id, state))
+                    },
+                )
+                .optional()?
+                .filter(|&(_, state)| state == MessageState::InFresh)
+                .map(|(id, _)| id);
+            let nr_msgs_noticed = conn.execute(
                 "UPDATE msgs
-            SET state=?
-          WHERE state=?
-            AND hidden=0
-            AND chat_id=?;",
+                    SET state=?
+                    WHERE state=? AND hidden IN (0,1) AND chat_id=?",
                 (MessageState::InNoticed, MessageState::InFresh, chat_id),
-            )
-            .await?
-            == 0
-        {
+            )?;
+            Ok((nr_msgs_noticed, id_to_markseen))
+        };
+        let (nr_msgs_noticed, id_to_markseen) = context.sql.call_write(conn_fn).await?;
+        if nr_msgs_noticed == 0 {
             return Ok(());
+        }
+        if let Some(id) = id_to_markseen {
+            message::markseen_msgs(context, vec![id]).await?;
         }
     }
 
@@ -3337,11 +3373,12 @@ pub(crate) async fn mark_old_messages_as_noticed(
         .transaction(|transaction| {
             let mut changed_chats = Vec::new();
             for (_, msg) in msgs_by_chat {
+                // NB: Enumerate `hidden` values to employ the index `(state, hidden, chat_id)`.
                 let changed_rows = transaction.execute(
                     "UPDATE msgs
             SET state=?
           WHERE state=?
-            AND hidden=0
+            AND hidden IN (0,1)
             AND chat_id=?
             AND timestamp<=?;",
                     (
