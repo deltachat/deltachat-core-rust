@@ -2200,6 +2200,29 @@ Message content",
     assert_ne!(msg.chat_id, t.get_self_chat().await.id);
 }
 
+/// Tests that message with hidden recipients is assigned to Saved Messages chat.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_hidden_recipients_self_chat() {
+    let t = TestContext::new_alice().await;
+
+    receive_imf(
+        &t,
+        b"Subject: s
+Chat-Version: 1.0
+Message-ID: <foobar@localhost>
+To: hidden-recipients:;
+From: <alice@example.org>
+
+Message content",
+        false,
+    )
+    .await
+    .unwrap();
+
+    let msg = t.get_last_msg().await;
+    assert_eq!(msg.chat_id, t.get_self_chat().await.id);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_no_unencrypted_name_in_self_chat() -> Result<()> {
     let mut tcm = TestContextManager::new();
