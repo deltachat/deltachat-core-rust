@@ -946,14 +946,11 @@ async fn add_parts(
                 chat_id = Some(chat.id);
                 chat_id_blocked = chat.blocked;
             } else if allow_creation {
-                if let Ok(chat) = ChatIdBlocked::get_for_contact(context, from_id, create_blocked)
+                let chat = ChatIdBlocked::get_for_contact(context, from_id, create_blocked)
                     .await
-                    .context("Failed to get (new) chat for contact")
-                    .log_err(context)
-                {
-                    chat_id = Some(chat.id);
-                    chat_id_blocked = chat.blocked;
-                }
+                    .context("Failed to get (new) chat for contact")?;
+                chat_id = Some(chat.id);
+                chat_id_blocked = chat.blocked;
             }
 
             if let Some(chat_id) = chat_id {
@@ -1149,9 +1146,8 @@ async fn add_parts(
                         chat_id = Some(id);
                         chat_id_blocked = blocked;
                     }
-                } else if let Ok(chat) =
-                    ChatIdBlocked::get_for_contact(context, to_id, Blocked::Not).await
-                {
+                } else {
+                    let chat = ChatIdBlocked::get_for_contact(context, to_id, Blocked::Not).await?;
                     chat_id = Some(chat.id);
                     chat_id_blocked = chat.blocked;
                 }
@@ -1167,7 +1163,7 @@ async fn add_parts(
             if chat_id_blocked != Blocked::Not {
                 if let Some(chat_id) = chat_id {
                     chat_id.unblock_ex(context, Nosync).await?;
-                    chat_id_blocked = Blocked::Not;
+                    // Not assigning `chat_id_blocked = Blocked::Not` to avoid unused_assignments warning.
                 }
             }
         }
@@ -1204,20 +1200,15 @@ async fn add_parts(
         if chat_id.is_none() && self_sent {
             // from_id==to_id==ContactId::SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Message
-            if let Ok(chat) = ChatIdBlocked::get_for_contact(context, ContactId::SELF, Blocked::Not)
+            let chat = ChatIdBlocked::get_for_contact(context, ContactId::SELF, Blocked::Not)
                 .await
-                .context("Failed to get (new) chat for contact")
-                .log_err(context)
-            {
-                chat_id = Some(chat.id);
-                chat_id_blocked = chat.blocked;
-            }
+                .context("Failed to get (new) chat for contact")?;
 
-            if let Some(chat_id) = chat_id {
-                if Blocked::Not != chat_id_blocked {
-                    chat_id.unblock_ex(context, Nosync).await?;
-                    // Not assigning `chat_id_blocked = Blocked::Not` to avoid unused_assignments warning.
-                }
+            chat_id = Some(chat.id);
+            // Not assigning `chat_id_blocked = chat.blocked` to avoid unused_assignments warning.
+
+            if Blocked::Not != chat.blocked {
+                chat.id.unblock_ex(context, Nosync).await?;
             }
         }
     }
