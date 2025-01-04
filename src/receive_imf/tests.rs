@@ -2221,6 +2221,7 @@ Message content",
 
     let msg = t.get_last_msg().await;
     assert_eq!(msg.chat_id, t.get_self_chat().await.id);
+    assert_eq!(msg.to_id, ContactId::SELF);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
