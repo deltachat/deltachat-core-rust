@@ -270,6 +270,31 @@ async fn test_adhoc_groups_merge() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_msgs_noticed_on_seen_msg() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let seen = true;
+    let rcvd_msg = receive_imf(
+        alice,
+        b"From: bob@example.net\n\
+        To: alice@example.org\n\
+        Message-ID: <3333@example.net>\n\
+        Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+        \n\
+        This is a seen message.\n",
+        seen,
+    )
+    .await?
+    .unwrap();
+    let ev = alice
+        .evtracker
+        .get_matching(|e| matches!(e, EventType::MsgsNoticed { .. }))
+        .await;
+    assert_eq!(ev, EventType::MsgsNoticed(rcvd_msg.chat_id));
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_read_receipt_and_unarchive() -> Result<()> {
     // create alice's account
     let t = TestContext::new_alice().await;
