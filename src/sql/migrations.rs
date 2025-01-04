@@ -1138,6 +1138,24 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    inc_and_check(&mut migration_version, 128)?;
+    if dbversion < migration_version {
+        // Add the timestamps of addition and removal.
+        //
+        // If `add_timestamp >= remove_timestamp`,
+        // then the member is currently a member of the chat.
+        // Otherwise the member is a past member.
+        sql.execute_migration(
+            "ALTER TABLE chats_contacts
+             ADD COLUMN add_timestamp NOT NULL DEFAULT 0;
+             ALTER TABLE chats_contacts
+             ADD COLUMN remove_timestamp NOT NULL DEFAULT 0;
+            ",
+            migration_version,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

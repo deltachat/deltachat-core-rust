@@ -35,6 +35,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::sync::SyncItems;
+use crate::tools::time;
 use crate::tools::{
     get_filemeta, parse_receive_headers, smeared_time, truncate_msg_text, validate_id,
 };
@@ -57,8 +58,13 @@ pub(crate) struct MimeMessage {
     /// Message headers.
     headers: HashMap<String, String>,
 
-    /// Addresses are normalized and lowercase
+    /// List of addresses from the `To` and `Cc` headers.
+    ///
+    /// Addresses are normalized and lowercase.
     pub recipients: Vec<SingleInfo>,
+
+    /// List of addresses from the `Chat-Group-Past-Members` header.
+    pub past_members: Vec<SingleInfo>,
 
     /// `From:` address.
     pub from: SingleInfo,
@@ -232,6 +238,7 @@ impl MimeMessage {
 
         let mut headers = Default::default();
         let mut recipients = Default::default();
+        let mut past_members = Default::default();
         let mut from = Default::default();
         let mut list_post = Default::default();
         let mut chat_disposition_notification_to = None;
@@ -241,6 +248,7 @@ impl MimeMessage {
             context,
             &mut headers,
             &mut recipients,
+            &mut past_members,
             &mut from,
             &mut list_post,
             &mut chat_disposition_notification_to,
@@ -261,6 +269,7 @@ impl MimeMessage {
                         context,
                         &mut headers,
                         &mut recipients,
+                        &mut past_members,
                         &mut from,
                         &mut list_post,
                         &mut chat_disposition_notification_to,
@@ -438,6 +447,8 @@ impl MimeMessage {
                     HeaderDef::ChatGroupAvatar,
                     HeaderDef::ChatGroupMemberRemoved,
                     HeaderDef::ChatGroupMemberAdded,
+                    HeaderDef::ChatGroupMemberTimestamps,
+                    HeaderDef::ChatGroupPastMembers,
                 ] {
                     headers.remove(h.get_headername());
                 }
@@ -454,6 +465,7 @@ impl MimeMessage {
                 context,
                 &mut headers,
                 &mut recipients,
+                &mut past_members,
                 &mut inner_from,
                 &mut list_post,
                 &mut chat_disposition_notification_to,
@@ -511,6 +523,7 @@ impl MimeMessage {
             parts: Vec::new(),
             headers,
             recipients,
+            past_members,
             list_post,
             from,
             from_is_signed,
@@ -1530,10 +1543,12 @@ impl MimeMessage {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn merge_headers(
         context: &Context,
         headers: &mut HashMap<String, String>,
         recipients: &mut Vec<SingleInfo>,
+        past_members: &mut Vec<SingleInfo>,
         from: &mut Option<SingleInfo>,
         list_post: &mut Option<String>,
         chat_disposition_notification_to: &mut Option<SingleInfo>,
@@ -1561,6 +1576,11 @@ impl MimeMessage {
         let recipients_new = get_recipients(fields);
         if !recipients_new.is_empty() {
             *recipients = recipients_new;
+        }
+        let past_members_addresses =
+            get_all_addresses_from_header(fields, "chat-group-past-members");
+        if !past_members_addresses.is_empty() {
+            *past_members = past_members_addresses;
         }
         let from_new = get_from(fields);
         if from_new.is_some() {
@@ -1827,6 +1847,20 @@ impl MimeMessage {
             None
         };
         Ok(parent_timestamp)
+    }
+
+    /// Returns parsed `Chat-Group-Member-Timestamps` header contents.
+    ///
+    /// Returns `None` if there is no such header.
+    pub fn chat_group_member_timestamps(&self) -> Option<Vec<i64>> {
+        let now = time() + constants::TIMESTAMP_SENT_TOLERANCE;
+        self.get_header(HeaderDef::ChatGroupMemberTimestamps)
+            .map(|h| {
+                h.split_ascii_whitespace()
+                    .filter_map(|ts| ts.parse::<i64>().ok())
+                    .map(|ts| std::cmp::min(now, ts))
+                    .collect()
+            })
     }
 }
 

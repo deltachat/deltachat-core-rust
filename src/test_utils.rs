@@ -41,6 +41,7 @@ use crate::pgp::KeyPair;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
+use crate::tools::time;
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
@@ -880,7 +881,7 @@ impl TestContext {
             let contact = self.add_or_lookup_contact(member).await;
             to_add.push(contact.id);
         }
-        add_to_chat_contacts_table(self, chat_id, &to_add)
+        add_to_chat_contacts_table(self, time(), chat_id, &to_add)
             .await
             .unwrap();
 

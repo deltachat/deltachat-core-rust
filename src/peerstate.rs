@@ -711,9 +711,25 @@ impl Peerstate {
                                 Origin::IncomingUnknownFrom,
                             )
                             .await?;
-                            chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
-                                .await?;
-                            chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id])
+                            context
+                                .sql
+                                .transaction(|transaction| {
+                                    transaction.execute(
+                                        "UPDATE chats_contacts
+                                         SET remove_timestamp=MAX(add_timestamp+1, ?)
+                                         WHERE chat_id=? AND contact_id=?",
+                                        (timestamp, chat_id, contact_id),
+                                    )?;
+                                    transaction.execute(
+                                        "INSERT INTO chats_contacts
+                                         (chat_id, contact_id, add_timestamp)
+                                         VALUES (?1, ?2, ?3)
+                                         ON CONFLICT (chat_id, contact_id)
+                                         DO UPDATE SET add_timestamp=MAX(remove_timestamp, ?3)",
+                                        (chat_id, new_contact_id, timestamp),
+                                    )?;
+                                    Ok(())
+                                })
                                 .await?;
 
                             context.emit_event(EventType::ChatModified(*chat_id));

@@ -66,8 +66,36 @@ pub struct MimeFactory {
 
     selfstatus: String,
 
-    /// Vector of pairs of recipient name and address
-    recipients: Vec<(String, String)>,
+    /// Vector of actual recipient addresses.
+    ///
+    /// This is the list of addresses the message should be sent to.
+    /// It is not the same as the `To` header,
+    /// because in case of "member removed" message
+    /// removed member is in the recipient list,
+    /// but not in the `To` header.
+    /// In case of broadcast lists there are multiple recipients,
+    /// but the `To` header has no members.
+    ///
+    /// If `bcc_self` configuration is enabled,
+    /// this list will be extended with own address later,
+    /// but `MimeFactory` is not responsible for this.
+    recipients: Vec<String>,
+
+    /// Vector of pairs of recipient name and address that goes into the `To` field.
+    ///
+    /// The list of actual message recipient addresses may be different,
+    /// e.g. if members are hidden for broadcast lists.
+    to: Vec<(String, String)>,
+
+    /// Vector of pairs of past group member names and addresses.
+    past_members: Vec<(String, String)>,
+
+    /// Timestamps of the members in the same order as in the `recipients`
+    /// followed by `past_members`.
+    ///
+    /// If this is not empty, its length
+    /// should be the sum of `recipients` and `past_members` length.
+    member_timestamps: Vec<i64>,
 
     timestamp: i64,
     loaded: Loaded,
@@ -128,6 +156,7 @@ impl MimeFactory {
     pub async fn from_msg(context: &Context, msg: Message) -> Result<MimeFactory> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
         let attach_profile_data = Self::should_attach_profile_data(&msg);
+        let undisclosed_recipients = chat.typ == Chattype::Broadcast;
 
         let from_addr = context.get_primary_self_addr().await?;
         let config_displayname = context
@@ -145,47 +174,101 @@ impl MimeFactory {
                 (name, None)
             };
 
-        let mut recipients = Vec::with_capacity(5);
+        let mut recipients = Vec::new();
+        let mut to = Vec::new();
+        let mut past_members = Vec::new();
+        let mut member_timestamps = Vec::new();
         let mut recipient_ids = HashSet::new();
         let mut req_mdn = false;
 
         if chat.is_self_talk() {
             if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                recipients.push((from_displayname.to_string(), from_addr.to_string()));
+                recipients.push(from_addr.to_string());
+                to.push((from_displayname.to_string(), from_addr.to_string()));
             }
         } else if chat.is_mailing_list() {
             let list_post = chat
                 .param
                 .get(Param::ListPost)
                 .context("Can't write to mailinglist without ListPost param")?;
-            recipients.push(("".to_string(), list_post.to_string()));
+            to.push(("".to_string(), list_post.to_string()));
+            recipients.push(list_post.to_string());
         } else {
+            let email_to_remove = if msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
+                msg.param.get(Param::Arg)
+            } else {
+                None
+            };
+
             context
                 .sql
                 .query_map(
-                    "SELECT c.authname, c.addr, c.id \
-                 FROM chats_contacts cc  \
-                 LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                 WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    (msg.chat_id,),
+                    "SELECT c.authname, c.addr, c.id, cc.add_timestamp, cc.remove_timestamp
+                     FROM chats_contacts cc
+                     LEFT JOIN contacts c ON cc.contact_id=c.id
+                     WHERE cc.chat_id=? AND cc.contact_id>9 OR (cc.contact_id=1 AND ?)",
+                    (msg.chat_id, chat.typ == Chattype::Group),
                     |row| {
                         let authname: String = row.get(0)?;
                         let addr: String = row.get(1)?;
                         let id: ContactId = row.get(2)?;
-                        Ok((authname, addr, id))
+                        let add_timestamp: i64 = row.get(3)?;
+                        let remove_timestamp: i64 = row.get(4)?;
+                        Ok((authname, addr, id, add_timestamp, remove_timestamp))
                     },
                     |rows| {
+                        let mut past_member_timestamps = Vec::new();
+
                         for row in rows {
-                            let (authname, addr, id) = row?;
-                            if !recipients_contain_addr(&recipients, &addr) {
-                                let name = match attach_profile_data {
-                                    true => authname,
-                                    false => "".to_string(),
-                                };
-                                recipients.push((name, addr));
+                            let (authname, addr, id, add_timestamp, remove_timestamp) = row?;
+                            let addr = if id == ContactId::SELF {
+                                from_addr.to_string()
+                            } else {
+                                addr
+                            };
+                            let name = match attach_profile_data {
+                                true => authname,
+                                false => "".to_string(),
+                            };
+                            if add_timestamp >= remove_timestamp {
+                                if !recipients_contain_addr(&to, &addr) {
+                                    recipients.push(addr.clone());
+                                    if !undisclosed_recipients {
+                                        to.push((name, addr));
+                                        member_timestamps.push(add_timestamp);
+                                    }
+                                }
+                                recipient_ids.insert(id);
+                            } else {
+                                // Row is a tombstone,
+                                // member is not actually part of the group.
+                                if !recipients_contain_addr(&past_members, &addr) {
+                                    if let Some(email_to_remove) = email_to_remove {
+                                        if email_to_remove == addr {
+                                            // This is a "member removed" message,
+                                            // we need to notify removed member
+                                            // that it was removed.
+                                            recipients.push(addr.clone());
+                                        }
+                                    }
+                                    if !undisclosed_recipients {
+                                        past_members.push((name, addr));
+                                        past_member_timestamps.push(remove_timestamp);
+                                    }
+                                }
                             }
-                            recipient_ids.insert(id);
                         }
+
+                        debug_assert!(member_timestamps.len() >= to.len());
+
+                        if to.len() > 1 {
+                            if let Some(position) = to.iter().position(|(_, x)| x == &from_addr) {
+                                to.remove(position);
+                                member_timestamps.remove(position);
+                            }
+                        }
+
+                        member_timestamps.extend(past_member_timestamps);
                         Ok(())
                     },
                 )
@@ -226,12 +309,19 @@ impl MimeFactory {
         };
         let attach_selfavatar = Self::should_attach_selfavatar(context, &msg).await;
 
+        debug_assert!(
+            member_timestamps.is_empty()
+                || to.len() + past_members.len() == member_timestamps.len()
+        );
         let factory = MimeFactory {
             from_addr,
             from_displayname,
             sender_displayname,
             selfstatus,
             recipients,
+            to,
+            past_members,
+            member_timestamps,
             timestamp: msg.timestamp_sort,
             loaded: Loaded::Message { msg, chat },
             in_reply_to,
@@ -259,7 +349,10 @@ impl MimeFactory {
             from_displayname: "".to_string(),
             sender_displayname: None,
             selfstatus: "".to_string(),
-            recipients: vec![("".to_string(), contact.get_addr().to_string())],
+            recipients: vec![contact.get_addr().to_string()],
+            to: vec![("".to_string(), contact.get_addr().to_string())],
+            past_members: vec![],
+            member_timestamps: vec![],
             timestamp,
             loaded: Loaded::Mdn {
                 rfc724_mid,
@@ -283,11 +376,7 @@ impl MimeFactory {
         let self_addr = context.get_primary_self_addr().await?;
 
         let mut res = Vec::new();
-        for (_, addr) in self
-            .recipients
-            .iter()
-            .filter(|(_, addr)| addr != &self_addr)
-        {
+        for addr in self.recipients.iter().filter(|&addr| *addr != self_addr) {
             res.push((Peerstate::from_addr(context, addr).await?, addr.clone()));
         }
 
@@ -475,10 +564,7 @@ impl MimeFactory {
     }
 
     pub fn recipients(&self) -> Vec<String> {
-        self.recipients
-            .iter()
-            .map(|(_, addr)| addr.clone())
-            .collect()
+        self.recipients.clone()
     }
 
     /// Consumes a `MimeFactory` and renders it into a message which is then stored in
@@ -488,46 +574,33 @@ impl MimeFactory {
 
         let from = new_address_with_name(&self.from_displayname, self.from_addr.clone());
 
-        let undisclosed_recipients = match &self.loaded {
-            Loaded::Message { chat, .. } => chat.typ == Chattype::Broadcast,
-            Loaded::Mdn { .. } => false,
-        };
-
         let mut to = Vec::new();
-        if undisclosed_recipients {
+        for (name, addr) in &self.to {
+            if name.is_empty() {
+                to.push(Address::new_mailbox(addr.clone()));
+            } else {
+                to.push(new_address_with_name(name, addr.clone()));
+            }
+        }
+
+        let mut past_members = Vec::new(); // Contents of `Chat-Group-Past-Members` header.
+        for (name, addr) in &self.past_members {
+            if name.is_empty() {
+                past_members.push(Address::new_mailbox(addr.clone()));
+            } else {
+                past_members.push(new_address_with_name(name, addr.clone()));
+            }
+        }
+
+        debug_assert!(
+            self.member_timestamps.is_empty()
+                || to.len() + past_members.len() == self.member_timestamps.len()
+        );
+        if to.is_empty() {
             to.push(Address::new_group(
                 "hidden-recipients".to_string(),
                 Vec::new(),
             ));
-        } else {
-            let email_to_remove = match &self.loaded {
-                Loaded::Message { msg, .. } => {
-                    if msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
-                        msg.param.get(Param::Arg)
-                    } else {
-                        None
-                    }
-                }
-                Loaded::Mdn { .. } => None,
-            };
-
-            for (name, addr) in &self.recipients {
-                if let Some(email_to_remove) = email_to_remove {
-                    if email_to_remove == addr {
-                        continue;
-                    }
-                }
-
-                if name.is_empty() {
-                    to.push(Address::new_mailbox(addr.clone()));
-                } else {
-                    to.push(new_address_with_name(name, addr.clone()));
-                }
-            }
-
-            if to.is_empty() {
-                to.push(from.clone());
-            }
         }
 
         // Start with Internet Message Format headers in the order of the standard example
@@ -540,6 +613,26 @@ impl MimeFactory {
             headers.push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
         }
         headers.push(Header::new_with_value("To".into(), to.clone()).unwrap());
+        if !past_members.is_empty() {
+            headers.push(
+                Header::new_with_value("Chat-Group-Past-Members".into(), past_members.clone())
+                    .unwrap(),
+            );
+        }
+
+        if !self.member_timestamps.is_empty() {
+            headers.push(
+                Header::new_with_value(
+                    "Chat-Group-Member-Timestamps".into(),
+                    self.member_timestamps
+                        .iter()
+                        .map(|ts| ts.to_string())
+                        .collect::<Vec<String>>()
+                        .join(" "),
+                )
+                .unwrap(),
+            );
+        }
 
         let subject_str = self.subject_str(context).await?;
         let encoded_subject = if subject_str
@@ -2461,8 +2554,9 @@ mod tests {
         // Alice creates a group with Bob and Claire and then removes Bob.
         let alice = TestContext::new_alice().await;
 
+        let claire_addr = "claire@foo.de";
         let bob_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
-        let claire_id = Contact::create(&alice, "Claire", "claire@foo.de").await?;
+        let claire_id = Contact::create(&alice, "Claire", claire_addr).await?;
 
         let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
         add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
@@ -2478,10 +2572,17 @@ mod tests {
             .get_first_header("To")
             .context("no To: header parsed")?;
         let to = addrparse_header(to)?;
-        let mailbox = to
-            .extract_single_info()
-            .context("to: field does not contain exactly one address")?;
-        assert_eq!(mailbox.addr, "bob@example.net");
+        for to_addr in to.iter() {
+            match to_addr {
+                mailparse::MailAddr::Single(ref info) => {
+                    // Addresses should be of existing members (Alice and Bob) and not Claire.
+                    assert_ne!(info.addr, claire_addr);
+                }
+                mailparse::MailAddr::Group(_) => {
+                    panic!("Group addresses are not expected here");
+                }
+            }
+        }
 
         Ok(())
     }

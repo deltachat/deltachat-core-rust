@@ -183,6 +183,8 @@ pub enum Param {
     GroupNameTimestamp = b'g',
 
     /// For Chats: timestamp of member list update.
+    ///
+    /// Deprecated 2025-01-07.
     MemberListTimestamp = b'k',
 
     /// For Webxdc Message Instances: Current document name

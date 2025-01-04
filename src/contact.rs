@@ -114,7 +114,8 @@ impl ContactId {
                  SET gossiped_timestamp=0
                  WHERE EXISTS (SELECT 1 FROM chats_contacts
                                WHERE chats_contacts.chat_id=chats.id
-                               AND chats_contacts.contact_id=?)",
+                               AND chats_contacts.contact_id=?
+                               AND chats_contacts.add_timestamp >= chats_contacts.remove_timestamp)",
                 (self,),
             )
             .await?;

@@ -144,7 +144,7 @@ impl Chatlist {
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9
                    AND c.blocked!=1
-                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
+                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2 AND add_timestamp >= remove_timestamp)
                  GROUP BY c.id
                  ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 (MessageState::OutDraft, query_contact_id, ChatVisibility::Pinned),
@@ -261,7 +261,7 @@ impl Chatlist {
                      WHERE c.id>9 AND c.id!=?
                        AND c.blocked=0
                        AND NOT c.archived=?
-                       AND (c.type!=? OR c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?))
+                       AND (c.type!=? OR c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=? AND add_timestamp >= remove_timestamp))
                      GROUP BY c.id
                      ORDER BY c.id=? DESC, c.archived=? DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                     (

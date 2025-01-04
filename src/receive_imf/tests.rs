@@ -566,6 +566,8 @@ async fn test_escaped_recipients() {
     .unwrap()
     .0;
 
+    // We test with non-chat message here
+    // because chat messages are not expected to have `Cc` header.
     receive_imf(
         &t,
         b"From: Foobar <foobar@example.com>\n\
@@ -573,8 +575,6 @@ async fn test_escaped_recipients() {
                  Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
-                 Chat-Version: 1.0\n\
-                 Chat-Disposition-Notification-To: <foobar@example.com>\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
@@ -590,11 +590,12 @@ async fn test_escaped_recipients() {
     let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap().unwrap())
         .await
         .unwrap();
-    assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
-    assert_eq!(msg.text, "hello");
-    assert_eq!(msg.param.get_int(Param::WantsMdn).unwrap(), 1);
+    assert_eq!(msg.is_dc_message, MessengerMessage::No);
+    assert_eq!(msg.text, "foo – hello");
 }
 
+/// Tests that `Cc` header updates display name
+/// if existing contact has low enough origin.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_cc_to_contact() {
     let t = TestContext::new_alice().await;
@@ -612,6 +613,8 @@ async fn test_cc_to_contact() {
     .unwrap()
     .0;
 
+    // We use non-chat message here
+    // because chat messages are not expected to have `Cc` header.
     receive_imf(
         &t,
         b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
@@ -620,8 +623,6 @@ async fn test_cc_to_contact() {
                  Cc: Carl <carl@host.tld>\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.com>\n\
-                 Chat-Version: 1.0\n\
-                 Chat-Disposition-Notification-To: <foobar@example.com>\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
@@ -3333,6 +3334,7 @@ async fn test_outgoing_private_reply_multidevice() -> Result<()> {
     let group_id = chat::create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
     chat::add_to_chat_contacts_table(
         &bob,
+        time(),
         group_id,
         &[
             bob.add_or_lookup_contact(&alice1).await.id,
@@ -3542,26 +3544,27 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
-    // =============== Bob creates a group ===============
+    tcm.section("Bob creates a group");
     let group_id = chat::create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
     chat::add_to_chat_contacts_table(
         &bob,
+        time(),
         group_id,
         &[bob.add_or_lookup_contact(&alice).await.id],
     )
     .await?;
 
-    // =============== Bob sends the first message to the group ===============
+    tcm.section("Bob sends the first message to the group");
     let sent = bob.send_text(group_id, "Hello all!").await;
     alice.recv_msg(&sent).await;
 
     let chats = Chatlist::try_load(&bob, 0, None, None).await?;
     assert_eq!(chats.len(), 1);
 
-    // =============== Bob blocks Alice ================
+    tcm.section("Bob blocks Alice");
     Contact::block(&bob, bob.add_or_lookup_contact(&alice).await.id).await?;
 
-    // =============== Alice replies private to Bob ==============
+    tcm.section("Alice replies private to Bob");
     let received = alice.get_last_msg().await;
     assert_eq!(received.text, "Hello all!");
 
@@ -3575,7 +3578,7 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     let sent2 = alice.send_msg(alice_bob_chat.id, &mut msg_out).await;
     bob.recv_msg(&sent2).await;
 
-    // ========= check that no contact request was created ============
+    // check that no contact request was created
     let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
     assert_eq!(chats.len(), 1);
     let chat_id = chats.get_chat_id(0).unwrap();
@@ -3586,7 +3589,7 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     let received = bob.get_last_msg().await;
     assert_eq!(received.text, "Hello all!");
 
-    // =============== Bob unblocks Alice ================
+    tcm.section("Bob unblocks Alice");
     // test if the blocked chat is restored correctly
     Contact::unblock(&bob, bob.add_or_lookup_contact(&alice).await.id).await?;
     let chats = Chatlist::try_load(&bob, 0, None, None).await.unwrap();
@@ -4151,11 +4154,15 @@ async fn test_ignore_outdated_membership_changes() -> Result<()> {
 
     SystemTime::shift(Duration::from_secs(3600));
 
-    // Bob replies again adding Alice back.
+    // Bob replies again, even after some time this does not add Alice back.
+    //
+    // Bob cannot learn from Alice that Alice has left the group
+    // because Alice is not going to send more messages to the group.
     send_text_msg(bob, bob_chat_id, "i'm bob".to_string()).await?;
     let msg = &bob.pop_sent_msg().await;
     alice.recv_msg(msg).await;
-    assert!(is_contact_in_chat(alice, alice_chat_id, ContactId::SELF).await?);
+
+    assert!(!is_contact_in_chat(alice, alice_chat_id, ContactId::SELF).await?);
 
     Ok(())
 }
@@ -4216,7 +4223,7 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
+async fn test_delayed_removal_is_ignored() -> Result<()> {
     let alice = TestContext::new_alice().await;
     let bob = TestContext::new_bob().await;
     let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
@@ -4224,6 +4231,7 @@ async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
     // create chat with three members
     add_to_chat_contacts_table(
         &alice,
+        time(),
         chat_id,
         &[
             Contact::create(&alice, "bob", "bob@example.net").await?,
@@ -4236,12 +4244,12 @@ async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
     let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
     bob_chat_id.accept(&bob).await?;
 
-    // bob removes a member
+    // Bob removes Fiona.
     let bob_contact_fiona = Contact::create(&bob, "fiona", "fiona@example.net").await?;
     remove_contact_from_chat(&bob, bob_chat_id, bob_contact_fiona).await?;
     let remove_msg = bob.pop_sent_msg().await;
 
-    // bob adds new members
+    // Bob adds new members "blue" and "orange", but first addition message is lost.
     let bob_blue = Contact::create(&bob, "blue", "blue@example.net").await?;
     add_contact_to_chat(&bob, bob_chat_id, bob_blue).await?;
     bob.pop_sent_msg().await;
@@ -4249,32 +4257,32 @@ async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
     add_contact_to_chat(&bob, bob_chat_id, bob_orange).await?;
     let add_msg = bob.pop_sent_msg().await;
 
-    // alice only receives the second member addition
+    // Alice only receives the second member addition,
+    // but this results in addition of both members
+    // and removal of Fiona.
     alice.recv_msg(&add_msg).await;
-
-    // since we missed messages, a new contact list should be build
     assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 4);
 
-    // re-add fiona
+    // Alice re-adds Fiona.
     add_contact_to_chat(&alice, chat_id, alice_fiona).await?;
+    assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 5);
 
-    // delayed removal of fiona shouldn't remove her
-    alice.recv_msg_trash(&remove_msg).await;
+    // Delayed removal of Fiona by Bob shouldn't remove her.
+    alice.recv_msg(&remove_msg).await;
     assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 5);
 
     alice
-        .golden_test_chat(
-            chat_id,
-            "receive_imf_recreate_contact_list_on_missing_messages",
-        )
+        .golden_test_chat(chat_id, "receive_imf_delayed_removal_is_ignored")
         .await;
+
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dont_readd_with_normal_msg() -> Result<()> {
-    let alice = TestContext::new_alice().await;
-    let bob = TestContext::new_bob().await;
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
 
     let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
 
@@ -4289,6 +4297,7 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
     let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
     bob_chat_id.accept(&bob).await?;
 
+    // Bob leaves, but Alice didn't receive Bob's leave message.
     remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
     bob.pop_sent_msg().await;
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 1);
@@ -4302,12 +4311,11 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
     .await?;
     bob.recv_msg(&alice.pop_sent_msg().await).await;
 
-    // Alice didn't receive Bob's leave message although a lot of time has
-    // passed, so Bob must re-add themselves otherwise other members would think
-    // Bob is still here while they aren't. Bob should retry to leave if they
-    // think that Alice didn't re-add them on purpose (which is possible if Alice uses a classical
-    // MUA).
-    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    // Bob received a message from Alice, but this should not re-add him to the group.
+    assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+
+    // Bob got an update that fiora is added nevertheless.
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
     Ok(())
 }
 
@@ -4535,19 +4543,14 @@ async fn test_recreate_member_list_on_missing_add_of_self() -> Result<()> {
     bob.recv_msg(&alice.pop_sent_msg().await).await;
     assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
 
-    // But if Bob left a long time ago, they must recreate the member list after missing a message.
+    // Even if some time passed, Bob must not be re-added back.
     SystemTime::shift(Duration::from_secs(3600));
     send_text_msg(&alice, alice_chat_id, "5th message".to_string()).await?;
     alice.pop_sent_msg().await;
     send_text_msg(&alice, alice_chat_id, "6th message".to_string()).await?;
     bob.recv_msg(&alice.pop_sent_msg().await).await;
-    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
 
-    bob.golden_test_chat(
-        bob_chat_id,
-        "receive_imf_recreate_member_list_on_missing_add_of_self",
-    )
-    .await;
     Ok(())
 }
 
@@ -4781,13 +4784,6 @@ async fn test_partial_group_consistency() -> Result<()> {
     let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
     assert_eq!(contacts.len(), 2);
 
-    // Get initial timestamp.
-    let timestamp = bob_chat_id
-        .get_param(&bob)
-        .await?
-        .get_i64(Param::MemberListTimestamp)
-        .unwrap();
-
     // Bob receives partial message.
     let msg_id = receive_imf_from_inbox(
         &bob,
@@ -4808,15 +4804,9 @@ Chat-Group-Member-Added: charlie@example.com",
     .context("no received message")?;
 
     let msg = Message::load_from_db(&bob, msg_id.msg_ids[0]).await?;
-    let timestamp2 = bob_chat_id
-        .get_param(&bob)
-        .await?
-        .get_i64(Param::MemberListTimestamp)
-        .unwrap();
 
     // Partial download does not change the member list.
     assert_eq!(msg.download_state, DownloadState::Available);
-    assert_eq!(timestamp, timestamp2);
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
 
     // Alice sends normal message to bob, adding fiona.
@@ -4829,15 +4819,6 @@ Chat-Group-Member-Added: charlie@example.com",
 
     bob.recv_msg(&alice.pop_sent_msg().await).await;
 
-    let timestamp3 = bob_chat_id
-        .get_param(&bob)
-        .await?
-        .get_i64(Param::MemberListTimestamp)
-        .unwrap();
-
-    // Receiving a message after a partial download recreates the member list because we treat
-    // such messages as if we have not seen them.
-    assert_ne!(timestamp, timestamp3);
     let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
     assert_eq!(contacts.len(), 3);
 
@@ -4861,15 +4842,9 @@ Chat-Group-Member-Added: charlie@example.com",
     .context("no received message")?;
 
     let msg = Message::load_from_db(&bob, msg_id.msg_ids[0]).await?;
-    let timestamp4 = bob_chat_id
-        .get_param(&bob)
-        .await?
-        .get_i64(Param::MemberListTimestamp)
-        .unwrap();
 
     // After full download, the old message should not change group state.
     assert_eq!(msg.download_state, DownloadState::Done);
-    assert_eq!(timestamp3, timestamp4);
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
 
     Ok(())
@@ -4892,19 +4867,13 @@ async fn test_leave_protected_group_missing_member_key() -> Result<()> {
             ("b@b", "bob@example.net"),
         )
         .await?;
+
+    // We fail to send the message.
     assert!(remove_contact_from_chat(alice, group_id, ContactId::SELF)
         .await
         .is_err());
-    assert!(is_contact_in_chat(alice, group_id, ContactId::SELF).await?);
-    alice
-        .sql
-        .execute(
-            "UPDATE acpeerstates SET addr=? WHERE addr=?",
-            ("bob@example.net", "b@b"),
-        )
-        .await?;
-    remove_contact_from_chat(alice, group_id, ContactId::SELF).await?;
-    alice.pop_sent_msg().await;
+
+    // The contact is already removed anyway.
     assert!(!is_contact_in_chat(alice, group_id, ContactId::SELF).await?);
     Ok(())
 }
@@ -4926,12 +4895,22 @@ async fn test_protected_group_add_remove_member_missing_key() -> Result<()> {
         .await?;
 
     let fiona = &tcm.fiona().await;
+    let fiona_addr = fiona.get_config(Config::Addr).await?.unwrap();
     mark_as_verified(alice, fiona).await;
     let alice_fiona_id = alice.add_or_lookup_contact(fiona).await.id;
     assert!(add_contact_to_chat(alice, group_id, alice_fiona_id)
         .await
         .is_err());
-    assert!(!is_contact_in_chat(alice, group_id, alice_fiona_id).await?);
+    // Sending the message failed,
+    // but member is added to the chat locally already.
+    assert!(is_contact_in_chat(alice, group_id, alice_fiona_id).await?);
+    let msg = alice.get_last_msg_in(group_id).await;
+    assert!(msg.is_info());
+    assert_eq!(
+        msg.get_text(),
+        stock_str::msg_add_member_local(alice, &fiona_addr, ContactId::SELF).await
+    );
+
     // Now the chat has a message "You added member fiona@example.net. [INFO] !!" (with error) that
     // may be confusing, but if the error is displayed in UIs, it's more or less ok. This is not a
     // normal scenario anyway.
@@ -5067,32 +5046,6 @@ async fn test_unarchive_on_member_removal() -> Result<()> {
     let bob_chat = Chat::load_from_db(bob, bob_chat_id).await?;
     assert_eq!(bob_chat.get_visibility(), ChatVisibility::Normal);
 
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_no_op_member_added_is_trash() -> Result<()> {
-    let mut tcm = TestContextManager::new();
-    let alice = &tcm.alice().await;
-    let bob = &tcm.bob().await;
-    let alice_chat_id = alice
-        .create_group_with_members(ProtectionStatus::Unprotected, "foos", &[bob])
-        .await;
-    send_text_msg(alice, alice_chat_id, "populate".to_string()).await?;
-    let msg = alice.pop_sent_msg().await;
-    bob.recv_msg(&msg).await;
-    let bob_chat_id = bob.get_last_msg().await.chat_id;
-    bob_chat_id.accept(bob).await?;
-
-    let fiona_id = Contact::create(alice, "", "fiona@example.net").await?;
-    add_contact_to_chat(alice, alice_chat_id, fiona_id).await?;
-    let msg = alice.pop_sent_msg().await;
-
-    let fiona_id = Contact::create(bob, "", "fiona@example.net").await?;
-    add_contact_to_chat(bob, bob_chat_id, fiona_id).await?;
-    bob.recv_msg_trash(&msg).await;
-    let contacts = get_chat_contacts(bob, bob_chat_id).await?;
-    assert_eq!(contacts.len(), 3);
     Ok(())
 }
 

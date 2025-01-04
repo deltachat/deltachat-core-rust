@@ -5,4 +5,5 @@ Msg#11: info (Contact#Contact#Info): Member blue@example.net added. [NOTICED][IN
 Msg#12: info (Contact#Contact#Info): Member fiona (fiona@example.net) removed. [NOTICED][INFO]
 Msg#13: bob (Contact#Contact#11): Member orange@example.net added by bob (bob@example.net). [FRESH][INFO]
 Msg#14: Me (Contact#Contact#Self): You added member fiona (fiona@example.net). [INFO] o
+Msg#15: bob (Contact#Contact#11): Member fiona (fiona@example.net) removed by bob (bob@example.net). [FRESH][INFO]
 --------------------------------------------------------------------------------

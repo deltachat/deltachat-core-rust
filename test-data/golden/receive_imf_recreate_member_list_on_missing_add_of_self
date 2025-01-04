@@ -1,9 +1,0 @@
-Group#Chat#10: Group [2 member(s)] 
---------------------------------------------------------------------------------
-Msg#10: info (Contact#Contact#Info): Member Me (bob@example.net) added. [NOTICED][INFO]
-Msg#11:  (Contact#Contact#10): second message [FRESH]
-Msg#12🔒: Me (Contact#Contact#Self): You left the group. [INFO] √
-Msg#13:  (Contact#Contact#10): 4th message [FRESH]
-Msg#14: info (Contact#Contact#Info): Member Me (bob@example.net) added. [NOTICED][INFO]
-Msg#15:  (Contact#Contact#10): 6th message [FRESH]
---------------------------------------------------------------------------------
