@@ -360,7 +360,7 @@ pub(crate) async fn receive_imf_inner(
             let contact = Contact::get_by_id(context, from_id).await?;
             mime_parser.peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
         } else {
-            let to_id = to_ids.first().copied().unwrap_or_default();
+            let to_id = to_ids.first().copied().unwrap_or(ContactId::SELF);
             // handshake may mark contacts as verified and must be processed before chats are created
             res = observe_securejoin_on_other_device(context, &mime_parser, to_id)
                 .await
@@ -1037,7 +1037,7 @@ async fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        to_id = to_ids.first().copied().unwrap_or_default();
+        to_id = to_ids.first().copied().unwrap_or(ContactId::SELF);
 
         // Older Delta Chat versions with core <=1.152.2 only accepted
         // self-sent messages in Saved Messages with own address in the `To` field.
