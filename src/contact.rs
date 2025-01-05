@@ -510,6 +510,14 @@ impl Origin {
     pub fn is_known(self) -> bool {
         self >= Origin::IncomingReplyTo
     }
+
+    fn displayname_prefix(self) -> &'static str {
+        if self == Origin::ManuallyCreated {
+            ""
+        } else {
+            "~"
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -593,6 +601,7 @@ impl Contact {
                     .get_config(Config::Selfstatus)
                     .await?
                     .unwrap_or_default();
+                contact.origin = Origin::ManuallyCreated;
             } else if contact_id == ContactId::DEVICE {
                 contact.name = stock_str::device_messages(context).await;
                 contact.addr = ContactId::DEVICE_ADDR.to_string();
@@ -866,33 +875,35 @@ impl Contact {
                     } else {
                         row_name
                     };
-
+                    let new_addr = if update_addr {
+                        addr.to_string()
+                    } else {
+                        row_addr
+                    };
+                    let new_origin = if origin > row_origin {
+                        origin
+                    } else {
+                        row_origin
+                    };
+                    let new_authname = if update_authname {
+                        name.to_string()
+                    } else {
+                        row_authname
+                    };
                     transaction
                         .execute(
                             "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
                             (
-                                new_name,
-                                if update_addr {
-                                    addr.to_string()
-                                } else {
-                                    row_addr
-                                },
-                                if origin > row_origin {
-                                    origin
-                                } else {
-                                    row_origin
-                                },
-                                if update_authname {
-                                    name.to_string()
-                                } else {
-                                    row_authname
-                                },
+                                new_name.clone(),
+                                new_addr,
+                                new_origin,
+                                new_authname.clone(),
                                 row_id
                             ),
                         )?;
 
                     if update_name || update_authname {
-                        // Update the contact name also if it is used as a group name.
+                        // The contact name is also used as the name of the 1:1 chat, which therefore also needs to be updated.
                         // This is one of the few duplicated data, however, getting the chat list is easier this way.
                         let chat_id: Option<ChatId> = transaction.query_row(
                             "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
@@ -904,26 +915,13 @@ impl Contact {
                         ).optional()?;
 
                         if let Some(chat_id) = chat_id {
-                            let contact_id = ContactId::new(row_id);
-                            let (addr, name, authname) =
-                                transaction.query_row(
-                                    "SELECT addr, name, authname
-                                     FROM contacts
-                                     WHERE id=?",
-                                     (contact_id,),
-                                |row| {
-                                    let addr: String = row.get(0)?;
-                                    let name: String = row.get(1)?;
-                                    let authname: String = row.get(2)?;
-                                    Ok((addr, name, authname))
-                                })?;
-
-                            let chat_name = if !name.is_empty() {
-                                name
-                            } else if !authname.is_empty() {
-                                authname
+                            let prefix = origin.displayname_prefix();
+                            let chat_name = if !new_name.is_empty() {
+                                format!("{prefix}{}", new_name)
+                            } else if !new_authname.is_empty() {
+                                format!("{prefix}{}", new_authname)
                             } else {
-                                addr
+                                addr.to_string()
                             };
 
                             let count = transaction.execute(
@@ -933,7 +931,7 @@ impl Contact {
                             if count > 0 {
                                 // Chat name updated
                                 context.emit_event(EventType::ChatModified(chat_id));
-                                chatlist_events::emit_chatlist_items_changed_for_contact(context, contact_id);
+                                chatlist_events::emit_chatlist_items_changed_for_contact(context, ContactId::new(row_id));
                             }
                         }
                     }
@@ -1365,14 +1363,15 @@ impl Contact {
     ///
     /// This name is typically used in lists.
     /// To get the name editable in a formular, use `Contact::get_name`.
-    pub fn get_display_name(&self) -> &str {
+    pub fn get_display_name(&self) -> String {
+        let prefix = self.origin.displayname_prefix();
         if !self.name.is_empty() {
-            return &self.name;
+            return format!("{prefix}{}", self.name);
         }
         if !self.authname.is_empty() {
-            return &self.authname;
+            return format!("{prefix}{}", self.authname);
         }
-        &self.addr
+        self.addr.clone()
     }
 
     /// Get a summary of authorized name and address.
@@ -1401,10 +1400,11 @@ impl Contact {
     /// The summary is typically used when asking the user something about the contact.
     /// The attached email address makes the question unique, eg. "Chat with Alan Miller (am@uniquedomain.com)?"
     pub fn get_name_n_addr(&self) -> String {
+        let prefix = self.origin.displayname_prefix();
         if !self.name.is_empty() {
-            format!("{} ({})", self.name, self.addr)
+            format!("{prefix}{} ({})", self.name, self.addr)
         } else if !self.authname.is_empty() {
-            format!("{} ({})", self.authname, self.addr)
+            format!("{prefix}{} ({})", self.authname, self.addr)
         } else {
             (&self.addr).into()
         }
@@ -2053,7 +2053,7 @@ mod tests {
         let contact = Contact::get_by_id(&context.ctx, id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_authname(), "bob");
-        assert_eq!(contact.get_display_name(), "bob");
+        assert_eq!(contact.get_display_name(), "~bob");
 
         // Search by name.
         let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).await?;
@@ -2136,7 +2136,7 @@ mod tests {
         assert_eq!(contact.get_id(), contact_id);
         assert_eq!(contact.get_name(), "Name one");
         assert_eq!(contact.get_authname(), "bla foo");
-        assert_eq!(contact.get_display_name(), "Name one");
+        assert_eq!(contact.get_display_name(), "~Name one");
         assert_eq!(contact.get_addr(), "one@eins.org");
         assert_eq!(contact.get_name_n_addr(), "Name one (one@eins.org)");
 
@@ -2276,14 +2276,14 @@ mod tests {
         )
         .await?;
         let chat_id = t.get_last_msg().await.get_chat_id();
-        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Flobbyfoo");
+        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "~Flobbyfoo");
         let chatlist = Chatlist::try_load(&t, 0, Some("flobbyfoo"), None).await?;
         assert_eq!(chatlist.len(), 1);
         let contact = Contact::get_by_id(&t, *contact_id).await?;
         assert_eq!(contact.get_authname(), "Flobbyfoo");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "Flobbyfoo");
-        assert_eq!(contact.get_name_n_addr(), "Flobbyfoo (f@example.org)");
+        assert_eq!(contact.get_display_name(), "~Flobbyfoo");
+        assert_eq!(contact.get_name_n_addr(), "~Flobbyfoo (f@example.org)");
         let contacts = Contact::get_all(&t, 0, Some("f@example.org")).await?;
         assert_eq!(contacts.len(), 1);
         let contacts = Contact::get_all(&t, 0, Some("flobbyfoo")).await?;
@@ -2312,8 +2312,8 @@ mod tests {
         let contact = Contact::get_by_id(&t, *contact_id).await?;
         assert_eq!(contact.get_authname(), "Foo Flobby");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "Foo Flobby");
-        assert_eq!(contact.get_name_n_addr(), "Foo Flobby (f@example.org)");
+        assert_eq!(contact.get_display_name(), "~Foo Flobby");
+        assert_eq!(contact.get_name_n_addr(), "~Foo Flobby (f@example.org)");
         let contacts = Contact::get_all(&t, 0, Some("f@example.org")).await?;
         assert_eq!(contacts.len(), 1);
         let contacts = Contact::get_all(&t, 0, Some("flobbyfoo")).await?;
@@ -2439,7 +2439,7 @@ mod tests {
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob1");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "bob1");
+        assert_eq!(contact.get_display_name(), "~bob1");
 
         // incoming mail `From: bob2 <bob@example.org>` - this should update authname
         let (contact_id, sth_modified) = Contact::add_or_lookup(
@@ -2455,7 +2455,7 @@ mod tests {
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "bob2");
+        assert_eq!(contact.get_display_name(), "~bob2");
 
         // manually edit name to "bob3" - authname should be still be "bob2" as given in `From:` above
         let contact_id = Contact::create(&t, "bob3", "bob@example.org")
@@ -2510,7 +2510,8 @@ mod tests {
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire1");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "claire1");
+        println!("dbg/TODO {:?}", contact.origin);
+        assert_eq!(contact.get_display_name(), "~claire1"); // TODO this NEEDS to be "~claire1"
 
         // incoming mail `From: claire2 <claire@example.org>` - this should update authname
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
@@ -2547,7 +2548,7 @@ mod tests {
         .await?;
         assert_eq!(sth_modified, Modifier::Created);
         let contact = Contact::get_by_id(&t, contact_id).await?;
-        assert_eq!(contact.get_display_name(), "Bob");
+        assert_eq!(contact.get_display_name(), "~Bob");
 
         // Incoming message from someone else with "Not Bob" <bob@example.org> in the "To:" field.
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
@@ -2560,7 +2561,7 @@ mod tests {
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::get_by_id(&t, contact_id).await?;
-        assert_eq!(contact.get_display_name(), "Not Bob");
+        assert_eq!(contact.get_display_name(), "~Not Bob");
 
         // Incoming message from Bob, changing the name back.
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
@@ -2573,7 +2574,7 @@ mod tests {
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified); // This was None until the bugfix
         let contact = Contact::get_by_id(&t, contact_id).await?;
-        assert_eq!(contact.get_display_name(), "Bob");
+        assert_eq!(contact.get_display_name(), "~Bob");
 
         Ok(())
     }

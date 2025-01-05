@@ -1080,7 +1080,7 @@ mod tests {
             assert_eq!(contact.get_addr(), "stress@test.local");
             assert_eq!(contact.get_name(), "First Last");
             assert_eq!(contact.get_authname(), "");
-            assert_eq!(contact.get_display_name(), "First Last");
+            assert_eq!(contact.get_display_name(), "~First Last");
             assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");

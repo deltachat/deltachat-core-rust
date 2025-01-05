@@ -661,7 +661,7 @@ mod tests {
         let contacts = get_chat_contacts(&t, chat_id).await?;
         let contact_id = *contacts.first().unwrap();
         let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert_eq!(chat.get_name(), "Bob Authname");
+        assert_eq!(chat.get_name(), "~Bob Authname");
 
         // check, the one-to-one-chat can be found using chatlist search query
         let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
@@ -727,7 +727,7 @@ mod tests {
         let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
         assert_eq!(contact_id, test_id);
         let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert_eq!(chat.get_name(), "Bob Nickname");
+        assert_eq!(chat.get_name(), "~Bob Nickname");
         let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
         assert_eq!(chats.len(), 0); // email-addresses are searchable in contacts, not in chats
         let chats = Chatlist::try_load(&t, 0, Some("Bob Nickname"), None).await?;

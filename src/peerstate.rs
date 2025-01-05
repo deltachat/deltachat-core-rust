@@ -664,7 +664,7 @@ impl Peerstate {
                 let old_contact = Contact::get_by_id(context, contact_id).await?;
                 stock_str::aeap_addr_changed(
                     context,
-                    old_contact.get_display_name(),
+                    &old_contact.get_display_name(),
                     &self.addr,
                     new_addr,
                 )

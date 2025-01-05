@@ -230,7 +230,7 @@ impl MsgId {
         let name = from_contact.get_name_n_addr();
         if let Some(override_sender_name) = msg.get_override_sender_name() {
             let addr = from_contact.get_addr();
-            ret += &format!(" by ~{override_sender_name} ({addr})");
+            ret += &format!(" by {override_sender_name} ({addr})");
         } else {
             ret += &format!(" by {name}");
         }
@@ -895,7 +895,7 @@ impl Message {
     pub fn get_override_sender_name(&self) -> Option<String> {
         self.param
             .get(Param::OverrideSenderDisplayname)
-            .map(|name| name.to_string())
+            .map(|name| format!("~{name}"))
     }
 
     // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
@@ -2437,10 +2437,10 @@ mod tests {
         msg.set_override_sender_name(Some("over ride".to_string()));
         assert_eq!(
             msg.get_override_sender_name(),
-            Some("over ride".to_string())
+            Some("~over ride".to_string())
         );
-        assert_eq!(msg.get_sender_name(&contact), "over ride".to_string());
-        assert_ne!(contact.get_display_name(), "over ride".to_string());
+        assert_eq!(msg.get_sender_name(&contact), "~over ride".to_string());
+        assert_ne!(contact.get_display_name(), "~over ride".to_string());
         chat::send_msg(&alice, chat.id, &mut msg).await.unwrap();
         let sent_msg = alice.pop_sent_msg().await;
 
@@ -2457,10 +2457,10 @@ mod tests {
         assert_eq!(msg.text, "bla blubb");
         assert_eq!(
             msg.get_override_sender_name(),
-            Some("over ride".to_string())
+            Some("~over ride".to_string())
         );
-        assert_eq!(msg.get_sender_name(&contact), "over ride".to_string());
-        assert_ne!(contact.get_display_name(), "over ride".to_string());
+        assert_eq!(msg.get_sender_name(&contact), "~over ride".to_string());
+        assert_ne!(contact.get_display_name(), "~over ride".to_string());
 
         // explicitly check that the message does not create a mailing list
         // (mailing lists may also use `Sender:`-header)
@@ -2471,7 +2471,7 @@ mod tests {
         let msg = alice2.recv_msg(&sent_msg).await;
         assert_eq!(
             msg.get_override_sender_name(),
-            Some("over ride".to_string())
+            Some("~over ride".to_string())
         );
     }
 

@@ -770,7 +770,7 @@ impl TestContext {
         } else {
             assert_eq!(
                 actual, expected,
-                "To update the expected value, run `UPDATE_GOLDEN_TESTS=1 cargo test`"
+                "To update the expected value, run `UPDATE_GOLDEN_TESTS=1 cargo nextest run`"
             );
         }
     }
