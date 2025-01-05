@@ -1452,9 +1452,7 @@ impl Session {
 
                 let is_seen = fetch_response.flags().any(|flag| flag == Flag::Seen);
 
-                let rfc724_mid = if let Some(rfc724_mid) = uid_message_ids.get(&request_uid) {
-                    rfc724_mid
-                } else {
+                let Some(rfc724_mid) = uid_message_ids.get(&request_uid) else {
                     error!(
                         context,
                         "No Message-ID corresponding to UID {} passed in uid_messsage_ids.",
