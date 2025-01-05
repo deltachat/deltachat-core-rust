@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.153.0] - 2025-01-05
+
+### Features / Changes
+
+- Remove "jobs" from imap_markseen if folder doesn't exist ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
+- Delete `vg-request-with-auth` from IMAP after processing ([#6208](https://github.com/deltachat/deltachat-core-rust/pull/6208)).
+
+### API-Changes
+
+- Add `IncomingWebxdcNotify.chat_id` ([#6356](https://github.com/deltachat/deltachat-core-rust/pull/6356)).
+- rpc-client: Add INCOMING_REACTION to const.EventType ([#6349](https://github.com/deltachat/deltachat-core-rust/pull/6349)).
+
+### Documentation
+
+- Viewtype::Sticker may be changed to Image and how to disable that ([#6352](https://github.com/deltachat/deltachat-core-rust/pull/6352)).
+
+### Fixes
+
+- Never change Viewtype::Sticker to Image if file has non-image extension ([#6352](https://github.com/deltachat/deltachat-core-rust/pull/6352)).
+- Change BccSelf default to 0 for chatmail ([#6340](https://github.com/deltachat/deltachat-core-rust/pull/6340)).
+- Mark holiday notice messages as bot-generated.
+- Don't treat location-only and sync messages as bot ones ([#6357](https://github.com/deltachat/deltachat-core-rust/pull/6357)).
+- Update shadowsocks crate to 1.22.0 to avoid panic when parsing some QR codes.
+- Prefer to encrypt if E2eeEnabled even if peers have EncryptPreference::NoPreference.
+- Prioritize mailing list over self-sent messages.
+- Allow empty `To` field for self-sent messages.
+- Default `to_id` to self instead of 0.
+
+### Refactor
+
+- Remove unused parameter and return value from `build_body_file(…)` ([#6369](https://github.com/deltachat/deltachat-core-rust/pull/6369)).
+- Deprecate Param::ErroneousE2ee.
+- Add `emit_msgs_changed_without_msg_id`.
+- Add_parts: Remove excessive `is_mdn` checks.
+- Simplify `self_sent` condition.
+- Don't ignore get_for_contact errors.
+
+### Tests
+
+- Messages without recipients are assigned to self chat.
+- Message with empty To: field should have a valid to_id.
+- Fix `test_logged_ac_process_ffi_failure` flakiness.
+
 ## [1.152.2] - 2024-12-24
 
 ### Features / Changes
@@ -5541,3 +5584,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.152.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.6..v1.152.0
 [1.152.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.0..v1.152.1
 [1.152.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.1..v1.152.2
+[1.153.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.2..v1.153.0
