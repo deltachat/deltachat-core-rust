@@ -550,7 +550,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, Some("is:unread"), None)
             .await
             .unwrap();
-        assert!(chats.len() == 1);
+        assert_eq!(chats.len(), 1);
 
         let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
@@ -576,7 +576,7 @@ mod tests {
             .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        assert!(chats.len() == 3);
+        assert_eq!(chats.len(), 3);
         assert!(!Chat::load_from_db(&t, chats.get_chat_id(0).unwrap())
             .await
             .unwrap()
@@ -585,7 +585,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, DC_GCL_FOR_FORWARDING, None, None)
             .await
             .unwrap();
-        assert!(chats.len() == 2); // device chat cannot be written and is skipped on forwarding
+        assert_eq!(chats.len(), 2); // device chat cannot be written and is skipped on forwarding
         assert!(Chat::load_from_db(&t, chats.get_chat_id(0).unwrap())
             .await
             .unwrap()
@@ -597,7 +597,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, DC_GCL_FOR_FORWARDING, None, None)
             .await
             .unwrap();
-        assert!(chats.len() == 1);
+        assert_eq!(chats.len(), 1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
