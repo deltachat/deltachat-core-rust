@@ -510,14 +510,6 @@ impl Origin {
     pub fn is_known(self) -> bool {
         self >= Origin::IncomingReplyTo
     }
-
-    fn displayname_prefix(self) -> &'static str {
-        if self == Origin::ManuallyCreated {
-            ""
-        } else {
-            "~"
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -886,7 +878,7 @@ impl Contact {
                         row_origin
                     };
                     let new_authname = if update_authname {
-                        name.to_string()
+                        name
                     } else {
                         row_authname
                     };
@@ -915,11 +907,10 @@ impl Contact {
                         ).optional()?;
 
                         if let Some(chat_id) = chat_id {
-                            let prefix = origin.displayname_prefix();
                             let chat_name = if !new_name.is_empty() {
-                                format!("{prefix}{}", new_name)
+                                new_name
                             } else if !new_authname.is_empty() {
-                                format!("{prefix}{}", new_authname)
+                                format!("~{}", new_authname)
                             } else {
                                 addr.to_string()
                             };
@@ -1364,12 +1355,11 @@ impl Contact {
     /// This name is typically used in lists.
     /// To get the name editable in a formular, use `Contact::get_name`.
     pub fn get_display_name(&self) -> String {
-        let prefix = self.origin.displayname_prefix();
         if !self.name.is_empty() {
-            return format!("{prefix}{}", self.name);
+            return self.name.clone();
         }
         if !self.authname.is_empty() {
-            return format!("{prefix}{}", self.authname);
+            return format!("~{}", self.authname);
         }
         self.addr.clone()
     }
@@ -1400,11 +1390,10 @@ impl Contact {
     /// The summary is typically used when asking the user something about the contact.
     /// The attached email address makes the question unique, eg. "Chat with Alan Miller (am@uniquedomain.com)?"
     pub fn get_name_n_addr(&self) -> String {
-        let prefix = self.origin.displayname_prefix();
         if !self.name.is_empty() {
-            format!("{prefix}{} ({})", self.name, self.addr)
+            format!("{} ({})", self.name, self.addr)
         } else if !self.authname.is_empty() {
-            format!("{prefix}{} ({})", self.authname, self.addr)
+            format!("~{} ({})", self.authname, self.addr)
         } else {
             (&self.addr).into()
         }
@@ -2110,7 +2099,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_or_lookup() {
         // add some contacts, this also tests add_address_book()
-        // TODO it's unsure whether we should put a ~ in front of these.
         let t = TestContext::new().await;
         let book = concat!(
             "  Name one  \n one@eins.org \n",
@@ -2137,9 +2125,9 @@ mod tests {
         assert_eq!(contact.get_id(), contact_id);
         assert_eq!(contact.get_name(), "Name one");
         assert_eq!(contact.get_authname(), "bla foo");
-        assert_eq!(contact.get_display_name(), "~Name one");
+        assert_eq!(contact.get_display_name(), "Name one");
         assert_eq!(contact.get_addr(), "one@eins.org");
-        assert_eq!(contact.get_name_n_addr(), "~Name one (one@eins.org)");
+        assert_eq!(contact.get_name_n_addr(), "Name one (one@eins.org)");
 
         // modify first added contact
         let (contact_id_test, sth_modified) = Contact::add_or_lookup(
@@ -2218,9 +2206,9 @@ mod tests {
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Wonderland, Alice");
-        assert_eq!(contact.get_display_name(), "~Wonderland, Alice");
+        assert_eq!(contact.get_display_name(), "Wonderland, Alice");
         assert_eq!(contact.get_addr(), "alice@w.de");
-        assert_eq!(contact.get_name_n_addr(), "~Wonderland, Alice (alice@w.de)");
+        assert_eq!(contact.get_name_n_addr(), "Wonderland, Alice (alice@w.de)");
 
         // check SELF
         let contact = Contact::get_by_id(&t, ContactId::SELF).await.unwrap();
@@ -2511,8 +2499,7 @@ mod tests {
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire1");
         assert_eq!(contact.get_name(), "");
-        println!("dbg/TODO {:?}", contact.origin);
-        assert_eq!(contact.get_display_name(), "~claire1"); // TODO this NEEDS to be "~claire1"
+        assert_eq!(contact.get_display_name(), "~claire1");
 
         // incoming mail `From: claire2 <claire@example.org>` - this should update authname
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
@@ -2528,7 +2515,7 @@ mod tests {
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire2");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "claire2");
+        assert_eq!(contact.get_display_name(), "~claire2");
     }
 
     /// Regression test.
@@ -2612,7 +2599,7 @@ mod tests {
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "");
-        assert_eq!(contact.get_display_name(), "dave2");
+        assert_eq!(contact.get_display_name(), "~dave2");
     }
 
     #[test]

@@ -682,7 +682,7 @@ mod tests {
         let test_id = Contact::create(&t, "", "bob@example.org").await?;
         assert_eq!(contact_id, test_id);
         let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert_eq!(chat.get_name(), "Bob Authname");
+        assert_eq!(chat.get_name(), "~Bob Authname");
         let chats = Chatlist::try_load(&t, 0, Some("bob authname"), None).await?;
         assert_eq!(chats.len(), 1);
         let chats = Chatlist::try_load(&t, 0, Some("bob nickname"), None).await?;

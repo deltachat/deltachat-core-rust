@@ -947,7 +947,6 @@ async fn test_no_unencrypted_name_if_encrypted() -> Result<()> {
 
         let msg = alice.recv_msg(msg).await;
         let contact = Contact::get_by_id(&alice, msg.from_id).await?;
-        println!("dbg/TODO origin: {:?}", contact.origin);
         assert_eq!(Contact::get_display_name(&contact), "~Bob Smith");
     }
     Ok(())
