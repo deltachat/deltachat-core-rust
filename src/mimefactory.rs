@@ -1605,7 +1605,7 @@ pub(crate) fn wrapped_base64_encode(buf: &[u8]) -> String {
         .join("\r\n")
 }
 
-async fn build_body_file(context: &Context, msg: &Message) -> Result<(PartBuilder, String)> {
+async fn build_body_file(context: &Context, msg: &Message) -> Result<PartBuilder> {
     let file_name = msg.get_filename().context("msg has no file")?;
     let suffix = Path::new(&file_name)
         .extension()
