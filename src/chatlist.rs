@@ -727,7 +727,7 @@ mod tests {
         let test_id = Contact::create(&t, "Bob Nickname", "bob@example.org").await?;
         assert_eq!(contact_id, test_id);
         let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert_eq!(chat.get_name(), "~Bob Nickname");
+        assert_eq!(chat.get_name(), "Bob Nickname");
         let chats = Chatlist::try_load(&t, 0, Some("bob@example.org"), None).await?;
         assert_eq!(chats.len(), 0); // email-addresses are searchable in contacts, not in chats
         let chats = Chatlist::try_load(&t, 0, Some("Bob Nickname"), None).await?;

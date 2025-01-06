@@ -2110,6 +2110,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_or_lookup() {
         // add some contacts, this also tests add_address_book()
+        // TODO it's unsure whether we should put a ~ in front of these.
         let t = TestContext::new().await;
         let book = concat!(
             "  Name one  \n one@eins.org \n",
@@ -2138,7 +2139,7 @@ mod tests {
         assert_eq!(contact.get_authname(), "bla foo");
         assert_eq!(contact.get_display_name(), "~Name one");
         assert_eq!(contact.get_addr(), "one@eins.org");
-        assert_eq!(contact.get_name_n_addr(), "Name one (one@eins.org)");
+        assert_eq!(contact.get_name_n_addr(), "~Name one (one@eins.org)");
 
         // modify first added contact
         let (contact_id_test, sth_modified) = Contact::add_or_lookup(
@@ -2185,7 +2186,7 @@ mod tests {
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
-        assert_eq!(contact.get_name_n_addr(), "m. serious (three@drei.sam)");
+        assert_eq!(contact.get_name_n_addr(), "~m. serious (three@drei.sam)");
         assert!(!contact.is_blocked());
 
         // manually edit name of third contact (does not changed authorized name)
@@ -2217,9 +2218,9 @@ mod tests {
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Wonderland, Alice");
-        assert_eq!(contact.get_display_name(), "Wonderland, Alice");
+        assert_eq!(contact.get_display_name(), "~Wonderland, Alice");
         assert_eq!(contact.get_addr(), "alice@w.de");
-        assert_eq!(contact.get_name_n_addr(), "Wonderland, Alice (alice@w.de)");
+        assert_eq!(contact.get_name_n_addr(), "~Wonderland, Alice (alice@w.de)");
 
         // check SELF
         let contact = Contact::get_by_id(&t, ContactId::SELF).await.unwrap();
@@ -2304,7 +2305,7 @@ mod tests {
         )
         .await?;
         let chat_id = t.get_last_msg().await.get_chat_id();
-        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Foo Flobby");
+        assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "~Foo Flobby");
         let chatlist = Chatlist::try_load(&t, 0, Some("Flobbyfoo"), None).await?;
         assert_eq!(chatlist.len(), 0);
         let chatlist = Chatlist::try_load(&t, 0, Some("Foo Flobby"), None).await?;

@@ -4677,7 +4677,7 @@ mod tests {
             {
                 "id": 10,
                 "type": 100,
-                "name": "~bob",
+                "name": "bob",
                 "archived": false,
                 "param": "",
                 "gossiped_timestamp": 0,
@@ -4975,7 +4975,7 @@ mod tests {
             // This is the name that will be sent outside.
             assert_eq!(alice_bob_contact.get_authname(), "Bob");
 
-            assert_eq!(alice_bob_contact.get_display_name(), "~robert");
+            assert_eq!(alice_bob_contact.get_display_name(), "robert");
         }
 
         // Create and promote a group.
