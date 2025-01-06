@@ -1284,7 +1284,6 @@ impl Session {
             context.on_archived_chats_maybe_noticed();
         }
         for updated_chat_id in updated_chat_ids {
-            context.emit_event(EventType::MsgsNoticed(updated_chat_id));
             chatlist_events::emit_chatlist_item_changed(context, updated_chat_id);
         }
 
