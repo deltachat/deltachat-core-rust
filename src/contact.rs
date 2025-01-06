@@ -867,35 +867,33 @@ impl Contact {
                     } else {
                         row_name
                     };
-                    let new_addr = if update_addr {
-                        addr.to_string()
-                    } else {
-                        row_addr
-                    };
-                    let new_origin = if origin > row_origin {
-                        origin
-                    } else {
-                        row_origin
-                    };
-                    let new_authname = if update_authname {
-                        name
-                    } else {
-                        row_authname
-                    };
+
                     transaction
                         .execute(
                             "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
                             (
-                                new_name.clone(),
-                                new_addr,
-                                new_origin,
-                                new_authname.clone(),
+                                new_name,
+                                if update_addr {
+                                    addr.to_string()
+                                } else {
+                                    row_addr
+                                },
+                                if origin > row_origin {
+                                    origin
+                                } else {
+                                    row_origin
+                                },
+                                if update_authname {
+                                    name.to_string()
+                                } else {
+                                    row_authname
+                                },
                                 row_id
                             ),
                         )?;
 
                     if update_name || update_authname {
-                        // The contact name is also used as the name of the 1:1 chat, which therefore also needs to be updated.
+                        // Update the contact name also if it is used as a group name.
                         // This is one of the few duplicated data, however, getting the chat list is easier this way.
                         let chat_id: Option<ChatId> = transaction.query_row(
                             "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
@@ -907,12 +905,26 @@ impl Contact {
                         ).optional()?;
 
                         if let Some(chat_id) = chat_id {
-                            let chat_name = if !new_name.is_empty() {
-                                new_name
-                            } else if !new_authname.is_empty() {
-                                format!("~{}", new_authname)
+                            let contact_id = ContactId::new(row_id);
+                            let (addr, name, authname) =
+                                transaction.query_row(
+                                    "SELECT addr, name, authname
+                                     FROM contacts
+                                     WHERE id=?",
+                                     (contact_id,),
+                                |row| {
+                                    let addr: String = row.get(0)?;
+                                    let name: String = row.get(1)?;
+                                    let authname: String = row.get(2)?;
+                                    Ok((addr, name, authname))
+                                })?;
+
+                            let chat_name = if !name.is_empty() {
+                                name
+                            } else if !authname.is_empty() {
+                                format!("~{}", authname)
                             } else {
-                                addr.to_string()
+                                addr
                             };
 
                             let count = transaction.execute(
@@ -922,7 +934,7 @@ impl Contact {
                             if count > 0 {
                                 // Chat name updated
                                 context.emit_event(EventType::ChatModified(chat_id));
-                                chatlist_events::emit_chatlist_items_changed_for_contact(context, ContactId::new(row_id));
+                                chatlist_events::emit_chatlist_items_changed_for_contact(context, contact_id);
                             }
                         }
                     }
