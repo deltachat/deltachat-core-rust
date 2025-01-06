@@ -593,7 +593,6 @@ impl Contact {
                     .get_config(Config::Selfstatus)
                     .await?
                     .unwrap_or_default();
-                contact.origin = Origin::ManuallyCreated;
             } else if contact_id == ContactId::DEVICE {
                 contact.name = stock_str::device_messages(context).await;
                 contact.addr = ContactId::DEVICE_ADDR.to_string();
