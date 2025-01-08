@@ -7718,4 +7718,50 @@ mod tests {
         assert_eq!(draft1.timestamp_sort, draft2.timestamp_sort);
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    /// Test for issue https://github.com/deltachat/deltachat-core-rust/issues/6408
+    async fn test_race_condition() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let group_editor = tcm.fiona().await;
+
+        // alice creates verified group with group editor bot
+        tcm.execute_securejoin(&alice, &bob).await;
+        let alice_chat_id = alice
+            .create_group_with_members(
+                ProtectionStatus::Protected,
+                "Group with everyone",
+                &[&group_editor],
+            )
+            .await;
+        let msg = alice.send_text(alice_chat_id, "hi").await;
+        let recv = group_editor.recv_msg(&msg).await;
+
+        // group editor bot sends a message
+        let group_editor_chat_id = recv.chat_id;
+        let webxdc = group_editor
+            .send_text(group_editor_chat_id, "<Webxdc>")
+            .await;
+        alice.recv_msg(&webxdc).await;
+
+        // Alice adds bob
+        let bob_contact = alice.add_or_lookup_contact_id(&bob).await;
+        add_contact_to_chat(&alice, alice_chat_id, bob_contact).await?;
+        let msg = alice.pop_sent_msg().await;
+
+        // group editor bot resends webxdc
+        group_editor.recv_msg(&msg).await;
+        resend_msgs(&group_editor, &[webxdc.sender_msg_id]).await?;
+        let resent = group_editor.pop_sent_msg().await;
+
+        // Bob receives webxdc before joining the group
+        bob.recv_msg(&resent).await;
+        bob.recv_msg(&msg).await;
+
+        //
+
+        Ok(())
+    }
 }
