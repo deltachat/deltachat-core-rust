@@ -35,6 +35,8 @@ use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
+use deltachat_jsonrpc::api::CommandApi;
+use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
 use num_traits::{FromPrimitive, ToPrimitive};
 use once_cell::sync::Lazy;
 use rand::Rng;
@@ -4930,105 +4932,97 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
     Box::into_raw(Box::new(emitter))
 }
 
-#[cfg(feature = "jsonrpc")]
-mod jsonrpc {
-    use deltachat_jsonrpc::api::CommandApi;
-    use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
+pub struct dc_jsonrpc_instance_t {
+    receiver: OutReceiver,
+    handle: RpcSession<CommandApi>,
+}
 
-    use super::*;
-
-    pub struct dc_jsonrpc_instance_t {
-        receiver: OutReceiver,
-        handle: RpcSession<CommandApi>,
+#[no_mangle]
+pub unsafe extern "C" fn dc_jsonrpc_init(
+    account_manager: *mut dc_accounts_t,
+) -> *mut dc_jsonrpc_instance_t {
+    if account_manager.is_null() {
+        eprintln!("ignoring careless call to dc_jsonrpc_init()");
+        return ptr::null_mut();
     }
 
-    #[no_mangle]
-    pub unsafe extern "C" fn dc_jsonrpc_init(
-        account_manager: *mut dc_accounts_t,
-    ) -> *mut dc_jsonrpc_instance_t {
-        if account_manager.is_null() {
-            eprintln!("ignoring careless call to dc_jsonrpc_init()");
-            return ptr::null_mut();
-        }
+    let account_manager = &*account_manager;
+    let cmd_api = block_on(deltachat_jsonrpc::api::CommandApi::from_arc(
+        account_manager.inner.clone(),
+    ));
 
-        let account_manager = &*account_manager;
-        let cmd_api = block_on(deltachat_jsonrpc::api::CommandApi::from_arc(
-            account_manager.inner.clone(),
-        ));
+    let (request_handle, receiver) = RpcClient::new();
+    let handle = RpcSession::new(request_handle, cmd_api);
 
-        let (request_handle, receiver) = RpcClient::new();
-        let handle = RpcSession::new(request_handle, cmd_api);
+    let instance = dc_jsonrpc_instance_t { receiver, handle };
 
-        let instance = dc_jsonrpc_instance_t { receiver, handle };
+    Box::into_raw(Box::new(instance))
+}
 
-        Box::into_raw(Box::new(instance))
+#[no_mangle]
+pub unsafe extern "C" fn dc_jsonrpc_unref(jsonrpc_instance: *mut dc_jsonrpc_instance_t) {
+    if jsonrpc_instance.is_null() {
+        eprintln!("ignoring careless call to dc_jsonrpc_unref()");
+        return;
+    }
+    drop(Box::from_raw(jsonrpc_instance));
+}
+
+fn spawn_handle_jsonrpc_request(handle: RpcSession<CommandApi>, request: String) {
+    spawn(async move {
+        handle.handle_incoming(&request).await;
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_jsonrpc_request(
+    jsonrpc_instance: *mut dc_jsonrpc_instance_t,
+    request: *const libc::c_char,
+) {
+    if jsonrpc_instance.is_null() || request.is_null() {
+        eprintln!("ignoring careless call to dc_jsonrpc_request()");
+        return;
     }
 
-    #[no_mangle]
-    pub unsafe extern "C" fn dc_jsonrpc_unref(jsonrpc_instance: *mut dc_jsonrpc_instance_t) {
-        if jsonrpc_instance.is_null() {
-            eprintln!("ignoring careless call to dc_jsonrpc_unref()");
-            return;
-        }
-        drop(Box::from_raw(jsonrpc_instance));
+    let handle = &(*jsonrpc_instance).handle;
+    let request = to_string_lossy(request);
+    spawn_handle_jsonrpc_request(handle.clone(), request);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_jsonrpc_next_response(
+    jsonrpc_instance: *mut dc_jsonrpc_instance_t,
+) -> *mut libc::c_char {
+    if jsonrpc_instance.is_null() {
+        eprintln!("ignoring careless call to dc_jsonrpc_next_response()");
+        return ptr::null_mut();
     }
+    let api = &*jsonrpc_instance;
+    block_on(api.receiver.recv())
+        .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
+        .unwrap_or(ptr::null_mut())
+}
 
-    fn spawn_handle_jsonrpc_request(handle: RpcSession<CommandApi>, request: String) {
-        spawn(async move {
-            handle.handle_incoming(&request).await;
-        });
+#[no_mangle]
+pub unsafe extern "C" fn dc_jsonrpc_blocking_call(
+    jsonrpc_instance: *mut dc_jsonrpc_instance_t,
+    input: *const libc::c_char,
+) -> *mut libc::c_char {
+    if jsonrpc_instance.is_null() {
+        eprintln!("ignoring careless call to dc_jsonrpc_blocking_call()");
+        return ptr::null_mut();
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn dc_jsonrpc_request(
-        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
-        request: *const libc::c_char,
-    ) {
-        if jsonrpc_instance.is_null() || request.is_null() {
-            eprintln!("ignoring careless call to dc_jsonrpc_request()");
-            return;
-        }
-
-        let handle = &(*jsonrpc_instance).handle;
-        let request = to_string_lossy(request);
-        spawn_handle_jsonrpc_request(handle.clone(), request);
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn dc_jsonrpc_next_response(
-        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
-    ) -> *mut libc::c_char {
-        if jsonrpc_instance.is_null() {
-            eprintln!("ignoring careless call to dc_jsonrpc_next_response()");
-            return ptr::null_mut();
-        }
-        let api = &*jsonrpc_instance;
-        block_on(api.receiver.recv())
-            .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
-            .unwrap_or(ptr::null_mut())
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn dc_jsonrpc_blocking_call(
-        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
-        input: *const libc::c_char,
-    ) -> *mut libc::c_char {
-        if jsonrpc_instance.is_null() {
-            eprintln!("ignoring careless call to dc_jsonrpc_blocking_call()");
-            return ptr::null_mut();
-        }
-        let api = &*jsonrpc_instance;
-        let input = to_string_lossy(input);
-        let res = block_on(api.handle.process_incoming(&input));
-        match res {
-            Some(message) => {
-                if let Ok(message) = serde_json::to_string(&message) {
-                    message.strdup()
-                } else {
-                    ptr::null_mut()
-                }
+    let api = &*jsonrpc_instance;
+    let input = to_string_lossy(input);
+    let res = block_on(api.handle.process_incoming(&input));
+    match res {
+        Some(message) => {
+            if let Ok(message) = serde_json::to_string(&message) {
+                message.strdup()
+            } else {
+                ptr::null_mut()
             }
-            None => ptr::null_mut(),
         }
+        None => ptr::null_mut(),
     }
 }
