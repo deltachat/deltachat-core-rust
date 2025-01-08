@@ -11,7 +11,7 @@ set -euo pipefail
 
 export DCC_RS_TARGET=debug
 export DCC_RS_DEV="$PWD"
-cargo build -p deltachat_ffi --features jsonrpc
+cargo build -p deltachat_ffi
 
 tox -c python -e py --devenv venv
 venv/bin/pip install --upgrade pip

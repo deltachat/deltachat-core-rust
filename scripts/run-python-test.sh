@@ -12,7 +12,7 @@ export DCC_RS_DEV=`pwd`
 
 cd python
 
-cargo build -p deltachat_ffi --features jsonrpc
+cargo build -p deltachat_ffi
 
 # remove and inhibit writing PYC files 
 rm -rf tests/__pycache__

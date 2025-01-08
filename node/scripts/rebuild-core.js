@@ -9,7 +9,7 @@ const buildArgs = [
   'build',
   '--release',
   '--features',
-  'vendored,jsonrpc',
+  'vendored',
   '-p',
   'deltachat_ffi'
 ]

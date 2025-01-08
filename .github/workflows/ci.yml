@@ -152,7 +152,7 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Build C library
-        run: cargo build -p deltachat_ffi --features jsonrpc
+        run: cargo build -p deltachat_ffi
 
       - name: Upload C library
         uses: actions/upload-artifact@v4
