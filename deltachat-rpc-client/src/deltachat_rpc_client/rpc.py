@@ -131,10 +131,7 @@ class Rpc:
 
     def reader_loop(self) -> None:
         try:
-            while True:
-                line = self.process.stdout.readline()
-                if not line:  # EOF
-                    break
+            while line := self.process.stdout.readline():
                 response = json.loads(line)
                 if "id" in response:
                     response_id = response["id"]
@@ -150,10 +147,7 @@ class Rpc:
     def writer_loop(self) -> None:
         """Writer loop ensuring only a single thread writes requests."""
         try:
-            while True:
-                request = self.request_queue.get()
-                if not request:
-                    break
+            while request := self.request_queue.get():
                 data = (json.dumps(request) + "\n").encode()
                 self.process.stdin.write(data)
                 self.process.stdin.flush()
