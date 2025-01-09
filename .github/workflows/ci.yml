@@ -226,7 +226,11 @@ jobs:
           # Minimum Supported Python Version = 3.7
           # This is the minimum version for which manylinux Python wheels are
           # built. Test it with minimum supported Rust version.
-          - os: ubuntu-latest
+          #
+          # Running on Ubuntu 22.04
+          # because Ubuntu 24.04 runner does not support Python 3.7:
+          # https://github.com/actions/setup-python/issues/962
+          - os: ubuntu-22.04
             python: 3.7
 
     runs-on: ${{ matrix.os }}
@@ -238,7 +242,7 @@ jobs:
       - name: Download libdeltachat.a
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.os }}-libdeltachat.a
+          name: ${{ matrix.os == 'ubuntu-22.04' && 'ubuntu-latest' || matrix.os }}-libdeltachat.a
           path: target/debug
 
       - name: Install python
@@ -278,7 +282,11 @@ jobs:
             python: pypy3.10
 
           # Minimum Supported Python Version = 3.7
-          - os: ubuntu-latest
+          #
+          # Running on Ubuntu 22.04
+          # because Ubuntu 24.04 runner does not support Python 3.7:
+          # https://github.com/actions/setup-python/issues/962
+          - os: ubuntu-22.04
             python: 3.7
 
     runs-on: ${{ matrix.os }}
