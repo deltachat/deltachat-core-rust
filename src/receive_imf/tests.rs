@@ -4216,7 +4216,7 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
+async fn test_reset_chat_on_missing_messages() -> Result<()> {
     let alice = TestContext::new_alice().await;
     let bob = TestContext::new_bob().await;
     let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
@@ -4236,6 +4236,10 @@ async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
     let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
     bob_chat_id.accept(&bob).await?;
 
+    // Bob changes the group name.
+    chat::set_chat_name(&bob, bob_chat_id, "Renamed").await?;
+    bob.pop_sent_msg().await;
+
     // bob removes a member
     let bob_contact_fiona = Contact::create(&bob, "fiona", "fiona@example.net").await?;
     remove_contact_from_chat(&bob, bob_chat_id, bob_contact_fiona).await?;
@@ -4251,6 +4255,8 @@ async fn test_recreate_contact_list_on_missing_messages() -> Result<()> {
 
     // alice only receives the second member addition
     alice.recv_msg(&add_msg).await;
+    let chat = Chat::load_from_db(&alice, chat_id).await?;
+    assert_eq!(chat.get_name(), "Renamed");
 
     // since we missed messages, a new contact list should be build
     assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 4);

@@ -2137,8 +2137,8 @@ async fn apply_group_changes(
         .filter(|t| *t <= mime_parser.timestamp_sent)
         .is_some();
     // Whether to rebuild the member list from scratch.
-    let recreate_member_list = {
-        // Always recreate membership list if SELF has been added. The older versions of DC
+    let reset_chat = {
+        // Always recreate member list etc. if SELF has been added. The older versions of DC
         // don't always set "In-Reply-To" to the latest message they sent, but to the latest
         // delivered message (so it's a race), so we have this heuristic here.
         self_added
@@ -2222,9 +2222,15 @@ async fn apply_group_changes(
             info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
         }
         better_msg.get_or_insert_with(Default::default);
-    } else if let Some(old_name) = mime_parser
+    }
+
+    if let Some(old_name) = mime_parser
         .get_header(HeaderDef::ChatGroupNameChanged)
         .map(|s| s.trim())
+        .or(match reset_chat {
+            true => Some(chat.name.as_str()),
+            false => None,
+        })
     {
         if let Some(grpname) = mime_parser
             .get_header(HeaderDef::ChatGroupName)
@@ -2248,10 +2254,17 @@ async fn apply_group_changes(
                     .await?;
                 send_event_chat_modified = true;
             }
-
-            better_msg = Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
+            if mime_parser
+                .get_header(HeaderDef::ChatGroupNameChanged)
+                .is_some()
+            {
+                better_msg.get_or_insert(
+                    stock_str::msg_grp_name(context, old_name, grpname, from_id).await,
+                );
+            }
         }
-    } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
+    }
+    if let (Some(value), None) = (mime_parser.get_header(HeaderDef::ChatContent), &better_msg) {
         if value == "group-avatar-changed" {
             if let Some(avatar_action) = &mime_parser.group_avatar {
                 // this is just an explicit message containing the group-avatar,
@@ -2280,7 +2293,7 @@ async fn apply_group_changes(
         let mut added_ids = HashSet::<ContactId>::new();
         let mut removed_ids = HashSet::<ContactId>::new();
 
-        if !recreate_member_list {
+        if !reset_chat {
             if sync_member_list {
                 added_ids = new_members.difference(&chat_contacts).copied().collect();
             } else if let Some(added_id) = added_id {
@@ -2303,7 +2316,7 @@ async fn apply_group_changes(
         if let Some(removed_id) = removed_id {
             new_members.remove(&removed_id);
         }
-        if recreate_member_list {
+        if reset_chat {
             if self_added {
                 // ... then `better_msg` is already set.
             } else if chat.blocked == Blocked::Request || !chat_contacts.contains(&ContactId::SELF)
@@ -2364,7 +2377,7 @@ async fn apply_group_changes(
         }
         if sync_member_list {
             let mut ts = mime_parser.timestamp_sent;
-            if recreate_member_list {
+            if reset_chat {
                 // Reject all older membership changes. See `allow_member_list_changes` to know how
                 // this works.
                 ts += timestamp_sent_tolerance;
