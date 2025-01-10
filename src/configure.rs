@@ -61,10 +61,7 @@ macro_rules! progress {
 impl Context {
     /// Checks if the context is already configured.
     pub async fn is_configured(&self) -> Result<bool> {
-        self.sql
-            .get_raw_config_bool("configured")
-            .await
-            .map_err(Into::into)
+        self.sql.get_raw_config_bool("configured").await
     }
 
     /// Configures this account with the currently set parameters.

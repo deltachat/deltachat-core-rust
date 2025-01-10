@@ -417,7 +417,6 @@ async fn get_iroh_gossip_peers(ctx: &Context, msg_id: MsgId) -> Result<Vec<NodeA
                     ))
                 })
                 .collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(Into::into)
             },
         )
         .await

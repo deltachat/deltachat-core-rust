@@ -1111,7 +1111,9 @@ impl Message {
 
     /// Updates message state from the vCard attachment.
     pub(crate) async fn try_set_vcard(&mut self, context: &Context, path: &Path) -> Result<()> {
-        let vcard = fs::read(path).await.context("Could not read {path}")?;
+        let vcard = fs::read(path)
+            .await
+            .with_context(|| format!("Could not read {path:?}"))?;
         if let Some(summary) = get_vcard_summary(&vcard) {
             self.param.set(Param::Summary1, summary);
         } else {

@@ -1857,7 +1857,6 @@ impl Chat {
             profile_image: self
                 .get_profile_image(context)
                 .await?
-                .map(Into::into)
                 .unwrap_or_else(std::path::PathBuf::new),
             draft,
             is_muted: self.is_muted(),
@@ -2571,7 +2570,6 @@ impl ChatIdBlocked {
                 },
             )
             .await
-            .map_err(Into::into)
     }
 
     /// Returns the chat for the 1:1 chat with this contact.
