@@ -1589,10 +1589,8 @@ impl Session {
         };
 
         if self.can_metadata() && self.can_push() {
-            let device_token_changed = context
-                .get_config(Config::DeviceToken)
-                .await?
-                .map_or(true, |config_token| device_token != config_token);
+            let device_token_changed =
+                context.get_config(Config::DeviceToken).await?.as_ref() != Some(&device_token);
 
             if device_token_changed {
                 let folder = context
