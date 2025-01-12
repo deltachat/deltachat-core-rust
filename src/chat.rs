@@ -3,6 +3,7 @@
 use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::marker::Sync;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -1646,31 +1647,63 @@ impl Chat {
     ///
     /// Otherwise returns a reason useful for logging.
     pub(crate) async fn why_cant_send(&self, context: &Context) -> Result<Option<CantSendReason>> {
-        use CantSendReason::*;
+        self.why_cant_send_ex(context, &|_| false).await
+    }
 
+    pub(crate) async fn why_cant_send_ex(
+        &self,
+        context: &Context,
+        skip_fn: &(dyn Send + Sync + Fn(&CantSendReason) -> bool),
+    ) -> Result<Option<CantSendReason>> {
+        use CantSendReason::*;
         // NB: Don't forget to update Chatlist::try_load() when changing this function!
-        let reason = if self.id.is_special() {
-            Some(SpecialChat)
-        } else if self.is_device_talk() {
-            Some(DeviceChat)
-        } else if self.is_contact_request() {
-            Some(ContactRequest)
-        } else if self.is_protection_broken() {
-            Some(ProtectionBroken)
-        } else if self.is_mailing_list() && self.get_mailinglist_addr().is_none_or_empty() {
-            Some(ReadOnlyMailingList)
-        } else if !self.is_self_in_chat(context).await? {
-            Some(NotAMember)
-        } else if self
-            .check_securejoin_wait(context, constants::SECUREJOIN_WAIT_TIMEOUT)
-            .await?
-            > 0
+
+        if self.id.is_special() {
+            let reason = SpecialChat;
+            if !skip_fn(&reason) {
+                return Ok(Some(reason));
+            }
+        }
+        if self.is_device_talk() {
+            let reason = DeviceChat;
+            if !skip_fn(&reason) {
+                return Ok(Some(reason));
+            }
+        }
+        if self.is_contact_request() {
+            let reason = ContactRequest;
+            if !skip_fn(&reason) {
+                return Ok(Some(reason));
+            }
+        }
+        if self.is_protection_broken() {
+            let reason = ProtectionBroken;
+            if !skip_fn(&reason) {
+                return Ok(Some(reason));
+            }
+        }
+        if self.is_mailing_list() && self.get_mailinglist_addr().is_none_or_empty() {
+            let reason = ReadOnlyMailingList;
+            if !skip_fn(&reason) {
+                return Ok(Some(reason));
+            }
+        }
+
+        // Do potentially slow checks last and after calls to `skip_fn` which should be fast.
+        let reason = NotAMember;
+        if !skip_fn(&reason) && !self.is_self_in_chat(context).await? {
+            return Ok(Some(reason));
+        }
+        let reason = SecurejoinWait;
+        if !skip_fn(&reason)
+            && self
+                .check_securejoin_wait(context, constants::SECUREJOIN_WAIT_TIMEOUT)
+                .await?
+                > 0
         {
-            Some(SecurejoinWait)
-        } else {
-            None
-        };
-        Ok(reason)
+            return Ok(Some(reason));
+        }
+        Ok(None)
     }
 
     /// Returns true if can send to the chat.
@@ -2848,27 +2881,22 @@ async fn prepare_send_msg(
 ) -> Result<Vec<i64>> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
 
-    // Check if the chat can be sent to,
-    // but always allow to send "Member removed" messages
-    // so we can leave the group.
-    //
-    // Necessary checks should be made anyway before removing contact
-    // from the chat.
-    if msg.param.get_cmd() != SystemMessage::MemberRemovedFromGroup {
-        if let Some(reason) = chat.why_cant_send(context).await? {
-            if matches!(
-                reason,
-                CantSendReason::ProtectionBroken
-                    | CantSendReason::ContactRequest
-                    | CantSendReason::SecurejoinWait
-            ) && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
-            {
-                // Send out the message, the securejoin message is supposed to repair the verification.
-                // If the chat is a contact request, let the user accept it later.
-            } else {
-                bail!("cannot send to {chat_id}: {reason}");
-            }
+    let skip_fn = |reason: &CantSendReason| match reason {
+        CantSendReason::ProtectionBroken
+        | CantSendReason::ContactRequest
+        | CantSendReason::SecurejoinWait => {
+            // Allow securejoin messages, they are supposed to repair the verification.
+            // If the chat is a contact request, let the user accept it later.
+            msg.param.get_cmd() == SystemMessage::SecurejoinMessage
         }
+        // Allow to send "Member removed" messages so we can leave the group.
+        // Necessary checks should be made anyway before removing contact
+        // from the chat.
+        CantSendReason::NotAMember => msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup,
+        _ => false,
+    };
+    if let Some(reason) = chat.why_cant_send_ex(context, &skip_fn).await? {
+        bail!("Cannot send to {chat_id}: {reason}");
     }
 
     // Check a quote reply is not leaking data from other chats.
