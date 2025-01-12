@@ -2328,7 +2328,40 @@ async fn apply_group_changes(
     }
 
     if is_from_in_chat {
-        if let Some(ref chat_group_member_timestamps) = mime_parser.chat_group_member_timestamps() {
+        if chat.member_list_is_stale(context).await? {
+            info!(context, "Member list is stale.");
+            let mut new_members: HashSet<ContactId> = HashSet::from_iter(to_ids.iter().copied());
+            new_members.insert(ContactId::SELF);
+            if !from_id.is_special() {
+                new_members.insert(from_id);
+            }
+
+            context
+                .sql
+                .transaction(|transaction| {
+                    // Remove all contacts and tombstones.
+                    transaction.execute(
+                        "DELETE FROM chats_contacts
+                         WHERE chat_id=?",
+                        (chat_id,),
+                    )?;
+
+                    // Insert contacts with default timestamps of 0.
+                    let mut statement = transaction.prepare(
+                        "INSERT INTO chats_contacts (chat_id, contact_id)
+                         VALUES                     (?,       ?)",
+                    )?;
+                    for contact_id in &new_members {
+                        statement.execute((chat_id, contact_id))?;
+                    }
+
+                    Ok(())
+                })
+                .await?;
+            send_event_chat_modified = true;
+        } else if let Some(ref chat_group_member_timestamps) =
+            mime_parser.chat_group_member_timestamps()
+        {
             send_event_chat_modified |= update_chats_contacts_timestamps(
                 context,
                 chat_id,
@@ -2378,6 +2411,14 @@ async fn apply_group_changes(
                 send_event_chat_modified = true;
             }
         }
+
+        chat_id
+            .update_timestamp(
+                context,
+                Param::MemberListTimestamp,
+                mime_parser.timestamp_sent,
+            )
+            .await?;
     }
 
     let new_chat_contacts = HashSet::<ContactId>::from_iter(

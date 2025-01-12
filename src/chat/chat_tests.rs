@@ -2,6 +2,7 @@ use super::*;
 use crate::chatlist::get_archived_cnt;
 use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
 use crate::headerdef::HeaderDef;
+use crate::imex::{has_backup, imex, ImexMode};
 use crate::message::{delete_msgs, MessengerMessage};
 use crate::receive_imf::receive_imf;
 use crate::test_utils::{sync, TestContext, TestContextManager, TimeShiftFalsePositiveNote};
@@ -3362,6 +3363,163 @@ async fn unpromoted_group_no_tombstones() -> Result<()> {
     let bob_chat_id = bob_msg.chat_id;
     assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 2);
     assert_eq!(get_past_chat_contacts(bob, bob_chat_id).await?.len(), 0);
+
+    Ok(())
+}
+
+/// Test that past members expire after 60 days.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_expire_past_members_after_60_days() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+
+    let alice = &tcm.alice().await;
+    let fiona_addr = "fiona@example.net";
+    let alice_fiona_contact_id = Contact::create(alice, "Fiona", fiona_addr).await?;
+
+    let alice_chat_id =
+        create_group_chat(alice, ProtectionStatus::Unprotected, "Group chat").await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+    alice
+        .send_text(alice_chat_id, "Hi! I created a group.")
+        .await;
+    remove_contact_from_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+    assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 1);
+
+    SystemTime::shift(Duration::from_secs(60 * 24 * 60 * 60 + 1));
+    assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 0);
+
+    let bob = &tcm.bob().await;
+    let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+    let alice_bob_contact_id = Contact::create(alice, "Bob", &bob_addr).await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+
+    let add_message = alice.pop_sent_msg().await;
+    assert_eq!(add_message.payload.contains(fiona_addr), false);
+    let bob_add_message = bob.recv_msg(&add_message).await;
+    let bob_chat_id = bob_add_message.chat_id;
+    assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 2);
+    assert_eq!(get_past_chat_contacts(bob, bob_chat_id).await?.len(), 0);
+
+    Ok(())
+}
+
+/// Test the case when Alice restores a backup older than 60 days
+/// with outdated member list.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_restore_backup_after_60_days() -> Result<()> {
+    let backup_dir = tempfile::tempdir()?;
+
+    let mut tcm = TestContextManager::new();
+
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let fiona = &tcm.fiona().await;
+
+    let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+    let alice_bob_contact_id = Contact::create(alice, "Bob", &bob_addr).await?;
+
+    let charlie_addr = "charlie@example.com";
+    let alice_charlie_contact_id = Contact::create(alice, "Charlie", charlie_addr).await?;
+
+    let alice_chat_id =
+        create_group_chat(alice, ProtectionStatus::Unprotected, "Group chat").await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_charlie_contact_id).await?;
+
+    let alice_sent_promote = alice
+        .send_text(alice_chat_id, "Hi! I created a group.")
+        .await;
+    let bob_rcvd_promote = bob.recv_msg(&alice_sent_promote).await;
+    let bob_chat_id = bob_rcvd_promote.chat_id;
+    bob_chat_id.accept(bob).await?;
+
+    // Alice exports a backup.
+    imex(alice, ImexMode::ExportBackup, backup_dir.path(), None).await?;
+
+    remove_contact_from_chat(alice, alice_chat_id, alice_charlie_contact_id).await?;
+    assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 2);
+    assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 1);
+
+    let remove_message = alice.pop_sent_msg().await;
+    assert_eq!(remove_message.payload.contains(charlie_addr), true);
+    bob.recv_msg(&remove_message).await;
+
+    // 60 days pass.
+    SystemTime::shift(Duration::from_secs(60 * 24 * 60 * 60 + 1));
+
+    assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 0);
+
+    // Bob adds Fiona to the chat.
+    let fiona_addr = fiona.get_config(Config::Addr).await?.unwrap();
+    let bob_fiona_contact_id = Contact::create(bob, "Fiona", &fiona_addr).await?;
+    add_contact_to_chat(bob, bob_chat_id, bob_fiona_contact_id).await?;
+
+    let add_message = bob.pop_sent_msg().await;
+    alice.recv_msg(&add_message).await;
+    let fiona_add_message = fiona.recv_msg(&add_message).await;
+    let fiona_chat_id = fiona_add_message.chat_id;
+    fiona_chat_id.accept(fiona).await?;
+
+    // Fiona does not learn about Charlie,
+    // even from `Chat-Group-Past-Members`, because tombstone has expired.
+    assert_eq!(get_chat_contacts(fiona, fiona_chat_id).await?.len(), 3);
+    assert_eq!(get_past_chat_contacts(fiona, fiona_chat_id).await?.len(), 0);
+
+    // Fiona sends a message
+    // so chat is not stale for Bob again.
+    // Alice also receives the message,
+    // but will import a backup immediately afterwards,
+    // so it does not matter.
+    let fiona_sent_message = fiona.send_text(fiona_chat_id, "Hi!").await;
+    alice.recv_msg(&fiona_sent_message).await;
+    bob.recv_msg(&fiona_sent_message).await;
+
+    tcm.section("Alice imports old backup");
+    let alice = &tcm.unconfigured().await;
+    let backup = has_backup(alice, backup_dir.path()).await?;
+    imex(alice, ImexMode::ImportBackup, backup.as_ref(), None).await?;
+
+    // Alice thinks Charlie is in the chat, but does not know about Fiona.
+    assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 3);
+    assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 0);
+
+    assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 3);
+    assert_eq!(get_past_chat_contacts(bob, bob_chat_id).await?.len(), 0);
+
+    assert_eq!(get_chat_contacts(fiona, fiona_chat_id).await?.len(), 3);
+    assert_eq!(get_past_chat_contacts(fiona, fiona_chat_id).await?.len(), 0);
+
+    // Bob sends a text message to the chat, without a tombstone for Charlie.
+    // Alice learns about Fiona.
+    let bob_sent_text = bob.send_text(bob_chat_id, "Message.").await;
+
+    tcm.section("Alice sends a message to stale chat");
+    let alice_sent_text = alice
+        .send_text(alice_chat_id, "Hi! I just restored a backup.")
+        .await;
+
+    tcm.section("Alice sent a message to stale chat");
+    alice.recv_msg(&bob_sent_text).await;
+    fiona.recv_msg(&bob_sent_text).await;
+
+    bob.recv_msg(&alice_sent_text).await;
+    fiona.recv_msg(&alice_sent_text).await;
+
+    // Alice should have learned about Charlie not being part of the group
+    // by receiving Bob's message.
+    assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 3);
+    assert!(!is_contact_in_chat(alice, alice_chat_id, alice_charlie_contact_id).await?);
+    assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 0);
+
+    // This should not add or restore Charlie for Bob and Fiona,
+    // Charlie is not part of the chat.
+    assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 3);
+    assert_eq!(get_past_chat_contacts(bob, bob_chat_id).await?.len(), 0);
+    let bob_charlie_contact_id = Contact::create(bob, "Charlie", charlie_addr).await?;
+    assert!(!is_contact_in_chat(bob, bob_chat_id, bob_charlie_contact_id).await?);
+
+    assert_eq!(get_chat_contacts(fiona, fiona_chat_id).await?.len(), 3);
+    assert_eq!(get_past_chat_contacts(fiona, fiona_chat_id).await?.len(), 0);
 
     Ok(())
 }
