@@ -155,6 +155,7 @@ fn new_address_with_name(name: &str, address: String) -> Address {
 
 impl MimeFactory {
     pub async fn from_msg(context: &Context, msg: Message) -> Result<MimeFactory> {
+        let now = time();
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
         let attach_profile_data = Self::should_attach_profile_data(&msg);
         let undisclosed_recipients = chat.typ == Chattype::Broadcast;
@@ -240,7 +241,7 @@ impl MimeFactory {
                                     }
                                 }
                                 recipient_ids.insert(id);
-                            } else {
+                            } else if remove_timestamp.saturating_add(60 * 24 * 3600) > now {
                                 // Row is a tombstone,
                                 // member is not actually part of the group.
                                 if !recipients_contain_addr(&past_members, &addr) {
@@ -621,7 +622,13 @@ impl MimeFactory {
             );
         }
 
-        if !self.member_timestamps.is_empty() {
+        let chat_memberlist_is_stale = if let Loaded::Message { chat, .. } = &self.loaded {
+            chat.member_list_is_stale(context).await?
+        } else {
+            false
+        };
+
+        if !self.member_timestamps.is_empty() && !chat_memberlist_is_stale {
             headers.push(
                 Header::new_with_value(
                     "Chat-Group-Member-Timestamps".into(),

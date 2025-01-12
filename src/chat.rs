@@ -24,6 +24,7 @@ use crate::config::Config;
 use crate::constants::{
     self, Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
     DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
+    TIMESTAMP_SENT_TOLERANCE,
 };
 use crate::contact::{self, Contact, ContactId, Origin};
 use crate::context::Context;
@@ -1962,6 +1963,34 @@ impl Chat {
         }
     }
 
+    /// Returns chat member list timestamp.
+    pub(crate) async fn member_list_timestamp(&self, context: &Context) -> Result<i64> {
+        if let Some(member_list_timestamp) = self.param.get_i64(Param::MemberListTimestamp) {
+            Ok(member_list_timestamp)
+        } else {
+            let creation_timestamp: i64 = context
+                .sql
+                .query_get_value("SELECT created_timestamp FROM chats WHERE id=?", (self.id,))
+                .await
+                .context("SQL error querying created_timestamp")?
+                .context("Chat not found")?;
+            Ok(creation_timestamp)
+        }
+    }
+
+    /// Returns true if member list is stale,
+    /// i.e. has not been updated for 60 days.
+    ///
+    /// This is used primarily to detect the case
+    /// where the user just restored an old backup.
+    pub(crate) async fn member_list_is_stale(&self, context: &Context) -> Result<bool> {
+        let now = time();
+        let member_list_ts = self.member_list_timestamp(context).await?;
+        let is_stale = now.saturating_add(TIMESTAMP_SENT_TOLERANCE)
+            >= member_list_ts.saturating_add(60 * 24 * 3600);
+        Ok(is_stale)
+    }
+
     /// Adds missing values to the msg object,
     /// writes the record to the database and returns its msg_id.
     ///
@@ -3468,6 +3497,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
 
 /// Returns a vector of contact IDs for given chat ID that are no longer part of the group.
 pub async fn get_past_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<ContactId>> {
+    let now = time();
     let list = context
         .sql
         .query_map(
@@ -3475,9 +3505,11 @@ pub async fn get_past_chat_contacts(context: &Context, chat_id: ChatId) -> Resul
              FROM chats_contacts cc
              LEFT JOIN contacts c
                   ON c.id=cc.contact_id
-             WHERE cc.chat_id=? AND cc.add_timestamp < cc.remove_timestamp
+             WHERE cc.chat_id=?
+             AND cc.add_timestamp < cc.remove_timestamp
+             AND ? < cc.remove_timestamp
              ORDER BY c.id=1, c.last_seen DESC, c.id DESC",
-            (chat_id,),
+            (chat_id, now.saturating_sub(60 * 24 * 3600)),
             |row| row.get::<_, ContactId>(0),
             |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
