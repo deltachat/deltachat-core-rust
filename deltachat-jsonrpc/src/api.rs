@@ -2322,6 +2322,7 @@ impl CommandApi {
     // the better version should support:
     // - changing viewtype to enable/disable compression
     // - keeping same message id as long as attachment does not change for webxdc messages
+    /// @deprecated use [Self::send_draft] instead
     async fn misc_set_draft(
         &self,
         account_id: u32,
@@ -2363,6 +2364,7 @@ impl CommandApi {
     }
 
     // send the chat's current set draft
+    /// @deprecated use [Self::send_draft] instead
     async fn misc_send_draft(&self, account_id: u32, chat_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
