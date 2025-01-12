@@ -7808,4 +7808,36 @@ mod tests {
 
         Ok(())
     }
+
+    /// Test that tombstones for past members are added to chats_contacts table
+    /// even if the row did not exist before.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_past_members() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = &tcm.alice().await;
+        let alice_fiona_contact_id = Contact::create(alice, "Fiona", "fiona@example.net").await?;
+
+        let alice_chat_id =
+            create_group_chat(alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+        alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        remove_contact_from_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+        assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 1);
+
+        let bob = &tcm.bob().await;
+        let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+        let alice_bob_contact_id = Contact::create(alice, "Bob", &bob_addr).await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+
+        let add_message = alice.pop_sent_msg().await;
+        let bob_add_message = bob.recv_msg(&add_message).await;
+        let bob_chat_id = bob_add_message.chat_id;
+        assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 2);
+        assert_eq!(get_past_chat_contacts(bob, bob_chat_id).await?.len(), 1);
+
+        Ok(())
+    }
 }

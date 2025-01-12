@@ -2161,10 +2161,12 @@ async fn update_chats_contacts_timestamps(
             }
 
             let mut remove_statement = transaction.prepare(
-                "UPDATE chats_contacts
-                 SET remove_timestamp=?1
-                 WHERE chat_id=?2 AND contact_id=?3
-                 AND ?1>remove_timestamp AND ?1>add_timestamp",
+                "INSERT INTO chats_contacts (chat_id, contact_id, remove_timestamp)
+                 VALUES                     (?1,      ?2,         ?3)
+                 ON CONFLICT (chat_id, contact_id)
+                 DO
+                   UPDATE SET remove_timestamp=?3
+                   WHERE ?3>remove_timestamp AND ?3>add_timestamp",
             )?;
 
             for (contact_id, ts) in iter::zip(
@@ -2174,7 +2176,7 @@ async fn update_chats_contacts_timestamps(
                 // It could be that member was already removed,
                 // but updated removal timestamp
                 // is also a modification worth notifying about.
-                modified |= remove_statement.execute((ts, chat_id, contact_id))? > 0;
+                modified |= remove_statement.execute((chat_id, contact_id, ts))? > 0;
             }
 
             Ok(())
