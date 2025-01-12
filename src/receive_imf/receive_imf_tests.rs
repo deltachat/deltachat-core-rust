@@ -4328,35 +4328,50 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
 async fn test_mua_cant_remove() -> Result<()> {
     let alice = TestContext::new_alice().await;
 
+    let now = time();
+
     // Alice creates chat with 3 contacts
+    let date = chrono::DateTime::<chrono::Utc>::from_timestamp(now - 2000, 0)
+        .unwrap()
+        .to_rfc2822();
     let msg = receive_imf(
         &alice,
-        b"Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
-            From: alice@example.org\r\n\
-            To: <bob@example.net>, <claire@example.org>, <fiona@example.org> \r\n\
-            Date: Mon, 12 Dec 2022 14:30:39 +0000\r\n\
-            Message-ID: <Mr.alices_original_mail@example.org>\r\n\
-            Chat-Version: 1.0\r\n\
-            \r\n\
-            tst\r\n",
+        format!(
+            "Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
+             From: alice@example.org\r\n\
+             To: <bob@example.net>, <claire@example.org>, <fiona@example.org> \r\n\
+            Date: {date}\r\n\
+             Message-ID: <Mr.alices_original_mail@example.org>\r\n\
+             Chat-Version: 1.0\r\n\
+             \r\n\
+            tst\r\n"
+        )
+        .as_bytes(),
         false,
     )
     .await?
     .unwrap();
     let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
     assert_eq!(alice_chat.typ, Chattype::Group);
+    assert_eq!(alice_chat.member_list_is_stale(&alice).await?, false);
 
     // Bob uses a classical MUA to answer, removing a recipient.
+    let date = chrono::DateTime::<chrono::Utc>::from_timestamp(now - 1000, 0)
+        .unwrap()
+        .to_rfc2822();
     let bob_removes = receive_imf(
         &alice,
-        b"Subject: Re: Message from alice\r\n\
-            From: <bob@example.net>\r\n\
-            To: <alice@example.org>, <claire@example.org>\r\n\
-            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
-            Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
-            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
-            \r\n\
-            Hi back!\r\n",
+        format!(
+            "Subject: Re: Message from alice\r\n\
+             From: <bob@example.net>\r\n\
+             To: <alice@example.org>, <claire@example.org>\r\n\
+            Date: {date}\r\n\
+             Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
+             In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+             \r\n\
+            Hi back!\r\n"
+        )
+        .as_bytes(),
         false,
     )
     .await?
@@ -4364,22 +4379,29 @@ async fn test_mua_cant_remove() -> Result<()> {
     assert_eq!(bob_removes.chat_id, alice_chat.id);
     let group_chat = Chat::load_from_db(&alice, bob_removes.chat_id).await?;
     assert_eq!(group_chat.typ, Chattype::Group);
+    assert_eq!(group_chat.member_list_is_stale(&alice).await?, false);
     assert_eq!(
         chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
         4
     );
 
     // But if the parent message is missing, the message must goto a new ad-hoc group.
+    let date = chrono::DateTime::<chrono::Utc>::from_timestamp(now, 0)
+        .unwrap()
+        .to_rfc2822();
     let bob_removes = receive_imf(
         &alice,
-        b"Subject: Re: Message from alice\r\n\
-            From: <bob@example.net>\r\n\
-            To: <alice@example.org>, <claire@example.org>\r\n\
-            Date: Mon, 12 Dec 2022 14:32:40 +0000\r\n\
-            Message-ID: <bobs_answer_to_two_recipients_1@example.net>\r\n\
-            In-Reply-To: <Mr.missing@example.org>\r\n\
-            \r\n\
-            Hi back!\r\n",
+        format!(
+            "Subject: Re: Message from alice\r\n\
+             From: <bob@example.net>\r\n\
+             To: <alice@example.org>, <claire@example.org>\r\n\
+            Date: {date}\r\n\
+             Message-ID: <bobs_answer_to_two_recipients_1@example.net>\r\n\
+             In-Reply-To: <Mr.missing@example.org>\r\n\
+             \r\n\
+            Hi back!\r\n"
+        )
+        .as_bytes(),
         false,
     )
     .await?
@@ -4398,39 +4420,51 @@ async fn test_mua_cant_remove() -> Result<()> {
 async fn test_mua_can_add() -> Result<()> {
     let alice = TestContext::new_alice().await;
 
+    let now = time();
+
     // Alice creates chat with 3 contacts
+    let date = chrono::DateTime::<chrono::Utc>::from_timestamp(now - 2000, 0)
+        .unwrap()
+        .to_rfc2822();
     let msg = receive_imf(
         &alice,
-        b"Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
-            From: alice@example.org\r\n\
-            To: <bob@example.net>, <claire@example.org>, <fiona@example.org> \r\n\
-            Date: Mon, 12 Dec 2022 14:30:39 +0000\r\n\
-            Message-ID: <Mr.alices_original_mail@example.org>\r\n\
-            Chat-Version: 1.0\r\n\
-            \r\n\
-            Hi!\r\n",
+        format!(
+            "Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
+             From: alice@example.org\r\n\
+             To: <bob@example.net>, <claire@example.org>, <fiona@example.org> \r\n\
+            Date: {date}\r\n\
+             Message-ID: <Mr.alices_original_mail@example.org>\r\n\
+             Chat-Version: 1.0\r\n\
+             \r\n\
+            Hi!\r\n"
+        )
+        .as_bytes(),
         false,
     )
     .await?
     .unwrap();
     let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
     assert_eq!(alice_chat.typ, Chattype::Group);
+    assert_eq!(alice_chat.member_list_is_stale(&alice).await?, false);
 
     // Bob uses a classical MUA to answer, adding a recipient.
+    let date = chrono::DateTime::<chrono::Utc>::from_timestamp(now - 1000, 0)
+        .unwrap()
+        .to_rfc2822();
     let bob_adds = receive_imf(
-        &alice,
-        b"Subject: Re: Message from alice\r\n\
-            From: <bob@example.net>\r\n\
-            To: <alice@example.org>, <claire@example.org>, <fiona@example.org>, <greg@example.host>\r\n\
-            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
-            Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
-            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
-            \r\n\
-            Hi back!\r\n",
-        false,
-    )
-    .await?
-    .unwrap();
+         &alice,
+        format!("Subject: Re: Message from alice\r\n\
+             From: <bob@example.net>\r\n\
+             To: <alice@example.org>, <claire@example.org>, <fiona@example.org>, <greg@example.host>\r\n\
+            Date: {date}\r\n\
+             Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
+             In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+             \r\n\
+            Hi back!\r\n").as_bytes(),
+         false,
+     )
+     .await?
+     .unwrap();
 
     let group_chat = Chat::load_from_db(&alice, bob_adds.chat_id).await?;
     assert_eq!(group_chat.typ, Chattype::Group);
