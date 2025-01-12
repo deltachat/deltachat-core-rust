@@ -288,7 +288,8 @@ async fn check_that_transition_worked(
 
         let info_msg = get_last_info_msg(bob, *group).await.unwrap();
         let expected_text =
-            stock_str::aeap_addr_changed(bob, name, old_alice_addr, new_alice_addr).await;
+            stock_str::aeap_addr_changed(bob, &format!("{name}"), old_alice_addr, new_alice_addr)
+                .await;
         assert_eq!(info_msg.text, expected_text);
         assert_eq!(info_msg.from_id, ContactId::INFO);
 

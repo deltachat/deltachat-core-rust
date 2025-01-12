@@ -822,7 +822,7 @@ pub(crate) async fn secure_join_started(
         translated(context, StockMessage::SecureJoinStarted)
             .await
             .replace1(&contact.get_name_n_addr())
-            .replace2(contact.get_display_name())
+            .replace2(&contact.get_display_name())
     } else {
         format!("secure_join_started: unknown contact {inviter_contact_id}")
     }

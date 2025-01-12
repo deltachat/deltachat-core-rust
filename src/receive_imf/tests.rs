@@ -165,7 +165,7 @@ async fn test_adhoc_group_show_accepted_contact_accepted() {
     chat_id.accept(&t).await.unwrap();
     let chat = chat::Chat::load_from_db(&t, chat_id).await.unwrap();
     assert_eq!(chat.typ, Chattype::Single);
-    assert_eq!(chat.name, "Bob");
+    assert_eq!(chat.name, "~Bob");
     assert_eq!(chat::get_chat_contacts(&t, chat_id).await.unwrap().len(), 1);
     assert_eq!(chat::get_chat_msgs(&t, chat_id).await.unwrap().len(), 1);
 
@@ -584,7 +584,7 @@ async fn test_escaped_recipients() {
     .unwrap();
     let contact = Contact::get_by_id(&t, carl_contact_id).await.unwrap();
     assert_eq!(contact.get_name(), "");
-    assert_eq!(contact.get_display_name(), "h2");
+    assert_eq!(contact.get_display_name(), "~h2");
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
     let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap().unwrap())
@@ -632,7 +632,7 @@ async fn test_cc_to_contact() {
     .unwrap();
     let contact = Contact::get_by_id(&t, carl_contact_id).await.unwrap();
     assert_eq!(contact.get_name(), "");
-    assert_eq!(contact.get_display_name(), "Carl");
+    assert_eq!(contact.get_display_name(), "~Carl");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1012,8 +1012,8 @@ async fn test_github_mailing_list() -> Result<()> {
     let contact2 = Contact::get_by_id(&t.ctx, msg2.from_id).await?;
     assert_eq!(contact2.get_addr(), "notifications@github.com");
 
-    assert_eq!(msg1.get_override_sender_name().unwrap(), "Max Mustermann");
-    assert_eq!(msg2.get_override_sender_name().unwrap(), "Github");
+    assert_eq!(msg1.get_override_sender_name().unwrap(), "~Max Mustermann");
+    assert_eq!(msg2.get_override_sender_name().unwrap(), "~Github");
     Ok(())
 }
 
@@ -2078,7 +2078,7 @@ async fn check_alias_reply(from_dc: bool, chat_request: bool, group_request: boo
     }
     assert_eq!(
         answer.get_override_sender_name().unwrap(),
-        "bob@example.net"
+        "~bob@example.net"
     ); // Bob is not part of the group, so override-sender-name should be set
 
     // Check that Claire also gets the message in the same chat.
@@ -2090,7 +2090,7 @@ async fn check_alias_reply(from_dc: bool, chat_request: bool, group_request: boo
     assert_eq!(answer.chat_id, request.chat_id);
     assert_eq!(
         answer.get_override_sender_name().unwrap(),
-        "bob@example.net"
+        "~bob@example.net"
     );
 }
 
@@ -2314,12 +2314,12 @@ Second signature";
     receive_imf(&alice, first_message, false).await?;
     let contact = Contact::get_by_id(&alice, bob_contact_id).await?;
     assert_eq!(contact.get_status(), "First signature");
-    assert_eq!(contact.get_display_name(), "Bob1");
+    assert_eq!(contact.get_display_name(), "~Bob1");
 
     receive_imf(&alice, second_message, false).await?;
     let contact = Contact::get_by_id(&alice, bob_contact_id).await?;
     assert_eq!(contact.get_status(), "Second signature");
-    assert_eq!(contact.get_display_name(), "Bob2");
+    assert_eq!(contact.get_display_name(), "~Bob2");
 
     // Duplicate message, should be ignored
     receive_imf(&alice, first_message, false).await?;
@@ -2327,7 +2327,7 @@ Second signature";
     // No change because last message is duplicate of the first.
     let contact = Contact::get_by_id(&alice, bob_contact_id).await?;
     assert_eq!(contact.get_status(), "Second signature");
-    assert_eq!(contact.get_display_name(), "Bob2");
+    assert_eq!(contact.get_display_name(), "~Bob2");
 
     Ok(())
 }
@@ -5183,7 +5183,7 @@ async fn test_list_from() -> Result<()> {
     let raw = include_bytes!("../../test-data/message/list-from.eml");
     let received = receive_imf(t, raw, false).await?.unwrap();
     let msg = Message::load_from_db(t, *received.msg_ids.last().unwrap()).await?;
-    assert_eq!(msg.get_override_sender_name().unwrap(), "ÖAMTC");
+    assert_eq!(msg.get_override_sender_name().unwrap(), "~ÖAMTC");
     let sender_contact = Contact::get_by_id(t, msg.from_id).await?;
     assert_eq!(
         sender_contact.get_display_name(),

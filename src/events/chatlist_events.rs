@@ -241,7 +241,7 @@ mod test_chatlist_events {
             .await;
         bob.recv_msg(&sent_msg).await;
         let alice_on_bob = bob.add_or_lookup_contact(&alice).await;
-        assert!(alice_on_bob.get_display_name() == "Alice");
+        assert_eq!(alice_on_bob.get_display_name(), "~Alice");
 
         wait_for_chatlist_all_items(&bob).await;
 

@@ -731,7 +731,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(summary.state, MessageState::InFresh); // state refers to message, not to reaction
         assert!(summary.prefix.is_none());
         assert!(summary.thumbnail_path.is_none());
-        assert_summary(&alice, "BOB reacted 👍 to \"Party?\"").await;
+        assert_summary(&alice, "~BOB reacted 👍 to \"Party?\"").await;
 
         // Alice reacts to own message as well
         SystemTime::shift(Duration::from_secs(10));
@@ -742,7 +742,7 @@ Here's my footer -- bob@example.net"
         expect_no_unwanted_events(&bob).await;
 
         assert_summary(&alice, "You reacted 🍿 to \"Party?\"").await;
-        assert_summary(&bob, "ALICE reacted 🍿 to \"Party?\"").await;
+        assert_summary(&bob, "~ALICE reacted 🍿 to \"Party?\"").await;
 
         // Alice sends a newer message, this overwrites reaction summaries
         SystemTime::shift(Duration::from_secs(10));
@@ -759,7 +759,7 @@ Here's my footer -- bob@example.net"
         bob.recv_msg_opt(&alice_send_reaction).await;
 
         assert_summary(&alice, "You reacted 🤘 to \"Party?\"").await;
-        assert_summary(&bob, "ALICE reacted 🤘 to \"Party?\"").await;
+        assert_summary(&bob, "~ALICE reacted 🤘 to \"Party?\"").await;
 
         // Retracted reactions remove all summary reactions
         SystemTime::shift(Duration::from_secs(10));
