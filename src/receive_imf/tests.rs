@@ -3324,68 +3324,6 @@ async fn test_accept_outgoing() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_selfsent_msg_enables_bccself() -> Result<()> {
-    let mut tcm = TestContextManager::new();
-    let alice1 = &tcm.alice().await;
-    let alice2 = &tcm.alice().await;
-    let bob = &tcm.bob().await;
-
-    alice1.set_config_bool(Config::IsChatmail, true).await?;
-    alice2.set_config_bool(Config::IsChatmail, true).await?;
-
-    // SyncMsgs defaults to true on real devices, but in tests it defaults to false,
-    // so we need to enable it
-    alice1.set_config_bool(Config::SyncMsgs, true).await?;
-    alice2.set_config_bool(Config::SyncMsgs, true).await?;
-
-    alice1.set_config_bool(Config::BccSelf, true).await?;
-
-    let chat = alice1.create_chat(&bob).await;
-    let sent_msg = alice1.send_text(chat.id, "Hello!").await;
-
-    // On chatmail accounts, BccSelf defaults to false.
-    // When receiving a message from another device,
-    // there obviously is a multi-device-setup, and BccSelf
-    // should be enabled.
-    assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, false);
-    alice2.recv_msg(&sent_msg).await;
-    assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, true);
-
-    // Suppose that some bug disables BccSelf once more
-    alice2.set_config_bool(Config::BccSelf, false).await?;
-
-    alice1
-        .add_sync_item(crate::sync::SyncData::AddQrToken(
-            crate::sync::QrTokenData {
-                invitenumber: "in".to_string(),
-                auth: "testtoken".to_string(),
-                grpid: None,
-            },
-        ))
-        .await?;
-    alice1.send_sync_msg().await?.unwrap();
-    let sent_msg = alice1.pop_sent_sync_msg().await;
-
-    // Again, BccSelf should be enabled when receiving the message.
-    assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, false);
-    alice2.recv_msg_trash(&sent_msg).await;
-    assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, true);
-
-    // However, merely receiving a message sent by the same device
-    // or by a contact must not enable BccSelf:
-    alice2.set_config_bool(Config::BccSelf, false).await?;
-
-    let sent_msg = alice2.send_text(chat.id, "Hello!").await;
-    alice2.recv_msg_opt(&sent_msg).await;
-    assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, false);
-
-    tcm.send_recv(bob, alice1, "Hello back!").await;
-    assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, false);
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_outgoing_private_reply_multidevice() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice1 = tcm.alice().await;
