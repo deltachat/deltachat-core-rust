@@ -489,6 +489,21 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
+    if from_id == ContactId::SELF
+        && !context
+            .get_config_bool(Config::BccSelf)
+            .await
+            .unwrap_or(false)
+    {
+        // Since this is a message from another device, we know that there is another device.
+        // Set BccSelf to true.
+        context
+            .set_config_ex(Nosync, Config::BccSelf, Some("1"))
+            .await
+            .log_err(context)
+            .ok();
+    }
+
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
         let can_info_msg;
         let instance = if mime_parser

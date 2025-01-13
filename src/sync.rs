@@ -268,17 +268,6 @@ impl Context {
             .log_err(self)
             .ok();
         }
-
-        // Since there was a sync message, we know that there is a second device.
-        // Set BccSelf to true if it isn't already.
-        if !items.items.is_empty() && !self.get_config_bool(Config::BccSelf).await.unwrap_or(false)
-        {
-            self.set_config_ex(Sync::Nosync, Config::BccSelf, Some("1"))
-                .await
-                .log_err(self)
-                .ok();
-        }
-        // TODO check that a test fails if we do this unconditionally
     }
 
     async fn add_qr_token(&self, token: &QrTokenData) -> Result<()> {
