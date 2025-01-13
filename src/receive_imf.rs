@@ -2329,65 +2329,67 @@ async fn apply_group_changes(
     let mut added_ids = HashSet::<ContactId>::new();
     let mut removed_ids = HashSet::<ContactId>::new();
 
-    if let Some(ref chat_group_member_timestamps) = mime_parser.chat_group_member_timestamps() {
-        send_event_chat_modified |= update_chats_contacts_timestamps(
-            context,
-            chat_id,
-            Some(from_id),
-            to_ids,
-            past_ids,
-            chat_group_member_timestamps,
-        )
-        .await?;
-        let new_chat_contacts = HashSet::<ContactId>::from_iter(
-            chat::get_chat_contacts(context, chat_id)
-                .await?
-                .iter()
-                .copied(),
-        );
-        added_ids = new_chat_contacts
-            .difference(&chat_contacts)
-            .copied()
-            .collect();
-        removed_ids = chat_contacts
-            .difference(&new_chat_contacts)
-            .copied()
-            .collect();
-    } else if is_from_in_chat {
-        let mut new_members = HashSet::from_iter(to_ids.iter().copied());
-        new_members.insert(ContactId::SELF);
-        if !from_id.is_special() {
-            new_members.insert(from_id);
-        }
-
-        if !self_added {
-            if mime_parser.get_header(HeaderDef::ChatVersion).is_none() {
-                // Allow non-Delta Chat MUAs to add members.
-                added_ids = new_members.difference(&chat_contacts).copied().collect();
-            }
-
-            if let Some(added_id) = added_id {
-                added_ids.insert(added_id);
-            }
-            new_members.clone_from(&chat_contacts);
-            // Don't delete any members locally, but instead add absent ones to provide group
-            // membership consistency for all members:
-            new_members.extend(added_ids.clone());
-        }
-        if let Some(removed_id) = removed_id {
-            new_members.remove(&removed_id);
-        }
-
-        if new_members != chat_contacts {
-            chat::update_chat_contacts_table(
+    if is_from_in_chat {
+        if let Some(ref chat_group_member_timestamps) = mime_parser.chat_group_member_timestamps() {
+            send_event_chat_modified |= update_chats_contacts_timestamps(
                 context,
-                mime_parser.timestamp_sent,
                 chat_id,
-                &new_members,
+                Some(from_id),
+                to_ids,
+                past_ids,
+                chat_group_member_timestamps,
             )
             .await?;
-            chat_contacts = new_members;
-            send_event_chat_modified = true;
+            let new_chat_contacts = HashSet::<ContactId>::from_iter(
+                chat::get_chat_contacts(context, chat_id)
+                    .await?
+                    .iter()
+                    .copied(),
+            );
+            added_ids = new_chat_contacts
+                .difference(&chat_contacts)
+                .copied()
+                .collect();
+            removed_ids = chat_contacts
+                .difference(&new_chat_contacts)
+                .copied()
+                .collect();
+        } else {
+            let mut new_members = HashSet::from_iter(to_ids.iter().copied());
+            new_members.insert(ContactId::SELF);
+            if !from_id.is_special() {
+                new_members.insert(from_id);
+            }
+
+            if !self_added {
+                if mime_parser.get_header(HeaderDef::ChatVersion).is_none() {
+                    // Allow non-Delta Chat MUAs to add members.
+                    added_ids = new_members.difference(&chat_contacts).copied().collect();
+                }
+
+                if let Some(added_id) = added_id {
+                    added_ids.insert(added_id);
+                }
+                new_members.clone_from(&chat_contacts);
+                // Don't delete any members locally, but instead add absent ones to provide group
+                // membership consistency for all members:
+                new_members.extend(added_ids.clone());
+            }
+            if let Some(removed_id) = removed_id {
+                new_members.remove(&removed_id);
+            }
+
+            if new_members != chat_contacts {
+                chat::update_chat_contacts_table(
+                    context,
+                    mime_parser.timestamp_sent,
+                    chat_id,
+                    &new_members,
+                )
+                .await?;
+                chat_contacts = new_members;
+                send_event_chat_modified = true;
+            }
         }
     }
 

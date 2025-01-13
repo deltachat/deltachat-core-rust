@@ -7860,4 +7860,40 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn non_member_cannot_modify_member_list() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+        let alice_bob_contact_id = Contact::create(alice, "Bob", &bob_addr).await?;
+
+        let alice_chat_id =
+            create_group_chat(alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+        let alice_sent_msg = alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        let bob_received_msg = bob.recv_msg(&alice_sent_msg).await;
+        let bob_chat_id = bob_received_msg.get_chat_id();
+        bob_chat_id.accept(bob).await?;
+
+        let bob_fiona_contact_id = Contact::create(bob, "Fiona", "fiona@example.net").await?;
+
+        // Alice removes Bob and Bob adds Fiona at the same time.
+        remove_contact_from_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+        add_contact_to_chat(bob, bob_chat_id, bob_fiona_contact_id).await?;
+
+        let bob_sent_add_msg = bob.pop_sent_msg().await;
+
+        // Alice ignores Bob's message because Bob is not a member.
+        assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 1);
+        alice.recv_msg(&bob_sent_add_msg).await;
+        assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 1);
+
+        Ok(())
+    }
 }
