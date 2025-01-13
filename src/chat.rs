@@ -3478,9 +3478,7 @@ pub async fn create_group_chat(
         .await?;
 
     let chat_id = ChatId::new(u32::try_from(row_id)?);
-    if !is_contact_in_chat(context, chat_id, ContactId::SELF).await? {
-        add_to_chat_contacts_table(context, timestamp, chat_id, &[ContactId::SELF]).await?;
-    }
+    add_to_chat_contacts_table(context, timestamp, chat_id, &[ContactId::SELF]).await?;
 
     context.emit_msgs_changed_without_ids();
     chatlist_events::emit_chatlist_changed(context);
