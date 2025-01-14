@@ -1216,10 +1216,34 @@ impl Sql {
         .await
         .with_context(|| format!("execute_migration failed for version {version}"))?;
 
-        // Some migrations change the `config` table in SQL.
-        // Also, `set_db_version_trans()` changes the config table.
-        // To be on the safe side, clear the config cache:
         self.config_cache.write().await.clear();
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::test_utils::TestContext;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_clear_config_cache() -> anyhow::Result<()> {
+        // Some migrations change the `config` table in SQL.
+        // This test checks that the config cache is invalidated in `execute_migration()`.
+
+        let t = TestContext::new().await;
+        assert_eq!(t.get_config_bool(Config::IsChatmail).await?, false);
+
+        t.sql
+            .execute_migration(
+                "INSERT INTO config (keyname, value) VALUES ('is_chatmail', '1')",
+                1000,
+            )
+            .await?;
+        assert_eq!(t.get_config_bool(Config::IsChatmail).await?, true);
+        assert_eq!(t.sql.get_raw_config_int(VERSION_CFG).await?.unwrap(), 1000);
 
         Ok(())
     }
