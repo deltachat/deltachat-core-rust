@@ -1123,11 +1123,7 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
 
     inc_and_check(&mut migration_version, 127)?;
     if dbversion < migration_version {
-        // Existing chatmail configurations having `delete_server_after` disabled should get
-        // `bcc_self` enabled, they may be multidevice configurations because before,
-        // `delete_server_after` was set to 0 upon a backup export for them, but together with this
-        // migration `bcc_self` is enabled instead (whose default is changed to 0 for chatmail). We
-        // don't check `is_chatmail` for simplicity.
+        // This is buggy: `delete_server_after` > 1 isn't handled. Migration #129 fixes this.
         sql.execute_migration(
             "INSERT OR IGNORE INTO config (keyname, value)
              SELECT 'bcc_self', '1'
@@ -1150,6 +1146,25 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
              ADD COLUMN add_timestamp NOT NULL DEFAULT 0;
              ALTER TABLE chats_contacts
              ADD COLUMN remove_timestamp NOT NULL DEFAULT 0;
+            ",
+            migration_version,
+        )
+        .await?;
+    }
+
+    inc_and_check(&mut migration_version, 129)?;
+    if dbversion < migration_version {
+        // Existing chatmail configurations having `delete_server_after` != "delete at once" should
+        // get `bcc_self` enabled, they may be multidevice configurations:
+        // - Before migration #127, `delete_server_after` was set to 0 upon a backup export, but
+        //   then `bcc_self` is enabled instead (whose default is changed to 0 for chatmail).
+        // - The user might set `delete_server_after` to a value other than 0 or 1 when that was
+        //   possible in UIs.
+        // We don't check `is_chatmail` for simplicity.
+        sql.execute_migration(
+            "INSERT OR IGNORE INTO config (keyname, value)
+             SELECT 'bcc_self', '1'
+             FROM config WHERE keyname='delete_server_after' AND value!='1'
             ",
             migration_version,
         )
