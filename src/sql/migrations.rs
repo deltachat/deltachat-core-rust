@@ -1216,6 +1216,11 @@ impl Sql {
         .await
         .with_context(|| format!("execute_migration failed for version {version}"))?;
 
-        self.set_db_version_in_cache(version).await
+        // Some migrations change the `config` table in SQL.
+        // Also, `set_db_version_trans()` changes the config table.
+        // To be on the safe side, clear the config cache:
+        self.config_cache.write().await.clear();
+
+        Ok(())
     }
 }
