@@ -7891,7 +7891,7 @@ mod tests {
 
         // Alice ignores Bob's message because Bob is not a member.
         assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 1);
-        alice.recv_msg(&bob_sent_add_msg).await;
+        alice.recv_msg_trash(&bob_sent_add_msg).await;
         assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 1);
 
         Ok(())
