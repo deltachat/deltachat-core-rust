@@ -5301,8 +5301,8 @@ mod tests {
         // Bob receives the add and deletion messages out of order
         let bob = TestContext::new_bob().await;
         bob.recv_msg(&add1).await;
-        bob.recv_msg(&add3).await;
-        let bob_chat_id = bob.recv_msg(&add2).await.chat_id;
+        let bob_chat_id = bob.recv_msg(&add3).await.chat_id;
+        bob.recv_msg_trash(&add2).await; // No-op addition message is trashed.
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 4);
 
         bob.recv_msg(&remove2).await;
