@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.154.1] - 2025-01-15
+
+### Tests
+
+- Expect trashing of no-op "member added" in non_member_cannot_modify_member_list.
+
 ## [1.154.0] - 2025-01-15
 
 ### Features / Changes
@@ -5621,3 +5627,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.152.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.1..v1.152.2
 [1.153.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.2..v1.153.0
 [1.154.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.153.0..v1.154.0
+[1.154.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.0..v1.154.1
