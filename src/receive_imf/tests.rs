@@ -5050,6 +5050,32 @@ async fn test_unarchive_on_member_removal() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_no_op_member_added_is_trash() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat_id = alice
+        .create_group_with_members(ProtectionStatus::Unprotected, "foos", &[bob])
+        .await;
+    send_text_msg(alice, alice_chat_id, "populate".to_string()).await?;
+    let msg = alice.pop_sent_msg().await;
+    bob.recv_msg(&msg).await;
+    let bob_chat_id = bob.get_last_msg().await.chat_id;
+    bob_chat_id.accept(bob).await?;
+
+    let fiona_id = Contact::create(alice, "", "fiona@example.net").await?;
+    add_contact_to_chat(alice, alice_chat_id, fiona_id).await?;
+    let msg = alice.pop_sent_msg().await;
+
+    let fiona_id = Contact::create(bob, "", "fiona@example.net").await?;
+    add_contact_to_chat(bob, bob_chat_id, fiona_id).await?;
+    bob.recv_msg_trash(&msg).await;
+    let contacts = get_chat_contacts(bob, bob_chat_id).await?;
+    assert_eq!(contacts.len(), 3);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_forged_from() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;

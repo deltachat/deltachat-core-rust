@@ -1528,6 +1528,9 @@ async fn add_parts(
 
         let mut txt_raw = "".to_string();
         let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
+            if better_msg.is_empty() && is_partial_download.is_none() {
+                chat_id = DC_CHAT_ID_TRASH;
+            }
             (better_msg, Viewtype::Text)
         } else {
             (&part.msg, part.typ)
@@ -2197,7 +2200,8 @@ async fn update_chats_contacts_timestamps(
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
 ///
 /// Returns `Vec` of group changes messages and, optionally, a better message to replace the
-/// original system message.
+/// original system message. If the better message is empty, the original system message
+/// should be trashed.
 ///
 /// * `to_ids` - contents of the `To` and `Cc` headers.
 /// * `past_ids` - contents of the `Chat-Group-Past-Members` header.
@@ -2394,7 +2398,12 @@ async fn apply_group_changes(
     }
 
     if let Some(added_id) = added_id {
-        added_ids.remove(&added_id);
+        if !added_ids.remove(&added_id) && !self_added {
+            // No-op "Member added" message.
+            //
+            // Trash it.
+            better_msg = Some(String::new());
+        }
     }
     if let Some(removed_id) = removed_id {
         removed_ids.remove(&removed_id);
