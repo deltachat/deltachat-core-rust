@@ -4660,6 +4660,7 @@ mod tests {
     use crate::headerdef::HeaderDef;
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
+    use crate::securejoin::{get_securejoin_qr, join_securejoin};
     use crate::test_utils::{sync, TestContext, TestContextManager, TimeShiftFalsePositiveNote};
     use strum::IntoEnumIterator;
     use tokio::fs;
@@ -7728,7 +7729,7 @@ mod tests {
         let group_editor = tcm.fiona().await;
 
         // alice creates verified group with group editor bot
-        tcm.execute_securejoin(&alice, &bob).await;
+        tcm.execute_securejoin(&alice, &group_editor).await;
         let alice_chat_id = alice
             .create_group_with_members(
                 ProtectionStatus::Protected,
@@ -7741,15 +7742,30 @@ mod tests {
 
         // group editor bot sends a message
         let group_editor_chat_id = recv.chat_id;
+        group_editor_chat_id.accept(&group_editor).await?;
         let webxdc = group_editor
             .send_text(group_editor_chat_id, "<Webxdc>")
             .await;
         alice.recv_msg(&webxdc).await;
 
-        // Alice adds bob
-        let bob_contact = alice.add_or_lookup_contact_id(&bob).await;
-        add_contact_to_chat(&alice, alice_chat_id, bob_contact).await?;
-        let msg = alice.pop_sent_msg().await;
+        tcm.section("bob scans alice' QR code");
+        let join_qr = get_securejoin_qr(&alice, Some(alice_chat_id)).await?;
+        join_securejoin(&bob, &join_qr).await.unwrap();
+        loop {
+            if let Some(sent) = bob.pop_sent_msg_opt(Duration::ZERO).await {
+                alice.recv_msg_opt(&sent).await;
+            } else if let Some(sent) = alice.pop_sent_msg_opt(Duration::ZERO).await {
+                bob.recv_msg_opt(&sent).await;
+            } else {
+                break;
+            }
+        }
+
+        let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
+        println!(
+            "{:?}",
+            get_chat_contacts(&bob, chatlist.iter().last().unwrap().0).await?
+        );
 
         // group editor bot resends webxdc
         group_editor.recv_msg(&msg).await;
@@ -7759,8 +7775,6 @@ mod tests {
         // Bob receives webxdc before joining the group
         bob.recv_msg(&resent).await;
         bob.recv_msg(&msg).await;
-
-        //
 
         Ok(())
     }
