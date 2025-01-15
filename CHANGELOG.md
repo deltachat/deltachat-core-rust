@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.154.0] - 2025-01-15
+
+### Features / Changes
+
+- New group consistency algorithm.
+
+### Fixes
+
+- Migration: Set bcc_self=1 if it's unset and delete_server_after!=1 ([#6432](https://github.com/deltachat/deltachat-core-rust/pull/6432)).
+- Clear the config cache after every migration ([#6438](https://github.com/deltachat/deltachat-core-rust/pull/6438)).
+
+### Build system
+
+- Increase minimum supported Python version to 3.8.
+- [**breaking**] Remove jsonrpc feature flag.
+
+### CI
+
+- Update Rust to 1.84.0.
+
+### Miscellaneous Tasks
+
+- Beta Clippy suggestions ([#6422](https://github.com/deltachat/deltachat-core-rust/pull/6422)).
+
+### Refactor
+
+- Use let..else.
+- Add why_cant_send_ex() capable to only ignore specified conditions.
+- Remove unnecessary is_contact_in_chat check.
+- Eliminate remaining repeat_vars() calls ([#6359](https://github.com/deltachat/deltachat-core-rust/pull/6359)).
+
+### Tests
+
+- Use assert_eq! to compare chatlist length.
+
 ## [1.153.0] - 2025-01-05
 
 ### Features / Changes
@@ -5585,3 +5620,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.152.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.0..v1.152.1
 [1.152.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.1..v1.152.2
 [1.153.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.2..v1.153.0
+[1.154.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.153.0..v1.154.0
