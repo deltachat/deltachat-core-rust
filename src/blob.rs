@@ -515,7 +515,13 @@ impl<'a> BlobObject<'a> {
 
     /// If `!strict_limits`, then if `max_bytes` is exceeded, reduce the image to `img_wh` and just
     /// proceed with the result.
-    /// TODO documentation
+    ///
+    /// This modifies the blob object in-place.
+    ///
+    /// Additionally, if you pass the user-visible filename as `name`
+    /// then the updated user-visible filename will be returned;
+    /// this may be necessary because the format may be changed to JPG,
+    /// i.e. "image.png" -> "image.jpg"
     fn recode_to_size(
         &mut self,
         context: &Context,
