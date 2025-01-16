@@ -1083,14 +1083,19 @@ impl Message {
         self.param.set_optional(Param::MimeType, filemime);
     }
 
-    /// Sets the file associated with a message.
+    /// Sets the file associated with a message, deduplicating files with the same name.
     ///
     /// If `name` is Some, it is used as the file name
     /// and the actual current name of the file is ignored.
     ///
     /// In order to deduplicate files that contain the same data,
     /// the file will be renamed to a hash of the file data.
-    /// The file must not be modified after this function was called.
+    ///
+    /// NOTE:
+    /// - The file must already be in the blobdir, otherwise this function will log an error and do nothing.
+    ///   Copy or move the file into the blobdir if necessary before calling this function.
+    /// - This function will rename the file. To get the new file path, call `dc_msg_get_file()`.
+    /// - The file must not be modified after this function was called.
     pub fn set_file_and_deduplicate(
         &mut self,
         context: &Context,
@@ -1115,7 +1120,8 @@ impl Message {
     ///
     /// In order to deduplicate files that contain the same data,
     /// the filename will be a hash of the file data.
-    /// The file must not be modified after this function was called.
+    ///
+    /// NOTE: The file must not be modified after this function was called.
     pub fn set_file_from_bytes(
         &mut self,
         context: &Context,
