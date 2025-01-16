@@ -231,7 +231,9 @@ def test_chat(acfactory) -> None:
     group.get_fresh_message_count()
     group.mark_noticed()
     assert group.get_contacts()
-    group.remove_contact(alice_chat_bob)
+    assert group.get_past_contacts() == []
+    group.remove_contact(alice_contact_bob)
+    assert len(group.get_past_contacts()) == 1
     group.get_locations()
 
 
