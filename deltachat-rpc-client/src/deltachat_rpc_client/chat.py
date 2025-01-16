@@ -238,6 +238,11 @@ class Chat:
         contacts = self._rpc.get_chat_contacts(self.account.id, self.id)
         return [Contact(self.account, contact_id) for contact_id in contacts]
 
+    def get_past_contacts(self) -> list[Contact]:
+        """Get past contacts for this chat."""
+        past_contacts = self._rpc.get_past_chat_contacts(self.account.id, self.id)
+        return [Contact(self.account, contact_id) for contact_id in past_contacts]
+
     def set_image(self, path: str) -> None:
         """Set profile image of this chat.
 

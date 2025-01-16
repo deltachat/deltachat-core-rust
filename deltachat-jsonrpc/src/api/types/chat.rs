@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context as _, Result};
-use deltachat::chat::{self, get_chat_contacts, ChatVisibility};
+use deltachat::chat::{self, get_chat_contacts, get_past_chat_contacts, ChatVisibility};
 use deltachat::chat::{Chat, ChatId};
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
@@ -39,6 +39,10 @@ pub struct FullChat {
     is_self_talk: bool,
     contacts: Vec<ContactObject>,
     contact_ids: Vec<u32>,
+
+    /// Contact IDs of the past chat members.
+    past_contact_ids: Vec<u32>,
+
     color: String,
     fresh_message_counter: usize,
     // is_group - please check over chat.type in frontend instead
@@ -59,6 +63,7 @@ impl FullChat {
         let chat = Chat::load_from_db(context, rust_chat_id).await?;
 
         let contact_ids = get_chat_contacts(context, rust_chat_id).await?;
+        let past_contact_ids = get_past_chat_contacts(context, rust_chat_id).await?;
 
         let mut contacts = Vec::with_capacity(contact_ids.len());
 
@@ -111,6 +116,7 @@ impl FullChat {
             is_self_talk: chat.is_self_talk(),
             contacts,
             contact_ids: contact_ids.iter().map(|id| id.to_u32()).collect(),
+            past_contact_ids: past_contact_ids.iter().map(|id| id.to_u32()).collect(),
             color,
             fresh_message_counter,
             is_contact_request: chat.is_contact_request(),

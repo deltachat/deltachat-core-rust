@@ -836,6 +836,13 @@ impl CommandApi {
         Ok(contacts.iter().map(|id| id.to_u32()).collect::<Vec<u32>>())
     }
 
+    /// Returns contact IDs of the past chat members.
+    async fn get_past_chat_contacts(&self, account_id: u32, chat_id: u32) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let contacts = chat::get_past_chat_contacts(&ctx, ChatId::new(chat_id)).await?;
+        Ok(contacts.iter().map(|id| id.to_u32()).collect::<Vec<u32>>())
+    }
+
     /// Create a new group chat.
     ///
     /// After creation,
