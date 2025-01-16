@@ -160,12 +160,7 @@ impl<'a> BlobObject<'a> {
                 bail!("The file needs to be in the blob dir already and will be renamed. To attach a different file, copy it to the blobdir first.");
             }
 
-            let mut hasher = blake3::Hasher::new();
-            let mut src_file = std::fs::File::open(src)
-                .with_context(|| format!("failed to open file {}", src.display()))?;
-            hasher.update_reader(&mut src_file)?;
-            drop(src_file);
-            let blob = BlobObject::from_hash(blobdir, hasher.finalize())?;
+            let blob = BlobObject::from_hash(blobdir, file_hash(src)?);
             let new_path = blob.to_abs_path();
 
             // This will also replace an already-existing file.
@@ -177,7 +172,7 @@ impl<'a> BlobObject<'a> {
                 std::fs::rename(src, &new_path)?;
             };
 
-            set_readonly(&new_path).log_err(context).ok();
+            set_readonly(&new_path, true).log_err(context).ok();
             context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
             Ok(blob)
         })
@@ -197,19 +192,27 @@ impl<'a> BlobObject<'a> {
     ) -> Result<BlobObject<'a>> {
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
-            let blob = BlobObject::from_hash(blobdir, blake3::hash(data))?;
+            let hash = blake3::hash(data);
+            let blob = BlobObject::from_hash(blobdir, hash);
             let new_path = blob.to_abs_path();
 
             // This call to `std::fs::write` is thread safe because all threads write the same data.
             if std::fs::write(&new_path, data).is_err() {
                 if new_path.exists() {
                     // Looks like the file is read-only and exists already
-                    // TODO: Maybe we should check if the file contents are the same,
-                    // or at least if the length is the same, and overwrite if not.
+
+                    // Test if the file content is correct:
+                    let file_hash = file_hash(&new_path).context("hash_file")?;
+                    if file_hash != hash {
+                        set_readonly(&new_path, false).log_err(context).ok();
+                        std::fs::write(&new_path, data).context("fs::write")?;
+                    }
 
                     // Set the file to be modified "now", so that it's not deleted during housekeeping
-                    let f = std::fs::File::open(&new_path).context("File::open")?;
-                    f.set_modified(SystemTime::now()).context("set_modified")?;
+                    set_modified_now(&new_path)
+                        .context("set_modified")
+                        .log_err(context)
+                        .ok();
                 } else {
                     // Try to create the blob directory
                     std::fs::create_dir_all(blobdir).log_err(context).ok();
@@ -217,20 +220,20 @@ impl<'a> BlobObject<'a> {
                 }
             }
 
-            set_readonly(&new_path).log_err(context).ok();
+            set_readonly(&new_path, true).log_err(context).ok();
             context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
             Ok(blob)
         })
     }
 
-    fn from_hash(blobdir: &Path, hash: blake3::Hash) -> Result<BlobObject<'_>> {
-        let hash = hash.to_hex();
-        let hash = hash.as_str().get(0..31).context("Too short hash")?;
-        let blob = BlobObject {
+    fn from_hash(blobdir: &Path, hash: blake3::Hash) -> BlobObject<'_> {
+        let binding = hash.to_hex();
+        let hash = binding.as_str();
+        let hash = hash.get(0..31).unwrap_or(hash);
+        BlobObject {
             blobdir,
             name: format!("$BLOBDIR/{hash}"),
-        };
-        Ok(blob)
+        }
     }
 
     /// Creates a blob from a file, possibly copying it to the blobdir.
@@ -694,9 +697,26 @@ impl<'a> BlobObject<'a> {
     }
 }
 
-fn set_readonly(new_path: &Path) -> Result<()> {
+fn set_modified_now(new_path: &PathBuf) -> Result<()> {
+    let f = std::fs::File::open(new_path).context("File::open")?;
+    f.set_modified(SystemTime::now()).context("set_modified")?;
+    Ok(())
+}
+
+fn file_hash(src: &Path) -> Result<blake3::Hash> {
+    let mut hasher = blake3::Hasher::new();
+    let mut src_file = std::fs::File::open(src)
+        .with_context(|| format!("failed to open file {}", src.display()))?;
+    hasher
+        .update_reader(&mut src_file)
+        .context("update_reader")?;
+    let hash = hasher.finalize();
+    Ok(hash)
+}
+
+fn set_readonly(new_path: &Path, readonly: bool) -> Result<()> {
     let mut perms = std::fs::metadata(new_path)?.permissions();
-    perms.set_readonly(true);
+    perms.set_readonly(readonly);
     std::fs::set_permissions(new_path, perms)?;
     Ok(())
 }
@@ -1674,6 +1694,28 @@ mod tests {
 
         let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
         assert_ne!(blob3.name, blob.name);
+
+        {
+            // If something goes wrong and the blob file is overwritten,
+            // the correct content should be restored:
+            set_readonly(&blob3.to_abs_path(), false)?;
+            fs::write(blob3.to_abs_path(), b"bloblo").await?;
+
+            let blob4 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
+            let blob4_content = fs::read(blob4.to_abs_path()).await?;
+            assert_eq!(blob4_content, b"blabla");
+        }
+
+        {
+            // The correct content should be restored even if the file is readonly again:
+            set_readonly(&blob3.to_abs_path(), false)?;
+            fs::write(blob3.to_abs_path(), b"bloblo").await?;
+            set_readonly(&blob3.to_abs_path(), true)?;
+
+            let blob4 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
+            let blob4_content = fs::read(blob4.to_abs_path()).await?;
+            assert_eq!(blob4_content, b"blabla");
+        }
 
         Ok(())
     }
