@@ -2212,8 +2212,8 @@ mod tests {
 
     use super::*;
     use crate::chat::{
-        self, add_contact_to_chat, forward_msgs, marknoticed_chat, send_text_msg, ChatItem,
-        ProtectionStatus,
+        self, add_contact_to_chat, forward_msgs, marknoticed_chat, save_msgs, send_text_msg,
+        ChatItem, ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
     use crate::config::Config;
@@ -2537,7 +2537,7 @@ mod tests {
 
         // forwarding to "Saved Messages", the message gets the original ID attached
         let self_chat = alice.get_self_chat().await;
-        forward_msgs(&alice, &[sent.sender_msg_id], self_chat.get_id()).await?;
+        save_msgs(&alice, &[sent.sender_msg_id]).await?;
         let saved_msg = alice.get_last_msg_in(self_chat.get_id()).await;
         assert_ne!(saved_msg.get_id(), orig_msg.get_id());
         assert_eq!(
@@ -2547,7 +2547,7 @@ mod tests {
         assert!(saved_msg.parent(&alice).await?.is_none());
         assert!(saved_msg.quoted_message(&alice).await?.is_none());
 
-        // forwarding from "Saved Messages" back to another chat, the original ID attached
+        // forwarding from "Saved Messages" back to another chat, detaches original ID
         forward_msgs(&alice, &[saved_msg.get_id()], one2one_chat.get_id()).await?;
         let forwarded_msg = alice.get_last_msg_in(one2one_chat.get_id()).await;
         assert_ne!(forwarded_msg.get_id(), saved_msg.get_id());

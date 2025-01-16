@@ -1980,6 +1980,26 @@ pub unsafe extern "C" fn dc_forward_msgs(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_save_msgs(
+    context: *mut dc_context_t,
+    msg_ids: *const u32,
+    msg_cnt: libc::c_int,
+) {
+    if context.is_null() || msg_ids.is_null() || msg_cnt <= 0 {
+        eprintln!("ignoring careless call to dc_save_msgs()");
+        return;
+    }
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
+    let ctx = &*context;
+
+    block_on(async move {
+        chat::save_msgs(ctx, &msg_ids[..])
+            .await
+            .unwrap_or_log_default(ctx, "Failed to save message")
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_resend_msgs(
     context: *mut dc_context_t,
     msg_ids: *const u32,

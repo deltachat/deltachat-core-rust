@@ -1960,10 +1960,10 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
 /**
  * Forward messages to another chat.
  *
- * Unless forwarded to "Saved Messages",
- * UI should mark forwarded messages as such.
- * Whether to mark a message as forwarded can be determined by dc_msg_is_forwarded().
- * Original sender, webxdc updates and other metadata are not forwarded on purpose.
+ * All types of messages can be forwarded,
+ * however, they will be flagged as such (dc_msg_is_forwarded() is set).
+ *
+ * Original sender, info-state and webxdc updates are not forwarded on purpose.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -1972,6 +1972,33 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
  * @param chat_id The destination chat ID.
  */
 void            dc_forward_msgs              (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt, uint32_t chat_id);
+
+
+/**
+ * Save a copy of messages in "Saved Messages".
+ *
+ * In contrast to forwarding messages,
+ * information as author, date and origin are preserved.
+ * The action completes locally, so "Saved Messages" do not show sending errors in case one is offline.
+ * Still, a sync message is emitted, so that other devices will save the same message,
+ * as long as not deleted before.
+ *
+ * To check if a message was saved, use dc_msg_get_saved_msg_id(),
+ * UI may show an indicator and offer an "Unsave" instead of a "Save" button then.
+ *
+ * The other way round, from inside the "Saved Messages" chat,
+ * UI may show in indicator checking dc_msg_get_original_msg_id() and dc_msg_get_original_chat_id()
+ * and offer a button to go the original chat.
+ *
+ * "Unsave" is done by deleting the saved message.
+ * Webxdc updates are not copied on purpose.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_ids An array of uint32_t containing all message IDs that should be saved.
+ * @param msg_cnt The number of messages IDs in the msg_ids array.
+ */
+void            dc_save_msgs                 (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
 
 
 /**
@@ -4384,9 +4411,10 @@ int             dc_msg_is_sent                (const dc_msg_t* msg);
 
 
 /**
- * Check if the message should be marked as forwarded message.
+ * Check if the message is a forwarded message.
  *
  * Forwarded messages may not be created by the contact given as "from".
+ *
  * Typically, the UI shows a little text for a symbol above forwarded messages.
  *
  * For privacy reasons, we do not provide the name or the e-mail address of the

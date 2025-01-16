@@ -4153,11 +4153,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     if let Some(reason) = chat.why_cant_send(context).await? {
         bail!("cannot send to {}: {}", chat_id, reason);
     }
-
-    if chat.is_self_talk() {
-        return save_copies_in_self_talk_and_sync(context, msg_ids).await;
-    }
-
     curr_timestamp = create_smeared_timestamps(context, msg_ids.len());
     let mut msgs = Vec::with_capacity(msg_ids.len());
     for id in msg_ids {
@@ -4214,7 +4209,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     Ok(())
 }
 
-async fn save_copies_in_self_talk_and_sync(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
+/// Save a copy of the message in "Saved Messages"
+/// and send a sync messages so that other devices save the message as well, unless deleted there.
+pub async fn save_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     for src_msg_id in msg_ids {
         let dest_rfc724_mid = create_outgoing_rfc724_mid();
         let src_rfc724_mid = save_copy_in_self_talk(context, src_msg_id, &dest_rfc724_mid).await?;
@@ -6915,7 +6912,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_forward_to_saved() -> Result<()> {
+    async fn test_save_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -6927,7 +6924,7 @@ mod tests {
         assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
 
         let self_chat = alice.get_self_chat().await;
-        forward_msgs(&alice, &[sent.sender_msg_id], self_chat.id).await?;
+        save_msgs(&alice, &[sent.sender_msg_id]).await?;
 
         let saved_msg = alice.get_last_msg_in(self_chat.id).await;
         assert_ne!(saved_msg.get_id(), sent.sender_msg_id);
@@ -6957,7 +6954,7 @@ mod tests {
 
         let rcvd_msg = bob.recv_msg(&sent).await;
         let self_chat = bob.get_self_chat().await;
-        forward_msgs(&bob, &[rcvd_msg.id], self_chat.id).await?;
+        save_msgs(&bob, &[rcvd_msg.id]).await?;
         let saved_msg = bob.get_last_msg_in(self_chat.id).await;
         assert_ne!(saved_msg.get_id(), rcvd_msg.id);
         assert_eq!(
@@ -7004,7 +7001,7 @@ mod tests {
         let msg = bob.get_last_msg_in(bob_chat.id).await;
 
         let self_chat = bob.get_self_chat().await;
-        forward_msgs(&bob, &[msg.id], self_chat.id).await?;
+        save_msgs(&bob, &[msg.id]).await?;
         let msg = bob.get_last_msg_in(self_chat.id).await;
         let contact = Contact::get_by_id(&bob, msg.get_from_id()).await?;
         assert_eq!(contact.get_addr(), "alice@example.org");
@@ -7025,19 +7022,18 @@ mod tests {
         bob.recv_msg(&sent).await;
         let orig = bob.get_last_msg().await;
         let self_chat = bob.get_self_chat().await;
-        forward_msgs(&bob, &[orig.id], self_chat.id).await?;
+        save_msgs(&bob, &[orig.id]).await?;
         let saved1 = bob.get_last_msg().await;
         assert_eq!(
             saved1.get_original_msg_id(&bob).await?.unwrap(),
             sent.sender_msg_id
         );
+        assert_ne!(saved1.from_id, ContactId::SELF);
 
         forward_msgs(&bob, &[saved1.id], self_chat.id).await?;
         let saved2 = bob.get_last_msg().await;
-        assert_eq!(
-            saved2.get_original_msg_id(&bob).await?.unwrap(),
-            sent.sender_msg_id
-        );
+        assert!(saved2.get_original_msg_id(&bob).await?.is_none(),);
+        assert_eq!(saved2.from_id, ContactId::SELF);
 
         Ok(())
     }
