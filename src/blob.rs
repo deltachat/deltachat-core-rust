@@ -76,8 +76,7 @@ impl<'a> BlobObject<'a> {
     }
 
     /// Creates a new file, returning a tuple of the name and the handle.
-    /// This uses `create_new(true)` to avoid race conditions
-    /// when multiple files with the same name are created.
+    /// This avoids race conditions when creating multiple files with the same name.
     async fn create_new_file(
         context: &Context,
         dir: &Path,
@@ -91,6 +90,8 @@ impl<'a> BlobObject<'a> {
             attempt += 1;
             let path = dir.join(&name);
             match fs::OpenOptions::new()
+                // Using `create_new(true)` in order to avoid race conditions
+                // when creating multiple files with the same name.
                 .create_new(true)
                 .write(true)
                 .open(&path)
