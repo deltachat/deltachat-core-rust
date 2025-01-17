@@ -4280,6 +4280,8 @@ pub(crate) async fn save_copy_in_self_talk(
 
     context.emit_msgs_changed(msg.chat_id, *src_msg_id);
     context.emit_msgs_changed(dest_chat_id, dest_msg_id);
+    chatlist_events::emit_chatlist_changed(context);
+    chatlist_events::emit_chatlist_item_changed(context, dest_chat_id);
 
     Ok(msg.rfc724_mid)
 }
