@@ -1047,7 +1047,7 @@ mod tests {
         Ok(())
     }
 
-    async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
+    fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
         let mut instance = Message::new(Viewtype::File);
         instance.set_file_from_bytes(t, name, bytes, None)?;
         Ok(instance)
@@ -1058,8 +1058,7 @@ mod tests {
             t,
             "minimal.xdc",
             include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
+        )?;
         let instance_msg_id = send_msg(t, chat_id, &mut instance).await?;
         assert_eq!(instance.viewtype, Viewtype::Webxdc);
         Message::load_from_db(t, instance_msg_id).await
@@ -1094,8 +1093,7 @@ mod tests {
             &t,
             "invalid-no-zip-but-7z.xdc",
             include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
-        )
-        .await?;
+        )?;
         let instance_id = send_msg(&t, chat_id, &mut instance).await?;
         assert_eq!(instance.viewtype, Viewtype::File);
         let test = Message::load_from_db(&t, instance_id).await?;
@@ -1124,8 +1122,7 @@ mod tests {
             &t,
             "chess.xdc",
             include_bytes!("../test-data/webxdc/chess.xdc"),
-        )
-        .await?;
+        )?;
         let instance_id = send_msg(&t, chat_id, &mut instance).await?;
         let instance = Message::load_from_db(&t, instance_id).await?;
         assert_eq!(instance.viewtype, Viewtype::Webxdc);
@@ -1311,8 +1308,7 @@ mod tests {
             &alice,
             "chess.xdc",
             include_bytes!("../test-data/webxdc/chess.xdc"),
-        )
-        .await?;
+        )?;
         let sent1 = alice.send_msg(chat.id, &mut alice_instance).await;
         let alice_instance = sent1.load_from_db().await;
         alice
@@ -1441,8 +1437,7 @@ mod tests {
             &t,
             "minimal.xdc",
             include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let instance = chat_id.get_draft(&t).await?.unwrap();
         t.send_webxdc_status_update(instance.id, r#"{"payload": 42}"#)
@@ -1878,8 +1873,7 @@ mod tests {
             &t,
             "minimal.xdc",
             include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let (first, last) = (StatusUpdateSerial(1), StatusUpdateSerial::MAX);
         assert_eq!(
@@ -2024,8 +2018,7 @@ mod tests {
             &alice,
             "minimal.xdc",
             include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
+        )?;
         alice_chat_id
             .set_draft(&alice, Some(&mut alice_instance))
             .await?;
@@ -2139,8 +2132,7 @@ mod tests {
             &t,
             "some-files.xdc",
             include_bytes!("../test-data/webxdc/some-files.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
 
         let buf = instance.get_webxdc_blob(&t, "index.html").await?;
@@ -2239,8 +2231,7 @@ sth_for_the = "future""#
             &t,
             "with-min-api-1001.xdc",
             include_bytes!("../test-data/webxdc/with-min-api-1001.xdc"),
-        )
-        .await?;
+        )?;
         send_msg(&t, chat_id, &mut instance).await?;
 
         let instance = t.get_last_msg().await;
@@ -2266,8 +2257,7 @@ sth_for_the = "future""#
             &t,
             "with-manifest-empty-name.xdc",
             include_bytes!("../test-data/webxdc/with-manifest-empty-name.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with-manifest-empty-name.xdc");
@@ -2277,8 +2267,7 @@ sth_for_the = "future""#
             &t,
             "with-manifest-no-name.xdc",
             include_bytes!("../test-data/webxdc/with-manifest-no-name.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with-manifest-no-name.xdc");
@@ -2288,8 +2277,7 @@ sth_for_the = "future""#
             &t,
             "with-minimal-manifest.xdc",
             include_bytes!("../test-data/webxdc/with-minimal-manifest.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "nice app!");
@@ -2299,8 +2287,7 @@ sth_for_the = "future""#
             &t,
             "with-manifest-and-png-icon.xdc",
             include_bytes!("../test-data/webxdc/with-manifest-and-png-icon.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with some icon");
@@ -2310,8 +2297,7 @@ sth_for_the = "future""#
             &t,
             "with-png-icon.xdc",
             include_bytes!("../test-data/webxdc/with-png-icon.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with-png-icon.xdc");
@@ -2321,8 +2307,7 @@ sth_for_the = "future""#
             &t,
             "with-jpg-icon.xdc",
             include_bytes!("../test-data/webxdc/with-jpg-icon.xdc"),
-        )
-        .await?;
+        )?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         let info = instance.get_webxdc_info(&t).await?;
         assert_eq!(info.name, "with-jpg-icon.xdc");
@@ -2663,8 +2648,7 @@ sth_for_the = "future""#
                         } else {
                             include_bytes!("../test-data/webxdc/minimal.xdc")
                         },
-                    )
-                    .await?;
+                    )?;
                     let instance_id = send_msg(&t, chat_id, &mut instance).await?;
                     t.send_webxdc_status_update(
                         instance_id,
@@ -2689,8 +2673,7 @@ sth_for_the = "future""#
             &t,
             "with-minimal-manifest.xdc",
             include_bytes!("../test-data/webxdc/with-minimal-manifest.xdc"),
-        )
-        .await?;
+        )?;
         send_msg(&t, chat_id, &mut instance).await?;
 
         let chatlist = Chatlist::try_load(&t, 0, None, None).await?;
@@ -2713,8 +2696,7 @@ sth_for_the = "future""#
             &alice,
             "minimal.xdc",
             include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
+        )?;
         alice_instance.set_text("user added text".to_string());
         send_msg(&alice, alice_chat.id, &mut alice_instance).await?;
         let alice_instance = alice.get_last_msg().await;
@@ -2817,8 +2799,7 @@ sth_for_the = "future""#
             &alice,
             "debug_logging.xdc",
             include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
+        )?;
         assert!(alice.debug_logging.read().unwrap().is_none());
         send_msg(&alice, chat_id, &mut instance).await?;
         assert!(alice.debug_logging.read().unwrap().is_some());
