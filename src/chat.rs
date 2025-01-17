@@ -7007,7 +7007,10 @@ mod tests {
 
         let shared_chats = Chatlist::try_load(&bob, 0, None, Some(contact.id)).await?;
         assert_eq!(shared_chats.len(), 1);
-        assert_eq!(shared_chats.get_chat_id(0).unwrap(), bob_chat.id);
+        assert_eq!(
+            shared_chats.get_chat_id(0).unwrap(),
+            bob.get_chat(&alice).await.id
+        );
 
         Ok(())
     }
