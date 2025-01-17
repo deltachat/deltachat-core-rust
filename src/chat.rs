@@ -6993,14 +6993,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_saved_msgs_not_added_to_shared_chats() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
-        let alice_chat = alice.create_chat(&bob).await;
-        let bob_chat = bob.create_chat(&alice).await;
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
 
-        let sent = alice.send_text(alice_chat.id, "hi, bob").await;
-        bob.recv_msg(&sent).await;
-        let msg = bob.get_last_msg_in(bob_chat.id).await;
+        let msg = tcm.send_recv_accept(&alice, &bob, "hi, bob").await;
 
         let self_chat = bob.get_self_chat().await;
         save_msgs(&bob, &[msg.id]).await?;
