@@ -63,8 +63,8 @@ pub(crate) enum SyncData {
         val: String,
     },
     SaveMessage {
-        src: String,  // RFC724 id
-        dest: String, // RFC724 id
+        src: String,  // RFC724 id (i.e. "Message-Id" header)
+        dest: String, // RFC724 id (i.e. "Message-Id" header)
     },
 }
 
