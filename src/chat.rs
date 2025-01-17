@@ -6992,7 +6992,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_forward_to_saved_is_not_added_to_shared_chats() -> Result<()> {
+    async fn test_saved_msgs_not_added_to_shared_chats() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
