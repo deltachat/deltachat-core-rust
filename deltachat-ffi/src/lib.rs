@@ -3853,7 +3853,7 @@ pub unsafe extern "C" fn dc_msg_set_file_and_deduplicate(
         .message
         .set_file_and_deduplicate(
             ctx,
-            &as_path(file),
+            as_path(file),
             to_opt_string_lossy(name).as_deref(),
             to_opt_string_lossy(filemime).as_deref(),
         )
