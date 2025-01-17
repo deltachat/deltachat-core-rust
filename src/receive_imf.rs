@@ -2237,7 +2237,7 @@ async fn apply_group_changes(
             false
         };
 
-    let mut chat_contacts =
+    let chat_contacts =
         HashSet::<ContactId>::from_iter(chat::get_chat_contacts(context, chat_id).await?);
     let is_from_in_chat =
         !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
@@ -2328,11 +2328,6 @@ async fn apply_group_changes(
         }
     }
 
-    // These are for adding info messages about implicit membership changes, so they are only
-    // filled when such messages are needed.
-    let mut added_ids = HashSet::<ContactId>::new();
-    let mut removed_ids = HashSet::<ContactId>::new();
-
     if is_from_in_chat {
         if let Some(ref chat_group_member_timestamps) = mime_parser.chat_group_member_timestamps() {
             send_event_chat_modified |= update_chats_contacts_timestamps(
@@ -2344,41 +2339,31 @@ async fn apply_group_changes(
                 chat_group_member_timestamps,
             )
             .await?;
-            let new_chat_contacts = HashSet::<ContactId>::from_iter(
-                chat::get_chat_contacts(context, chat_id)
-                    .await?
-                    .iter()
-                    .copied(),
-            );
-            added_ids = new_chat_contacts
-                .difference(&chat_contacts)
-                .copied()
-                .collect();
-            removed_ids = chat_contacts
-                .difference(&new_chat_contacts)
-                .copied()
-                .collect();
         } else {
-            let mut new_members = HashSet::from_iter(to_ids.iter().copied());
-            new_members.insert(ContactId::SELF);
-            if !from_id.is_special() {
-                new_members.insert(from_id);
+            let mut new_members;
+            if self_added {
+                new_members = HashSet::from_iter(to_ids.iter().copied());
+                new_members.insert(ContactId::SELF);
+                if !from_id.is_special() {
+                    new_members.insert(from_id);
+                }
+            } else {
+                new_members = chat_contacts.clone();
             }
 
-            if !self_added {
-                if mime_parser.get_header(HeaderDef::ChatVersion).is_none() {
-                    // Allow non-Delta Chat MUAs to add members.
-                    added_ids = new_members.difference(&chat_contacts).copied().collect();
-                }
-
-                if let Some(added_id) = added_id {
-                    added_ids.insert(added_id);
-                }
-                new_members.clone_from(&chat_contacts);
+            // Allow non-Delta Chat MUAs to add members.
+            if mime_parser.get_header(HeaderDef::ChatVersion).is_none() {
                 // Don't delete any members locally, but instead add absent ones to provide group
                 // membership consistency for all members:
-                new_members.extend(added_ids.clone());
+                new_members.extend(to_ids.iter());
             }
+
+            // Apply explicit addition if any.
+            if let Some(added_id) = added_id {
+                new_members.insert(added_id);
+            }
+
+            // Apply explicit removal if any.
             if let Some(removed_id) = removed_id {
                 new_members.remove(&removed_id);
             }
@@ -2391,11 +2376,27 @@ async fn apply_group_changes(
                     &new_members,
                 )
                 .await?;
-                chat_contacts = new_members;
                 send_event_chat_modified = true;
             }
         }
     }
+
+    let new_chat_contacts = HashSet::<ContactId>::from_iter(
+        chat::get_chat_contacts(context, chat_id)
+            .await?
+            .iter()
+            .copied(),
+    );
+
+    // These are for adding info messages about implicit membership changes.
+    let mut added_ids: HashSet<ContactId> = new_chat_contacts
+        .difference(&chat_contacts)
+        .copied()
+        .collect();
+    let mut removed_ids: HashSet<ContactId> = chat_contacts
+        .difference(&new_chat_contacts)
+        .copied()
+        .collect();
 
     if let Some(added_id) = added_id {
         if !added_ids.remove(&added_id) && !self_added {
@@ -2437,12 +2438,12 @@ async fn apply_group_changes(
     }
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
-        if !chat_contacts.contains(&ContactId::SELF) {
+        if !new_chat_contacts.contains(&ContactId::SELF) {
             warn!(
                 context,
                 "Received group avatar update for group chat {chat_id} we are not a member of."
             );
-        } else if !chat_contacts.contains(&from_id) {
+        } else if !new_chat_contacts.contains(&from_id) {
             warn!(
                 context,
                 "Contact {from_id} attempts to modify group chat {chat_id} avatar without being a member.",
