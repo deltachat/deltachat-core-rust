@@ -3857,7 +3857,7 @@ pub unsafe extern "C" fn dc_msg_set_file_and_deduplicate(
             to_opt_string_lossy(name).as_deref(),
             to_opt_string_lossy(filemime).as_deref(),
         )
-        .context("failed to set file")
+        .context("Failed to set file")
         .log_err(&*ffi_msg.context)
         .ok();
 }
