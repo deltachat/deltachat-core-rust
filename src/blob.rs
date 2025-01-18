@@ -714,7 +714,7 @@ fn set_modified_now(new_path: &PathBuf) -> Result<()> {
 fn file_hash(src: &Path) -> Result<blake3::Hash> {
     let mut hasher = blake3::Hasher::new();
     let mut src_file = std::fs::File::open(src)
-        .with_context(|| format!("failed to open file {}", src.display()))?;
+        .with_context(|| format!("Failed to open file {}", src.display()))?;
     hasher
         .update_reader(&mut src_file)
         .context("update_reader")?;
