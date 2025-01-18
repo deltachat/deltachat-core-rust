@@ -3843,7 +3843,7 @@ pub unsafe extern "C" fn dc_msg_set_file_and_deduplicate(
     filemime: *const libc::c_char,
 ) {
     if msg.is_null() || file.is_null() {
-        eprintln!("ignoring careless call to dc_msg_set_file()");
+        eprintln!("ignoring careless call to dc_msg_set_file_and_deduplicate()");
         return;
     }
     let ffi_msg = &mut *msg;
