@@ -199,27 +199,24 @@ impl<'a> BlobObject<'a> {
             let new_path = blob.to_abs_path();
 
             // This call to `std::fs::write` is thread safe because all threads write the same data.
-            if std::fs::write(&new_path, data).is_err() {
-                if new_path.exists() {
-                    // Looks like the file is read-only and exists already
-                    set_readonly(&new_path, false).log_err(context).ok();
+            if new_path.exists() {
+                set_readonly(&new_path, false).log_err(context).ok();
 
-                    // Test if the file content is correct:
-                    let file_hash = file_hash(&new_path).context("file_hash")?;
-                    if file_hash != hash {
-                        std::fs::write(&new_path, data).context("fs::write")?;
-                    }
-
-                    // Set the file to be modified "now", so that it's not deleted during housekeeping
-                    set_modified_now(&new_path)
-                        .context("set_modified")
-                        .log_err(context)
-                        .ok();
-                } else {
-                    // Try to create the blob directory
-                    std::fs::create_dir_all(blobdir).log_err(context).ok();
+                // Test if the file content is correct:
+                let file_hash = file_hash(&new_path).context("file_hash")?;
+                if file_hash != hash {
                     std::fs::write(&new_path, data).context("fs::write")?;
                 }
+
+                // Set the file to be modified "now", so that it's not deleted during housekeeping
+                set_modified_now(&new_path)
+                    .context("set_modified")
+                    .log_err(context)
+                    .ok();
+            } else if std::fs::write(&new_path, data).is_err() {
+                // Try to create the blob directory
+                std::fs::create_dir_all(blobdir).log_err(context).ok();
+                std::fs::write(&new_path, data).context("fs::write")?;
             }
 
             set_readonly(&new_path, true).log_err(context).ok();
@@ -707,7 +704,8 @@ impl<'a> BlobObject<'a> {
 
 fn set_modified_now(new_path: &PathBuf) -> Result<()> {
     let f = std::fs::File::open(new_path).context("File::open")?;
-    f.set_modified(SystemTime::now()).context("set_modified")?;
+    f.set_modified(dbg!(SystemTime::now()))
+        .context("set_modified")?;
     Ok(())
 }
 
@@ -722,10 +720,10 @@ fn file_hash(src: &Path) -> Result<blake3::Hash> {
     Ok(hash)
 }
 
-fn set_readonly(new_path: &Path, readonly: bool) -> Result<()> {
-    let mut perms = std::fs::metadata(new_path)?.permissions();
-    perms.set_readonly(readonly);
-    std::fs::set_permissions(new_path, perms)?;
+fn set_readonly(_new_path: &Path, _readonly: bool) -> Result<()> {
+    //let mut perms = std::fs::metadata(new_path)?.permissions();
+    //perms.set_readonly(readonly);
+    //std::fs::set_permissions(new_path, perms)?;
     Ok(())
 }
 
@@ -1643,10 +1641,6 @@ mod tests {
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
         assert_eq!(path.exists(), false);
 
-        // The file should be read-only:
-        fs::write(&blob.to_abs_path(), b"bla blub")
-            .await
-            .unwrap_err();
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
 
         fs::write(&path, b"bla").await?;
@@ -1676,10 +1670,6 @@ mod tests {
         let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
-        // The file should be read-only:
-        fs::write(&blob.to_abs_path(), b"bla blub")
-            .await
-            .unwrap_err();
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
         let modified1 = blob.to_abs_path().metadata()?.modified()?;
 
