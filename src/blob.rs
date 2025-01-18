@@ -24,7 +24,6 @@ use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
-use crate::tools::SystemTime;
 
 /// Represents a file in the blob directory.
 ///
@@ -194,37 +193,14 @@ impl<'a> BlobObject<'a> {
     ) -> Result<BlobObject<'a>> {
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
-            let hash = blake3::hash(data);
-            let blob = BlobObject::from_hash(blobdir, hash);
-            let new_path = blob.to_abs_path();
+            let temp_path = blobdir.join(&format!("tempfile-{}", rand::random::<u32>()));
+            if std::fs::write(&temp_path, data).is_err() {
+                // Maybe the blobdir didn't exist
+                std::fs::create_dir_all(blobdir).log_err(context).ok();
+                std::fs::write(&temp_path, data).context("fs::write")?;
+            };
 
-            // This call to `std::fs::write` is thread safe because all threads write the same data.
-            if std::fs::write(&new_path, data).is_err() {
-                if new_path.exists() {
-                    // Looks like the file is read-only and exists already
-                    set_readonly(&new_path, false).log_err(context).ok();
-
-                    // Test if the file content is correct:
-                    let file_hash = file_hash(&new_path).context("file_hash")?;
-                    if file_hash != hash {
-                        std::fs::write(&new_path, data).context("fs::write")?;
-                    }
-
-                    // Set the file to be modified "now", so that it's not deleted during housekeeping
-                    set_modified_now(&new_path)
-                        .context("set_modified")
-                        .log_err(context)
-                        .ok();
-                } else {
-                    // Try to create the blob directory
-                    std::fs::create_dir_all(blobdir).log_err(context).ok();
-                    std::fs::write(&new_path, data).context("fs::write")?;
-                }
-            }
-
-            set_readonly(&new_path, true).log_err(context).ok();
-            context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
-            Ok(blob)
+            BlobObject::create_and_deduplicate(context, &temp_path)
         })
     }
 
@@ -705,12 +681,6 @@ impl<'a> BlobObject<'a> {
     }
 }
 
-fn set_modified_now(new_path: &PathBuf) -> Result<()> {
-    let f = std::fs::File::open(new_path).context("File::open")?;
-    f.set_modified(SystemTime::now()).context("set_modified")?;
-    Ok(())
-}
-
 fn file_hash(src: &Path) -> Result<blake3::Hash> {
     let mut hasher = blake3::Hasher::new();
     let mut src_file = std::fs::File::open(src)
@@ -895,6 +865,7 @@ mod tests {
     use crate::message::{Message, Viewtype};
     use crate::sql;
     use crate::test_utils::{self, TestContext};
+    use crate::tools::SystemTime;
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
         tokio::task::block_in_place(move || {
@@ -1683,22 +1654,24 @@ mod tests {
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
         let modified1 = blob.to_abs_path().metadata()?.modified()?;
 
-        // Create a temporary file & shift the time for 1 hour
-        // so that we can later test whether everything works fine with housekeeping:
-        let temp_file = t.get_blobdir().join("temp.txt");
-        fs::write(&temp_file, b"temporary data").await?;
-        SystemTime::shift(Duration::from_secs(65 * 60));
+        // Test that the modification time of the file is updated when a new file is created
+        // so that it's not deleted during housekeeping.
+        // We can't use SystemTime::shift() here because file creation uses the actual OS time,
+        // which we can't mock from our code.
+        tokio::time::sleep(Duration::from_millis(1100)).await;
 
         let blob2 = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
         assert_eq!(blob2.name, blob.name);
 
-        // The modification time of the file should be updated
-        // so that it's not deleted during housekeeping:
         let modified2 = blob.to_abs_path().metadata()?.modified()?;
         assert_ne!(modified1, modified2);
         sql::housekeeping(&t).await?;
         assert!(blob2.to_abs_path().exists());
-        assert_eq!(temp_file.exists(), false);
+
+        // If we do shift the time by more than 1h, the blob file will be deleted during housekeeping:
+        SystemTime::shift(Duration::from_secs(65 * 60));
+        sql::housekeeping(&t).await?;
+        assert_eq!(blob2.to_abs_path().exists(), false);
 
         let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
         assert_ne!(blob3.name, blob.name);
