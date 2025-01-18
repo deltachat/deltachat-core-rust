@@ -1987,11 +1987,14 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  * UI may show an indicator and offer an "Unsave" instead of a "Save" button then.
  *
  * The other way round, from inside the "Saved Messages" chat,
- * UI may show in indicator checking dc_msg_get_original_msg_id() and dc_msg_get_original_chat_id()
+ * UI may show an indicator checking dc_msg_get_original_msg_id() and dc_msg_get_original_chat_id()
  * and offer a button to go the original chat.
  *
  * "Unsave" is done by deleting the saved message.
  * Webxdc updates are not copied on purpose.
+ *
+ * For performance reasons, esp. when saving lots of messages,
+ * UI should call this function from a background thread.
  *
  * @memberof dc_context_t
  * @param context The context object.
