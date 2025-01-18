@@ -167,8 +167,10 @@ impl<'a> BlobObject<'a> {
             // Renaming is atomic, so this will avoid race conditions.
             if std::fs::rename(src, &new_path).is_err() {
                 // Try a second time in case there was some temporary error.
+                // Also, set readonly=false because on Windows, renaming only works if the new file is not readonly.
                 // There is no need to try and create the blobdir since create_and_deduplicate()
                 // only works for files that already are in the blobdir, anyway.
+                set_readonly(&new_path, false).log_err(context).ok();
                 std::fs::rename(src, &new_path)?;
             };
 
@@ -200,11 +202,11 @@ impl<'a> BlobObject<'a> {
             if std::fs::write(&new_path, data).is_err() {
                 if new_path.exists() {
                     // Looks like the file is read-only and exists already
+                    set_readonly(&new_path, false).log_err(context).ok();
 
                     // Test if the file content is correct:
-                    let file_hash = file_hash(&new_path).context("hash_file")?;
+                    let file_hash = file_hash(&new_path).context("file_hash")?;
                     if file_hash != hash {
-                        set_readonly(&new_path, false).log_err(context).ok();
                         std::fs::write(&new_path, data).context("fs::write")?;
                     }
 
