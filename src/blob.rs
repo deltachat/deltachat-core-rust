@@ -75,7 +75,6 @@ impl<'a> BlobObject<'a> {
     }
 
     /// Creates a new file, returning a tuple of the name and the handle.
-    /// This avoids race conditions when creating multiple files with the same name.
     async fn create_new_file(
         context: &Context,
         dir: &Path,
