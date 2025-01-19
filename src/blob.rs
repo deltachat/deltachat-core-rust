@@ -197,7 +197,7 @@ impl<'a> BlobObject<'a> {
             if std::fs::write(&temp_path, data).is_err() {
                 // Maybe the blobdir didn't exist
                 std::fs::create_dir_all(blobdir).log_err(context).ok();
-                std::fs::write(&temp_path, data).context("fs::write")?;
+                std::fs::write(&temp_path, data).context("writing new blobfile failed")?;
             };
 
             BlobObject::create_and_deduplicate(context, &temp_path)
@@ -1525,8 +1525,6 @@ mod tests {
                 .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
             alice_msg.save_file(&alice, &file_saved).await?;
             check_image_size(file_saved, compressed_width, compressed_height);
-
-            println!("{}", sent.payload());
 
             let bob_msg = bob.recv_msg(&sent).await;
             assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);

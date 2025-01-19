@@ -6667,7 +6667,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_sticker_jpeg_force() -> Result<()> {
+    async fn test_sticker_jpeg_force() {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -6713,8 +6713,6 @@ mod tests {
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
-
-        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

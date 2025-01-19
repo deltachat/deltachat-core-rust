@@ -238,9 +238,7 @@ const STATUS_UPDATE_SIZE_MAX: usize = 100 << 10;
 impl Context {
     /// check if a file is an acceptable webxdc for sending or receiving.
     pub(crate) async fn is_webxdc_file(&self, filename: &str, file: &[u8]) -> Result<bool> {
-        println!("is_webxdc_file");
         if !filename.ends_with(WEBXDC_SUFFIX) {
-            println!("Ends not with suffix");
             return Ok(false);
         }
 
@@ -257,7 +255,6 @@ impl Context {
             return Ok(false);
         }
 
-        println!("Is webxdc");
         Ok(true)
     }
 

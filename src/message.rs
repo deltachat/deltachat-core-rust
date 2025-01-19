@@ -1097,7 +1097,7 @@ impl Message {
     /// NOTE:
     /// - The file must already be in the blobdir, otherwise this function will log an error and do nothing.
     ///   Copy or move the file into the blobdir if necessary before calling this function.
-    /// - This function will rename the file. To get the new file path, call `dc_msg_get_file()`.
+    /// - This function will rename the file. To get the new file path, call `get_file()`.
     /// - The file must not be modified after this function was called.
     pub fn set_file_and_deduplicate(
         &mut self,

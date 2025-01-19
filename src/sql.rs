@@ -259,7 +259,7 @@ impl Sql {
                                 .set_config_internal(Config::Selfavatar, Some(path))
                                 .await?;
                         } else {
-                            warn!(context, "Setting selfavatar failed: invalid filename (???)");
+                            warn!(context, "Setting selfavatar failed: non-UTF-8 filename");
                         }
                     }
                     Err(e) => {
