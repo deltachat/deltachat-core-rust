@@ -168,6 +168,7 @@ impl<'a> BlobObject<'a> {
                 // Also, set readonly=false because on Windows, renaming only works if the new file is not readonly.
                 // There is no need to try and create the blobdir since create_and_deduplicate()
                 // only works for files that already are in the blobdir, anyway.
+                #[cfg(target_os = "windows")]
                 set_readonly(&new_path, false).log_err(context).ok();
                 std::fs::rename(src, &new_path)?;
             };
