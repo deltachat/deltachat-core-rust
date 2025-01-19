@@ -4243,11 +4243,10 @@ pub(crate) async fn save_copy_in_self_talk(
     msg.param.remove(Param::WebxdcDocumentTimestamp);
     msg.param.remove(Param::WebxdcSummary);
     msg.param.remove(Param::WebxdcSummaryTimestamp);
-    let original_msg_id = if !msg.original_msg_id.is_special() {
-        msg.original_msg_id
-    } else {
-        *src_msg_id
-    };
+
+    if !msg.original_msg_id.is_unset() {
+        bail!("message already saved.");
+    }
 
     let copy_fields = "from_id, to_id, timestamp_sent, timestamp_rcvd, type, txt, txt_raw, \
                              mime_modified, mime_headers, mime_compressed, mime_in_reply_to, subject, msgrmsg";
@@ -4269,7 +4268,7 @@ pub(crate) async fn save_copy_in_self_talk(
                 },
                 create_smeared_timestamp(context),
                 msg.param.to_string(),
-                original_msg_id,
+                src_msg_id,
                 src_msg_id,
             ),
         )
@@ -7020,6 +7019,23 @@ mod tests {
         let saved2 = bob.get_last_msg().await;
         assert!(saved2.get_original_msg_id(&bob).await?.is_none(),);
         assert_eq!(saved2.from_id, ContactId::SELF);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_save_from_saved_to_saved_failing() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let sent = alice.send_text(alice.create_chat(&bob).await.id, "k").await;
+
+        bob.recv_msg(&sent).await;
+        let orig = bob.get_last_msg().await;
+        save_msgs(&bob, &[orig.id]).await?;
+        let saved1 = bob.get_last_msg().await;
+
+        let result = save_msgs(&bob, &[saved1.id]).await;
+        assert!(result.is_err());
 
         Ok(())
     }
