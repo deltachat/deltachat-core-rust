@@ -26,7 +26,7 @@ use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
 use deltachat_contact_tools::EmailAddress;
 #[cfg(test)]
 pub use deltachat_time::SystemTimeTools as SystemTime;
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
@@ -363,22 +363,6 @@ pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Re
         .await
         .with_context(|| format!("cannot delete {dpath:?}"))?;
     context.emit_event(EventType::DeletedBlobFile(dpath));
-    Ok(())
-}
-
-pub async fn delete_files_in_dir(context: &Context, path: impl AsRef<Path>) -> Result<()> {
-    let read_dir = tokio::fs::read_dir(path)
-        .await
-        .context("could not read dir to delete")?;
-    let mut read_dir = tokio_stream::wrappers::ReadDirStream::new(read_dir);
-    while let Some(entry) = read_dir.next().await {
-        match entry {
-            Ok(file) => {
-                delete_file(context, file.file_name()).await?;
-            }
-            Err(e) => warn!(context, "Could not read file to delete: {}", e),
-        }
-    }
     Ok(())
 }
 
