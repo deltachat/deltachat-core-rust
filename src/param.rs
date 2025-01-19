@@ -207,9 +207,7 @@ pub enum Param {
 
     /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
     ForceSticker = b'X',
-
-    /// For saved messages: The original ChatId, in case the original message is deleted
-    OriginalChatId = b'L',
+    // 'L' was defined as ProtectionSettingsTimestamp for Chats, however, never used in production.
 }
 
 /// An object for handling key=value parameter lists.

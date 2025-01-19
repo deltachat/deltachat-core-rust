@@ -1987,8 +1987,8 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
  * UI may show an indicator and offer an "Unsave" instead of a "Save" button then.
  *
  * The other way round, from inside the "Saved Messages" chat,
- * UI may show an indicator checking dc_msg_get_original_msg_id() and dc_msg_get_original_chat_id()
- * and offer a button to go the original chat.
+ * UI may show the indicator and "Unsave" button checking dc_msg_get_original_msg_id()
+ * and offer a button to go the original message.
  *
  * "Unsave" is done by deleting the saved message.
  * Webxdc updates are not copied on purpose.
@@ -4899,26 +4899,10 @@ dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
 
 
 /**
- * Get original chat ID for a saved message from the "Saved Messages" chat.
- *
- * Additionally, you can use dc_msg_get_original_msg_id() to find out the original message,
- * which, however, may be deleted.
- *
- * To save a message, use dc_forward_msgs().
- * To check if a message is saved, use dc_msgs_get_saved_msg_id().
- *
- * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
- * @return The chat ID  of the original message.
- *     0 if the given message object is not a "Saved Message"
- *     or if the original chat does no longer exist.
- */
-uint32_t        dc_msg_get_original_chat_id   (const dc_msg_t* msg);
-
-
-/**
  * Get original message ID for a saved message from the "Saved Messages" chat.
  *
- * Usually, UI will check dc_msg_get_original_chat_id() as well.
+ * Can be used by UI to show a button to go the original message
+ * and an option to "Unsave" the message.
  *
  * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
  * @return The message ID of the original message.

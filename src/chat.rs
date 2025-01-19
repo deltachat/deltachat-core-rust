@@ -4243,8 +4243,6 @@ pub(crate) async fn save_copy_in_self_talk(
     msg.param.remove(Param::WebxdcDocumentTimestamp);
     msg.param.remove(Param::WebxdcSummary);
     msg.param.remove(Param::WebxdcSummaryTimestamp);
-    msg.param
-        .set_int(Param::OriginalChatId, msg.chat_id.to_u32() as i32);
     let original_msg_id = if !msg.original_msg_id.is_special() {
         msg.original_msg_id
     } else {
@@ -6923,7 +6921,6 @@ mod tests {
         let sent_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
         assert!(sent_msg.get_saved_msg_id(&alice).await?.is_none());
         assert!(sent_msg.get_original_msg_id(&alice).await?.is_none());
-        assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
 
         let self_chat = alice.get_self_chat().await;
         save_msgs(&alice, &[sent.sender_msg_id]).await?;
@@ -6934,10 +6931,6 @@ mod tests {
         assert_eq!(
             saved_msg.get_original_msg_id(&alice).await?.unwrap(),
             sent.sender_msg_id
-        );
-        assert_eq!(
-            saved_msg.get_original_chat_id(&alice).await?.unwrap(),
-            sent_msg.chat_id
         );
         assert_eq!(saved_msg.get_text(), "hi, bob");
         assert!(!saved_msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
@@ -6952,7 +6945,6 @@ mod tests {
             saved_msg.id
         );
         assert!(sent_msg.get_original_msg_id(&alice).await?.is_none());
-        assert!(sent_msg.get_original_chat_id(&alice).await?.is_none());
 
         let rcvd_msg = bob.recv_msg(&sent).await;
         let self_chat = bob.get_self_chat().await;
@@ -6962,10 +6954,6 @@ mod tests {
         assert_eq!(
             saved_msg.get_original_msg_id(&bob).await?.unwrap(),
             rcvd_msg.id
-        );
-        assert_eq!(
-            saved_msg.get_original_chat_id(&bob).await?.unwrap(),
-            rcvd_msg.chat_id
         );
         assert_eq!(saved_msg.get_text(), "hi, bob");
         assert!(!saved_msg.is_forwarded());
@@ -6978,15 +6966,11 @@ mod tests {
         delete_msgs(&bob, &[rcvd_msg.id]).await?;
         let saved_msg = Message::load_from_db(&bob, saved_msg.id).await?;
         assert!(saved_msg.get_original_msg_id(&bob).await?.is_none());
-        assert_eq!(
-            saved_msg.get_original_chat_id(&bob).await?.unwrap(),
-            rcvd_msg.chat_id
-        );
 
         // delete original chat
         rcvd_msg.chat_id.delete(&bob).await?;
         let msg = Message::load_from_db(&bob, saved_msg.id).await?;
-        assert!(msg.get_original_chat_id(&bob).await?.is_none());
+        assert!(msg.get_original_msg_id(&bob).await?.is_none());
 
         Ok(())
     }

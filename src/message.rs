@@ -1259,18 +1259,6 @@ impl Message {
         Ok(None)
     }
 
-    /// Returns original chat ID for message from "Saved Messages".
-    /// This may work although get_original_msg_id() returns 0 as the message was deleted.
-    pub async fn get_original_chat_id(&self, context: &Context) -> Result<Option<ChatId>> {
-        if let Some(chat_id) = self.param.get_int(Param::OriginalChatId) {
-            let chat_id = ChatId::new(u32::try_from(chat_id)?);
-            if Chat::load_from_db(context, chat_id).await.is_ok() {
-                return Ok(Some(chat_id));
-            }
-        }
-        Ok(None)
-    }
-
     /// Returns original message ID for message from "Saved Messages".
     pub async fn get_original_msg_id(&self, context: &Context) -> Result<Option<MsgId>> {
         if !self.original_msg_id.is_special() {
