@@ -192,7 +192,7 @@ impl<'a> BlobObject<'a> {
     ) -> Result<BlobObject<'a>> {
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
-            let temp_path = blobdir.join(&format!("tempfile-{}", rand::random::<u32>()));
+            let temp_path = blobdir.join(format!("tempfile-{}", rand::random::<u32>()));
             if std::fs::write(&temp_path, data).is_err() {
                 // Maybe the blobdir didn't exist
                 std::fs::create_dir_all(blobdir).log_err(context).ok();
