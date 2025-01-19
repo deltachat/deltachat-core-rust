@@ -4915,7 +4915,7 @@ uint32_t        dc_msg_get_original_msg_id    (const dc_msg_t* msg);
 /**
  * Check if a message was saved and return its ID inside "Saved Messages".
  *
- * The returned ID can be used to un-save a message.
+ * Deleting the returned message will un-save the message.
  * The state "is saved" can be used to show some icon to indicate that a message was saved.
  *
  * @param msg The message object. Usually, this refers to a a message outside "Saved Messages".
