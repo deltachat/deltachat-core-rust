@@ -1975,6 +1975,36 @@ void            dc_forward_msgs              (dc_context_t* context, const uint3
 
 
 /**
+ * Save a copy of messages in "Saved Messages".
+ *
+ * In contrast to forwarding messages,
+ * information as author, date and origin are preserved.
+ * The action completes locally, so "Saved Messages" do not show sending errors in case one is offline.
+ * Still, a sync message is emitted, so that other devices will save the same message,
+ * as long as not deleted before.
+ *
+ * To check if a message was saved, use dc_msg_get_saved_msg_id(),
+ * UI may show an indicator and offer an "Unsave" instead of a "Save" button then.
+ *
+ * The other way round, from inside the "Saved Messages" chat,
+ * UI may show the indicator and "Unsave" button checking dc_msg_get_original_msg_id()
+ * and offer a button to go the original message.
+ *
+ * "Unsave" is done by deleting the saved message.
+ * Webxdc updates are not copied on purpose.
+ *
+ * For performance reasons, esp. when saving lots of messages,
+ * UI should call this function from a background thread.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_ids An array of uint32_t containing all message IDs that should be saved.
+ * @param msg_cnt The number of messages IDs in the msg_ids array.
+ */
+void            dc_save_msgs                 (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
+
+
+/**
  * Resend messages and make information available for newly added chat members.
  * Resending sends out the original message, however, recipients and webxdc-status may differ.
  * Clients that already have the original message can still ignore the resent message as
@@ -4866,6 +4896,33 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
  *     Must be freed using dc_msg_unref() after usage.
  */
 dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
+
+
+/**
+ * Get original message ID for a saved message from the "Saved Messages" chat.
+ *
+ * Can be used by UI to show a button to go the original message
+ * and an option to "Unsave" the message.
+ *
+ * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
+ * @return The message ID of the original message.
+ *     0 if the given message object is not a "Saved Message"
+ *     or if the original message does no longer exist.
+ */
+uint32_t        dc_msg_get_original_msg_id    (const dc_msg_t* msg);
+
+
+/**
+ * Check if a message was saved and return its ID inside "Saved Messages".
+ *
+ * Deleting the returned message will un-save the message.
+ * The state "is saved" can be used to show some icon to indicate that a message was saved.
+ *
+ * @param msg The message object. Usually, this refers to a a message outside "Saved Messages".
+ * @return The message ID inside "Saved Messages", if any.
+ *     0 if the given message object is not saved.
+ */
+uint32_t        dc_msg_get_saved_msg_id     (const dc_msg_t* msg);
 
 
 /**

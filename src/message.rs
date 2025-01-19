@@ -470,6 +470,7 @@ pub struct Message {
     /// `In-Reply-To` header value.
     pub(crate) in_reply_to: Option<String>,
     pub(crate) is_dc_message: MessengerMessage,
+    pub(crate) original_msg_id: MsgId,
     pub(crate) mime_modified: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
@@ -536,6 +537,7 @@ impl Message {
                     "    m.download_state AS download_state,",
                     "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
+                    "    m.starred AS original_msg_id,",
                     "    m.mime_modified AS mime_modified,",
                     "    m.txt AS txt,",
                     "    m.subject AS subject,",
@@ -592,6 +594,7 @@ impl Message {
                         error: Some(row.get::<_, String>("error")?)
                             .filter(|error| !error.is_empty()),
                         is_dc_message: row.get("msgrmsg")?,
+                        original_msg_id: row.get("original_msg_id")?,
                         mime_modified: row.get("mime_modified")?,
                         text,
                         subject: row.get("subject")?,
@@ -1254,6 +1257,35 @@ impl Message {
             }
         }
         Ok(None)
+    }
+
+    /// Returns original message ID for message from "Saved Messages".
+    pub async fn get_original_msg_id(&self, context: &Context) -> Result<Option<MsgId>> {
+        if !self.original_msg_id.is_special() {
+            if let Some(msg) = Message::load_from_db_optional(context, self.original_msg_id).await?
+            {
+                return if msg.chat_id.is_trash() {
+                    Ok(None)
+                } else {
+                    Ok(Some(msg.id))
+                };
+            }
+        }
+        Ok(None)
+    }
+
+    /// Check if the message was saved and returns the corresponding message inside "Saved Messages".
+    /// UI can use this to show a symbol beside the message, indicating it was saved.
+    /// The message can be un-saved by deleting the returned message.
+    pub async fn get_saved_msg_id(&self, context: &Context) -> Result<Option<MsgId>> {
+        let res: Option<MsgId> = context
+            .sql
+            .query_get_value(
+                "SELECT id FROM msgs WHERE starred=? AND chat_id!=?",
+                (self.id, DC_CHAT_ID_TRASH),
+            )
+            .await?;
+        Ok(res)
     }
 
     /// Force the message to be sent in plain text.
@@ -2168,7 +2200,8 @@ mod tests {
 
     use super::*;
     use crate::chat::{
-        self, add_contact_to_chat, marknoticed_chat, send_text_msg, ChatItem, ProtectionStatus,
+        self, add_contact_to_chat, forward_msgs, marknoticed_chat, save_msgs, send_text_msg,
+        ChatItem, ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
     use crate::config::Config;
@@ -2475,6 +2508,41 @@ mod tests {
             msg.get_override_sender_name(),
             Some("over ride".to_string())
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_original_msg_id() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // normal sending of messages does not have an original ID
+        let one2one_chat = alice.create_chat(&bob).await;
+        let sent = alice.send_text(one2one_chat.id, "foo").await;
+        let orig_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert!(orig_msg.get_original_msg_id(&alice).await?.is_none());
+        assert!(orig_msg.parent(&alice).await?.is_none());
+        assert!(orig_msg.quoted_message(&alice).await?.is_none());
+
+        // forwarding to "Saved Messages", the message gets the original ID attached
+        let self_chat = alice.get_self_chat().await;
+        save_msgs(&alice, &[sent.sender_msg_id]).await?;
+        let saved_msg = alice.get_last_msg_in(self_chat.get_id()).await;
+        assert_ne!(saved_msg.get_id(), orig_msg.get_id());
+        assert_eq!(
+            saved_msg.get_original_msg_id(&alice).await?.unwrap(),
+            orig_msg.get_id()
+        );
+        assert!(saved_msg.parent(&alice).await?.is_none());
+        assert!(saved_msg.quoted_message(&alice).await?.is_none());
+
+        // forwarding from "Saved Messages" back to another chat, detaches original ID
+        forward_msgs(&alice, &[saved_msg.get_id()], one2one_chat.get_id()).await?;
+        let forwarded_msg = alice.get_last_msg_in(one2one_chat.get_id()).await;
+        assert_ne!(forwarded_msg.get_id(), saved_msg.get_id());
+        assert_ne!(forwarded_msg.get_id(), orig_msg.get_id());
+        assert!(forwarded_msg.get_original_msg_id(&alice).await?.is_none());
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

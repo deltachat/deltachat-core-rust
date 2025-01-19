@@ -16,7 +16,7 @@ use crate::param::Param;
 use crate::sync::SyncData::{AddQrToken, AlterChat, DeleteQrToken};
 use crate::token::Namespace;
 use crate::tools::time;
-use crate::{stock_str, token};
+use crate::{message, stock_str, token};
 
 /// Whether to send device sync messages. Aimed for usage in the internal API.
 #[derive(Debug, PartialEq)]
@@ -61,6 +61,10 @@ pub(crate) enum SyncData {
     Config {
         key: Config,
         val: String,
+    },
+    SaveMessage {
+        src: String,  // RFC724 id (i.e. "Message-Id" header)
+        dest: String, // RFC724 id (i.e. "Message-Id" header)
     },
 }
 
@@ -259,6 +263,7 @@ impl Context {
                     DeleteQrToken(token) => self.delete_qr_token(token).await,
                     AlterChat { id, action } => self.sync_alter_chat(id, action).await,
                     SyncData::Config { key, val } => self.sync_config(key, val).await,
+                    SyncData::SaveMessage { src, dest } => self.save_message(src, dest).await,
                 },
                 SyncDataOrUnknown::Unknown(data) => {
                     warn!(self, "Ignored unknown sync item: {data}.");
@@ -280,6 +285,13 @@ impl Context {
     async fn delete_qr_token(&self, token: &QrTokenData) -> Result<()> {
         token::delete(self, Namespace::InviteNumber, &token.invitenumber).await?;
         token::delete(self, Namespace::Auth, &token.auth).await?;
+        Ok(())
+    }
+
+    async fn save_message(&self, src_rfc724_mid: &str, dest_rfc724_mid: &String) -> Result<()> {
+        if let Some((src_msg_id, _)) = message::rfc724_mid_exists(self, src_rfc724_mid).await? {
+            chat::save_copy_in_self_talk(self, &src_msg_id, dest_rfc724_mid).await?;
+        }
         Ok(())
     }
 }
