@@ -109,8 +109,8 @@ class Message:
     @props.with_doc
     def filename(self):
         """file path if there was an attachment, otherwise empty string.
-        If you want to get the file type via the extension
-        or a user-visible string, use `basename` instead."""
+        If you want to get the file extension or a user-visible string,
+        use `basename` instead."""
         return from_dc_charpointer(lib.dc_msg_get_file(self._dc_msg))
 
     def set_file(self, path, mime_type=None):

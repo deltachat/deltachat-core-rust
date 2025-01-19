@@ -205,8 +205,8 @@ impl<'a> BlobObject<'a> {
     }
 
     fn from_hash(blobdir: &Path, hash: blake3::Hash) -> BlobObject<'_> {
-        let binding = hash.to_hex();
-        let hash = binding.as_str();
+        let hash = hash.to_hex();
+        let hash = hash.as_str();
         let hash = hash.get(0..31).unwrap_or(hash);
         BlobObject {
             blobdir,
