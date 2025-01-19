@@ -3955,7 +3955,18 @@ pub async fn remove_contact_from_chat(
         } else {
             let mut sync = Nosync;
 
-            remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+            if chat.is_promoted() {
+                remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+            } else {
+                context
+                    .sql
+                    .execute(
+                        "DELETE FROM chats_contacts
+                         WHERE chat_id=? AND contact_id=?",
+                        (chat_id, contact_id),
+                    )
+                    .await?;
+            }
 
             // We do not return an error if the contact does not exist in the database.
             // This allows to delete dangling references to deleted contacts
@@ -7893,6 +7904,45 @@ mod tests {
         assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 1);
         alice.recv_msg_trash(&bob_sent_add_msg).await;
         assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn unpromoted_group_no_tombstones() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+        let alice_bob_contact_id = Contact::create(alice, "Bob", &bob_addr).await?;
+        let fiona_addr = "fiona@example.net";
+        let alice_fiona_contact_id = Contact::create(alice, "Fiona", fiona_addr).await?;
+
+        let alice_chat_id =
+            create_group_chat(alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+        add_contact_to_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+        assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 3);
+        assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 0);
+
+        remove_contact_from_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+        assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 2);
+
+        // There should be no tombstone because the group is not promoted yet.
+        assert_eq!(get_past_chat_contacts(alice, alice_chat_id).await?.len(), 0);
+
+        let sent = alice.send_text(alice_chat_id, "Hello group!").await;
+        let payload = sent.payload();
+        assert_eq!(payload.contains("Hello group!"), true);
+        assert_eq!(payload.contains(&bob_addr), true);
+        assert_eq!(payload.contains(fiona_addr), false);
+
+        let bob_msg = bob.recv_msg(&sent).await;
+        let bob_chat_id = bob_msg.chat_id;
+        assert_eq!(get_chat_contacts(bob, bob_chat_id).await?.len(), 2);
+        assert_eq!(get_past_chat_contacts(bob, bob_chat_id).await?.len(), 0);
 
         Ok(())
     }
