@@ -116,8 +116,6 @@ CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);"#,
             r#"
 ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;
 CREATE INDEX chats_index2 ON chats (archived);
--- 'starred' column is not used currently
--- (dropping is not easily doable and stop adding it will make reusing it complicated)
 ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;
 CREATE INDEX msgs_index5 ON msgs (starred);"#,
             17,
