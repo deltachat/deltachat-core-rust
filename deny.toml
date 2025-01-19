@@ -97,6 +97,5 @@ license-files = [
 [sources.allow-org]
 # Organisations which we allow git sources from.
 github = [
-       "async-email",
        "deltachat",
 ]

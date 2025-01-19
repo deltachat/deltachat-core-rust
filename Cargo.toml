@@ -50,7 +50,7 @@ brotli = { version = "7", default-features=false, features = ["std"] }
 bytes = "1"
 chrono = { workspace = true, features = ["alloc", "clock", "std"] }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
-encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
+encoded-words = "0.2"
 escaper = "0.1"
 fast-socks5 = "0.10"
 fd-lock = "4"
