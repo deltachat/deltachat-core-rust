@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.154.2] - 2025-01-20
+
+### Features / Changes
+
+- Add API to save messages ([#5606](https://github.com/deltachat/deltachat-core-rust/pull/5606)).
+
+### Fixes
+
+- fix: Don't accidentally remove Self from groups ([#6455](https://github.com/deltachat/deltachat-core-rust/pull/6455)).
+- Do not create tombstones for members removed from unpromoted groups.
+
+### Build system
+
+- Switch to non-git version of encoded-words.
+
+### Refactor
+
+- Make memberlist update logic easier to follow.
+
 ## [1.154.1] - 2025-01-15
 
 ### Tests
@@ -5628,3 +5647,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.153.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.2..v1.153.0
 [1.154.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.153.0..v1.154.0
 [1.154.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.0..v1.154.1
+[1.154.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.1..v1.154.2
