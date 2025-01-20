@@ -206,7 +206,7 @@ impl MimeFactory {
                     "SELECT c.authname, c.addr, c.id, cc.add_timestamp, cc.remove_timestamp
                      FROM chats_contacts cc
                      LEFT JOIN contacts c ON cc.contact_id=c.id
-                     WHERE cc.chat_id=? AND cc.contact_id>9 OR (cc.contact_id=1 AND ?)",
+                     WHERE cc.chat_id=? AND (cc.contact_id>9 OR (cc.contact_id=1 AND ?))",
                     (msg.chat_id, chat.typ == Chattype::Group),
                     |row| {
                         let authname: String = row.get(0)?;
