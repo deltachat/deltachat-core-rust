@@ -3028,4 +3028,4 @@ async fn add_or_lookup_contacts_by_address_list(
 }
 
 #[cfg(test)]
-mod tests;
+mod receive_imf_tests;
