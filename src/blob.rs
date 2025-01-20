@@ -8,7 +8,7 @@ use std::iter::FusedIterator;
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{format_err, Context as _, Result};
 use base64::Engine as _;
 use futures::StreamExt;
 use image::codecs::jpeg::JpegEncoder;
@@ -145,9 +145,12 @@ impl<'a> BlobObject<'a> {
         Ok(blob)
     }
 
-    /// Creates a blob object from a file that already exists in the blob directory.
+    /// Creates a blob object by copying or renaming an existing file.
+    /// If the source file is already in the blobdir, it will be renamed,
+    /// otherwise it will be copied to the blobdir first.
+    ///
     /// In order to deduplicate files that contain the same data,
-    /// the file will be renamed to a hash of the file data.
+    /// the file will be named as the hash of the file data.
     ///
     /// This is done in a in way which avoids race-conditions when multiple files are
     /// concurrently created.
@@ -157,24 +160,39 @@ impl<'a> BlobObject<'a> {
         // Tokio's "async" I/O functions are also just thin wrappers around the blocking I/O syscalls,
         // so we are doing essentially the same here.
         task::block_in_place(|| {
+            let temp_path;
+            let src_in_blobdir: &Path;
             let blobdir = context.get_blobdir();
-            if !(src.starts_with(blobdir) || src.starts_with("$BLOBDIR/")) {
-                bail!("The file needs to be in the blob dir already and will be renamed. To attach a different file, copy it to the blobdir first.");
+
+            if src.starts_with(blobdir) || src.starts_with("$BLOBDIR/") {
+                src_in_blobdir = src;
+            } else {
+                info!(
+                    context,
+                    "Source file not in blobdir. Copying instead of moving in order to prevent moving a file that was still needed."
+                );
+                temp_path = blobdir.join(format!("tmp-{}", rand::random::<u64>()));
+                if std::fs::copy(src, &temp_path).is_err() {
+                    // Maybe the blobdir didn't exist
+                    std::fs::create_dir_all(blobdir).log_err(context).ok();
+                    std::fs::copy(src, &temp_path).context("copying new blobfile failed")?;
+                };
+                src_in_blobdir = &temp_path;
             }
 
-            let blob = BlobObject::from_hash(blobdir, file_hash(src)?);
+            let blob = BlobObject::from_hash(blobdir, file_hash(src_in_blobdir)?);
             let new_path = blob.to_abs_path();
 
             // This will also replace an already-existing file.
             // Renaming is atomic, so this will avoid race conditions.
-            if std::fs::rename(src, &new_path).is_err() {
+            if std::fs::rename(src_in_blobdir, &new_path).is_err() {
                 // Try a second time in case there was some temporary error.
                 // Also, set readonly=false because on Windows, renaming only works if the new file is not readonly.
                 // There is no need to try and create the blobdir since create_and_deduplicate()
                 // only works for files that already are in the blobdir, anyway.
                 #[cfg(target_os = "windows")]
                 set_readonly(&new_path, false).log_err(context).ok();
-                std::fs::rename(src, &new_path)?;
+                std::fs::rename(src_in_blobdir, &new_path)?;
             };
 
             set_readonly(&new_path, true).log_err(context).ok();
@@ -197,7 +215,7 @@ impl<'a> BlobObject<'a> {
     ) -> Result<BlobObject<'a>> {
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
-            let temp_path = blobdir.join(format!("tempfile-{}", rand::random::<u32>()));
+            let temp_path = blobdir.join(format!("tmp-{}", rand::random::<u64>()));
             if std::fs::write(&temp_path, data).is_err() {
                 // Maybe the blobdir didn't exist
                 std::fs::create_dir_all(blobdir).log_err(context).ok();
@@ -1632,15 +1650,17 @@ mod tests {
 
         let path_outside_blobdir = t.dir.path().join("anyfile.dat");
         fs::write(&path_outside_blobdir, b"bla").await?;
-        let blob_res = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir);
-        assert!(
-            blob_res.is_err(),
-            "Files outside the blobdir should not be allowed in create_and_deduplicate()"
-        );
+        let blob3 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir)?;
+        assert!(path_outside_blobdir.exists());
+        assert_eq!(blob3.name, blob.name);
 
         fs::write(&path, b"blabla").await?;
-        let blob3 = BlobObject::create_and_deduplicate(&t, &path)?;
-        assert_ne!(blob3.name, blob.name);
+        let blob4 = BlobObject::create_and_deduplicate(&t, &path)?;
+        assert_ne!(blob4.name, blob.name);
+
+        fs::remove_dir_all(t.get_blobdir()).await?;
+        let blob5 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir)?;
+        assert_eq!(blob5.name, blob.name);
 
         Ok(())
     }

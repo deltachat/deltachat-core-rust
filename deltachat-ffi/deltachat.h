@@ -4762,13 +4762,14 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
  * If `name` is non-null, it is used as the file name
  * and the actual current name of the file is ignored.
  *
+ * If the source file is already in the blobdir, it will be renamed,
+ * otherwise it will be copied to the blobdir first.
+ *
  * In order to deduplicate files that contain the same data,
- * the file will be renamed to a hash of the file data.
+ * the file will be named as a hash of the file data.
  *
  * NOTE:
- * - The file must already be in the blobdir, otherwise this function will log an error and do nothing.
- *   Copy or move the file into the blobdir if necessary before calling this function.
- * - This function will rename the file. To get the new file path, call `dc_msg_get_file()`.
+ * - This function will rename the file. To get the new file path, call `get_file()`.
  * - The file must not be modified after this function was called.
  *
  * @memberof dc_msg_t
