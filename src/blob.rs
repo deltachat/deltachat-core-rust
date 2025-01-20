@@ -34,6 +34,10 @@ use crate::log::LogExt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlobObject<'a> {
     blobdir: &'a Path,
+
+    /// The name of the file on the disc.
+    /// Note that this is NOT the user-visible filename,
+    /// which is only stored in Param::Filename on the message.
     name: String,
 }
 
@@ -285,6 +289,9 @@ impl<'a> BlobObject<'a> {
     /// this string in the database or [Params].  Eventually even
     /// those conversions should be handled by the type system.
     ///
+    /// Note that this is NOT the user-visible filename,
+    /// which is only stored in Param::Filename on the message.
+    ///
     /// [Params]: crate::param::Params
     pub fn as_name(&self) -> &str {
         &self.name
@@ -499,7 +506,8 @@ impl<'a> BlobObject<'a> {
     /// Additionally, if you pass the user-visible filename as `name`
     /// then the updated user-visible filename will be returned;
     /// this may be necessary because the format may be changed to JPG,
-    /// i.e. "image.png" -> "image.jpg"
+    /// i.e. "image.png" -> "image.jpg".
+    /// Pass an empty string if you don't care.
     fn recode_to_size(
         &mut self,
         context: &Context,
