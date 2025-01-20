@@ -627,6 +627,9 @@ pub(crate) async fn receive_imf_inner(
             chat_id.emit_msg_event(context, *msg_id, mime_parser.incoming && fresh);
         }
     }
+    if !chat_id.is_trash() && received_msg.state == MessageState::InSeen {
+        context.emit_event(EventType::MsgsNoticed(chat_id));
+    }
     context.new_msgs_notify.notify_one();
 
     mime_parser
