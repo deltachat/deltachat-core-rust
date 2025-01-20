@@ -206,7 +206,7 @@ impl MimeFactory {
                     "SELECT c.authname, c.addr, c.id, cc.add_timestamp, cc.remove_timestamp
                      FROM chats_contacts cc
                      LEFT JOIN contacts c ON cc.contact_id=c.id
-                     WHERE cc.chat_id=? AND cc.contact_id>9 OR (cc.contact_id=1 AND ?)",
+                     WHERE cc.chat_id=? AND (cc.contact_id>9 OR (cc.contact_id=1 AND ?))",
                     (msg.chat_id, chat.typ == Chattype::Group),
                     |row| {
                         let authname: String = row.get(0)?;
@@ -2639,6 +2639,42 @@ mod tests {
             1
         );
         assert_eq!(part.match_indices("Subject:").count(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_dont_remove_self() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+
+        let first_group = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "First group", &[bob])
+            .await;
+        alice.send_text(first_group, "Hi! I created a group.").await;
+        remove_contact_from_chat(alice, first_group, ContactId::SELF).await?;
+        alice.pop_sent_msg().await;
+
+        let second_group = alice
+            .create_group_with_members(ProtectionStatus::Unprotected, "First group", &[bob])
+            .await;
+        let sent = alice
+            .send_text(second_group, "Hi! I created another group.")
+            .await;
+
+        println!("{}", sent.payload);
+        let mime_message = MimeMessage::from_bytes(alice, sent.payload.as_bytes(), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            mime_message.get_header(HeaderDef::ChatGroupPastMembers),
+            None
+        );
+        assert_eq!(
+            mime_message.chat_group_member_timestamps().unwrap().len(),
+            1 // There is a timestamp for Bob, not for Alice
+        );
 
         Ok(())
     }
