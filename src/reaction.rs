@@ -583,6 +583,7 @@ Here's my footer -- bob@example.net"
 
     async fn expect_incoming_reactions_event(
         t: &TestContext,
+        expected_chat_id: ChatId,
         expected_msg_id: MsgId,
         expected_contact_id: ContactId,
         expected_reaction: &str,
@@ -600,10 +601,12 @@ Here's my footer -- bob@example.net"
             .await;
         match event {
             EventType::IncomingReaction {
+                chat_id
                 msg_id,
                 contact_id,
                 reaction,
             } => {
+                assert_eq!(chat_id, expected_chat_id);
                 assert_eq!(msg_id, expected_msg_id);
                 assert_eq!(contact_id, expected_contact_id);
                 assert_eq!(reaction, Reaction::from(expected_reaction));
@@ -678,7 +681,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(bob_reaction.as_str(), "👍");
         expect_reactions_changed_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id)
             .await?;
-        expect_incoming_reactions_event(&alice, alice_msg.sender_msg_id, *bob_id, "👍").await?;
+        expect_incoming_reactions_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id, "👍").await?;
         expect_no_unwanted_events(&alice).await;
 
         // Alice reacts to own message.
@@ -721,7 +724,7 @@ Here's my footer -- bob@example.net"
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
         alice.recv_msg_trash(&bob_send_reaction).await;
-        expect_incoming_reactions_event(&alice, alice_msg1.sender_msg_id, alice_bob_id, "👍")
+        expect_incoming_reactions_event(&alice, alice_chat.id, alice_msg1.sender_msg_id, alice_bob_id, "👍")
             .await?;
         expect_no_unwanted_events(&alice).await;
 
