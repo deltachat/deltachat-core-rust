@@ -601,7 +601,7 @@ Here's my footer -- bob@example.net"
             .await;
         match event {
             EventType::IncomingReaction {
-                chat_id
+                chat_id,
                 msg_id,
                 contact_id,
                 reaction,
