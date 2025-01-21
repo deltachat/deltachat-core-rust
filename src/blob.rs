@@ -185,17 +185,8 @@ impl<'a> BlobObject<'a> {
 
             // This will also replace an already-existing file.
             // Renaming is atomic, so this will avoid race conditions.
-            if std::fs::rename(src_in_blobdir, &new_path).is_err() {
-                // Try a second time in case there was some temporary error.
-                // Also, set readonly=false because on Windows, renaming only works if the new file is not readonly.
-                // There is no need to try and create the blobdir since create_and_deduplicate()
-                // only works for files that already are in the blobdir, anyway.
-                #[cfg(target_os = "windows")]
-                set_readonly(&new_path, false).log_err(context).ok();
-                std::fs::rename(src_in_blobdir, &new_path)?;
-            };
+            std::fs::rename(src_in_blobdir, &new_path)?;
 
-            set_readonly(&new_path, true).log_err(context).ok();
             context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
             Ok(blob)
         })
@@ -716,13 +707,6 @@ fn file_hash(src: &Path) -> Result<blake3::Hash> {
         .context("update_reader")?;
     let hash = hasher.finalize();
     Ok(hash)
-}
-
-fn set_readonly(new_path: &Path, readonly: bool) -> Result<()> {
-    let mut perms = std::fs::metadata(new_path)?.permissions();
-    perms.set_readonly(readonly);
-    std::fs::set_permissions(new_path, perms)?;
-    Ok(())
 }
 
 /// Returns image file size and Exif.
@@ -1638,10 +1622,6 @@ mod tests {
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
         assert_eq!(path.exists(), false);
 
-        // The file should be read-only:
-        fs::write(&blob.to_abs_path(), b"bla blub")
-            .await
-            .unwrap_err();
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
 
         fs::write(&path, b"bla").await?;
@@ -1673,10 +1653,6 @@ mod tests {
         let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
-        // The file should be read-only:
-        fs::write(&blob.to_abs_path(), b"bla blub")
-            .await
-            .unwrap_err();
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
         let modified1 = blob.to_abs_path().metadata()?.modified()?;
 
@@ -1705,19 +1681,7 @@ mod tests {
         {
             // If something goes wrong and the blob file is overwritten,
             // the correct content should be restored:
-            set_readonly(&blob3.to_abs_path(), false)?;
             fs::write(blob3.to_abs_path(), b"bloblo").await?;
-
-            let blob4 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
-            let blob4_content = fs::read(blob4.to_abs_path()).await?;
-            assert_eq!(blob4_content, b"blabla");
-        }
-
-        {
-            // The correct content should be restored even if the file is readonly again:
-            set_readonly(&blob3.to_abs_path(), false)?;
-            fs::write(blob3.to_abs_path(), b"bloblo").await?;
-            set_readonly(&blob3.to_abs_path(), true)?;
 
             let blob4 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
             let blob4_content = fs::read(blob4.to_abs_path()).await?;

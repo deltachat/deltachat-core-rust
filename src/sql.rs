@@ -945,18 +945,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                             );
                             continue;
                         }
-
-                        // On Windows, the file needs to be writeable in order to delete it:
-                        #[cfg(target_os = "windows")]
-                        {
-                            let mut perms = stats.permissions();
-                            perms.set_readonly(false);
-                            tokio::fs::set_permissions(entry.path(), perms)
-                                .await
-                                .context("set_permissions")
-                                .log_err(context)
-                                .ok();
-                        }
                     } else {
                         unreferenced_count += 1;
                     }
