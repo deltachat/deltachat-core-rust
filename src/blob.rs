@@ -175,7 +175,7 @@ impl<'a> BlobObject<'a> {
                 if std::fs::copy(src, &temp_path).is_err() {
                     // Maybe the blobdir didn't exist
                     std::fs::create_dir_all(blobdir).log_err(context).ok();
-                    std::fs::copy(src, &temp_path).context("copying new blobfile failed")?;
+                    std::fs::copy(src, &temp_path).context("Copying new blobfile failed")?;
                 };
                 src_in_blobdir = &temp_path;
             }
