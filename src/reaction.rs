@@ -285,6 +285,7 @@ pub(crate) async fn set_msg_reaction(
             && msg_id.get_state(context).await?.is_outgoing()
         {
             context.emit_event(EventType::IncomingReaction {
+                chat_id,
                 contact_id,
                 msg_id,
                 reaction,
