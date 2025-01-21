@@ -2227,7 +2227,6 @@ async fn apply_group_changes(
     let mut send_event_chat_modified = false;
     let (mut removed_id, mut added_id) = (None, None);
     let mut better_msg = None;
-    let mut group_changes_msgs = Vec::new();
 
     // True if a Delta Chat client has explicitly added our current primary address.
     let self_added =
@@ -2409,33 +2408,7 @@ async fn apply_group_changes(
     if let Some(removed_id) = removed_id {
         removed_ids.remove(&removed_id);
     }
-    if !added_ids.is_empty() {
-        warn!(
-            context,
-            "Implicit addition of {added_ids:?} to chat {chat_id}."
-        );
-    }
-    if !removed_ids.is_empty() {
-        warn!(
-            context,
-            "Implicit removal of {removed_ids:?} from chat {chat_id}."
-        );
-    }
-    group_changes_msgs.reserve(added_ids.len() + removed_ids.len());
-    for contact_id in added_ids {
-        let contact = Contact::get_by_id(context, contact_id).await?;
-        group_changes_msgs.push(
-            stock_str::msg_add_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
-                .await,
-        );
-    }
-    for contact_id in removed_ids {
-        let contact = Contact::get_by_id(context, contact_id).await?;
-        group_changes_msgs.push(
-            stock_str::msg_del_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
-                .await,
-        );
-    }
+    let group_changes_msgs = group_changes_msgs(context, &added_ids, &removed_ids, chat_id).await?;
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
         if !new_chat_contacts.contains(&ContactId::SELF) {
@@ -2473,6 +2446,45 @@ async fn apply_group_changes(
         chatlist_events::emit_chatlist_item_changed(context, chat_id);
     }
     Ok((group_changes_msgs, better_msg))
+}
+
+/// Returns a list of strings that should be shown as info messages, informing about group membership changes.
+async fn group_changes_msgs(
+    context: &Context,
+    added_ids: &HashSet<ContactId>,
+    removed_ids: &HashSet<ContactId>,
+    chat_id: ChatId,
+) -> Result<Vec<String>> {
+    let mut group_changes_msgs = Vec::new();
+    if !added_ids.is_empty() {
+        warn!(
+            context,
+            "Implicit addition of {added_ids:?} to chat {chat_id}."
+        );
+    }
+    if !removed_ids.is_empty() {
+        warn!(
+            context,
+            "Implicit removal of {removed_ids:?} from chat {chat_id}."
+        );
+    }
+    group_changes_msgs.reserve(added_ids.len() + removed_ids.len());
+    for contact_id in added_ids {
+        let contact = Contact::get_by_id(context, *contact_id).await?;
+        group_changes_msgs.push(
+            stock_str::msg_add_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
+                .await,
+        );
+    }
+    for contact_id in removed_ids {
+        let contact = Contact::get_by_id(context, *contact_id).await?;
+        group_changes_msgs.push(
+            stock_str::msg_del_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
+                .await,
+        );
+    }
+
+    Ok(group_changes_msgs)
 }
 
 static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
