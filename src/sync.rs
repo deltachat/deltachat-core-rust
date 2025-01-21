@@ -273,6 +273,15 @@ impl Context {
             .log_err(self)
             .ok();
         }
+
+        // Since there was a sync message, we know that there is a second device.
+        // Set BccSelf to true if it isn't already.
+        if !items.items.is_empty() && !self.get_config_bool(Config::BccSelf).await.unwrap_or(true) {
+            self.set_config_ex(Sync::Nosync, Config::BccSelf, Some("1"))
+                .await
+                .log_err(self)
+                .ok();
+        }
     }
 
     async fn add_qr_token(&self, token: &QrTokenData) -> Result<()> {
@@ -587,6 +596,62 @@ mod tests {
         bob.recv_msg(&sent_msg).await;
         assert!(!token::exists(&bob, token::Namespace::Auth, "testtoken").await?);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_sync_msg_enables_bccself() -> Result<()> {
+        for (chatmail, sync_message_sent) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let alice1 = TestContext::new_alice().await;
+            let alice2 = TestContext::new_alice().await;
+
+            // SyncMsgs defaults to true on real devices, but in tests it defaults to false,
+            // so we need to enable it
+            alice1.set_config_bool(Config::SyncMsgs, true).await?;
+            alice2.set_config_bool(Config::SyncMsgs, true).await?;
+
+            if chatmail {
+                alice1.set_config_bool(Config::IsChatmail, true).await?;
+                alice2.set_config_bool(Config::IsChatmail, true).await?;
+            } else {
+                alice2.set_config_bool(Config::BccSelf, false).await?;
+            }
+
+            alice1.set_config_bool(Config::BccSelf, true).await?;
+
+            let sent_msg = if sync_message_sent {
+                alice1
+                    .add_sync_item(SyncData::AddQrToken(QrTokenData {
+                        invitenumber: "in".to_string(),
+                        auth: "testtoken".to_string(),
+                        grpid: None,
+                    }))
+                    .await?;
+                alice1.send_sync_msg().await?.unwrap();
+                alice1.pop_sent_sync_msg().await
+            } else {
+                let chat = alice1.get_self_chat().await;
+                alice1.send_text(chat.id, "Hi").await
+            };
+
+            // On chatmail accounts, BccSelf defaults to false.
+            // When receiving a sync message from another device,
+            // there obviously is a multi-device-setup, and BccSelf
+            // should be enabled.
+            assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, false);
+
+            alice2.recv_msg_opt(&sent_msg).await;
+            assert_eq!(
+                alice2.get_config_bool(Config::BccSelf).await?,
+                // BccSelf should be enabled when receiving a sync message,
+                // but not when receiving another outgoing message
+                // because we might have forgotten it and it then it might have been forwarded to us again
+                // (though of course this is very unlikely).
+                sync_message_sent
+            );
+        }
         Ok(())
     }
 

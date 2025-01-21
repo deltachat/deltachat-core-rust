@@ -143,7 +143,10 @@ pub enum Config {
     /// Send BCC copy to self.
     ///
     /// Should be enabled for multidevice setups.
-    /// Default is 0 for chatmail accounts before a backup export, 1 otherwise.
+    /// Default is 0 for chatmail accounts, 1 otherwise.
+    ///
+    /// This is automatically enabled when importing/exporting a backup,
+    /// setting up a second device, or receiving a sync message.
     BccSelf,
 
     /// True if encryption is preferred according to Autocrypt standard.
@@ -384,6 +387,11 @@ pub enum Config {
 
     /// Enable sending and executing (applying) sync messages. Sending requires `BccSelf` to be set
     /// and `Bot` unset.
+    ///
+    /// On real devices, this is usually always enabled and `BccSelf` is the only setting
+    /// that controls whether sync messages are sent.
+    ///
+    /// In tests, this is usually disabled.
     #[strum(props(default = "1"))]
     SyncMsgs,
 

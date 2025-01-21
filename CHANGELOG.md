@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.154.3] - 2025-01-20
+
+### Build system
+
+- Remove encoded-words from flake.nix.
+- nix: Update rust-email hash in flake.nix.
+
+### Miscellaneous Tasks
+
+- Remove unused function delete_files_in_dir() ([#6454](https://github.com/deltachat/deltachat-core-rust/pull/6454)).
+
 ## [1.154.2] - 2025-01-20
 
 ### Features / Changes
@@ -5648,3 +5659,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.154.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.153.0..v1.154.0
 [1.154.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.0..v1.154.1
 [1.154.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.1..v1.154.2
+[1.154.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.2..v1.154.3
