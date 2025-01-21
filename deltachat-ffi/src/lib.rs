@@ -3836,6 +3836,33 @@ pub unsafe extern "C" fn dc_msg_set_file(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_file_and_deduplicate(
+    msg: *mut dc_msg_t,
+    file: *const libc::c_char,
+    name: *const libc::c_char,
+    filemime: *const libc::c_char,
+) {
+    if msg.is_null() || file.is_null() {
+        eprintln!("ignoring careless call to dc_msg_set_file_and_deduplicate()");
+        return;
+    }
+    let ffi_msg = &mut *msg;
+    let ctx = &*ffi_msg.context;
+
+    ffi_msg
+        .message
+        .set_file_and_deduplicate(
+            ctx,
+            as_path(file),
+            to_opt_string_lossy(name).as_deref(),
+            to_opt_string_lossy(filemime).as_deref(),
+        )
+        .context("Failed to set file")
+        .log_err(&*ffi_msg.context)
+        .ok();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_dimension(
     msg: *mut dc_msg_t,
     width: libc::c_int,

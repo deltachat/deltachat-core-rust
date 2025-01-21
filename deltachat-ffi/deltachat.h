@@ -4757,6 +4757,31 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
 
 
 /**
+ * Sets the file associated with a message.
+ *
+ * If `name` is non-null, it is used as the file name
+ * and the actual current name of the file is ignored.
+ *
+ * If the source file is already in the blobdir, it will be renamed,
+ * otherwise it will be copied to the blobdir first.
+ *
+ * In order to deduplicate files that contain the same data,
+ * the file will be named as a hash of the file data.
+ *
+ * NOTE:
+ * - This function will rename the file. To get the new file path, call `get_file()`.
+ * - The file must not be modified after this function was called.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object. Must not be NULL.
+ * @param file The path of the file to attach. Must not be NULL.
+ * @param name The original filename of the attachment. If NULL, the current name of `file` will be used instead.
+ * @param filemime The MIME type of the file. NULL if you don't know or don't care.
+ */
+void            dc_msg_set_file_and_deduplicate(dc_msg_t* msg, const char* file, const char* name, const char* filemime);
+
+
+/**
  * Set the dimensions associated with message object.
  * Typically this is the width and the height of an image or video associated using dc_msg_set_file().
  * This does not alter any information in the database; this may be done by dc_send_msg() later.

@@ -254,9 +254,13 @@ impl Sql {
                 let mut blob = BlobObject::new_from_path(context, avatar.as_ref()).await?;
                 match blob.recode_to_avatar_size(context).await {
                     Ok(()) => {
-                        context
-                            .set_config_internal(Config::Selfavatar, Some(&avatar))
-                            .await?
+                        if let Some(path) = blob.to_abs_path().to_str() {
+                            context
+                                .set_config_internal(Config::Selfavatar, Some(path))
+                                .await?;
+                        } else {
+                            warn!(context, "Setting selfavatar failed: non-UTF-8 filename");
+                        }
                     }
                     Err(e) => {
                         warn!(context, "Migrations can't recode avatar, removing. {:#}", e);

@@ -896,13 +896,12 @@ impl ChatId {
                     .context("no file stored in params")?;
                 msg.param.set(Param::File, blob.as_name());
                 if msg.viewtype == Viewtype::File {
-                    if let Some((better_type, _)) =
-                        message::guess_msgtype_from_suffix(&blob.to_abs_path())
-                            // We do not do an automatic conversion to other viewtypes here so that
-                            // users can send images as "files" to preserve the original quality
-                            // (usually we compress images). The remaining conversions are done by
-                            // `prepare_msg_blob()` later.
-                            .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
+                    if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg)
+                        // We do not do an automatic conversion to other viewtypes here so that
+                        // users can send images as "files" to preserve the original quality
+                        // (usually we compress images). The remaining conversions are done by
+                        // `prepare_msg_blob()` later.
+                        .filter(|&(vt, _)| vt == Viewtype::Webxdc || vt == Viewtype::Vcard)
                     {
                         msg.viewtype = better_type;
                     }
@@ -2722,8 +2721,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             // Typical conversions:
             // - from FILE to AUDIO/VIDEO/IMAGE
             // - from FILE/IMAGE to GIF */
-            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(&blob.to_abs_path())
-            {
+            if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg) {
                 if msg.viewtype == Viewtype::Sticker {
                     if better_type != Viewtype::Image {
                         // UIs don't want conversions of `Sticker` to anything other than `Image`.
@@ -2753,8 +2751,14 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             && (msg.viewtype == Viewtype::Image
                 || maybe_sticker && !msg.param.exists(Param::ForceSticker))
         {
-            blob.recode_to_image_size(context, &mut maybe_sticker)
+            let new_name = blob
+                .recode_to_image_size(
+                    context,
+                    msg.get_filename().unwrap_or_else(|| "file".to_string()),
+                    &mut maybe_sticker,
+                )
                 .await?;
+            msg.param.set(Param::Filename, new_name);
 
             if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
@@ -2771,7 +2775,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
         }
 
         if !msg.param.exists(Param::MimeType) {
-            if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
+            if let Some((_, mime)) = message::guess_msgtype_from_suffix(msg) {
                 msg.param.set(Param::MimeType, mime);
             }
         }

@@ -1,6 +1,7 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -623,8 +624,8 @@ impl Message {
     pub fn get_filemime(&self) -> Option<String> {
         if let Some(m) = self.param.get(Param::MimeType) {
             return Some(m.to_string());
-        } else if let Some(file) = self.param.get(Param::File) {
-            if let Some((_, mime)) = guess_msgtype_from_suffix(Path::new(file)) {
+        } else if self.param.exists(Param::File) {
+            if let Some((_, mime)) = guess_msgtype_from_suffix(self) {
                 return Some(mime.to_string());
             }
             // we have a file but no mimetype, let's use a generic one
@@ -1085,18 +1086,58 @@ impl Message {
         self.param.set_optional(Param::MimeType, filemime);
     }
 
-    /// Creates a new blob and sets it as a file associated with a message.
-    pub async fn set_file_from_bytes(
+    /// Sets the file associated with a message, deduplicating files with the same name.
+    ///
+    /// If `name` is Some, it is used as the file name
+    /// and the actual current name of the file is ignored.
+    ///
+    /// If the source file is already in the blobdir, it will be renamed,
+    /// otherwise it will be copied to the blobdir first.
+    ///
+    /// In order to deduplicate files that contain the same data,
+    /// the file will be named as a hash of the file data.
+    ///
+    /// NOTE:
+    /// - This function will rename the file. To get the new file path, call `get_file()`.
+    /// - The file must not be modified after this function was called.
+    pub fn set_file_and_deduplicate(
         &mut self,
         context: &Context,
-        suggested_name: &str,
+        file: &Path,
+        name: Option<&str>,
+        filemime: Option<&str>,
+    ) -> Result<()> {
+        let blob = BlobObject::create_and_deduplicate(context, file)?;
+        if let Some(name) = name {
+            self.param.set(Param::Filename, name);
+        } else {
+            let file_name = file.file_name().map(OsStr::to_string_lossy);
+            self.param.set_optional(Param::Filename, file_name);
+        }
+        self.param.set(Param::File, blob.as_name());
+        self.param.set_optional(Param::MimeType, filemime);
+
+        Ok(())
+    }
+
+    /// Creates a new blob and sets it as a file associated with a message.
+    ///
+    /// In order to deduplicate files that contain the same data,
+    /// the filename will be a hash of the file data.
+    ///
+    /// NOTE: The file must not be modified after this function was called.
+    pub fn set_file_from_bytes(
+        &mut self,
+        context: &Context,
+        name: &str,
         data: &[u8],
         filemime: Option<&str>,
     ) -> Result<()> {
-        let blob = BlobObject::create(context, suggested_name, data).await?;
-        self.param.set(Param::Filename, suggested_name);
+        let blob = BlobObject::create_and_deduplicate_from_bytes(context, data)?;
+        self.param.set(Param::Filename, name);
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);
+
         Ok(())
     }
 
@@ -1109,7 +1150,6 @@ impl Message {
         );
         let vcard = contact::make_vcard(context, contacts).await?;
         self.set_file_from_bytes(context, "vcard.vcf", vcard.as_bytes(), None)
-            .await
     }
 
     /// Updates message state from the vCard attachment.
@@ -1467,7 +1507,14 @@ pub async fn get_msg_read_receipts(
         .await
 }
 
-pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
+pub(crate) fn guess_msgtype_from_suffix(msg: &Message) -> Option<(Viewtype, &'static str)> {
+    msg.param
+        .get(Param::Filename)
+        .or_else(|| msg.param.get(Param::File))
+        .and_then(|file| guess_msgtype_from_path_suffix(Path::new(file)))
+}
+
+pub(crate) fn guess_msgtype_from_path_suffix(path: &Path) -> Option<(Viewtype, &'static str)> {
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
     let info = match extension {
         // before using viewtype other than Viewtype::File,
@@ -2213,15 +2260,15 @@ mod tests {
     #[test]
     fn test_guess_msgtype_from_suffix() {
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/bar-sth.mp3")),
+            guess_msgtype_from_path_suffix(Path::new("foo/bar-sth.mp3")),
             Some((Viewtype::Audio, "audio/mpeg"))
         );
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/file.html")),
+            guess_msgtype_from_path_suffix(Path::new("foo/file.html")),
             Some((Viewtype::File, "text/html"))
         );
         assert_eq!(
-            guess_msgtype_from_suffix(Path::new("foo/file.xdc")),
+            guess_msgtype_from_path_suffix(Path::new("foo/file.xdc")),
             Some((Viewtype::Webxdc, "application/webxdc+zip"))
         );
     }
@@ -2627,8 +2674,7 @@ mod tests {
 
         let file_bytes = include_bytes!("../test-data/image/screenshot.png");
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)
-            .await?;
+        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)?;
         let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
         let msg = alice.recv_msg(&sent_msg).await;
         assert_eq!(msg.download_state, DownloadState::Available);
@@ -2697,8 +2743,7 @@ mod tests {
 
         let file_bytes = include_bytes!("../test-data/image/screenshot.png");
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)
-            .await?;
+        msg.set_file_from_bytes(bob, "a.jpg", file_bytes, None)?;
         let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
         let msg = alice.recv_msg(&sent_msg).await;
         assert_eq!(msg.download_state, DownloadState::Available);

@@ -1,6 +1,7 @@
 //! # MIME message production.
 
 use std::collections::HashSet;
+use std::path::Path;
 
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
@@ -1605,12 +1606,17 @@ pub(crate) fn wrapped_base64_encode(buf: &[u8]) -> String {
 }
 
 async fn build_body_file(context: &Context, msg: &Message) -> Result<PartBuilder> {
+    let file_name = msg.get_filename().context("msg has no file")?;
+    let suffix = Path::new(&file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("dat");
+
     let blob = msg
         .param
         .get_blob(Param::File, context)
         .await?
         .context("msg has no file")?;
-    let suffix = blob.suffix().unwrap_or("dat");
 
     // Get file name to use for sending.  For privacy purposes, we do
     // not transfer the original filenames eg. for images; these names
@@ -1650,18 +1656,14 @@ async fn build_body_file(context: &Context, msg: &Message) -> Result<PartBuilder
                 ),
             &suffix
         ),
-        _ => msg
-            .param
-            .get(Param::Filename)
-            .unwrap_or_else(|| blob.as_file_name())
-            .to_string(),
+        _ => file_name,
     };
 
     /* check mimetype */
     let mimetype: mime::Mime = match msg.param.get(Param::MimeType) {
         Some(mtype) => mtype.parse()?,
         None => {
-            if let Some(res) = message::guess_msgtype_from_suffix(blob.as_rel_path()) {
+            if let Some(res) = message::guess_msgtype_from_suffix(msg) {
                 res.1.parse()?
             } else {
                 mime::APPLICATION_OCTET_STREAM
@@ -2624,8 +2626,7 @@ mod tests {
         // Long messages are truncated and MimeMessage::decoded_data is set for them. We need
         // decoded_data to check presence of the necessary headers.
         msg.set_text("a".repeat(constants::DC_DESIRED_TEXT_LEN + 1));
-        msg.set_file_from_bytes(&bob, "foo.bar", "content".as_bytes(), None)
-            .await?;
+        msg.set_file_from_bytes(&bob, "foo.bar", "content".as_bytes(), None)?;
         let sent = bob.send_msg(chat, &mut msg).await;
         assert!(msg.get_showpadlock());
         assert!(sent.payload.contains("\r\nSubject: [...]\r\n"));

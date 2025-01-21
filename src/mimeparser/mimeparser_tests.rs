@@ -1373,8 +1373,8 @@ async fn test_x_microsoft_original_message_id() {
                 \n\
                 Does it work with outlook now?\n\
                 ", None)
-        .await
-        .unwrap();
+            .await
+            .unwrap();
     assert_eq!(
         message.get_rfc724_mid(),
         Some("Mr.6Dx7ITn4w38.n9j7epIcuQI@outlook.com".to_string())
@@ -1505,8 +1505,8 @@ async fn test_ignore_read_receipt_to_self() -> Result<()> {
     // Due to a bug in the old version running on the other device, Alice receives a read
     // receipt from self.
     receive_imf(
-        &alice,
-            "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+            &alice,
+                "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: alice@example.org\n\
                  To: alice@example.org\n\
                  Subject: message opened\n\
@@ -1532,10 +1532,10 @@ async fn test_ignore_read_receipt_to_self() -> Result<()> {
                  \n\
                  \n\
                  --SNIPP--"
-        .as_bytes(),
-        false,
-    )
-    .await?;
+            .as_bytes(),
+            false,
+        )
+        .await?;
 
     // Check that the state has not changed to `MessageState::OutMdnRcvd`.
     let msg = Message::load_from_db(&alice, msg.id).await?;
@@ -1601,8 +1601,8 @@ async fn test_receive_eml() -> Result<()> {
         "this is a classic email – I attached the .EML file".to_string()
     );
     assert_eq!(
-        mime_message.parts[0].param.get(Param::File),
-        Some("$BLOBDIR/.eml")
+        mime_message.parts[0].param.get(Param::Filename),
+        Some(".eml")
     );
 
     assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));

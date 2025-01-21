@@ -1825,7 +1825,7 @@ async fn test_sticker(
     tokio::fs::write(&file, bytes).await?;
 
     let mut msg = Message::new(Viewtype::Sticker);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some(filename), None)?;
 
     let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
     let mime = sent_msg.payload();
@@ -1889,14 +1889,17 @@ async fn test_sticker_jpeg_force() {
 
     // Images without force_sticker should be turned into [Viewtype::Image]
     let mut msg = Message::new(Viewtype::Sticker);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
+        .unwrap();
+    let file = msg.get_file(&alice).unwrap();
     let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
     let msg = bob.recv_msg(&sent_msg).await;
     assert_eq!(msg.get_viewtype(), Viewtype::Image);
 
     // Images with `force_sticker = true` should keep [Viewtype::Sticker]
     let mut msg = Message::new(Viewtype::Sticker);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
+        .unwrap();
     msg.force_sticker();
     let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
     let msg = bob.recv_msg(&sent_msg).await;
@@ -1905,7 +1908,8 @@ async fn test_sticker_jpeg_force() {
     // Images with `force_sticker = true` should keep [Viewtype::Sticker]
     // even on drafted messages
     let mut msg = Message::new(Viewtype::Sticker);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)
+        .unwrap();
     msg.force_sticker();
     alice_chat
         .id
@@ -1944,7 +1948,7 @@ async fn test_sticker_forward() -> Result<()> {
     let file = alice.get_blobdir().join(file_name);
     tokio::fs::write(&file, bytes).await?;
     let mut msg = Message::new(Viewtype::Sticker);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some("sticker.jpg"), None)?;
 
     // send sticker to bob
     let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
@@ -2669,7 +2673,7 @@ async fn test_get_chat_media() -> Result<()> {
         let file = t.get_blobdir().join(name);
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(msg_type);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(t, &file, Some(name), None)?;
         send_msg(t, chat_id, &mut msg).await
     }
 
@@ -2820,17 +2824,20 @@ async fn test_blob_renaming() -> Result<()> {
         Contact::create(&alice, "bob", "bob@example.net").await?,
     )
     .await?;
-    let dir = tempfile::tempdir()?;
-    let file = dir.path().join("harmless_file.\u{202e}txt.exe");
+    let file = alice.get_blobdir().join("harmless_file.\u{202e}txt.exe");
     fs::write(&file, "aaa").await?;
     let mut msg = Message::new(Viewtype::File);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some("harmless_file.\u{202e}txt.exe"), None)?;
     let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
 
     // the file bob receives should not contain BIDI-control characters
     assert_eq!(
-        Some("$BLOBDIR/harmless_file.txt.exe"),
+        Some("$BLOBDIR/30c0f9c6a167fc2a91285c85be7ea34"),
         msg.param.get(Param::File),
+    );
+    assert_eq!(
+        Some("harmless_file.txt.exe"),
+        msg.param.get(Param::Filename),
     );
     Ok(())
 }
@@ -3156,7 +3163,7 @@ async fn test_jpeg_with_png_ext() -> Result<()> {
     let file = alice.get_blobdir().join("screenshot.png");
     tokio::fs::write(&file, bytes).await?;
     let mut msg = Message::new(Viewtype::Image);
-    msg.set_file(file.to_str().unwrap(), None);
+    msg.set_file_and_deduplicate(&alice, &file, Some("screenshot.png"), None)?;
 
     let alice_chat = alice.create_chat(&bob).await;
     let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;

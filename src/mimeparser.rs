@@ -1384,7 +1384,7 @@ impl MimeMessage {
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
-        let blob = match BlobObject::create(context, filename, decoded_data).await {
+        let blob = match BlobObject::create_and_deduplicate_from_bytes(context, decoded_data) {
             Ok(blob) => blob,
             Err(err) => {
                 error!(
@@ -2075,10 +2075,12 @@ fn get_mime_type(
         }
         mime::APPLICATION => match mimetype.subtype() {
             mime::OCTET_STREAM => match filename {
-                Some(filename) => match message::guess_msgtype_from_suffix(Path::new(&filename)) {
-                    Some((viewtype, _)) => viewtype,
-                    None => Viewtype::File,
-                },
+                Some(filename) => {
+                    match message::guess_msgtype_from_path_suffix(Path::new(&filename)) {
+                        Some((viewtype, _)) => viewtype,
+                        None => Viewtype::File,
+                    }
+                }
                 None => Viewtype::File,
             },
             _ => Viewtype::File,
