@@ -188,7 +188,10 @@ impl<'a> BlobObject<'a> {
             let hash = file_hash(src_in_blobdir)?.to_hex();
             let hash = hash.as_str();
             let hash = hash.get(0..31).unwrap_or(hash);
-            let new_file = if let Some(extension) = Path::new(original_name).extension() {
+            let new_file = if let Some(extension) = Path::new(original_name)
+                .extension()
+                .filter(|e| e.len() <= 32)
+            {
                 format!(
                     "$BLOBDIR/{hash}.{}",
                     extension.to_string_lossy().to_lowercase()
@@ -995,10 +998,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_long_names() {
         let t = TestContext::new().await;
-        let s = "1".repeat(150);
-        let blob = BlobObject::create(&t, &s, b"data").await.unwrap();
+        let s = format!("file.{}", "a".repeat(100));
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"data", &s).unwrap();
         let blobname = blob.as_name().split('/').last().unwrap();
-        assert!(blobname.len() < 128);
+        assert!(blobname.len() < 70);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
