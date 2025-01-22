@@ -2461,7 +2461,8 @@ pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<()> 
         ChatIdBlocked::lookup_by_contact(context, ContactId::SELF).await?
     {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
-        let blob = BlobObject::create(context, "icon-saved-messages.png", icon).await?;
+        let blob =
+            BlobObject::create_and_deduplicate_from_bytes(context, icon, "saved-messages.png")?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -2476,7 +2477,7 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
         ChatIdBlocked::lookup_by_contact(context, ContactId::DEVICE).await?
     {
         let icon = include_bytes!("../assets/icon-device.png");
-        let blob = BlobObject::create(context, "icon-device.png", icon).await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(context, icon, "device.png")?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -2496,7 +2497,7 @@ pub(crate) async fn get_broadcast_icon(context: &Context) -> Result<String> {
     }
 
     let icon = include_bytes!("../assets/icon-broadcast.png");
-    let blob = BlobObject::create(context, "icon-broadcast.png", icon).await?;
+    let blob = BlobObject::create_and_deduplicate_from_bytes(context, icon, "broadcast.png")?;
     let icon = blob.as_name().to_string();
     context
         .sql
@@ -2511,7 +2512,7 @@ pub(crate) async fn get_archive_icon(context: &Context) -> Result<String> {
     }
 
     let icon = include_bytes!("../assets/icon-archive.png");
-    let blob = BlobObject::create(context, "icon-archive.png", icon).await?;
+    let blob = BlobObject::create_and_deduplicate_from_bytes(context, icon, "archive.png")?;
     let icon = blob.as_name().to_string();
     context
         .sql

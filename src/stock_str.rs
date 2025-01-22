@@ -1415,9 +1415,10 @@ impl Context {
         // add welcome-messages. by the label, this is done only once,
         // if the user has deleted the message or the chat, it is not added again.
         let image = include_bytes!("../assets/welcome-image.jpg");
-        let blob = BlobObject::create(self, "welcome-image.jpg", image).await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(self, image, "welcome.jpg")?;
         let mut msg = Message::new(Viewtype::Image);
         msg.param.set(Param::File, blob.as_name());
+        msg.param.set(Param::Filename, "welcome-image.jpg");
         chat::add_device_msg(self, Some("core-welcome-image"), Some(&mut msg)).await?;
 
         let mut msg = Message::new_text(welcome_message(self).await);

@@ -439,25 +439,21 @@ impl<'a> BlobObject<'a> {
 
     /// Returns path to the stored Base64-decoded blob.
     ///
-    /// If `data` represents an image of known format, this adds the corresponding extension to
-    /// `suggested_file_stem`.
-    pub(crate) async fn store_from_base64(
-        context: &Context,
-        data: &str,
-        suggested_file_stem: &str,
-    ) -> Result<String> {
+    /// If `data` represents an image of known format, this adds the corresponding extension.
+    ///
+    /// Even though this function is not async, it's OK to call it from an async context.
+    pub(crate) fn store_from_base64(context: &Context, data: &str) -> Result<String> {
         let buf = base64::engine::general_purpose::STANDARD.decode(data)?;
-        let ext = if let Ok(format) = image::guess_format(&buf) {
+        let name = if let Ok(format) = image::guess_format(&buf) {
             if let Some(ext) = format.extensions_str().first() {
-                format!(".{ext}")
+                format!("file.{ext}")
             } else {
                 String::new()
             }
         } else {
             String::new()
         };
-        let blob =
-            BlobObject::create(context, &format!("{suggested_file_stem}{ext}"), &buf).await?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(context, &buf, &name)?;
         Ok(blob.as_name().to_string())
     }
 
@@ -930,15 +926,18 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        assert_eq!(blob.as_file_name(), "foo.txt");
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"hello", "foo.txt").unwrap();
+        assert_eq!(blob.as_file_name(), "ea8f163db38682925e4491c5e58d4bb.txt");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"hello", "foo.txt").unwrap();
+        assert_eq!(
+            blob.as_rel_path(),
+            Path::new("ea8f163db38682925e4491c5e58d4bb.txt")
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1620,7 +1619,7 @@ mod tests {
             .await
             .context("failed to write file")?;
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(file.to_str().unwrap(), None);
+        msg.set_file_and_deduplicate(alice, &file, None, None)?;
         let chat = alice.get_self_chat().await;
         let sent = alice.send_msg(chat.id, &mut msg).await;
         let msg = Message::load_from_db(alice, sent.sender_msg_id).await?;

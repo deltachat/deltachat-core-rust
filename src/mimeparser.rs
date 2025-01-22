@@ -12,7 +12,6 @@ use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::Mime;
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
-use rand::distributions::{Alphanumeric, DistString};
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::authres::handle_authres;
@@ -652,17 +651,13 @@ impl MimeMessage {
     }
 
     /// Parses avatar action headers.
-    async fn parse_avatar_headers(&mut self, context: &Context) {
+    fn parse_avatar_headers(&mut self, context: &Context) {
         if let Some(header_value) = self.get_header(HeaderDef::ChatGroupAvatar) {
-            self.group_avatar = self
-                .avatar_action_from_header(context, header_value.to_string())
-                .await;
+            self.group_avatar = self.avatar_action_from_header(context, header_value.to_string());
         }
 
         if let Some(header_value) = self.get_header(HeaderDef::ChatUserAvatar) {
-            self.user_avatar = self
-                .avatar_action_from_header(context, header_value.to_string())
-                .await;
+            self.user_avatar = self.avatar_action_from_header(context, header_value.to_string());
         }
     }
 
@@ -762,7 +757,7 @@ impl MimeMessage {
 
     async fn parse_headers(&mut self, context: &Context) -> Result<()> {
         self.parse_system_message_headers(context);
-        self.parse_avatar_headers(context).await;
+        self.parse_avatar_headers(context);
         self.parse_videochat_headers();
         if self.delivery_report.is_none() {
             self.squash_attachment_parts();
@@ -856,7 +851,7 @@ impl MimeMessage {
         Ok(())
     }
 
-    async fn avatar_action_from_header(
+    fn avatar_action_from_header(
         &mut self,
         context: &Context,
         header_value: String,
@@ -868,15 +863,7 @@ impl MimeMessage {
             .collect::<String>()
             .strip_prefix("base64:")
         {
-            // Add random suffix to the filename
-            // to prevent the UI from accidentally using
-            // cached "avatar.jpg".
-            let suffix = Alphanumeric
-                .sample_string(&mut rand::thread_rng(), 7)
-                .to_lowercase();
-
-            match BlobObject::store_from_base64(context, base64, &format!("avatar-{suffix}")).await
-            {
+            match BlobObject::store_from_base64(context, base64) {
                 Ok(path) => Some(AvatarAction::Change(path)),
                 Err(err) => {
                     warn!(

@@ -686,7 +686,7 @@ impl Context {
         let value = match key {
             Config::Selfavatar if value.is_empty() => None,
             Config::Selfavatar => {
-                config_value = BlobObject::store_from_base64(self, value, "avatar").await?;
+                config_value = BlobObject::store_from_base64(self, value)?;
                 Some(config_value.as_str())
             }
             _ => Some(value),
@@ -1143,6 +1143,8 @@ mod tests {
         Ok(())
     }
 
+    const SAVED_MESSAGES_DEDUPLICATED_FILE: &str = "969142cb84015bc135767bc2370934a.png";
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sync() -> Result<()> {
         let alice0 = TestContext::new_alice().await;
@@ -1217,7 +1219,7 @@ mod tests {
         let self_chat_avatar_path = self_chat.get_profile_image(&alice0).await?.unwrap();
         assert_eq!(
             self_chat_avatar_path,
-            alice0.get_blobdir().join("icon-saved-messages.png")
+            alice0.get_blobdir().join(SAVED_MESSAGES_DEDUPLICATED_FILE)
         );
         assert!(alice1
             .get_config(Config::Selfavatar)

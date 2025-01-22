@@ -13,7 +13,7 @@ use crate::context::Context;
 use crate::net::proxy::ProxyConfig;
 use crate::net::session::SessionStream;
 use crate::net::tls::wrap_rustls;
-use crate::tools::{create_id, time};
+use crate::tools::time;
 
 /// HTTP(S) GET response.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,12 +119,8 @@ fn http_url_cache_timestamps(url: &str, mimetype: Option<&str>) -> (i64, i64) {
 
 /// Places the binary into HTTP cache.
 async fn http_cache_put(context: &Context, url: &str, response: &Response) -> Result<()> {
-    let blob = BlobObject::create(
-        context,
-        &format!("http_cache_{}", create_id()),
-        response.blob.as_slice(),
-    )
-    .await?;
+    let blob =
+        BlobObject::create_and_deduplicate_from_bytes(context, response.blob.as_slice(), "")?;
 
     let (expires, stale) = http_url_cache_timestamps(url, response.mimetype.as_deref());
     context

@@ -345,7 +345,7 @@ async fn import_vcard_contact(context: &Context, contact: &VcardContact) -> Resu
         return Ok(id);
     }
     let path = match &contact.profile_image {
-        Some(image) => match BlobObject::store_from_base64(context, image, "avatar").await {
+        Some(image) => match BlobObject::store_from_base64(context, image) {
             Err(e) => {
                 warn!(
                     context,
