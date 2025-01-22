@@ -4766,7 +4766,7 @@ void            dc_msg_set_file               (dc_msg_t* msg, const char* file, 
  * otherwise it will be copied to the blobdir first.
  *
  * In order to deduplicate files that contain the same data,
- * the file will be named as a hash of the file data.
+ * the file will be named `<hash>.<extension>`, e.g. `ce940175885d7b78f7b7e9f1396611f.jpg`.
  *
  * NOTE:
  * - This function will rename the file. To get the new file path, call `get_file()`.

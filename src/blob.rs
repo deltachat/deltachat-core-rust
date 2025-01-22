@@ -150,7 +150,7 @@ impl<'a> BlobObject<'a> {
     /// otherwise it will be copied to the blobdir first.
     ///
     /// In order to deduplicate files that contain the same data,
-    /// the file will be named `hash.extension`, e.g. ce940175885d7b78f7b7e9f1396611f.jpg.
+    /// the file will be named `<hash>.<extension>`, e.g. `ce940175885d7b78f7b7e9f1396611f.jpg`.
     /// The `original_name` param is only used to get the extension.
     ///
     /// This is done in a in way which avoids race-conditions when multiple files are
@@ -214,7 +214,8 @@ impl<'a> BlobObject<'a> {
 
     /// Creates a new blob object with the file contents in `data`.
     /// In order to deduplicate files that contain the same data,
-    /// the file will be renamed to a hash of the file data.
+    /// the file will be named `<hash>.<extension>`, e.g. `ce940175885d7b78f7b7e9f1396611f.jpg`.
+    /// The `original_name` param is only used to get the extension.
     ///
     /// The `data` will be written into the file without race-conditions.
     ///

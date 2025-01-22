@@ -1094,7 +1094,7 @@ impl Message {
     /// otherwise it will be copied to the blobdir first.
     ///
     /// In order to deduplicate files that contain the same data,
-    /// the file will be named as a hash of the file data.
+    /// the file will be named `<hash>.<extension>`, e.g. `ce940175885d7b78f7b7e9f1396611f.jpg`.
     ///
     /// NOTE:
     /// - This function will rename the file. To get the new file path, call `get_file()`.
@@ -1126,7 +1126,7 @@ impl Message {
     /// Creates a new blob and sets it as a file associated with a message.
     ///
     /// In order to deduplicate files that contain the same data,
-    /// the filename will be a hash of the file data.
+    /// the file will be named `<hash>.<extension>`, e.g. `ce940175885d7b78f7b7e9f1396611f.jpg`.
     ///
     /// NOTE: The file must not be modified after this function was called.
     pub fn set_file_from_bytes(
