@@ -4707,8 +4707,8 @@ pub(crate) async fn update_msg_text_and_timestamp(
 async fn set_contacts_by_addrs(context: &Context, id: ChatId, addrs: &[String]) -> Result<()> {
     let chat = Chat::load_from_db(context, id).await?;
     ensure!(
-        chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast,
-        "{id} is not a group/broadcast",
+        chat.typ == Chattype::Broadcast,
+        "{id} is not a broadcast list",
     );
     let mut contacts = HashSet::new();
     for addr in addrs {
