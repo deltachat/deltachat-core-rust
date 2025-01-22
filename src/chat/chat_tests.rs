@@ -3125,6 +3125,9 @@ async fn test_sync_broadcast() -> Result<()> {
     remove_contact_from_chat(alice0, a0_broadcast_id, a0b_contact_id).await?;
     sync(alice0, alice1).await;
     assert!(get_chat_contacts(alice1, a1_broadcast_id).await?.is_empty());
+    assert!(get_past_chat_contacts(alice1, a1_broadcast_id)
+        .await?
+        .is_empty());
     Ok(())
 }
 

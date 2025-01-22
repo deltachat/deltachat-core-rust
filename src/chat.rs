@@ -4722,7 +4722,21 @@ async fn set_contacts_by_addrs(context: &Context, id: ChatId, addrs: &[String]) 
     if contacts == contacts_old {
         return Ok(());
     }
-    update_chat_contacts_table(context, time(), id, &contacts).await?;
+    context
+        .sql
+        .transaction(move |transaction| {
+            transaction.execute("DELETE FROM chats_contacts WHERE chat_id=?", (id,))?;
+
+            // We do not care about `add_timestamp` column
+            // because timestamps are not used for broadcast lists.
+            let mut statement = transaction
+                .prepare("INSERT INTO chats_contacts (chat_id, contact_id) VALUES (?, ?)")?;
+            for contact_id in &contacts {
+                statement.execute((id, contact_id))?;
+            }
+            Ok(())
+        })
+        .await?;
     context.emit_event(EventType::ChatModified(id));
     Ok(())
 }
