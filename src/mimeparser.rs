@@ -1384,16 +1384,17 @@ impl MimeMessage {
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
-        let blob = match BlobObject::create_and_deduplicate_from_bytes(context, decoded_data) {
-            Ok(blob) => blob,
-            Err(err) => {
-                error!(
-                    context,
-                    "Could not add blob for mime part {}, error {:#}", filename, err
-                );
-                return Ok(());
-            }
-        };
+        let blob =
+            match BlobObject::create_and_deduplicate_from_bytes(context, decoded_data, filename) {
+                Ok(blob) => blob,
+                Err(err) => {
+                    error!(
+                        context,
+                        "Could not add blob for mime part {}, error {:#}", filename, err
+                    );
+                    return Ok(());
+                }
+            };
         info!(context, "added blobfile: {:?}", blob.as_name());
 
         if mime_type.type_() == mime::IMAGE {

@@ -1,7 +1,6 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -1107,14 +1106,18 @@ impl Message {
         name: Option<&str>,
         filemime: Option<&str>,
     ) -> Result<()> {
-        let blob = BlobObject::create_and_deduplicate(context, file)?;
-        if let Some(name) = name {
-            self.param.set(Param::Filename, name);
+        let name = if let Some(name) = name {
+            name.to_string()
         } else {
-            let file_name = file.file_name().map(OsStr::to_string_lossy);
-            self.param.set_optional(Param::Filename, file_name);
-        }
+            file.file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| "unknown_file".to_string())
+        };
+
+        let blob = BlobObject::create_and_deduplicate(context, file, &name)?;
         self.param.set(Param::File, blob.as_name());
+
+        self.param.set(Param::Filename, name);
         self.param.set_optional(Param::MimeType, filemime);
 
         Ok(())
@@ -1133,7 +1136,7 @@ impl Message {
         data: &[u8],
         filemime: Option<&str>,
     ) -> Result<()> {
-        let blob = BlobObject::create_and_deduplicate_from_bytes(context, data)?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(context, data, name)?;
         self.param.set(Param::Filename, name);
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);

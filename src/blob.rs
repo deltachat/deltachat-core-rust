@@ -150,11 +150,16 @@ impl<'a> BlobObject<'a> {
     /// otherwise it will be copied to the blobdir first.
     ///
     /// In order to deduplicate files that contain the same data,
-    /// the file will be named as the hash of the file data.
+    /// the file will be named `hash.extension`, e.g. ce940175885d7b78f7b7e9f1396611f.jpg.
+    /// The `original_name` param is only used to get the extension.
     ///
     /// This is done in a in way which avoids race-conditions when multiple files are
     /// concurrently created.
-    pub fn create_and_deduplicate(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
+    pub fn create_and_deduplicate(
+        context: &'a Context,
+        src: &Path,
+        original_name: &str,
+    ) -> Result<BlobObject<'a>> {
         // `create_and_deduplicate{_from_bytes}()` do blocking I/O, but can still be called
         // from an async context thanks to `block_in_place()`.
         // Tokio's "async" I/O functions are also just thin wrappers around the blocking I/O syscalls,
@@ -180,7 +185,22 @@ impl<'a> BlobObject<'a> {
                 src_in_blobdir = &temp_path;
             }
 
-            let blob = BlobObject::from_hash(blobdir, file_hash(src_in_blobdir)?);
+            let hash = file_hash(src_in_blobdir)?.to_hex();
+            let hash = hash.as_str();
+            let hash = hash.get(0..31).unwrap_or(hash);
+            let new_file = if let Some(extension) = Path::new(original_name).extension() {
+                format!(
+                    "$BLOBDIR/{hash}.{}",
+                    extension.to_string_lossy().to_lowercase()
+                )
+            } else {
+                format!("$BLOBDIR/{hash}")
+            };
+
+            let blob = BlobObject {
+                blobdir,
+                name: new_file,
+            };
             let new_path = blob.to_abs_path();
 
             // This will also replace an already-existing file.
@@ -203,6 +223,7 @@ impl<'a> BlobObject<'a> {
     pub fn create_and_deduplicate_from_bytes(
         context: &'a Context,
         data: &[u8],
+        original_name: &str,
     ) -> Result<BlobObject<'a>> {
         task::block_in_place(|| {
             let blobdir = context.get_blobdir();
@@ -213,18 +234,8 @@ impl<'a> BlobObject<'a> {
                 std::fs::write(&temp_path, data).context("writing new blobfile failed")?;
             };
 
-            BlobObject::create_and_deduplicate(context, &temp_path)
+            BlobObject::create_and_deduplicate(context, &temp_path, original_name)
         })
-    }
-
-    fn from_hash(blobdir: &Path, hash: blake3::Hash) -> BlobObject<'_> {
-        let hash = hash.to_hex();
-        let hash = hash.as_str();
-        let hash = hash.get(0..31).unwrap_or(hash);
-        BlobObject {
-            blobdir,
-            name: format!("$BLOBDIR/{hash}"),
-        }
     }
 
     /// Creates a blob from a file, possibly copying it to the blobdir.
@@ -674,7 +685,7 @@ impl<'a> BlobObject<'a> {
                     encode_img(&img, ofmt, &mut encoded)?;
                 }
 
-                self.name = BlobObject::create_and_deduplicate_from_bytes(context, &encoded)
+                self.name = BlobObject::create_and_deduplicate_from_bytes(context, &encoded, &name)
                     .context("failed to write recoded blob to file")?
                     .name;
             }
@@ -905,8 +916,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
-        assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"hello", "foo.TXT").unwrap();
+        assert!(
+            blob.as_name().ends_with(".txt"),
+            "Blob {blob:?} should end with .txt"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1618,28 +1632,28 @@ mod tests {
 
         let path = t.get_blobdir().join("anyfile.dat");
         fs::write(&path, b"bla").await?;
-        let blob = BlobObject::create_and_deduplicate(&t, &path)?;
-        assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
+        let blob = BlobObject::create_and_deduplicate(&t, &path, "anyfile.dat")?;
+        assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f.dat");
         assert_eq!(path.exists(), false);
 
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
 
         fs::write(&path, b"bla").await?;
-        let blob2 = BlobObject::create_and_deduplicate(&t, &path)?;
+        let blob2 = BlobObject::create_and_deduplicate(&t, &path, "anyfile.dat")?;
         assert_eq!(blob2.name, blob.name);
 
         let path_outside_blobdir = t.dir.path().join("anyfile.dat");
         fs::write(&path_outside_blobdir, b"bla").await?;
-        let blob3 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir)?;
+        let blob3 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir, "anyfile.dat")?;
         assert!(path_outside_blobdir.exists());
         assert_eq!(blob3.name, blob.name);
 
         fs::write(&path, b"blabla").await?;
-        let blob4 = BlobObject::create_and_deduplicate(&t, &path)?;
+        let blob4 = BlobObject::create_and_deduplicate(&t, &path, "anyfile.dat")?;
         assert_ne!(blob4.name, blob.name);
 
         fs::remove_dir_all(t.get_blobdir()).await?;
-        let blob5 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir)?;
+        let blob5 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir, "anyfile.dat")?;
         assert_eq!(blob5.name, blob.name);
 
         Ok(())
@@ -1650,7 +1664,7 @@ mod tests {
         let t = TestContext::new().await;
 
         fs::remove_dir(t.get_blobdir()).await?;
-        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla", "file")?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f");
 
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
@@ -1662,7 +1676,7 @@ mod tests {
         // which we can't mock from our code.
         tokio::time::sleep(Duration::from_millis(1100)).await;
 
-        let blob2 = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla")?;
+        let blob2 = BlobObject::create_and_deduplicate_from_bytes(&t, b"bla", "file")?;
         assert_eq!(blob2.name, blob.name);
 
         let modified2 = blob.to_abs_path().metadata()?.modified()?;
@@ -1675,7 +1689,7 @@ mod tests {
         sql::housekeeping(&t).await?;
         assert_eq!(blob2.to_abs_path().exists(), false);
 
-        let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
+        let blob3 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla", "file")?;
         assert_ne!(blob3.name, blob.name);
 
         {
@@ -1683,7 +1697,7 @@ mod tests {
             // the correct content should be restored:
             fs::write(blob3.to_abs_path(), b"bloblo").await?;
 
-            let blob4 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla")?;
+            let blob4 = BlobObject::create_and_deduplicate_from_bytes(&t, b"blabla", "file")?;
             let blob4_content = fs::read(blob4.to_abs_path()).await?;
             assert_eq!(blob4_content, b"blabla");
         }

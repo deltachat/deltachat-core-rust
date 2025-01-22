@@ -2832,7 +2832,7 @@ async fn test_blob_renaming() -> Result<()> {
 
     // the file bob receives should not contain BIDI-control characters
     assert_eq!(
-        Some("$BLOBDIR/30c0f9c6a167fc2a91285c85be7ea34"),
+        Some("$BLOBDIR/30c0f9c6a167fc2a91285c85be7ea34.exe"),
         msg.param.get(Param::File),
     );
     assert_eq!(
