@@ -26,12 +26,11 @@ pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
     /* this may require a keypair to be created. this may take a second ... */
     let setup_file_content = render_setup_file(context, &setup_code).await?;
     /* encrypting may also take a while ... */
-    let setup_file_blob = BlobObject::create(
+    let setup_file_blob = BlobObject::create_and_deduplicate_from_bytes(
         context,
-        "autocrypt-setup-message.html",
         setup_file_content.as_bytes(),
-    )
-    .await?;
+        "autocrypt-setup-message.html",
+    )?;
 
     let chat_id = ChatId::create_for_contact(context, ContactId::SELF).await?;
     let mut msg = Message {
@@ -39,6 +38,8 @@ pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
         ..Default::default()
     };
     msg.param.set(Param::File, setup_file_blob.as_name());
+    msg.param
+        .set(Param::Filename, "autocrypt-setup-message.html");
     msg.subject = stock_str::ac_setup_msg_subject(context).await;
     msg.param
         .set(Param::MimeType, "application/autocrypt-setup");

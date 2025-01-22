@@ -4752,6 +4752,7 @@ void            dc_msg_set_override_sender_name(dc_msg_t* msg, const char* name)
  * @param file If the message object is used in dc_send_msg() later,
  *     this must be the full path of the image file to send.
  * @param filemime The MIME type of the file. NULL if you don't know or don't care.
+ * @deprecated 2025-01-21 Use dc_msg_set_file_and_deduplicate instead
  */
 void            dc_msg_set_file               (dc_msg_t* msg, const char* file, const char* filemime);
 
