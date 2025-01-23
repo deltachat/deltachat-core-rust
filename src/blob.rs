@@ -104,10 +104,8 @@ impl<'a> BlobObject<'a> {
             return Err(err).context("failed to copy file");
         }
 
-        // workaround a bug in async-std
-        // (the executor does not handle blocking operation in Drop correctly,
-        // see <https://github.com/async-rs/async-std/issues/900>)
-        let _ = dst_file.flush().await;
+        // Ensure that all buffered bytes are written
+        dst_file.flush().await?;
 
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
