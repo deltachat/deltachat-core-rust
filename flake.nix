@@ -556,6 +556,8 @@
               cargo-nextest
               perl # needed to build vendored OpenSSL
               git-cliff
+              python311
+              python311Packages.tox
             ];
           };
       }
