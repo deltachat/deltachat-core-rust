@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.155.0] - 2025-01-23
+
+### API-Changes
+
+- Add JSON-RPC API to get past members.
+
+### Build system
+
+- Update Rust.
+- Increase MSRV to 1.81.0
+
+### Features / Changes
+
+- feat: Set BccSelf to true when receiving a sync message  ([#6434](https://github.com/deltachat/deltachat-core-rust/pull/6434))
+- File deduplication ([#6332](https://github.com/deltachat/deltachat-core-rust/pull/6332))
+
+### Refactor
+
+- Move tests to their own files.
+- Extract `group_changes_msgs()` function ([#6460](https://github.com/deltachat/deltachat-core-rust/pull/6460)).
+
 ## [1.154.3] - 2025-01-20
 
 ### Build system
@@ -5660,3 +5681,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.154.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.0..v1.154.1
 [1.154.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.1..v1.154.2
 [1.154.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.2..v1.154.3
+[1.155.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.3..v1.155.0
