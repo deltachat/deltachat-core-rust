@@ -471,6 +471,7 @@ impl Config {
         matches!(
             self,
             Self::Displayname
+                | Self::DeleteServerAfter
                 | Self::MdnsEnabled
                 | Self::MvboxMove
                 | Self::ShowEmails
@@ -1203,6 +1204,7 @@ mod tests {
         }
         test_config_str(&alice0, &alice1, Config::Displayname, "Alice Sync").await?;
         test_config_str(&alice0, &alice1, Config::Selfstatus, "My status").await?;
+        test_config_str(&alice0, &alice1, Config::DeleteServerAfter, "3600").await?;
 
         assert!(alice0.get_config(Config::Selfavatar).await?.is_none());
         let file = alice0.dir.path().join("avatar.png");

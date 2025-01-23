@@ -690,3 +690,38 @@ def test_deleted_msgs_dont_reappear(acfactory):
     ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
     time.sleep(5)
     assert len(chat.get_messages()) == 0
+
+
+def test_sync_delete_server_after(acfactory, tmp_path):
+    """Tests that if delete_server_after is changed, the corresponding sync message isn't deleted by
+    another device using the previous delete_server_after value so that the sync message always has
+    chance to be executed on all devices.
+    """
+    ac1 = acfactory.new_online_configuring_account(bcc_self=True, sync_msgs=True, delete_server_after=1)
+    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1, sync_msgs=True, delete_server_after=1)
+    acfactory.bring_accounts_online()
+    dir = tmp_path / "keydir"
+    dir.mkdir()
+    ac1.export_self_keys(str(dir))
+    ac2.import_self_keys(str(dir))
+
+    ac2._evtracker.consume_events()
+    ac1.set_config("delete_server_after", "0")
+    try:
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED", timeout=5)
+    except Exception:
+        pass
+    else:
+        pytest.fail("Sync message deleted by ac2")
+    assert ac2.get_config("delete_server_after") == "0"
+
+    # Now check that the sync message is applied correctly and the next message is deleted by the
+    # second device.
+    ac1._evtracker.consume_events()
+    ac1.set_config("delete_server_after", "5")
+    ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+    ac1.set_config("displayname", "Alice")
+    ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+    ac1.stop_io()
+    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+    assert ac2.get_config("delete_server_after") == "5"
