@@ -48,36 +48,6 @@ enum ImageOutputFormat {
 }
 
 impl<'a> BlobObject<'a> {
-    /// Creates a new blob object with a unique name.
-    ///
-    /// Creates a new file in the blob directory.  The name will be
-    /// derived from the platform-agnostic basename of the suggested
-    /// name, followed by a random number and followed by a possible
-    /// extension.  The `data` will be written into the file without
-    /// race-conditions.
-    pub async fn create(
-        context: &'a Context,
-        suggested_name: &str,
-        data: &[u8],
-    ) -> Result<BlobObject<'a>> {
-        let blobdir = context.get_blobdir();
-        let (stem, ext) = BlobObject::sanitise_name(suggested_name);
-        let (name, mut file) = BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
-        file.write_all(data).await.context("file write failure")?;
-
-        // workaround a bug in async-std
-        // (the executor does not handle blocking operation in Drop correctly,
-        // see <https://github.com/async-rs/async-std/issues/900>)
-        let _ = file.flush().await;
-
-        let blob = BlobObject {
-            blobdir,
-            name: format!("$BLOBDIR/{name}"),
-        };
-        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
-        Ok(blob)
-    }
-
     /// Creates a new file, returning a tuple of the name and the handle.
     async fn create_new_file(
         context: &Context,
@@ -115,8 +85,8 @@ impl<'a> BlobObject<'a> {
 
     /// Creates a new blob object with unique name by copying an existing file.
     ///
-    /// This creates a new blob as described in [BlobObject::create]
-    /// but also copies an existing file into it.  This is done in a
+    /// This creates a new blob
+    /// and copies an existing file into it.  This is done in a
     /// in way which avoids race-conditions when multiple files are
     /// concurrently created.
     pub async fn create_and_copy(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
@@ -134,7 +104,9 @@ impl<'a> BlobObject<'a> {
             return Err(err).context("failed to copy file");
         }
 
-        // workaround, see create() for details
+        // workaround a bug in async-std
+        // (the executor does not handle blocking operation in Drop correctly,
+        // see <https://github.com/async-rs/async-std/issues/900>)
         let _ = dst_file.flush().await;
 
         let blob = BlobObject {
@@ -902,21 +874,26 @@ mod tests {
         })
     }
 
+    const FILE_BYTES: &[u8] = b"hello";
+    const FILE_DEDUPLICATED: &str = "ea8f163db38682925e4491c5e58d4bb.txt";
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
-        let fname = t.get_blobdir().join("foo");
+        let blob =
+            BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
+        let fname = t.get_blobdir().join(FILE_DEDUPLICATED);
         let data = fs::read(fname).await.unwrap();
-        assert_eq!(data, b"hello");
-        assert_eq!(blob.as_name(), "$BLOBDIR/foo");
-        assert_eq!(blob.to_abs_path(), t.get_blobdir().join("foo"));
+        assert_eq!(data, FILE_BYTES);
+        assert_eq!(blob.as_name(), format!("$BLOBDIR/{FILE_DEDUPLICATED}"));
+        assert_eq!(blob.to_abs_path(), t.get_blobdir().join(FILE_DEDUPLICATED));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"hello", "foo.TXT").unwrap();
+        let blob =
+            BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.TXT").unwrap();
         assert!(
             blob.as_name().ends_with(".txt"),
             "Blob {blob:?} should end with .txt"
@@ -926,70 +903,66 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"hello", "foo.txt").unwrap();
-        assert_eq!(blob.as_file_name(), "ea8f163db38682925e4491c5e58d4bb.txt");
+        let blob =
+            BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
+        assert_eq!(blob.as_file_name(), FILE_DEDUPLICATED);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"hello", "foo.txt").unwrap();
-        assert_eq!(
-            blob.as_rel_path(),
-            Path::new("ea8f163db38682925e4491c5e58d4bb.txt")
-        );
+        let blob =
+            BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
+        assert_eq!(blob.as_rel_path(), Path::new(FILE_DEDUPLICATED));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_suffix() {
         let t = TestContext::new().await;
-        let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
+        let blob =
+            BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
         assert_eq!(blob.suffix(), Some("txt"));
-        let blob = BlobObject::create(&t, "bar", b"world").await.unwrap();
+        let blob = BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "bar").unwrap();
         assert_eq!(blob.suffix(), None);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_dup() {
         let t = TestContext::new().await;
-        BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        let foo_path = t.get_blobdir().join("foo.txt");
+        BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
+        let foo_path = t.get_blobdir().join(FILE_DEDUPLICATED);
         assert!(foo_path.exists());
-        BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
+        BlobObject::create_and_deduplicate_from_bytes(&t, b"world", "foo.txt").unwrap();
         let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Ok(Some(dirent)) = dir.next_entry().await {
             let fname = dirent.file_name();
             if fname == foo_path.file_name().unwrap() {
-                assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
+                assert_eq!(fs::read(&foo_path).await.unwrap(), FILE_BYTES);
             } else {
                 let name = fname.to_str().unwrap();
-                assert!(name.starts_with("foo"));
                 assert!(name.ends_with(".txt"));
             }
         }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_double_ext_preserved() {
+    async fn test_double_ext() {
         let t = TestContext::new().await;
-        BlobObject::create(&t, "foo.tar.gz", b"hello")
-            .await
-            .unwrap();
-        let foo_path = t.get_blobdir().join("foo.tar.gz");
+        BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.tar.gz").unwrap();
+        let foo_path = t.get_blobdir().join(FILE_DEDUPLICATED).with_extension("gz");
         assert!(foo_path.exists());
-        BlobObject::create(&t, "foo.tar.gz", b"world")
-            .await
-            .unwrap();
+        BlobObject::create_and_deduplicate_from_bytes(&t, b"world", "foo.tar.gz").unwrap();
         let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
         while let Ok(Some(dirent)) = dir.next_entry().await {
             let fname = dirent.file_name();
             if fname == foo_path.file_name().unwrap() {
-                assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
+                assert_eq!(fs::read(&foo_path).await.unwrap(), FILE_BYTES);
             } else {
                 let name = fname.to_str().unwrap();
                 println!("{name}");
-                assert!(name.starts_with("foo"));
-                assert!(name.ends_with(".tar.gz"));
+                assert_eq!(name.starts_with("foo"), false);
+                assert_eq!(name.ends_with(".tar.gz"), false);
+                assert!(name.ends_with(".gz"));
             }
         }
     }
