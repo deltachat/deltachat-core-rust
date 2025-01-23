@@ -130,7 +130,7 @@ impl<'a> BlobObject<'a> {
     pub fn create_and_deduplicate(
         context: &'a Context,
         src: &Path,
-        original_name: &str,
+        original_name: &Path,
     ) -> Result<BlobObject<'a>> {
         // `create_and_deduplicate{_from_bytes}()` do blocking I/O, but can still be called
         // from an async context thanks to `block_in_place()`.
@@ -160,17 +160,15 @@ impl<'a> BlobObject<'a> {
             let hash = file_hash(src_in_blobdir)?.to_hex();
             let hash = hash.as_str();
             let hash = hash.get(0..31).unwrap_or(hash);
-            let new_file = if let Some(extension) = Path::new(original_name)
-                .extension()
-                .filter(|e| e.len() <= 32)
-            {
-                format!(
-                    "$BLOBDIR/{hash}.{}",
-                    extension.to_string_lossy().to_lowercase()
-                )
-            } else {
-                format!("$BLOBDIR/{hash}")
-            };
+            let new_file =
+                if let Some(extension) = original_name.extension().filter(|e| e.len() <= 32) {
+                    format!(
+                        "$BLOBDIR/{hash}.{}",
+                        extension.to_string_lossy().to_lowercase()
+                    )
+                } else {
+                    format!("$BLOBDIR/{hash}")
+                };
 
             let blob = BlobObject {
                 blobdir,
@@ -210,7 +208,7 @@ impl<'a> BlobObject<'a> {
                 std::fs::write(&temp_path, data).context("writing new blobfile failed")?;
             };
 
-            BlobObject::create_and_deduplicate(context, &temp_path, original_name)
+            BlobObject::create_and_deduplicate(context, &temp_path, Path::new(original_name))
         })
     }
 
@@ -1608,28 +1606,30 @@ mod tests {
 
         let path = t.get_blobdir().join("anyfile.dat");
         fs::write(&path, b"bla").await?;
-        let blob = BlobObject::create_and_deduplicate(&t, &path, "anyfile.dat")?;
+        let blob = BlobObject::create_and_deduplicate(&t, &path, &path)?;
         assert_eq!(blob.name, "$BLOBDIR/ce940175885d7b78f7b7e9f1396611f.dat");
         assert_eq!(path.exists(), false);
 
         assert_eq!(fs::read(&blob.to_abs_path()).await?, b"bla");
 
         fs::write(&path, b"bla").await?;
-        let blob2 = BlobObject::create_and_deduplicate(&t, &path, "anyfile.dat")?;
+        let blob2 = BlobObject::create_and_deduplicate(&t, &path, &path)?;
         assert_eq!(blob2.name, blob.name);
 
         let path_outside_blobdir = t.dir.path().join("anyfile.dat");
         fs::write(&path_outside_blobdir, b"bla").await?;
-        let blob3 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir, "anyfile.dat")?;
+        let blob3 =
+            BlobObject::create_and_deduplicate(&t, &path_outside_blobdir, &path_outside_blobdir)?;
         assert!(path_outside_blobdir.exists());
         assert_eq!(blob3.name, blob.name);
 
         fs::write(&path, b"blabla").await?;
-        let blob4 = BlobObject::create_and_deduplicate(&t, &path, "anyfile.dat")?;
+        let blob4 = BlobObject::create_and_deduplicate(&t, &path, &path)?;
         assert_ne!(blob4.name, blob.name);
 
         fs::remove_dir_all(t.get_blobdir()).await?;
-        let blob5 = BlobObject::create_and_deduplicate(&t, &path_outside_blobdir, "anyfile.dat")?;
+        let blob5 =
+            BlobObject::create_and_deduplicate(&t, &path_outside_blobdir, &path_outside_blobdir)?;
         assert_eq!(blob5.name, blob.name);
 
         Ok(())
