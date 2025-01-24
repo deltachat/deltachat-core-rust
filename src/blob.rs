@@ -8,7 +8,7 @@ use std::iter::FusedIterator;
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use anyhow::{format_err, Context as _, Result};
+use anyhow::{ensure, format_err, Context as _, Result};
 use base64::Engine as _;
 use futures::StreamExt;
 use image::codecs::jpeg::JpegEncoder;
@@ -139,7 +139,7 @@ impl<'a> BlobObject<'a> {
             let src_in_blobdir: &Path;
             let blobdir = context.get_blobdir();
 
-            if src.starts_with(blobdir) || src.starts_with("$BLOBDIR/") {
+            if src.starts_with(blobdir) {
                 src_in_blobdir = src;
             } else {
                 info!(
@@ -678,6 +678,10 @@ impl<'a> BlobObject<'a> {
 }
 
 fn file_hash(src: &Path) -> Result<blake3::Hash> {
+    ensure!(
+        !src.starts_with("$BLOBDIR/"),
+        "Use `get_abs_path()` to get the absolute path of the blobfile"
+    );
     let mut hasher = blake3::Hasher::new();
     let mut src_file = std::fs::File::open(src)
         .with_context(|| format!("Failed to open file {}", src.display()))?;
@@ -1221,7 +1225,7 @@ mod tests {
         let avatar_src = t.dir.path().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
         fs::write(&avatar_src, avatar_bytes).await.unwrap();
-        let avatar_blob = t.get_blobdir().join("avatar.png");
+        let avatar_blob = t.get_blobdir().join("e9b6c7a78aa2e4f415644f55a553e73.png");
         assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
