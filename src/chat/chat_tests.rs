@@ -2495,7 +2495,9 @@ async fn test_broadcast() -> Result<()> {
     }
 
     {
-        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let sent_msg = alice.pop_sent_msg().await;
+        assert!(!sent_msg.payload.contains("Chat-Group-Member-Timestamps:"));
+        let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.get_text(), "ola!");
         assert_eq!(msg.subject, "Broadcast list");
         assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
@@ -3535,4 +3537,13 @@ async fn test_restore_backup_after_60_days() -> Result<()> {
     assert_eq!(get_past_chat_contacts(fiona, fiona_chat_id).await?.len(), 0);
 
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_one_to_one_chat_no_group_member_timestamps() {
+    let t = TestContext::new_alice().await;
+    let chat = t.create_chat_with_contact("bob", "bob@example.com").await;
+    let sent = t.send_text(chat.id, "Hi!").await;
+    let payload = sent.payload;
+    assert!(!payload.contains("Chat-Group-Member-Timestamps:"));
 }
