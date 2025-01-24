@@ -439,7 +439,7 @@ impl<'a> BlobObject<'a> {
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
         self.recode_to_size(
             context,
-            "".to_string(), // The name of an avatar doesn't matter
+            None, // The name of an avatar doesn't matter
             maybe_sticker,
             img_wh,
             20_000,
@@ -459,7 +459,7 @@ impl<'a> BlobObject<'a> {
     pub async fn recode_to_image_size(
         &mut self,
         context: &Context,
-        name: String,
+        name: Option<String>,
         maybe_sticker: &mut bool,
     ) -> Result<String> {
         let (img_wh, max_bytes) =
@@ -494,11 +494,10 @@ impl<'a> BlobObject<'a> {
     /// then the updated user-visible filename will be returned;
     /// this may be necessary because the format may be changed to JPG,
     /// i.e. "image.png" -> "image.jpg".
-    /// Pass an empty string if you don't care.
     fn recode_to_size(
         &mut self,
         context: &Context,
-        mut name: String,
+        name: Option<String>,
         maybe_sticker: &mut bool,
         mut img_wh: u32,
         max_bytes: usize,
@@ -508,6 +507,7 @@ impl<'a> BlobObject<'a> {
         let mut add_white_bg = img_wh <= constants::BALANCED_AVATAR_SIZE;
         let mut no_exif = false;
         let no_exif_ref = &mut no_exif;
+        let mut name = name.unwrap_or_else(|| self.name.clone());
         let original_name = name.clone();
         let res: Result<String> = tokio::task::block_in_place(move || {
             let mut file = std::fs::File::open(self.to_abs_path())?;
@@ -1103,15 +1103,8 @@ mod tests {
             let img_wh = 128;
             let maybe_sticker = &mut false;
             let strict_limits = true;
-            blob.recode_to_size(
-                &t,
-                "avatar.png".to_string(),
-                maybe_sticker,
-                img_wh,
-                20_000,
-                strict_limits,
-            )
-            .unwrap();
+            blob.recode_to_size(&t, None, maybe_sticker, img_wh, 20_000, strict_limits)
+                .unwrap();
             tokio::task::block_in_place(move || {
                 let img = ImageReader::open(blob.to_abs_path())
                     .unwrap()
@@ -1142,7 +1135,7 @@ mod tests {
         let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         let avatar_path = Path::new(&avatar_blob);
         assert!(
-            avatar_blob.ends_with("d98cd30ed8f2129bf3968420208849d"),
+            avatar_blob.ends_with("d98cd30ed8f2129bf3968420208849d.jpg"),
             "The avatar filename should be its hash, put instead it's {avatar_blob}"
         );
         let scaled_avatar_size = file_size(avatar_path).await;
@@ -1158,15 +1151,8 @@ mod tests {
         let mut blob = BlobObject::new_from_path(&t, avatar_path).await.unwrap();
         let maybe_sticker = &mut false;
         let strict_limits = true;
-        blob.recode_to_size(
-            &t,
-            "avatar.jpg".to_string(),
-            maybe_sticker,
-            1000,
-            3000,
-            strict_limits,
-        )
-        .unwrap();
+        blob.recode_to_size(&t, None, maybe_sticker, 1000, 3000, strict_limits)
+            .unwrap();
         let new_file_size = file_size(&blob.to_abs_path()).await;
         assert!(new_file_size <= 3000);
         assert!(new_file_size > 2000);
@@ -1201,7 +1187,7 @@ mod tests {
             .unwrap();
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert!(
-            avatar_cfg.ends_with("9e7f409ac5c92b942cc4f31cee2770a"),
+            avatar_cfg.ends_with("9e7f409ac5c92b942cc4f31cee2770a.png"),
             "Avatar file name {avatar_cfg} should end with its hash"
         );
 
