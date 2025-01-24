@@ -1944,7 +1944,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
 
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file(&sticker_path, None);
+        msg.set_file_and_deduplicate(&ctx, Path::new(&sticker_path), None, None)?;
 
         // JSON-rpc does not need heuristics to turn [Viewtype::Sticker] into [Viewtype::Image]
         msg.force_sticker();
@@ -2164,12 +2164,14 @@ impl CommandApi {
 
     // mimics the old desktop call, will get replaced with something better in the composer rewrite,
     // the better version will just be sending the current draft, though there will be probably something similar with more options to this for the corner cases like setting a marker on the map
+    #[allow(clippy::too_many_arguments)]
     async fn misc_send_msg(
         &self,
         account_id: u32,
         chat_id: u32,
         text: Option<String>,
         file: Option<String>,
+        filename: Option<String>,
         location: Option<(f64, f64)>,
         quoted_message_id: Option<u32>,
     ) -> Result<(u32, MessageObject)> {
@@ -2181,7 +2183,7 @@ impl CommandApi {
         });
         message.set_text(text.unwrap_or_default());
         if let Some(file) = file {
-            message.set_file(file, None);
+            message.set_file_and_deduplicate(&ctx, Path::new(&file), filename.as_deref(), None)?;
         }
         if let Some((latitude, longitude)) = location {
             message.set_location(latitude, longitude);
@@ -2209,12 +2211,14 @@ impl CommandApi {
     // the better version should support:
     // - changing viewtype to enable/disable compression
     // - keeping same message id as long as attachment does not change for webxdc messages
+    #[allow(clippy::too_many_arguments)]
     async fn misc_set_draft(
         &self,
         account_id: u32,
         chat_id: u32,
         text: Option<String>,
         file: Option<String>,
+        filename: Option<String>,
         quoted_message_id: Option<u32>,
         view_type: Option<MessageViewtype>,
     ) -> Result<()> {
@@ -2231,7 +2235,7 @@ impl CommandApi {
         ));
         draft.set_text(text.unwrap_or_default());
         if let Some(file) = file {
-            draft.set_file(file, None);
+            draft.set_file_and_deduplicate(&ctx, Path::new(&file), filename.as_deref(), None)?;
         }
         if let Some(id) = quoted_message_id {
             draft

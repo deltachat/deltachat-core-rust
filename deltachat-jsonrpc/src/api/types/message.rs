@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::api::VcardContact;
 use anyhow::{Context as _, Result};
 use deltachat::chat::Chat;
@@ -593,6 +595,7 @@ pub struct MessageData {
     pub html: Option<String>,
     pub viewtype: Option<MessageViewtype>,
     pub file: Option<String>,
+    pub filename: Option<String>,
     pub location: Option<(f64, f64)>,
     pub override_sender_name: Option<String>,
     /// Quoted message id. Takes preference over `quoted_text` (see below).
@@ -617,7 +620,12 @@ impl MessageData {
             message.set_override_sender_name(self.override_sender_name);
         }
         if let Some(file) = self.file {
-            message.set_file(file, None);
+            message.set_file_and_deduplicate(
+                context,
+                Path::new(&file),
+                self.filename.as_deref(),
+                None,
+            )?;
         }
         if let Some((latitude, longitude)) = self.location {
             message.set_location(latitude, longitude);
