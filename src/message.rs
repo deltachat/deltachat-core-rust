@@ -1114,7 +1114,7 @@ impl Message {
                 .unwrap_or_else(|| "unknown_file".to_string())
         };
 
-        let blob = BlobObject::create_and_deduplicate(context, file, &name)?;
+        let blob = BlobObject::create_and_deduplicate(context, file, Path::new(&name))?;
         self.param.set(Param::File, blob.as_name());
 
         self.param.set(Param::Filename, name);
