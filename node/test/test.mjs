@@ -8,7 +8,7 @@ import { EventId2EventName, C } from '../dist/constants.js'
 import { join } from 'path'
 import { statSync } from 'fs'
 import { Context } from '../dist/context.js'
-import {fileURLToPath} from 'url';
+import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -444,7 +444,7 @@ describe('Offline Tests with unconfigured account', function () {
     context.setChatProfileImage(chatId, imagePath)
     const blobPath = context.getChat(chatId).getProfileImage()
     expect(blobPath.startsWith(blobs)).to.be.true
-    expect(blobPath.includes('image')).to.be.true
+    expect(blobPath.includes('image')).to.be.false
     expect(blobPath.endsWith('.jpeg')).to.be.true
 
     context.setChatProfileImage(chatId, null)

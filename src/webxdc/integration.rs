@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::chat::{send_msg, ChatId};
 use crate::config::Config;
 use crate::contact::ContactId;
@@ -13,7 +15,7 @@ impl Context {
     pub async fn set_webxdc_integration(&self, file: &str) -> Result<()> {
         let chat_id = ChatId::create_for_contact(self, ContactId::SELF).await?;
         let mut msg = Message::new(Viewtype::Webxdc);
-        msg.set_file(file, None);
+        msg.set_file_and_deduplicate(self, Path::new(&file), None, None)?;
         msg.hidden = true;
         msg.param.set_int(Param::WebxdcIntegration, 1);
         msg.param.set_int(Param::GuaranteeE2ee, 1); // needed to pass `internet_access` requirements

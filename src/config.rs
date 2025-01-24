@@ -764,7 +764,8 @@ impl Context {
                     .await?;
                 match value {
                     Some(path) => {
-                        let mut blob = BlobObject::new_from_path(self, path.as_ref()).await?;
+                        let path = get_abs_path(self, Path::new(path));
+                        let mut blob = BlobObject::create_and_deduplicate(self, &path, &path)?;
                         blob.recode_to_avatar_size(self).await?;
                         self.sql
                             .set_raw_config(key.as_ref(), Some(blob.as_name()))
