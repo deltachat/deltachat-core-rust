@@ -2,7 +2,6 @@
 
 use core::cmp::max;
 use std::ffi::OsStr;
-use std::fmt;
 use std::io::{Cursor, Seek};
 use std::iter::FusedIterator;
 use std::mem;
@@ -693,7 +692,7 @@ fn file_hash(src: &Path) -> Result<blake3::Hash> {
 }
 
 /// Returns image file size and Exif.
-pub fn image_metadata(file: &std::fs::File) -> Result<(u64, Option<exif::Exif>)> {
+fn image_metadata(file: &std::fs::File) -> Result<(u64, Option<exif::Exif>)> {
     let len = file.metadata()?.len();
     let mut bufreader = std::io::BufReader::new(file);
     let exif = exif::Reader::new().read_from_container(&mut bufreader).ok();
@@ -712,12 +711,6 @@ fn exif_orientation(exif: &exif::Exif, context: &Context) -> i32 {
         }
     }
     0
-}
-
-impl fmt::Display for BlobObject<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "$BLOBDIR/{}", self.name)
-    }
 }
 
 /// All files in the blobdir.
