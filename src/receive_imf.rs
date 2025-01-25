@@ -2093,13 +2093,14 @@ async fn create_group(
             }
             members.extend(to_ids);
 
-            chat::add_to_chat_contacts_table(
-                context,
-                mime_parser.timestamp_sent,
-                new_chat_id,
-                &members,
-            )
-            .await?;
+            // Add all members with 0 timestamp
+            // because we don't know the real timestamp of their addition.
+            // This will allow other senders who support
+            // `Chat-Group-Member-Timestamps` to overwrite
+            // timestamps later.
+            let timestamp = 0;
+
+            chat::add_to_chat_contacts_table(context, timestamp, new_chat_id, &members).await?;
         }
 
         context.emit_event(EventType::ChatModified(new_chat_id));
