@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.155.1] - 2025-01-25
+
+### Features / Changes
+
+- Only accept SetContacts sync messages for broadcast lists.
+
+### Fixes
+
+- Don't create tombstones when synchronizing broadcast list members.
+- Use non-empty `To:` field for "saved messages".
+- Only send Chat-Group-Member-Timestamps in groups.
+- Use 0 timestamps if Chat-Group-Member-Timestamps is not set.
+
+### Refactor
+
+- Remove BlobObject::create(), use create_and_deduplicate_from_bytes() instead ([#6467](https://github.com/deltachat/deltachat-core-rust/pull/6467)).
+- Move more tests into their own files ([#6473](https://github.com/deltachat/deltachat-core-rust/pull/6473)).
+
 ## [1.155.0] - 2025-01-23
 
 ### API-Changes
@@ -5682,3 +5700,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.154.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.1..v1.154.2
 [1.154.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.2..v1.154.3
 [1.155.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.3..v1.155.0
+[1.155.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.0..v1.155.1
