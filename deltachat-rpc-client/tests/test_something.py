@@ -313,6 +313,7 @@ def test_reaction_seen_on_another_dev(acfactory, tmp_path) -> None:
             if event.kind == EventType.INCOMING_REACTION:
                 break
 
+    alice2.clear_all_events()
     alice_chat_bob.mark_noticed()
     while True:
         event = alice2.wait_for_event()
