@@ -212,14 +212,14 @@ impl CommandApi {
         self.accounts.read().await.get_all()
     }
 
-    /// Select account id for internally selected state.
-    /// TODO: Likely this is deprecated as all methods take an account id now.
+    /// Select account in account manager, this saves the last used account to accounts.toml
     async fn select_account(&self, id: u32) -> Result<()> {
+        // This state should not be used for anything else than remembering the last used account
+        // to prevent hard to find bugs due to global state.
         self.accounts.write().await.select_account(id).await
     }
 
-    /// Get the selected account id of the internal state..
-    /// TODO: Likely this is deprecated as all methods take an account id now.
+    /// Get the selected account from the account manager (on startup it is read from accounts.toml)
     async fn get_selected_account_id(&self) -> Option<u32> {
         self.accounts.read().await.get_selected_account_id()
     }
