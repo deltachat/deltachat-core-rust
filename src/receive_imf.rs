@@ -54,6 +54,9 @@ pub struct ReceivedMsg {
     /// Received message state.
     pub state: MessageState,
 
+    /// Whether the message is hidden.
+    pub hidden: bool,
+
     /// Message timestamp for sorting.
     pub sort_timestamp: i64,
 
@@ -192,6 +195,7 @@ pub(crate) async fn receive_imf_inner(
             return Ok(Some(ReceivedMsg {
                 chat_id: DC_CHAT_ID_TRASH,
                 state: MessageState::Undefined,
+                hidden: false,
                 sort_timestamp: 0,
                 msg_ids,
                 needs_delete_job: false,
@@ -385,6 +389,7 @@ pub(crate) async fn receive_imf_inner(
                 received_msg = Some(ReceivedMsg {
                     chat_id: DC_CHAT_ID_TRASH,
                     state: MessageState::InSeen,
+                    hidden: false,
                     sort_timestamp: mime_parser.timestamp_sent,
                     msg_ids: vec![msg_id],
                     needs_delete_job: res == securejoin::HandshakeMessage::Done,
@@ -621,7 +626,7 @@ pub(crate) async fn receive_imf_inner(
 
     if let Some(replace_chat_id) = replace_chat_id {
         context.emit_msgs_changed_without_msg_id(replace_chat_id);
-    } else if !chat_id.is_trash() {
+    } else if !chat_id.is_trash() && !received_msg.hidden {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
             chat_id.emit_msg_event(context, *msg_id, mime_parser.incoming && fresh);
@@ -1037,8 +1042,6 @@ async fn add_parts(
         // No check for `hidden` because only reactions are such and they should be `InFresh`.
         {
             MessageState::InSeen
-        } else if is_reaction {
-            MessageState::InNoticed
         } else {
             MessageState::InFresh
         };
@@ -1706,7 +1709,7 @@ RETURNING id
         "Message has {icnt} parts and is assigned to chat #{chat_id}."
     );
 
-    if !chat_id.is_trash() {
+    if !chat_id.is_trash() && !hidden {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
 
         // In contrast to most other update-timestamps,
@@ -1744,6 +1747,7 @@ RETURNING id
     Ok(ReceivedMsg {
         chat_id,
         state,
+        hidden,
         sort_timestamp,
         msg_ids: created_db_entries,
         needs_delete_job,

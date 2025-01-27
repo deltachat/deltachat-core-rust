@@ -623,7 +623,9 @@ Here's my footer -- bob@example.net"
             .get_matching_opt(t, |evt| {
                 matches!(
                     evt,
-                    EventType::IncomingReaction { .. } | EventType::IncomingMsg { .. }
+                    EventType::IncomingReaction { .. }
+                        | EventType::IncomingMsg { .. }
+                        | EventType::MsgsChanged { .. }
                 )
             })
             .await;
@@ -668,7 +670,7 @@ Here's my footer -- bob@example.net"
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
         let alice_reaction_msg = alice.recv_msg_hidden(&bob_reaction_msg).await;
-        assert_eq!(alice_reaction_msg.state, MessageState::InNoticed);
+        assert_eq!(alice_reaction_msg.state, MessageState::InFresh);
         assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 2);
 
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
