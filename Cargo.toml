@@ -160,6 +160,10 @@ name = "get_chat_msgs"
 harness = false
 
 [[bench]]
+name = "marknoticed_chat"
+harness = false
+
+[[bench]]
 name = "get_chatlist"
 harness = false
 

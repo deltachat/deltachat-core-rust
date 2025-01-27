@@ -7,7 +7,6 @@ use deltachat::chatlist::Chatlist;
 use deltachat::context::Context;
 use deltachat::stock_str::StockStrings;
 use deltachat::Events;
-use tempfile::tempdir;
 
 async fn get_chat_msgs_benchmark(dbfile: &Path, chats: &[ChatId]) {
     let id = 100;
@@ -17,17 +16,6 @@ async fn get_chat_msgs_benchmark(dbfile: &Path, chats: &[ChatId]) {
 
     for c in chats.iter().take(10) {
         black_box(chat::get_chat_msgs(&context, *c).await.ok());
-    }
-}
-
-async fn marknoticed_chat_benchmark(dbfile: &Path, chats: &[ChatId]) {
-    let id = 100;
-    let context = Context::new(dbfile, id, Events::new(), StockStrings::new())
-        .await
-        .unwrap();
-
-    for c in chats.iter().take(20) {
-        black_box(chat::marknoticed_chat(&context, *c).await.unwrap());
     }
 }
 
@@ -46,19 +34,9 @@ fn criterion_benchmark(c: &mut Criterion) {
             (0..len).map(|i| chatlist.get_chat_id(i).unwrap()).collect()
         });
 
-        // c.bench_function("chat::get_chat_msgs (load messages from 10 chats)", |b| {
-        //     b.to_async(&rt)
-        //         .iter(|| get_chat_msgs_benchmark(black_box(path.as_ref()), black_box(&chats)))
-        // });
-
-        c.bench_function("chat::marknoticed_chat (mark 10 chats as noticed)", |b| {
-            let dir = tempdir().unwrap();
-            let dir = dir.path();
-            let new_db = dir.join("dc.db");
-            std::fs::copy(&path, &new_db).unwrap();
-
+        c.bench_function("chat::get_chat_msgs (load messages from 10 chats)", |b| {
             b.to_async(&rt)
-                .iter(|| marknoticed_chat_benchmark(black_box(new_db.as_ref()), black_box(&chats)))
+                .iter(|| get_chat_msgs_benchmark(black_box(path.as_ref()), black_box(&chats)))
         });
     } else {
         println!("env var not set: DELTACHAT_BENCHMARK_DATABASE");
