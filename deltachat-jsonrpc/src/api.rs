@@ -214,8 +214,6 @@ impl CommandApi {
 
     /// Select account in account manager, this saves the last used account to accounts.toml
     async fn select_account(&self, id: u32) -> Result<()> {
-        // This state should not be used for anything else than remembering the last used account
-        // to prevent hard to find bugs due to global state.
         self.accounts.write().await.select_account(id).await
     }
 
