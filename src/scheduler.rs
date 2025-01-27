@@ -671,7 +671,10 @@ async fn fetch_idle(
         return Ok(session);
     }
 
-    info!(ctx, "IMAP session supports IDLE, using it.");
+    info!(
+        ctx,
+        "IMAP session in folder {watch_folder:?} supports IDLE, using it."
+    );
     let session = session
         .idle(
             ctx,
