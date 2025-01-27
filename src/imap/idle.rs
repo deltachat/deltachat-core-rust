@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{Context as _, Result};
 use async_channel::Receiver;
 use async_imap::extensions::idle::IdleResponse;
 use futures_lite::FutureExt;
@@ -38,18 +38,23 @@ impl Session {
         }
 
         if self.new_mail {
+            info!(
+                context,
+                "Skipping IDLE in {folder:?} because there may be new mail."
+            );
             return Ok(self);
         }
 
         if let Ok(()) = idle_interrupt_receiver.try_recv() {
-            info!(context, "skip idle, got interrupt");
+            info!(context, "Skip IDLE in {folder:?} because we got interrupt.");
             return Ok(self);
         }
 
         let mut handle = self.inner.idle();
-        if let Err(err) = handle.init().await {
-            bail!("IMAP IDLE protocol failed to init/complete: {}", err);
-        }
+        handle
+            .init()
+            .await
+            .with_context(|| format!("IMAP IDLE protocol failed to init in folder {folder:?}"))?;
 
         // At this point IDLE command was sent and we received a "+ idling" response. We will now
         // read from the stream without getting any data for up to `IDLE_TIMEOUT`. If we don't
@@ -63,7 +68,10 @@ impl Session {
             Interrupt,
         }
 
-        info!(context, "{folder}: Idle entering wait-on-remote state");
+        info!(
+            context,
+            "IDLE entering wait-on-remote state in folder {folder:?}."
+        );
         let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(async {
             idle_interrupt_receiver.recv().await.ok();
 
@@ -75,19 +83,19 @@ impl Session {
 
         match fut.await {
             Ok(Event::IdleResponse(IdleResponse::NewData(x))) => {
-                info!(context, "{folder}: Idle has NewData {:?}", x);
+                info!(context, "{folder:?}: Idle has NewData {x:?}");
             }
             Ok(Event::IdleResponse(IdleResponse::Timeout)) => {
-                info!(context, "{folder}: Idle-wait timeout or interruption");
+                info!(context, "{folder:?}: Idle-wait timeout or interruption.");
             }
             Ok(Event::IdleResponse(IdleResponse::ManualInterrupt)) => {
-                info!(context, "{folder}: Idle wait was interrupted manually");
+                info!(context, "{folder:?}: Idle wait was interrupted manually.");
             }
             Ok(Event::Interrupt) => {
-                info!(context, "{folder}: Idle wait was interrupted");
+                info!(context, "{folder:?}: Idle wait was interrupted.");
             }
             Err(err) => {
-                warn!(context, "{folder}: Idle wait errored: {err:?}");
+                warn!(context, "{folder:?}: Idle wait errored: {err:?}.");
             }
         }
 

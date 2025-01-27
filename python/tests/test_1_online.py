@@ -1983,7 +1983,7 @@ def test_fetch_deleted_msg(acfactory, lp):
         if ev.name == "DC_EVENT_MSGS_CHANGED":
             pytest.fail("A deleted message was shown to the user")
 
-        if ev.name == "DC_EVENT_INFO" and "INBOX: Idle entering wait-on-remote state" in ev.data2:
+        if ev.name == "DC_EVENT_INFO" and 'IDLE entering wait-on-remote state in folder "INBOX".' in ev.data2:
             break  # DC is done with reading messages
 
 
