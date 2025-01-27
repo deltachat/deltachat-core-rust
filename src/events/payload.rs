@@ -97,6 +97,9 @@ pub enum EventType {
 
     /// Reactions for the message changed.
     IncomingReaction {
+        /// ID of the chat which the message belongs to.
+        chat_id: ChatId,
+
         /// ID of the contact whose reaction set is changed.
         contact_id: ContactId,
 
