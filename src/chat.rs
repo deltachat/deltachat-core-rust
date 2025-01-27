@@ -3290,6 +3290,72 @@ pub async fn get_chat_msgs_ex(
     Ok(items)
 }
 
+// TODO what does "_ex" mean?
+/// Returns the first unread message of the chat.
+pub async fn get_first_unread_message_of_chat_ex(
+    context: &Context,
+    chat_id: ChatId,
+) -> Result<Option<MsgId>> {
+
+    // This does not work as intended, because there might be unread "gaps",
+    // i.e. some messages might not get marked as seen,
+    // e.g. if the user just jumps to the last one,
+    // without actually scrolling through all unread messages.
+    // context
+    //     .sql
+    //     .query_get_value(
+    //         "SELECT id
+    //     FROM msgs
+    //     WHERE chat_id=?
+    //     AND state IN (?, ?)
+    //     AND hidden=0
+    //     ORDER BY id
+    //     LIMIT 1;",
+    //         (chat_id, MessageState::InFresh, MessageState::InNoticed),
+    //     )
+    //     .await
+
+    // TODO Maybe simplify this?
+    // Get last message, check if it's read, then find the first after it
+    // that is not read.
+    //
+    // OK, this appears to be just as fast as `getMessageIds`,
+    // and as the current version of `get_first_unread_message_of_chat`.
+    context
+        .sql
+        .query_row(
+            "WITH chat_in_msgs_sorted_desc AS (
+                SELECT id, state
+                FROM msgs
+                WHERE chat_id=?
+                AND state IN (?, ?, ?)
+                AND hidden=0
+                ORDER BY id DESC
+            ),
+            first_seen_from_end AS (
+                SELECT id
+                FROM chat_in_msgs_sorted_desc
+                WHERE state=?
+                LIMIT 1
+            )
+            SELECT
+                CASE
+                    WHEN (SELECT COUNT(*) FROM first_seen_from_end) != 0
+                        THEN (
+                            SELECT MIN(id)
+                            FROM chat_in_msgs_sorted_desc
+                            WHERE id > (SELECT id FROM first_seen_from_end)
+                        )
+                    ELSE (SELECT MIN(id) FROM chat_in_msgs_sorted_desc)
+                END;",
+            (chat_id,
+            MessageState::InFresh, MessageState::InNoticed, MessageState::InSeen,
+            MessageState::InSeen),
+            |row| { row.get(0) }
+        )
+        .await
+}
+
 /// Marks all messages in the chat as noticed.
 /// If the given chat-id is the archive-link, marks all messages in all archived chats as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {

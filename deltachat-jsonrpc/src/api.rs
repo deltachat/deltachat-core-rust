@@ -8,8 +8,9 @@ use std::{collections::HashMap, str::FromStr};
 use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
 use deltachat::chat::{
-    self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
-    marknoticed_chat, remove_contact_from_chat, Chat, ChatId, ChatItem, MessageListOptions,
+    self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs_ex,
+    get_first_unread_message_of_chat_ex,
+    marknoticed_chat, remove_contact_from_chat, Chat, ChatId, MessageListOptions,
     ProtectionStatus,
 };
 use deltachat::chatlist::Chatlist;
@@ -21,7 +22,7 @@ use deltachat::ephemeral::Timer;
 use deltachat::location;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::message::{
-    self, delete_msgs, markseen_msgs, Message, MessageState, MsgId, Viewtype,
+    self, delete_msgs, markseen_msgs, Message, MsgId, Viewtype,
 };
 use deltachat::peer_channels::{
     leave_webxdc_realtime, send_webxdc_realtime_advertisement, send_webxdc_realtime_data,
@@ -1007,21 +1008,11 @@ impl CommandApi {
     ) -> Result<Option<u32>> {
         let ctx = self.get_context(account_id).await?;
 
-        // TODO: implement this in core with an SQL query, that will be way faster
-        let messages = get_chat_msgs(&ctx, ChatId::new(chat_id)).await?;
-        let mut first_unread_message_id = None;
-        for item in messages.into_iter().rev() {
-            if let ChatItem::Message { msg_id } = item {
-                match msg_id.get_state(&ctx).await? {
-                    MessageState::InSeen => break,
-                    MessageState::InFresh | MessageState::InNoticed => {
-                        first_unread_message_id = Some(msg_id)
-                    }
-                    _ => continue,
-                }
-            }
-        }
-        Ok(first_unread_message_id.map(|id| id.to_u32()))
+        return get_first_unread_message_of_chat_ex(&ctx, ChatId::new(chat_id))
+            .await
+            .map(|o| o.map(|m| m.to_u32()))
+            // .await?
+            // .map(|m| m.to_u32())
     }
 
     /// Set mute duration of a chat.
