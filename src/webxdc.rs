@@ -24,7 +24,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
-use async_zip::tokio::read::fs::ZipFileReader as FsZipFileReader;
+use async_zip::tokio::read::seek::ZipFileReader as SeekZipFileReader;
 use deltachat_contact_tools::sanitize_bidi_characters;
 use deltachat_derive::FromSql;
 use lettre_email::PartBuilder;
@@ -32,6 +32,7 @@ use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use tokio::{fs::File, io::BufReader};
 
 use crate::chat::{self, Chat};
 use crate::constants::Chattype;
@@ -262,7 +263,8 @@ impl Context {
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
 
-        let valid = match FsZipFileReader::new(path).await {
+        let file = BufReader::new(File::open(path).await?);
+        let valid = match SeekZipFileReader::with_tokio(file).await {
             Ok(archive) => {
                 if find_zip_entry(archive.file(), "index.html").is_none() {
                     warn!(self, "{} misses index.html", filename);
@@ -839,7 +841,7 @@ fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
     Ok(manifest)
 }
 
-async fn get_blob(archive: &FsZipFileReader, name: &str) -> Result<Vec<u8>> {
+async fn get_blob(archive: &mut SeekZipFileReader<BufReader<File>>, name: &str) -> Result<Vec<u8>> {
     let (i, _) = find_zip_entry(archive.file(), name)
         .ok_or_else(|| anyhow!("no entry found for {}", name))?;
     let mut reader = archive.reader_with_entry(i).await?;
@@ -851,12 +853,16 @@ async fn get_blob(archive: &FsZipFileReader, name: &str) -> Result<Vec<u8>> {
 impl Message {
     /// Get handle to a webxdc ZIP-archive.
     /// To check for file existence use archive.by_name(), to read a file, use get_blob(archive).
-    async fn get_webxdc_archive(&self, context: &Context) -> Result<FsZipFileReader> {
+    async fn get_webxdc_archive(
+        &self,
+        context: &Context,
+    ) -> Result<SeekZipFileReader<BufReader<File>>> {
         let path = self
             .get_file(context)
             .ok_or_else(|| format_err!("No webxdc instance file."))?;
         let path_abs = get_abs_path(context, &path);
-        let archive = FsZipFileReader::new(path_abs).await?;
+        let file = BufReader::new(File::open(path_abs).await?);
+        let archive = SeekZipFileReader::with_tokio(file).await?;
         Ok(archive)
     }
 
@@ -879,10 +885,10 @@ impl Message {
             name
         };
 
-        let archive = self.get_webxdc_archive(context).await?;
+        let mut archive = self.get_webxdc_archive(context).await?;
 
         if name == "index.html" {
-            if let Ok(bytes) = get_blob(&archive, "manifest.toml").await {
+            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
                 if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                     if let Some(min_api) = manifest.min_api {
                         if min_api > WEBXDC_API_VERSION {
@@ -895,15 +901,15 @@ impl Message {
             }
         }
 
-        get_blob(&archive, name).await
+        get_blob(&mut archive, name).await
     }
 
     /// Return info from manifest.toml or from fallbacks.
     pub async fn get_webxdc_info(&self, context: &Context) -> Result<WebxdcInfo> {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
-        let archive = self.get_webxdc_archive(context).await?;
+        let mut archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = get_blob(&archive, "manifest.toml")
+        let mut manifest = get_blob(&mut archive, "manifest.toml")
             .await
             .map(|bytes| parse_webxdc_manifest(&bytes).unwrap_or_default())
             .unwrap_or_default();
