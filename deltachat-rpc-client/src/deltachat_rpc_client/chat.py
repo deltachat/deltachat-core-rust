@@ -124,6 +124,7 @@ class Chat:
         html: Optional[str] = None,
         viewtype: Optional[ViewType] = None,
         file: Optional[str] = None,
+        filename: Optional[str] = None,
         location: Optional[tuple[float, float]] = None,
         override_sender_name: Optional[str] = None,
         quoted_msg: Optional[Union[int, Message]] = None,
@@ -137,6 +138,7 @@ class Chat:
             "html": html,
             "viewtype": viewtype,
             "file": file,
+            "filename": filename,
             "location": location,
             "overrideSenderName": override_sender_name,
             "quotedMessageId": quoted_msg,
@@ -172,13 +174,14 @@ class Chat:
         self,
         text: Optional[str] = None,
         file: Optional[str] = None,
+        filename: Optional[str] = None,
         quoted_msg: Optional[int] = None,
         viewtype: Optional[str] = None,
     ) -> None:
         """Set draft message."""
         if isinstance(quoted_msg, Message):
             quoted_msg = quoted_msg.id
-        self._rpc.misc_set_draft(self.account.id, self.id, text, file, quoted_msg, viewtype)
+        self._rpc.misc_set_draft(self.account.id, self.id, text, file, filename, quoted_msg, viewtype)
 
     def remove_draft(self) -> None:
         """Remove draft message."""
