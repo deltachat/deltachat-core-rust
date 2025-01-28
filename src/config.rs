@@ -455,6 +455,13 @@ pub enum Config {
     /// If it has not changed, we do not store
     /// the device token again.
     DeviceToken,
+
+    /// Device token encrypted with OpenPGP.
+    ///
+    /// We store encrypted token next to `device_token`
+    /// to avoid encrypting it differently and
+    /// storing the same token multiple times on the server.
+    EncryptedDeviceToken,
 }
 
 impl Config {
