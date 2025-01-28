@@ -1589,15 +1589,15 @@ impl Session {
         };
 
         if self.can_metadata() && self.can_push() {
-            let device_token_changed =
-                context.get_config(Config::DeviceToken).await?.as_ref() != Some(&device_token);
+            let old_encrypted_device_token =
+                context.get_config(Config::EncryptedDeviceToken).await?;
 
+            // Whether we need to update encrypted device token.
+            let device_token_changed = old_encrypted_device_token.is_none()
+                || context.get_config(Config::DeviceToken).await?.as_ref() != Some(&device_token);
+
+            let new_encrypted_device_token;
             if device_token_changed {
-                let folder = context
-                    .get_config(Config::ConfiguredInboxFolder)
-                    .await?
-                    .context("INBOX is not configured")?;
-
                 let encrypted_device_token = encrypt_device_token(&device_token)
                     .context("Failed to encrypt device token")?;
 
@@ -1606,22 +1606,23 @@ impl Session {
                 // <https://www.rfc-editor.org/rfc/rfc7888>.
                 let encrypted_device_token_len = encrypted_device_token.len();
 
-                if encrypted_device_token_len <= 4096 {
-                    self.run_command_and_check_ok(&format_setmetadata(
-                        &folder,
-                        &encrypted_device_token,
-                    ))
-                    .await
-                    .context("SETMETADATA command failed")?;
+                // Store device token saved on the server
+                // to prevent storing duplicate tokens.
+                // The server cannot deduplicate on its own
+                // because encryption gives a different
+                // result each time.
+                context
+                    .set_config_internal(Config::DeviceToken, Some(&device_token))
+                    .await?;
+                context
+                    .set_config_internal(
+                        Config::EncryptedDeviceToken,
+                        Some(&encrypted_device_token),
+                    )
+                    .await?;
 
-                    // Store device token saved on the server
-                    // to prevent storing duplicate tokens.
-                    // The server cannot deduplicate on its own
-                    // because encryption gives a different
-                    // result each time.
-                    context
-                        .set_config_internal(Config::DeviceToken, Some(&device_token))
-                        .await?;
+                if encrypted_device_token_len <= 4096 {
+                    new_encrypted_device_token = Some(encrypted_device_token);
                 } else {
                     // If Apple or Google (FCM) gives us a very large token,
                     // do not even try to give it to IMAP servers.
@@ -1633,9 +1634,29 @@ impl Session {
                     // of any length, but there is no reason for tokens
                     // to be that large even after OpenPGP encryption.
                     warn!(context, "Device token is too long for LITERAL-, ignoring.");
+                    new_encrypted_device_token = None;
                 }
+            } else {
+                new_encrypted_device_token = old_encrypted_device_token;
             }
-            context.push_subscribed.store(true, Ordering::Relaxed);
+
+            // Store new encrypted device token on the server
+            // even if it is the same as the old one.
+            if let Some(encrypted_device_token) = new_encrypted_device_token {
+                let folder = context
+                    .get_config(Config::ConfiguredInboxFolder)
+                    .await?
+                    .context("INBOX is not configured")?;
+
+                self.run_command_and_check_ok(&format_setmetadata(
+                    &folder,
+                    &encrypted_device_token,
+                ))
+                .await
+                .context("SETMETADATA command failed")?;
+
+                context.push_subscribed.store(true, Ordering::Relaxed);
+            }
         } else if !context.push_subscriber.heartbeat_subscribed().await {
             let context = context.clone();
             // Subscribe for heartbeat notifications.
