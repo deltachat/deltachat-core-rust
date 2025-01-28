@@ -33,8 +33,7 @@ use std::task::Poll;
 
 use anyhow::{bail, format_err, Context as _, Result};
 use futures_lite::FutureExt;
-use iroh_net::relay::RelayMode;
-use iroh_net::Endpoint;
+use iroh::{Endpoint, RelayMode};
 use tokio::fs;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -65,11 +64,11 @@ const BACKUP_ALPN: &[u8] = b"/deltachat/backup";
 /// task use the [`Context::stop_ongoing`] mechanism.
 #[derive(Debug)]
 pub struct BackupProvider {
-    /// iroh-net endpoint.
+    /// iroh endpoint.
     _endpoint: Endpoint,
 
-    /// iroh-net address.
-    node_addr: iroh_net::NodeAddr,
+    /// iroh address.
+    node_addr: iroh::NodeAddr,
 
     /// Authentication token that should be submitted
     /// to retrieve the backup.
@@ -162,7 +161,7 @@ impl BackupProvider {
 
     async fn handle_connection(
         context: Context,
-        conn: iroh_net::endpoint::Connecting,
+        conn: iroh::endpoint::Connecting,
         auth_token: String,
         dbfile: Arc<TempPathGuard>,
     ) -> Result<()> {
@@ -292,7 +291,7 @@ impl Future for BackupProvider {
 
 pub async fn get_backup2(
     context: &Context,
-    node_addr: iroh_net::NodeAddr,
+    node_addr: iroh::NodeAddr,
     auth_token: String,
 ) -> Result<()> {
     let relay_mode = RelayMode::Disabled;
@@ -342,7 +341,7 @@ pub async fn get_backup2(
 /// This is a long running operation which will return only when completed.
 ///
 /// Using [`Qr`] as argument is a bit odd as it only accepts specific variant of it.  It
-/// does avoid having [`iroh_net::NodeAddr`] in the primary API however, without
+/// does avoid having [`iroh::NodeAddr`] in the primary API however, without
 /// having to revert to untyped bytes.
 pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     match qr {

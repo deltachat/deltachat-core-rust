@@ -49,6 +49,7 @@ base64 = { workspace = true }
 brotli = { version = "7", default-features=false, features = ["std"] }
 bytes = "1"
 chrono = { workspace = true, features = ["alloc", "clock", "std"] }
+data-encoding = "2.6.0"
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = "0.2"
 escaper = "0.1"
@@ -57,14 +58,14 @@ fd-lock = "4"
 futures-lite = { workspace = true }
 futures = { workspace = true }
 hex = "0.4.0"
-hickory-resolver = "=0.25.0-alpha.2"
+hickory-resolver = "=0.25.0-alpha.4"
 http-body-util = "0.1.2"
 humansize = "2"
 hyper = "1"
 hyper-util = "0.1.10"
 image = { version = "0.25.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh-gossip = { version = "0.28.1", default-features = false, features = ["net"] }
-iroh-net = { version = "0.28.1", default-features = false }
+iroh-gossip = { version = "0.30", default-features = false, features = ["net"] }
+iroh = { version = "0.30", default-features = false }
 kamadak-exif = "0.6.1"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = { workspace = true }
