@@ -607,6 +607,19 @@ impl TestContext {
         msg
     }
 
+    /// Receive a message using the `receive_imf()` pipeline. Panics if it's not hidden.
+    pub async fn recv_msg_hidden(&self, msg: &SentMessage<'_>) -> Message {
+        let received = self
+            .recv_msg_opt(msg)
+            .await
+            .expect("receive_imf() seems not to have added a new message to the db");
+        let msg = Message::load_from_db(self, *received.msg_ids.last().unwrap())
+            .await
+            .unwrap();
+        assert!(msg.hidden);
+        msg
+    }
+
     /// Receive a message using the `receive_imf()` pipeline. This is similar
     /// to `recv_msg()`, but doesn't assume that the message is shown in the chat.
     pub async fn recv_msg_opt(

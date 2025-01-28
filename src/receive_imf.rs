@@ -54,6 +54,9 @@ pub struct ReceivedMsg {
     /// Received message state.
     pub state: MessageState,
 
+    /// Whether the message is hidden.
+    pub hidden: bool,
+
     /// Message timestamp for sorting.
     pub sort_timestamp: i64,
 
@@ -192,6 +195,7 @@ pub(crate) async fn receive_imf_inner(
             return Ok(Some(ReceivedMsg {
                 chat_id: DC_CHAT_ID_TRASH,
                 state: MessageState::Undefined,
+                hidden: false,
                 sort_timestamp: 0,
                 msg_ids,
                 needs_delete_job: false,
@@ -385,6 +389,7 @@ pub(crate) async fn receive_imf_inner(
                 received_msg = Some(ReceivedMsg {
                     chat_id: DC_CHAT_ID_TRASH,
                     state: MessageState::InSeen,
+                    hidden: false,
                     sort_timestamp: mime_parser.timestamp_sent,
                     msg_ids: vec![msg_id],
                     needs_delete_job: res == securejoin::HandshakeMessage::Done,
@@ -621,7 +626,7 @@ pub(crate) async fn receive_imf_inner(
 
     if let Some(replace_chat_id) = replace_chat_id {
         context.emit_msgs_changed_without_msg_id(replace_chat_id);
-    } else if !chat_id.is_trash() {
+    } else if !chat_id.is_trash() && !received_msg.hidden {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
             chat_id.emit_msg_event(context, *msg_id, mime_parser.incoming && fresh);
@@ -778,7 +783,7 @@ async fn add_parts(
     // (of course, the user can add other chats manually later)
     let to_id: ContactId;
     let state: MessageState;
-    let mut hidden = false;
+    let mut hidden = is_reaction;
     let mut needs_delete_job = false;
     let mut restore_protection = false;
 
@@ -1033,11 +1038,8 @@ async fn add_parts(
             }
         }
 
-        state = if seen
-            || fetching_existing_messages
-            || is_mdn
-            || is_reaction
-            || chat_id_blocked == Blocked::Yes
+        state = if seen || fetching_existing_messages || is_mdn || chat_id_blocked == Blocked::Yes
+        // No check for `hidden` because only reactions are such and they should be `InFresh`.
         {
             MessageState::InSeen
         } else {
@@ -1246,14 +1248,10 @@ async fn add_parts(
     }
 
     let orig_chat_id = chat_id;
-    let mut chat_id = if is_reaction {
+    let mut chat_id = chat_id.unwrap_or_else(|| {
+        info!(context, "No chat id for message (TRASH).");
         DC_CHAT_ID_TRASH
-    } else {
-        chat_id.unwrap_or_else(|| {
-            info!(context, "No chat id for message (TRASH).");
-            DC_CHAT_ID_TRASH
-        })
-    };
+    });
 
     // Extract ephemeral timer from the message or use the existing timer if the message is not fully downloaded.
     let mut ephemeral_timer = if is_partial_download.is_some() {
@@ -1602,19 +1600,19 @@ RETURNING id
                     replace_msg_id,
                     rfc724_mid_orig,
                     if trash { DC_CHAT_ID_TRASH } else { chat_id },
-                    if trash { ContactId::UNDEFINED } else { from_id },
-                    if trash { ContactId::UNDEFINED } else { to_id },
+                    if trash || hidden { ContactId::UNDEFINED } else { from_id },
+                    if trash || hidden { ContactId::UNDEFINED } else { to_id },
                     sort_timestamp,
                     mime_parser.timestamp_sent,
                     mime_parser.timestamp_rcvd,
                     typ,
                     state,
                     is_dc_message,
-                    if trash { "" } else { msg },
-                    if trash { None } else { message::normalize_text(msg) },
-                    if trash { "" } else { &subject },
+                    if trash || hidden { "" } else { msg },
+                    if trash || hidden { None } else { message::normalize_text(msg) },
+                    if trash || hidden { "" } else { &subject },
                     // txt_raw might contain invalid utf8
-                    if trash { "" } else { &txt_raw },
+                    if trash || hidden { "" } else { &txt_raw },
                     if trash {
                         "".to_string()
                     } else {
@@ -1622,7 +1620,7 @@ RETURNING id
                     },
                     hidden,
                     part.bytes as isize,
-                    if (save_mime_headers || save_mime_modified) && !trash {
+                    if (save_mime_headers || save_mime_modified) && !(trash || hidden) {
                         mime_headers.clone()
                     } else {
                         Vec::new()
@@ -1711,7 +1709,7 @@ RETURNING id
         "Message has {icnt} parts and is assigned to chat #{chat_id}."
     );
 
-    if !chat_id.is_trash() {
+    if !chat_id.is_trash() && !hidden {
         let mut chat = Chat::load_from_db(context, chat_id).await?;
 
         // In contrast to most other update-timestamps,
@@ -1749,6 +1747,7 @@ RETURNING id
     Ok(ReceivedMsg {
         chat_id,
         state,
+        hidden,
         sort_timestamp,
         msg_ids: created_db_entries,
         needs_delete_job,
