@@ -4,7 +4,7 @@ pub(crate) mod data;
 
 use anyhow::Result;
 use deltachat_contact_tools::EmailAddress;
-use hickory_resolver::{config, AsyncResolver, TokioAsyncResolver};
+use hickory_resolver::{config, Resolver, TokioResolver};
 
 use crate::config::Config;
 use crate::context::Context;
@@ -165,11 +165,11 @@ impl ProviderOptions {
 /// We first try to read the system's resolver from `/etc/resolv.conf`.
 /// This does not work at least on some Androids, therefore we fallback
 /// to the default `ResolverConfig` which uses eg. to google's `8.8.8.8` or `8.8.4.4`.
-fn get_resolver() -> Result<TokioAsyncResolver> {
-    if let Ok(resolver) = AsyncResolver::tokio_from_system_conf() {
+fn get_resolver() -> Result<TokioResolver> {
+    if let Ok(resolver) = Resolver::tokio_from_system_conf() {
         return Ok(resolver);
     }
-    let resolver = AsyncResolver::tokio(
+    let resolver = Resolver::tokio(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
     );
