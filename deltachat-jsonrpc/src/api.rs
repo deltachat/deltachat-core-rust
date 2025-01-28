@@ -998,6 +998,12 @@ impl CommandApi {
         marknoticed_chat(&ctx, ChatId::new(chat_id)).await
     }
 
+    /// Returns the message that is immediately followed by the last seen
+    /// message.
+    /// From the point of view of the user this is effectively
+    /// "first unread", but in reality in the database a seen message
+    /// _can_ be followed by a fresh (unseen) message
+    /// if that message has not been individually marked as seen.
     async fn get_first_unread_message_of_chat(
         &self,
         account_id: u32,
@@ -1086,6 +1092,9 @@ impl CommandApi {
         markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect()).await
     }
 
+    /// Returns all messages of a particular chat.
+    /// If `add_daymarker` is `true`, it will return them as
+    /// `DC_MSG_ID_DAYMARKER`, e.g. [1234, 1237, 9, 1239].
     async fn get_message_ids(
         &self,
         account_id: u32,
