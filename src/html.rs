@@ -11,9 +11,8 @@ use std::mem;
 
 use anyhow::{Context as _, Result};
 use base64::Engine as _;
-use lettre_email::mime::Mime;
-use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
+use mime::Mime;
 
 use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -275,16 +274,6 @@ impl MsgId {
             Ok(None)
         }
     }
-}
-
-/// Wraps HTML text into a new text/html mimepart structure.
-///
-/// Used on forwarding messages to avoid leaking the original mime structure
-/// and also to avoid sending too much, maybe large data.
-pub fn new_html_mimepart(html: String) -> PartBuilder {
-    PartBuilder::new()
-        .content_type(&"text/html; charset=utf-8".parse::<mime::Mime>().unwrap())
-        .body(html)
 }
 
 #[cfg(test)]

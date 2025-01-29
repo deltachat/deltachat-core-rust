@@ -247,7 +247,16 @@ pub async fn make_vcard(context: &Context, contacts: &[ContactId]) -> Result<Str
             timestamp: Ok(now),
         });
     }
-    Ok(contact_tools::make_vcard(&vcard_contacts))
+
+    // XXX: newline at the end of vCard is trimmed
+    // for compatibility with core <=1.155.3
+    // Newer core should be able to deal with
+    // trailing CRLF as the fix
+    // <https://github.com/deltachat/deltachat-core-rust/pull/6522>
+    // is merged.
+    Ok(contact_tools::make_vcard(&vcard_contacts)
+        .trim_end()
+        .to_string())
 }
 
 /// Imports contacts from the given vCard.

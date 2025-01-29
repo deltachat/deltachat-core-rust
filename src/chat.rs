@@ -3,6 +3,7 @@
 use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::io::Cursor;
 use std::marker::Sync;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -11,6 +12,7 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
 use deltachat_contact_tools::{sanitize_bidi_characters, sanitize_single_line, ContactAddress};
 use deltachat_derive::{FromSql, ToSql};
+use mail_builder::mime::MimePart;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 use tokio::task;
@@ -32,7 +34,6 @@ use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
 use crate::ephemeral::{start_chat_ephemeral_timers, Timer as EphemeralTimer};
 use crate::events::EventType;
-use crate::html::new_html_mimepart;
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
@@ -2157,14 +2158,18 @@ impl Chat {
         } else {
             None
         };
-        let new_mime_headers = new_mime_headers.map(|s| new_html_mimepart(s).build().as_string());
+        let new_mime_headers: Option<String> = new_mime_headers.map(|s| {
+            let html_part = MimePart::new("text/html", s);
+            let mut buffer = Vec::new();
+            let cursor = Cursor::new(&mut buffer);
+            html_part.write_part(cursor).ok();
+            String::from_utf8_lossy(&buffer).to_string()
+        });
         let new_mime_headers = new_mime_headers.or_else(|| match was_truncated {
             // We need to add some headers so that they are stripped before formatting HTML by
             // `MsgId::get_html()`, not a part of the actual text. Let's add "Content-Type", it's
             // anyway a useful metadata about the stored text.
-            true => Some(
-                "Content-Type: text/plain; charset=utf-8\r\n\r\n".to_string() + &msg.text + "\r\n",
-            ),
+            true => Some("Content-Type: text/plain; charset=utf-8\r\n\r\n".to_string() + &msg.text),
             false => None,
         });
         let new_mime_headers = match new_mime_headers {

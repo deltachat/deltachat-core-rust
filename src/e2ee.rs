@@ -1,6 +1,9 @@
 //! End-to-end encryption support.
 
+use std::io::Cursor;
+
 use anyhow::{format_err, Context as _, Result};
+use mail_builder::mime::MimePart;
 use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
@@ -95,7 +98,7 @@ impl EncryptHelper {
         self,
         context: &Context,
         verified: bool,
-        mail_to_encrypt: lettre_email::PartBuilder,
+        mail_to_encrypt: MimePart<'static>,
         peerstates: Vec<(Option<Peerstate>, String)>,
         compress: bool,
     ) -> Result<String> {
@@ -136,7 +139,9 @@ impl EncryptHelper {
 
         let sign_key = load_self_secret_key(context).await?;
 
-        let raw_message = mail_to_encrypt.build().as_string().into_bytes();
+        let mut raw_message = Vec::new();
+        let cursor = Cursor::new(&mut raw_message);
+        mail_to_encrypt.clone().write_part(cursor).ok();
 
         let ctext = pgp::pk_encrypt(&raw_message, keyring, Some(sign_key), compress).await?;
 
@@ -145,15 +150,13 @@ impl EncryptHelper {
 
     /// Signs the passed-in `mail` using the private key from `context`.
     /// Returns the payload and the signature.
-    pub async fn sign(
-        self,
-        context: &Context,
-        mail: lettre_email::PartBuilder,
-    ) -> Result<(lettre_email::MimeMessage, String)> {
+    pub async fn sign(self, context: &Context, mail: &MimePart<'static>) -> Result<String> {
         let sign_key = load_self_secret_key(context).await?;
-        let mime_message = mail.build();
-        let signature = pgp::pk_calc_signature(mime_message.as_string().as_bytes(), &sign_key)?;
-        Ok((mime_message, signature))
+        let mut buffer = Vec::new();
+        let cursor = Cursor::new(&mut buffer);
+        mail.clone().write_part(cursor).ok();
+        let signature = pgp::pk_calc_signature(&buffer, &sign_key)?;
+        Ok(signature)
     }
 }
 
