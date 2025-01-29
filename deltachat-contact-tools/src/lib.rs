@@ -78,21 +78,21 @@ pub fn make_vcard(contacts: &[VcardContact]) -> String {
         let addr = &c.addr;
         let display_name = c.display_name();
         res += &format!(
-            "BEGIN:VCARD\n\
-             VERSION:4.0\n\
-             EMAIL:{addr}\n\
-             FN:{display_name}\n"
+            "BEGIN:VCARD\r\n\
+             VERSION:4.0\r\n\
+             EMAIL:{addr}\r\n\
+             FN:{display_name}\r\n"
         );
         if let Some(key) = &c.key {
-            res += &format!("KEY:data:application/pgp-keys;base64,{key}\n");
+            res += &format!("KEY:data:application/pgp-keys;base64,{key}\r\n");
         }
         if let Some(profile_image) = &c.profile_image {
-            res += &format!("PHOTO:data:image/jpeg;base64,{profile_image}\n");
+            res += &format!("PHOTO:data:image/jpeg;base64,{profile_image}\r\n");
         }
         if let Some(timestamp) = format_timestamp(c) {
-            res += &format!("REV:{timestamp}\n");
+            res += &format!("REV:{timestamp}\r\n");
         }
-        res += "END:VCARD\n";
+        res += "END:VCARD\r\n";
     }
     res
 }
@@ -559,20 +559,20 @@ END:VCARD",
             },
         ];
         let items = [
-            "BEGIN:VCARD\n\
-             VERSION:4.0\n\
-             EMAIL:alice@example.org\n\
-             FN:Alice Wonderland\n\
-             KEY:data:application/pgp-keys;base64,[base64-data]\n\
-             PHOTO:data:image/jpeg;base64,image in Base64\n\
-             REV:20240418T184242Z\n\
-             END:VCARD\n",
-            "BEGIN:VCARD\n\
-             VERSION:4.0\n\
-             EMAIL:bob@example.com\n\
-             FN:bob@example.com\n\
-             REV:19700101T000000Z\n\
-             END:VCARD\n",
+            "BEGIN:VCARD\r\n\
+             VERSION:4.0\r\n\
+             EMAIL:alice@example.org\r\n\
+             FN:Alice Wonderland\r\n\
+             KEY:data:application/pgp-keys;base64,[base64-data]\r\n\
+             PHOTO:data:image/jpeg;base64,image in Base64\r\n\
+             REV:20240418T184242Z\r\n\
+             END:VCARD\r\n",
+            "BEGIN:VCARD\r\n\
+             VERSION:4.0\r\n\
+             EMAIL:bob@example.com\r\n\
+             FN:bob@example.com\r\n\
+             REV:19700101T000000Z\r\n\
+             END:VCARD\r\n",
         ];
         let mut expected = "".to_string();
         for len in 0..=contacts.len() {
