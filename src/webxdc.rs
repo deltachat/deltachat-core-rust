@@ -27,7 +27,7 @@ use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_zip::tokio::read::seek::ZipFileReader as SeekZipFileReader;
 use deltachat_contact_tools::sanitize_bidi_characters;
 use deltachat_derive::FromSql;
-use lettre_email::PartBuilder;
+use mail_builder::mime::MimePart;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -41,7 +41,6 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
-use crate::mimefactory::wrapped_base64_encode;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -651,17 +650,8 @@ impl Context {
         }
     }
 
-    pub(crate) fn build_status_update_part(&self, json: &str) -> PartBuilder {
-        let encoded_body = wrapped_base64_encode(json.as_bytes());
-
-        PartBuilder::new()
-            .content_type(&"application/json".parse::<mime::Mime>().unwrap())
-            .header((
-                "Content-Disposition",
-                "attachment; filename=\"status-update.json\"",
-            ))
-            .header(("Content-Transfer-Encoding", "base64"))
-            .body(encoded_body)
+    pub(crate) fn build_status_update_part(&self, json: &str) -> MimePart<'static> {
+        MimePart::new("application/json", json.as_bytes().to_vec()).attachment("status-update.json")
     }
 
     /// Receives status updates from receive_imf to the database
