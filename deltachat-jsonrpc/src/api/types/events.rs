@@ -101,6 +101,7 @@ pub enum EventType {
     /// Incoming reaction, should be notified.
     #[serde(rename_all = "camelCase")]
     IncomingReaction {
+        chat_id: u32,
         contact_id: u32,
         msg_id: u32,
         reaction: String,
@@ -335,10 +336,12 @@ impl From<CoreEventType> for EventType {
                 contact_id: contact_id.to_u32(),
             },
             CoreEventType::IncomingReaction {
+                chat_id,
                 contact_id,
                 msg_id,
                 reaction,
             } => IncomingReaction {
+                chat_id: chat_id.to_u32(),
                 contact_id: contact_id.to_u32(),
                 msg_id: msg_id.to_u32(),
                 reaction: reaction.as_str().to_string(),
