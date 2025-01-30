@@ -2456,7 +2456,11 @@ async fn apply_group_changes(
     if let Some(removed_id) = removed_id {
         removed_ids.remove(&removed_id);
     }
-    let group_changes_msgs = group_changes_msgs(context, &added_ids, &removed_ids, chat_id).await?;
+    let group_changes_msgs = if self_added {
+        Vec::new()
+    } else {
+        group_changes_msgs(context, &added_ids, &removed_ids, chat_id).await?
+    };
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
         if !new_chat_contacts.contains(&ContactId::SELF) {
