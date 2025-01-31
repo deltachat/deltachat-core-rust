@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.155.2] - 2025-01-31
+
+### API-Changes
+
+- Add `IncomingReaction.chat_id` ([#6459](https://github.com/deltachat/deltachat-core-rust/pull/6459)).
+
+### Features / Changes
+
+- Deduplicate blob files in `chat.rs`, `config.rs`, and `integration.rs`.
+- Improve logging around IMAP IDLE.
+- Upgrade to iroh@0.30.0.
+
+### Fixes
+
+- Don't remove file extension when recoding avatars.
+- Use `BufReader` when reading .xdc files.
+- No implicit member changes when we are added to the group ([#6493](https://github.com/deltachat/deltachat-core-rust/pull/6493)).
+
+### Documentation
+
+- jsonrpc: Update documentation for `select_account` and `get_selected_account_id` ([#6483](https://github.com/deltachat/deltachat-core-rust/pull/6483)).
+- jsonrpc: Add docs for some functions.
+
 ## [1.155.1] - 2025-01-25
 
 ### Features / Changes
@@ -5701,3 +5724,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.154.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.2..v1.154.3
 [1.155.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.3..v1.155.0
 [1.155.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.0..v1.155.1
+[1.155.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.1..v1.155.2
