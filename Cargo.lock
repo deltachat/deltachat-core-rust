@@ -1401,7 +1401,7 @@ dependencies = [
  "tempfile",
  "testdir",
  "textwrap",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
  "tokio",
  "tokio-io-timeout",
  "tokio-rustls",
@@ -1508,7 +1508,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
  "tokio",
  "yerpc",
 ]
