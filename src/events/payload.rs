@@ -95,7 +95,10 @@ pub enum EventType {
         contact_id: ContactId,
     },
 
-    /// Reactions for the message changed.
+    /// A reaction to one's own sent message received.
+    /// Typically, the UI will show a notification for that.
+    ///
+    /// In addition to this event, ReactionsChanged is emitted.
     IncomingReaction {
         /// ID of the chat which the message belongs to.
         chat_id: ChatId,

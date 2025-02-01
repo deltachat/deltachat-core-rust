@@ -98,7 +98,10 @@ pub enum EventType {
         contact_id: u32,
     },
 
-    /// Incoming reaction, should be notified.
+    /// A reaction to one's own sent message received.
+    /// Typically, the UI will show a notification for that.
+    ///
+    /// In addition to this event, ReactionsChanged is emitted.
     #[serde(rename_all = "camelCase")]
     IncomingReaction {
         chat_id: u32,
