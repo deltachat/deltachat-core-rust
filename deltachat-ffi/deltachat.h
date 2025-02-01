@@ -4930,6 +4930,7 @@ dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
  * Can be used by UI to show a button to go the original message
  * and an option to "Unsave" the message.
  *
+ * @memberof dc_msg_t
  * @param msg The message object. Usually, this refers to a a message inside "Saved Messages".
  * @return The message ID of the original message.
  *     0 if the given message object is not a "Saved Message"
@@ -4944,6 +4945,7 @@ uint32_t        dc_msg_get_original_msg_id    (const dc_msg_t* msg);
  * Deleting the returned message will un-save the message.
  * The state "is saved" can be used to show some icon to indicate that a message was saved.
  *
+ * @memberof dc_msg_t
  * @param msg The message object. Usually, this refers to a a message outside "Saved Messages".
  * @return The message ID inside "Saved Messages", if any.
  *     0 if the given message object is not saved.
