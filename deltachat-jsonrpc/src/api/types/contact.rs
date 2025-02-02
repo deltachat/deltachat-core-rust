@@ -1,6 +1,7 @@
 use anyhow::Result;
 use deltachat::color;
 use deltachat::context::Context;
+use futures::TryFutureExt;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
@@ -57,17 +58,22 @@ impl ContactObject {
         context: &Context,
         contact: deltachat::contact::Contact,
     ) -> Result<Self> {
-        let profile_image = match contact.get_profile_image(context).await? {
+        let profile_image = contact.get_profile_image(context).map_ok(|r| match r {
             Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
             None => None,
-        };
-        let is_verified = contact.is_verified(context).await?;
-        let is_profile_verified = contact.is_profile_verified(context).await?;
+        });
 
         let verifier_id = contact
             .get_verifier_id(context)
-            .await?
-            .map(|contact_id| contact_id.to_u32());
+            .map_ok(|o| o.map(|contact_id| contact_id.to_u32()));
+
+        let (profile_image, is_verified, is_profile_verified, verifier_id, e2ee_avail) = futures::try_join!(
+            profile_image,
+            contact.is_verified(context),
+            contact.is_profile_verified(context),
+            verifier_id,
+            contact.e2ee_avail(context),
+        )?;
 
         Ok(ContactObject {
             address: contact.get_addr().to_owned(),
@@ -80,7 +86,7 @@ impl ContactObject {
             profile_image, //BLOBS
             name_and_addr: contact.get_name_n_addr(),
             is_blocked: contact.is_blocked(),
-            e2ee_avail: contact.e2ee_avail(context).await?,
+            e2ee_avail,
             is_verified,
             is_profile_verified,
             verifier_id,
