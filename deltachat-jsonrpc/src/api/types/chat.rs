@@ -62,33 +62,33 @@ impl FullChat {
         let rust_chat_id = ChatId::new(chat_id);
         let chat = Chat::load_from_db(context, rust_chat_id).await?;
 
-        let contact_ids = get_chat_contacts(context, rust_chat_id).await?;
-        let past_contact_ids = get_past_chat_contacts(context, rust_chat_id).await?;
-
-        let mut contacts = Vec::with_capacity(contact_ids.len());
-
-        for contact_id in &contact_ids {
-            contacts.push(
-                ContactObject::try_from_dc_contact(
-                    context,
-                    Contact::get_by_id(context, *contact_id)
-                        .await
-                        .context("failed to load contact")?,
-                )
-                .await?,
+        let (
+            contact_ids,
+            past_contact_ids,
+            profile_image,
+            color,
+            fresh_message_counter,
+            ephemeral_timer,
+            can_send,
+        ) = futures::try_join!(
+            get_chat_contacts(context, rust_chat_id),
+            get_past_chat_contacts(context, rust_chat_id),
+            chat.get_profile_image(context),
+            chat.get_color(context),
+            rust_chat_id.get_fresh_msg_cnt(context),
+            rust_chat_id.get_ephemeral_timer(context),
+            chat.can_send(context),
+        )?;
+        let contacts = futures::future::try_join_all(contact_ids.iter().map(|contact_id| async {
+            ContactObject::try_from_dc_contact(
+                context,
+                Contact::get_by_id(context, *contact_id)
+                    .await
+                    .context("failed to load contact")?,
             )
-        }
-
-        let profile_image = match chat.get_profile_image(context).await? {
-            Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
-            None => None,
-        };
-
-        let color = color_int_to_hex_string(chat.get_color(context).await?);
-        let fresh_message_counter = rust_chat_id.get_fresh_msg_cnt(context).await?;
-        let ephemeral_timer = rust_chat_id.get_ephemeral_timer(context).await?.to_u32();
-
-        let can_send = chat.can_send(context).await?;
+            .await
+        }))
+        .await?;
 
         let was_seen_recently = if chat.get_type() == Chattype::Single {
             match contact_ids.first() {
@@ -108,7 +108,11 @@ impl FullChat {
             id: chat_id,
             name: chat.name.clone(),
             is_protected: chat.is_protected(),
-            profile_image, //BLOBS ?
+            //BLOBS ?
+            profile_image: match profile_image {
+                Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
+                None => None,
+            },
             archived: chat.get_visibility() == chat::ChatVisibility::Archived,
             pinned: chat.get_visibility() == chat::ChatVisibility::Pinned,
             chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
@@ -117,14 +121,14 @@ impl FullChat {
             contacts,
             contact_ids: contact_ids.iter().map(|id| id.to_u32()).collect(),
             past_contact_ids: past_contact_ids.iter().map(|id| id.to_u32()).collect(),
-            color,
+            color: color_int_to_hex_string(color),
             fresh_message_counter,
             is_contact_request: chat.is_contact_request(),
             is_protection_broken: chat.is_protection_broken(),
             is_device_chat: chat.is_device_talk(),
             self_in_group: contact_ids.contains(&ContactId::SELF),
             is_muted: chat.is_muted(),
-            ephemeral_timer,
+            ephemeral_timer: ephemeral_timer.to_u32(),
             can_send,
             was_seen_recently,
             mailing_list_address,
