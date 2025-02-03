@@ -1396,17 +1396,13 @@ impl CommandApi {
     ) -> Result<Vec<ContactObject>> {
         let ctx = self.get_context(account_id).await?;
         let contact_ids = Contact::get_all(&ctx, list_flags, query.as_deref()).await?;
-        let mut contacts: Vec<ContactObject> = Vec::with_capacity(contact_ids.len());
-        for id in contact_ids {
-            contacts.push(
-                ContactObject::try_from_dc_contact(
-                    &ctx,
-                    deltachat::contact::Contact::get_by_id(&ctx, id).await?,
-                )
-                .await?,
-            );
-        }
-        Ok(contacts)
+        let ctx_ref = &ctx;
+        return futures::future::try_join_all(contact_ids.into_iter().map(|id| async move {
+            let contact = deltachat::contact::Contact::get_by_id(ctx_ref, id).await?;
+            let contact_object = ContactObject::try_from_dc_contact(ctx_ref, contact).await?;
+            Ok(contact_object)
+        }))
+        .await;
     }
 
     async fn get_contacts_by_ids(
@@ -1416,18 +1412,15 @@ impl CommandApi {
     ) -> Result<HashMap<u32, ContactObject>> {
         let ctx = self.get_context(account_id).await?;
 
-        let mut contacts = HashMap::with_capacity(ids.len());
-        for id in ids {
-            contacts.insert(
-                id,
-                ContactObject::try_from_dc_contact(
-                    &ctx,
-                    deltachat::contact::Contact::get_by_id(&ctx, ContactId::new(id)).await?,
-                )
-                .await?,
-            );
-        }
-        Ok(contacts)
+        let ctx_ref = &ctx;
+        return futures::future::try_join_all(ids.into_iter().map(|id| async move {
+            let contact =
+                deltachat::contact::Contact::get_by_id(ctx_ref, ContactId::new(id)).await?;
+            let contact_object = ContactObject::try_from_dc_contact(ctx_ref, contact).await?;
+            Ok((id, contact_object))
+        }))
+        .await
+        .map(|vec| vec.into_iter().collect());
     }
 
     async fn delete_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
