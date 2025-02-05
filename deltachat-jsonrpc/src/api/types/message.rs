@@ -104,6 +104,9 @@ enum MessageQuote {
     WithMessage {
         text: String,
         message_id: u32,
+        /// The quoted message does not always belong
+        /// to the same chat, e.g. when "Reply Privately" is used.
+        chat_id: u32,
         author_display_name: String,
         author_display_color: String,
         override_sender_name: Option<String>,
@@ -147,6 +150,7 @@ impl MessageObject {
                     Some(MessageQuote::WithMessage {
                         text: quoted_text,
                         message_id: quote.get_id().to_u32(),
+                        chat_id: quote.get_chat_id().to_u32(),
                         author_display_name: quote_author.get_display_name().to_owned(),
                         author_display_color: color_int_to_hex_string(quote_author.get_color()),
                         override_sender_name: quote.get_override_sender_name(),
