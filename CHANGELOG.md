@@ -1,6 +1,45 @@
 # Changelog
 
+## [1.155.3] - 2025-02-05
+
+### Fixes
+
+- Store device token in IMAP METADATA on each connection.
+
+### Miscellaneous Tasks
+
+- Upgrade iroh from 0.30 to 0.32.
+- Update `pgp` to 0.15.
+- cargo: Bump thiserror from 1.0.69 to 2.0.9.
+- cargo: Bump pin-project from 1.1.7 to 1.1.8.
+- cargo: Bump dirs from 5.0.1 to 6.0.0.
+- cargo: Bump hyper from 1.5.2 to 1.6.0.
+- cargo: Bump webpki-roots from 0.26.7 to 0.26.8.
+- cargo: Bump futures-lite from 2.5.0 to 2.6.0.
+- Update OpenSSL to fix RUSTSEC-2025-0004.
+- cargo: Bump tokio from 1.42.0 to 1.43.0.
+- cargo: Bump syn from 2.0.94 to 2.0.98.
+- cargo: Bump rustls from 0.23.20 to 0.23.22.
+- cargo: Bump data-encoding from 2.6.0 to 2.7.0.
+- cargo: Bump serde_json from 1.0.134 to 1.0.138.
+- cargo: Bump uuid from 1.11.0 to 1.12.1.
+- cargo: Bump log from 0.4.22 to 0.4.25.
+- cargo: Bump rustls-pki-types from 1.10.1 to 1.11.0.
+- Update futures-concurrency.
+
+### Documentation
+
+- Assign docs to correct object.
+
+### Tests
+
+- Make sure DCBACKUP2 compatibility does not break again.
+
 ## [1.155.2] - 2025-01-31
+
+This release accidentally broke compatibility
+with previous versions of `DCBACKUP2` QR codes
+due to iroh upgrade.
 
 ### API-Changes
 
@@ -5725,3 +5764,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.3..v1.155.0
 [1.155.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.0..v1.155.1
 [1.155.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.1..v1.155.2
+[1.155.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.2..v1.155.3
