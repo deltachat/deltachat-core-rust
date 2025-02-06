@@ -216,7 +216,7 @@ pub enum EventType {
     #[serde(rename_all = "camelCase")]
     MsgDeleted {
         /// ID of the chat where the message was prior to deletion.
-        /// Never 0 or trash chat.
+        /// Never 0.
         chat_id: u32,
 
         /// ID of the deleted message. Never 0.
