@@ -272,8 +272,6 @@ pub enum EventType {
 
     /// Inform about the import/export progress started by imex().
     ///
-    /// @param data1 (usize)
-    /// @param data2 0
     #[serde(rename_all = "camelCase")]
     ImexProgress {
         /// 0=error, 1-999=progress in permille, 1000=success and done
