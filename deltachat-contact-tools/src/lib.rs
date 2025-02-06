@@ -206,22 +206,21 @@ pub fn parse_vcard(vcard: &str) -> Vec<VcardContact> {
             } else if let Some(rev) = vcard_property(line, "rev") {
                 datetime.get_or_insert(rev);
             } else if line.eq_ignore_ascii_case("END:VCARD") {
+                let (authname, addr) =
+                    sanitize_name_and_addr(display_name.unwrap_or(""), addr.unwrap_or(""));
+
+                contacts.push(VcardContact {
+                    authname,
+                    addr,
+                    key: key.map(|s| s.to_string()),
+                    profile_image: photo.map(|s| s.to_string()),
+                    timestamp: datetime
+                        .context("No timestamp in vcard")
+                        .and_then(parse_datetime),
+                });
                 break;
             }
         }
-
-        let (authname, addr) =
-            sanitize_name_and_addr(display_name.unwrap_or(""), addr.unwrap_or(""));
-
-        contacts.push(VcardContact {
-            authname,
-            addr,
-            key: key.map(|s| s.to_string()),
-            profile_image: photo.map(|s| s.to_string()),
-            timestamp: datetime
-                .context("No timestamp in vcard")
-                .and_then(parse_datetime),
-        });
     }
 
     contacts
@@ -529,6 +528,30 @@ KEY;TYPE=PGP;ENCODING=b:[base64-data]
 REV:20240418T184242Z
 
 END:VCARD",
+        );
+
+        assert_eq!(contacts[0].addr, "alice@example.com".to_string());
+        assert_eq!(contacts[0].authname, "Alice Wonderland".to_string());
+        assert_eq!(contacts[0].key, Some("[base64-data]".to_string()));
+        assert_eq!(contacts[0].profile_image, None);
+        assert_eq!(*contacts[0].timestamp.as_ref().unwrap(), 1713465762);
+
+        assert_eq!(contacts.len(), 1);
+    }
+
+    #[test]
+    fn test_vcard_with_trailing_newline() {
+        let contacts = parse_vcard(
+            "BEGIN:VCARD\r
+VERSION:4.0\r
+FN:Alice Wonderland\r
+N:Wonderland;Alice;;;Ms.\r
+GENDER:W\r
+EMAIL;TYPE=work:alice@example.com\r
+KEY;TYPE=PGP;ENCODING=b:[base64-data]\r
+REV:20240418T184242Z\r
+END:VCARD\r
+\r",
         );
 
         assert_eq!(contacts[0].addr, "alice@example.com".to_string());
