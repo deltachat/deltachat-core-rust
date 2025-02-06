@@ -1,16 +1,11 @@
 [advisories]
 ignore = [
-    "RUSTSEC-2020-0071",
-
     # Timing attack on RSA.
     # Delta Chat does not use RSA for new keys
     # and this requires precise measurement of the decryption time by the attacker.
     # There is no fix at the time of writing this (2023-11-28).
     # <https://rustsec.org/advisories/RUSTSEC-2023-0071>
     "RUSTSEC-2023-0071",
-
-    # Unmaintained encoding
-    "RUSTSEC-2021-0153",
 
     # Unmaintained instant
     "RUSTSEC-2024-0384",
@@ -29,16 +24,12 @@ skip = [
      { name = "core-foundation", version = "0.9.4" },
      { name = "event-listener", version = "2.5.3" },
      { name = "generator", version = "0.7.5" },
-     { name = "getrandom", version = "<0.2" },
      { name = "http", version = "0.2.12" },
      { name = "loom", version = "0.5.6" },
      { name = "netlink-packet-route", version = "0.17.1" },
      { name = "nix", version = "0.26.4" },
      { name = "nix", version = "0.27.1" },
      { name = "quick-error", version = "<2.0" },
-     { name = "rand_chacha", version = "<0.3" },
-     { name = "rand_core", version = "<0.6" },
-     { name = "rand", version = "<0.8" },
      { name = "redox_syscall", version = "0.3.5" },
      { name = "regex-automata", version = "0.1.10" },
      { name = "regex-syntax", version = "0.6.29" },
@@ -48,11 +39,9 @@ skip = [
      { name = "syn", version = "1.0.109" },
      { name = "thiserror-impl", version = "1.0.69" },
      { name = "thiserror", version = "1.0.69" },
-     { name = "time", version = "<0.3" },
      { name = "tokio-tungstenite", version = "0.21.0" },
      { name = "tungstenite", version = "0.21.0" },
      { name = "unicode-width", version = "0.1.11" },
-     { name = "wasi", version = "<0.11" },
      { name = "windows" },
      { name = "windows_aarch64_gnullvm" },
      { name = "windows_aarch64_msvc" },
@@ -94,10 +83,4 @@ name = "ring"
 expression = "MIT AND ISC AND OpenSSL"
 license-files = [
       { path = "LICENSE", hash = 0xbd0eed23 },
-]
-
-[sources.allow-org]
-# Organisations which we allow git sources from.
-github = [
-       "deltachat",
 ]

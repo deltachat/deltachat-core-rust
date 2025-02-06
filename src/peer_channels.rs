@@ -25,7 +25,6 @@
 
 use anyhow::{anyhow, bail, Context as _, Result};
 use data_encoding::BASE32_NOPAD;
-use email::Header;
 use futures_lite::StreamExt;
 use iroh::{Endpoint, NodeAddr, NodeId, PublicKey, RelayMap, RelayMode, RelayUrl, SecretKey};
 use iroh_gossip::net::{Event, Gossip, GossipEvent, JoinOptions, GOSSIP_ALPN};
@@ -40,7 +39,6 @@ use url::Url;
 use crate::chat::send_msg;
 use crate::config::Config;
 use crate::context::Context;
-use crate::headerdef::HeaderDef;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::EventType;
@@ -496,14 +494,11 @@ fn create_random_topic() -> TopicId {
 
 /// Creates `Iroh-Gossip-Header` with a new random topic
 /// and stores the topic for the message.
-pub(crate) async fn create_iroh_header(ctx: &Context, msg_id: MsgId) -> Result<Header> {
+pub(crate) async fn create_iroh_header(ctx: &Context, msg_id: MsgId) -> Result<String> {
     let topic = create_random_topic();
     insert_topic_stub(ctx, msg_id, topic).await?;
     let topic_string = BASE32_NOPAD.encode(topic.as_bytes()).to_ascii_lowercase();
-    Ok(Header::new(
-        HeaderDef::IrohGossipTopic.get_headername().to_string(),
-        topic_string,
-    ))
+    Ok(topic_string)
 }
 
 async fn subscribe_loop(
