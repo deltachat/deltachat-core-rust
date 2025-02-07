@@ -371,7 +371,6 @@ and will be wrapped as usual.<br/>
 mime-modified should not be set set as there is no html and no special stuff;<br/>
 although not being a delta-message.<br/>
 test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x27; :)<br/>
-<br/>
 </body></html>
 "#
         );
@@ -405,7 +404,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             r##"<html>
   <p>mime-modified <b>set</b>; simplify is always regarded as lossy.</p>
 </html>
-
 "##
         );
     }
@@ -422,7 +420,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     this is <b>html</b>
   </p>
 </html>
-
 "##
         );
     }

@@ -379,13 +379,6 @@ pub fn pk_validate(
 
     let standalone_signature = StandaloneSignature::from_armor_single(Cursor::new(signature))?.0;
 
-    // Remove trailing CRLF before the delimiter.
-    // According to RFC 3156 it is considered to be part of the MIME delimiter for the purpose of
-    // OpenPGP signature calculation.
-    let content = content
-        .get(..content.len().saturating_sub(2))
-        .context("index is out of range")?;
-
     for pkey in public_keys_for_validation {
         if standalone_signature.verify(pkey, content).is_ok() {
             let fp = pkey.dc_fingerprint();
