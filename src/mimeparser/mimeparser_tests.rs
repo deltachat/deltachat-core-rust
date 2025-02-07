@@ -1817,3 +1817,78 @@ async fn test_protect_autocrypt() -> Result<()> {
 
     Ok(())
 }
+
+/// Tests that CRLF before MIME boundary
+/// is not treated as the part body.
+///
+/// RFC 2046 explicitly says that
+/// "The CRLF preceding the boundary delimiter line is conceptually attached
+/// to the boundary so that it is possible to have a part that does not end
+/// with a CRLF (line break). Body parts that must be considered to end with
+/// line breaks, therefore, must have two CRLFs preceding the boundary delimiter
+/// line, the first of which is part of the preceding body part,
+/// and the second of which is part of the encapsulation boundary."
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_mimeparser_trailing_newlines() {
+    let context = TestContext::new_alice().await;
+
+    // Example from <https://www.rfc-editor.org/rfc/rfc2046#section-5.1.1>
+    // with a `Content-Disposition` headers added to turn files
+    // into attachments.
+    let raw = b"From: Nathaniel Borenstein <nsb@bellcore.com>\r
+To: Ned Freed <ned@innosoft.com>\r
+Date: Sun, 21 Mar 1993 23:56:48 -0800 (PST)\r
+Subject: Sample message\r
+MIME-Version: 1.0\r
+Content-type: multipart/mixed; boundary=\"simple boundary\"\r
+\r
+This is the preamble.  It is to be ignored, though it\r
+is a handy place for composition agents to include an\r
+explanatory note to non-MIME conformant readers.\r
+\r
+--simple boundary\r
+Content-Disposition: attachment; filename=\"file1.txt\"\r
+\r
+This is implicitly typed plain US-ASCII text.\r
+It does NOT end with a linebreak.\r
+--simple boundary\r
+Content-type: text/plain; charset=us-ascii\r
+Content-Disposition: attachment; filename=\"file2.txt\"\r
+\r
+This is explicitly typed plain US-ASCII text.\r
+It DOES end with a linebreak.\r
+\r
+--simple boundary--\r
+\r
+This is the epilogue.  It is also to be ignored.";
+
+    let mimeparser = MimeMessage::from_bytes(&context, &raw[..], None)
+        .await
+        .unwrap();
+
+    assert_eq!(mimeparser.parts.len(), 2);
+
+    assert_eq!(mimeparser.parts[0].typ, Viewtype::File);
+    let blob: BlobObject = mimeparser.parts[0]
+        .param
+        .get_blob(Param::File, &context)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        tokio::fs::read_to_string(blob.to_abs_path()).await.unwrap(),
+        "This is implicitly typed plain US-ASCII text.\r\nIt does NOT end with a linebreak."
+    );
+
+    assert_eq!(mimeparser.parts[1].typ, Viewtype::File);
+    let blob: BlobObject = mimeparser.parts[1]
+        .param
+        .get_blob(Param::File, &context)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        tokio::fs::read_to_string(blob.to_abs_path()).await.unwrap(),
+        "This is explicitly typed plain US-ASCII text.\r\nIt DOES end with a linebreak.\r\n"
+    );
+}
