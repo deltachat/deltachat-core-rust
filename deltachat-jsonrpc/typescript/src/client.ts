@@ -1,8 +1,9 @@
 import * as T from "../generated/types.js";
-import { EventType } from "../generated/types.js";
+import type { EventType } from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { WebsocketTransport, BaseTransport, Request } from "yerpc";
+import type { Request } from "yerpc";
+import { WebsocketTransport, BaseTransport } from "yerpc";
 import { TinyEmitter } from "@deltachat/tiny-emitter";
 
 type Events = { ALL: (accountId: number, event: EventType) => void } & {
