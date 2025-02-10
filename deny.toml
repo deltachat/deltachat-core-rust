@@ -14,6 +14,9 @@ ignore = [
 
     # Unmaintained instant
     "RUSTSEC-2024-0384",
+
+    # DNSSEC validation that we don't use anyway.
+    "RUSTSEC-2025-0006",
 ]
 
 [bans]
