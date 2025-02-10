@@ -139,14 +139,23 @@ async fn get_self_fingerprint(context: &Context) -> Result<Fingerprint> {
     Ok(key.dc_fingerprint())
 }
 
+// hack around the changed JSON accidentally used by an iroh upgrade, see #6518 for more details and for code snippet.
+// this hack is mainly needed to give ppl timme to upgrade and can be removed after some months (added 2025-02)
+pub(crate) fn fix_add_second_device_qr(qr: &str) -> String {
+    return qr
+        .replacen(",\"info\":{\"relay_url\":", ",\"relay_url\":", 1)
+        .replacen("]}}", "]}", 1);
+}
+
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
 ///
 /// This is the start of the process for the joiner.  See the module and ffi documentation
 /// for more details.
 ///
 /// The function returns immediately and the handshake will run in background.
-pub async fn join_securejoin(context: &Context, qr: &str) -> Result<ChatId> {
-    securejoin(context, qr).await.map_err(|err| {
+pub async fn join_securejoin(context: &Context, qr_err: &str) -> Result<ChatId> {
+    let qr_fixed = fix_add_second_device_qr(qr_err);
+    securejoin(context, &qr_fixed).await.map_err(|err| {
         warn!(context, "Fatal joiner error: {:#}", err);
         // The user just scanned this QR code so has context on what failed.
         error!(context, "QR process failed");

@@ -22,6 +22,7 @@ use crate::message::Message;
 use crate::net::http::post_empty;
 use crate::net::proxy::{ProxyConfig, DEFAULT_SOCKS_PORT};
 use crate::peerstate::Peerstate;
+use crate::securejoin::fix_add_second_device_qr;
 use crate::token;
 use crate::tools::validate_id;
 
@@ -290,7 +291,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
     } else if qr.starts_with(SHADOWSOCKS_SCHEME) {
         decode_shadowsocks_proxy(qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
-        decode_backup2(qr)?
+        let qr_fixed = fix_add_second_device_qr(qr);
+        decode_backup2(&qr_fixed)?
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr).await?
     } else if qr.starts_with(SMTP_SCHEME) {
