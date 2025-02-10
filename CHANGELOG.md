@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.155.4] - 2025-02-10
+
+### CI
+
+- Upgrade Rust from 1.84.0 to 1.84.1.
+
+### Fixes
+
+- Use CRLF newlines in vCards.
+- Make vCard parsing more robust in case of trailing newlines.
+- Do not include CRLF before MIME boundary in the part body.
+- Accept QR codes with 'broken' JSON ([#6528](https://github.com/deltachat/deltachat-core-rust/pull/6528)).
+
+### Other
+
+- Add `MessageQuote.chat_id`.
+
+### Refactor
+
+- Move even more tests into their own files ([#6521](https://github.com/deltachat/deltachat-core-rust/pull/6521)).
+
 ## [1.155.3] - 2025-02-05
 
 ### Fixes
@@ -5765,3 +5786,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.0..v1.155.1
 [1.155.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.1..v1.155.2
 [1.155.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.2..v1.155.3
+[1.155.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.3..v1.155.4
