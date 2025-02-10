@@ -152,9 +152,8 @@ pub(crate) fn fix_add_second_device_qr(qr: &str) -> String {
 /// for more details.
 ///
 /// The function returns immediately and the handshake will run in background.
-pub async fn join_securejoin(context: &Context, qr_err: &str) -> Result<ChatId> {
-    let qr_fixed = fix_add_second_device_qr(qr_err);
-    securejoin(context, &qr_fixed).await.map_err(|err| {
+pub async fn join_securejoin(context: &Context, qr: &str) -> Result<ChatId> {
+    securejoin(context, qr).await.map_err(|err| {
         warn!(context, "Fatal joiner error: {:#}", err);
         // The user just scanned this QR code so has context on what failed.
         error!(context, "QR process failed");
