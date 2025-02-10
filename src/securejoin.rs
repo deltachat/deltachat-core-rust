@@ -143,7 +143,7 @@ async fn get_self_fingerprint(context: &Context) -> Result<Fingerprint> {
 // this hack is mainly needed to give ppl timme to upgrade and can be removed after some months (added 2025-02)
 pub(crate) fn fix_add_second_device_qr(qr: &str) -> String {
     qr.replacen(",\"info\":{\"relay_url\":", ",\"relay_url\":", 1)
-        .replacen("]}}", "]}", 1)
+        .replacen("\"]}}", "\"]}", 1)
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
