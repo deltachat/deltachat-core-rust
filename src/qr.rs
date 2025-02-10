@@ -22,7 +22,6 @@ use crate::message::Message;
 use crate::net::http::post_empty;
 use crate::net::proxy::{ProxyConfig, DEFAULT_SOCKS_PORT};
 use crate::peerstate::Peerstate;
-use crate::securejoin::fix_add_second_device_qr;
 use crate::token;
 use crate::tools::validate_id;
 
@@ -260,6 +259,13 @@ pub enum Qr {
         /// Login parameters.
         options: LoginOptions,
     },
+}
+
+// hack around the changed JSON accidentally used by an iroh upgrade, see #6518 for more details and for code snippet.
+// this hack is mainly needed to give ppl time to upgrade and can be removed after some months (added 2025-02)
+fn fix_add_second_device_qr(qr: &str) -> String {
+    qr.replacen(r#","info":{"relay_url":"#, r#","relay_url":"#, 1)
+        .replacen(r#""]}}"#, r#""]}"#, 1)
 }
 
 fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
