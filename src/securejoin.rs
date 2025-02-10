@@ -142,8 +142,8 @@ async fn get_self_fingerprint(context: &Context) -> Result<Fingerprint> {
 // hack around the changed JSON accidentally used by an iroh upgrade, see #6518 for more details and for code snippet.
 // this hack is mainly needed to give ppl time to upgrade and can be removed after some months (added 2025-02)
 pub(crate) fn fix_add_second_device_qr(qr: &str) -> String {
-    qr.replacen(",\"info\":{\"relay_url\":", ",\"relay_url\":", 1)
-        .replacen("\"]}}", "\"]}", 1)
+    qr.replacen(r#","info":{"relay_url":"#, r#","relay_url":"#, 1)
+        .replacen(r#""]}}"#, r#""]}"#, 1)
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
