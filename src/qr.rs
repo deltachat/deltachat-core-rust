@@ -261,6 +261,13 @@ pub enum Qr {
     },
 }
 
+// hack around the changed JSON accidentally used by an iroh upgrade, see #6518 for more details and for code snippet.
+// this hack is mainly needed to give ppl time to upgrade and can be removed after some months (added 2025-02)
+fn fix_add_second_device_qr(qr: &str) -> String {
+    qr.replacen(r#","info":{"relay_url":"#, r#","relay_url":"#, 1)
+        .replacen(r#""]}}"#, r#""]}"#, 1)
+}
+
 fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
     string.to_lowercase().starts_with(&pattern.to_lowercase())
 }
@@ -290,7 +297,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
     } else if qr.starts_with(SHADOWSOCKS_SCHEME) {
         decode_shadowsocks_proxy(qr)?
     } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
-        decode_backup2(qr)?
+        let qr_fixed = fix_add_second_device_qr(qr);
+        decode_backup2(&qr_fixed)?
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr).await?
     } else if qr.starts_with(SMTP_SCHEME) {
