@@ -42,7 +42,6 @@ use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::receive_imf::ReceivedMsg;
-use crate::securejoin::BobState;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
 use crate::sync::{self, Sync::*, SyncData};
@@ -2569,19 +2568,27 @@ pub(crate) async fn update_special_chat_names(context: &Context) -> Result<()> {
 /// Checks if there is a 1:1 chat in-progress SecureJoin for Bob and, if necessary, schedules a task
 /// unblocking the chat and notifying the user accordingly.
 pub(crate) async fn resume_securejoin_wait(context: &Context) -> Result<()> {
-    let Some(bobstate) = BobState::from_db(&context.sql).await? else {
-        return Ok(());
-    };
-    if !bobstate.in_progress() {
-        return Ok(());
-    }
-    let chat_id = bobstate.alice_chat();
-    let chat = Chat::load_from_db(context, chat_id).await?;
-    let timeout = chat
-        .check_securejoin_wait(context, constants::SECUREJOIN_WAIT_TIMEOUT)
+    let chat_ids: Vec<ChatId> = context
+        .sql
+        .query_map(
+            "SELECT chat_id FROM bobstate",
+            (),
+            |row| {
+                let chat_id: ChatId = row.get(0)?;
+                Ok(chat_id)
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
         .await?;
-    if timeout > 0 {
-        chat_id.spawn_securejoin_wait(context, timeout);
+
+    for chat_id in chat_ids {
+        let chat = Chat::load_from_db(context, chat_id).await?;
+        let timeout = chat
+            .check_securejoin_wait(context, constants::SECUREJOIN_WAIT_TIMEOUT)
+            .await?;
+        if timeout > 0 {
+            chat_id.spawn_securejoin_wait(context, timeout);
+        }
     }
     Ok(())
 }

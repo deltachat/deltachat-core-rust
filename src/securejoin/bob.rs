@@ -1,30 +1,39 @@
-//! Bob's side of SecureJoin handling.
-//!
-//! This are some helper functions around [`BobState`] which augment the state changes with
-//! the required user interactions.
+//! Bob's side of SecureJoin handling, the joiner-side.
 
 use anyhow::{Context as _, Result};
 
-use super::bobstate::{BobHandshakeStage, BobState};
 use super::qrinvite::QrInvite;
 use super::HandshakeMessage;
-use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
+use crate::chat::{self, is_contact_in_chat, ChatId, ProtectionStatus};
 use crate::constants::{self, Blocked, Chattype};
-use crate::contact::Contact;
+use crate::contact::Origin;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::key::{load_self_public_key, DcKey};
+use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
+use crate::param::Param;
+use crate::securejoin::{encrypted_and_signed, verify_sender_by_fingerprint, ContactId};
+use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::{create_smeared_timestamp, time};
-use crate::{chat, stock_str};
 
 /// Starts the securejoin protocol with the QR `invite`.
 ///
-/// This will try to start the securejoin protocol for the given QR `invite`.  If it
-/// succeeded the protocol state will be tracked in `self`.
+/// This will try to start the securejoin protocol for the given QR `invite`.
+///
+/// If Bob already has Alice's key, he sends `AUTH` token
+/// and forgets about the invite.
+/// If Bob does not yet have Alice's key, he sends `vc-request`
+/// or `vg-request` message and stores a row in the `bobstate` table
+/// so he can check Alice's key against the fingerprint
+/// and send `AUTH` token later.
 ///
 /// This function takes care of handling multiple concurrent joins and handling errors while
 /// starting the protocol.
+///
+/// # Bob - the joiner's side
+/// ## Step 2 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
 ///
 /// # Returns
 ///
@@ -42,22 +51,47 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
         .await
         .with_context(|| format!("can't create chat for contact {}", invite.contact_id()))?;
 
-    // Now start the protocol and initialise the state
-    let (state, stage, aborted_states) =
-        BobState::start_protocol(context, invite.clone(), chat_id).await?;
-    for state in aborted_states {
-        error!(context, "Aborting previously unfinished QR Join process.");
-        state.notify_aborted(context, "New QR code scanned").await?;
-        state.emit_progress(context, JoinerProgress::Error);
+    ContactId::scaleup_origin(context, &[invite.contact_id()], Origin::SecurejoinJoined).await?;
+    context.emit_event(EventType::ContactsChanged(None));
+
+    // Now start the protocol and initialise the state.
+    {
+        let peer_verified =
+            verify_sender_by_fingerprint(context, invite.fingerprint(), invite.contact_id())
+                .await?;
+
+        if peer_verified {
+            // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
+            info!(context, "Taking securejoin protocol shortcut");
+            send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::RequestWithAuth)
+                .await?;
+
+            // Mark 1:1 chat as verified already.
+            chat_id
+                .set_protection(
+                    context,
+                    ProtectionStatus::Protected,
+                    time(),
+                    Some(invite.contact_id()),
+                )
+                .await?;
+
+            context.emit_event(EventType::SecurejoinJoinerProgress {
+                contact_id: invite.contact_id(),
+                progress: JoinerProgress::RequestWithAuthSent.to_usize(),
+            });
+        } else {
+            send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::Request).await?;
+
+            insert_new_db_entry(context, invite.clone(), chat_id).await?;
+        }
     }
-    if matches!(stage, BobHandshakeStage::RequestWithAuthSent) {
-        state.emit_progress(context, JoinerProgress::RequestWithAuthSent);
-    }
+
     match invite {
         QrInvite::Group { .. } => {
             // For a secure-join we need to create the group and add the contact.  The group will
             // only become usable once the protocol is finished.
-            let group_chat_id = state.joining_chat_id(context).await?;
+            let group_chat_id = joining_chat_id(context, &invite, chat_id).await?;
             if !is_contact_in_chat(context, group_chat_id, invite.contact_id()).await? {
                 chat::add_to_chat_contacts_table(
                     context,
@@ -74,7 +108,6 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
         QrInvite::Contact { .. } => {
             // For setup-contact the BobState already ensured the 1:1 chat exists because it
             // uses it to send the handshake messages.
-            let chat_id = state.alice_chat();
             // Calculate the sort timestamp before checking the chat protection status so that if we
             // race with its change, we don't add our message below the protection message.
             let sort_to_bottom = true;
@@ -102,6 +135,19 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
     }
 }
 
+/// Inserts a new entry in the bobstate table.
+///
+/// Returns the ID of the newly inserted entry.
+async fn insert_new_db_entry(context: &Context, invite: QrInvite, chat_id: ChatId) -> Result<i64> {
+    context
+        .sql
+        .insert(
+            "INSERT INTO bobstate (invite, next_step, chat_id) VALUES (?, ?, ?);",
+            (invite, 0, chat_id),
+        )
+        .await
+}
+
 /// Handles `vc-auth-required` and `vg-auth-required` handshake messages.
 ///
 /// # Bob - the joiner's side
@@ -110,121 +156,214 @@ pub(super) async fn handle_auth_required(
     context: &Context,
     message: &MimeMessage,
 ) -> Result<HandshakeMessage> {
-    let Some(mut bobstate) = BobState::from_db(&context.sql).await? else {
-        return Ok(HandshakeMessage::Ignore);
-    };
+    // Load all Bob states that expect `vc-auth-required` or `vg-auth-required`.
+    let bob_states: Vec<(i64, QrInvite, ChatId)> = context
+        .sql
+        .query_map(
+            "SELECT id, invite, chat_id FROM bobstate",
+            (),
+            |row| {
+                let row_id: i64 = row.get(0)?;
+                let invite: QrInvite = row.get(1)?;
+                let chat_id: ChatId = row.get(2)?;
+                Ok((row_id, invite, chat_id))
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?;
 
-    match bobstate.handle_auth_required(context, message).await? {
-        Some(BobHandshakeStage::Terminated(why)) => {
-            bobstate.notify_aborted(context, why).await?;
-            Ok(HandshakeMessage::Done)
+    info!(
+        context,
+        "Bob Step 4 - handling {{vc,vg}}-auth-required message."
+    );
+
+    let mut auth_sent = false;
+    for (bobstate_row_id, invite, chat_id) in bob_states {
+        if !encrypted_and_signed(context, message, invite.fingerprint()) {
+            continue;
         }
-        Some(_stage) => {
-            if bobstate.is_join_group() {
+
+        if !verify_sender_by_fingerprint(context, invite.fingerprint(), invite.contact_id()).await?
+        {
+            continue;
+        }
+
+        info!(context, "Fingerprint verified.",);
+        send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::RequestWithAuth).await?;
+        context
+            .sql
+            .execute("DELETE FROM bobstate WHERE id=?", (bobstate_row_id,))
+            .await?;
+
+        match invite {
+            QrInvite::Contact { .. } => {}
+            QrInvite::Group { .. } => {
                 // The message reads "Alice replied, waiting to be added to the group…",
                 // so only show it on secure-join and not on setup-contact.
-                let contact_id = bobstate.invite().contact_id();
+                let contact_id = invite.contact_id();
                 let msg = stock_str::secure_join_replies(context, contact_id).await;
-                let chat_id = bobstate.joining_chat_id(context).await?;
+                let chat_id = joining_chat_id(context, &invite, chat_id).await?;
                 chat::add_info_msg(context, chat_id, &msg, time()).await?;
             }
-            bobstate
-                .set_peer_verified(context, message.timestamp_sent)
-                .await?;
-            bobstate.emit_progress(context, JoinerProgress::RequestWithAuthSent);
-            Ok(HandshakeMessage::Done)
         }
-        None => Ok(HandshakeMessage::Ignore),
-    }
-}
 
-/// Private implementations for user interactions about this [`BobState`].
-impl BobState {
-    fn is_join_group(&self) -> bool {
-        match self.invite() {
-            QrInvite::Contact { .. } => false,
-            QrInvite::Group { .. } => true,
-        }
-    }
-
-    pub(crate) fn emit_progress(&self, context: &Context, progress: JoinerProgress) {
-        let contact_id = self.invite().contact_id();
-        context.emit_event(EventType::SecurejoinJoinerProgress {
-            contact_id,
-            progress: progress.into(),
-        });
-    }
-
-    /// Returns the [`ChatId`] of the chat being joined.
-    ///
-    /// This is the chat in which you want to notify the user as well.
-    ///
-    /// When joining a group this is the [`ChatId`] of the group chat, when verifying a
-    /// contact this is the [`ChatId`] of the 1:1 chat.  The 1:1 chat is assumed to exist
-    /// because a [`BobState`] can not exist without, the group chat will be created if it
-    /// does not yet exist.
-    async fn joining_chat_id(&self, context: &Context) -> Result<ChatId> {
-        match self.invite() {
-            QrInvite::Contact { .. } => Ok(self.alice_chat()),
-            QrInvite::Group {
-                ref grpid,
-                ref name,
-                ..
-            } => {
-                let group_chat_id = match chat::get_chat_id_by_grpid(context, grpid).await? {
-                    Some((chat_id, _protected, _blocked)) => {
-                        chat_id.unblock_ex(context, Nosync).await?;
-                        chat_id
-                    }
-                    None => {
-                        ChatId::create_multiuser_record(
-                            context,
-                            Chattype::Group,
-                            grpid,
-                            name,
-                            Blocked::Not,
-                            ProtectionStatus::Unprotected, // protection is added later as needed
-                            None,
-                            create_smeared_timestamp(context),
-                        )
-                        .await?
-                    }
-                };
-                Ok(group_chat_id)
-            }
-        }
-    }
-
-    /// Notifies the user that the SecureJoin was aborted.
-    ///
-    /// This creates an info message in the chat being joined.
-    async fn notify_aborted(&self, context: &Context, why: &str) -> Result<()> {
-        let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
-        let mut msg = stock_str::contact_not_verified(context, &contact).await;
-        msg += " (";
-        msg += why;
-        msg += ")";
-        let chat_id = self.joining_chat_id(context).await?;
-        chat::add_info_msg(context, chat_id, &msg, time()).await?;
-        warn!(
-            context,
-            "StockMessage::ContactNotVerified posted to joining chat ({})", why
-        );
-        Ok(())
-    }
-
-    /// Turns 1:1 chat with SecureJoin peer into protected chat.
-    pub(crate) async fn set_peer_verified(&self, context: &Context, timestamp: i64) -> Result<()> {
-        let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
-        self.alice_chat()
+        chat_id
             .set_protection(
                 context,
                 ProtectionStatus::Protected,
-                timestamp,
-                Some(contact.id),
+                message.timestamp_sent,
+                Some(invite.contact_id()),
             )
             .await?;
-        Ok(())
+
+        context.emit_event(EventType::SecurejoinJoinerProgress {
+            contact_id: invite.contact_id(),
+            progress: JoinerProgress::RequestWithAuthSent.to_usize(),
+        });
+
+        auth_sent = true;
+    }
+
+    if auth_sent {
+        // Delete the message from IMAP server.
+        Ok(HandshakeMessage::Done)
+    } else {
+        // We have not found any corresponding AUTH codes,
+        // maybe another Bob device has scanned the QR code.
+        // Leave the message on IMAP server and let the other device
+        // process it.
+        Ok(HandshakeMessage::Ignore)
+    }
+}
+
+/// Sends the requested handshake message to Alice.
+pub(crate) async fn send_handshake_message(
+    context: &Context,
+    invite: &QrInvite,
+    chat_id: ChatId,
+    step: BobHandshakeMsg,
+) -> Result<()> {
+    let mut msg = Message {
+        viewtype: Viewtype::Text,
+        text: step.body_text(invite),
+        hidden: true,
+        ..Default::default()
+    };
+    msg.param.set_cmd(SystemMessage::SecurejoinMessage);
+
+    // Sends the step in Secure-Join header.
+    msg.param.set(Param::Arg, step.securejoin_header(invite));
+
+    match step {
+        BobHandshakeMsg::Request => {
+            // Sends the Secure-Join-Invitenumber header in mimefactory.rs.
+            msg.param.set(Param::Arg2, invite.invitenumber());
+            msg.force_plaintext();
+        }
+        BobHandshakeMsg::RequestWithAuth => {
+            // Sends the Secure-Join-Auth header in mimefactory.rs.
+            msg.param.set(Param::Arg2, invite.authcode());
+            msg.param.set_int(Param::GuaranteeE2ee, 1);
+
+            // Sends our own fingerprint in the Secure-Join-Fingerprint header.
+            let bob_fp = load_self_public_key(context).await?.dc_fingerprint();
+            msg.param.set(Param::Arg3, bob_fp.hex());
+
+            // Sends the grpid in the Secure-Join-Group header.
+            //
+            // `Secure-Join-Group` header is deprecated,
+            // but old Delta Chat core requires that Alice receives it.
+            //
+            // Previous Delta Chat core also sent `Secure-Join-Group` header
+            // in `vg-request` messages,
+            // but it was not used on the receiver.
+            if let QrInvite::Group { ref grpid, .. } = invite {
+                msg.param.set(Param::Arg4, grpid);
+            }
+        }
+    };
+
+    chat::send_msg(context, chat_id, &mut msg).await?;
+    Ok(())
+}
+
+/// Identifies the SecureJoin handshake messages Bob can send.
+pub(crate) enum BobHandshakeMsg {
+    /// vc-request or vg-request
+    Request,
+    /// vc-request-with-auth or vg-request-with-auth
+    RequestWithAuth,
+}
+
+impl BobHandshakeMsg {
+    /// Returns the text to send in the body of the handshake message.
+    ///
+    /// This text has no significance to the protocol, but would be visible if users see
+    /// this email message directly, e.g. when accessing their email without using
+    /// DeltaChat.
+    fn body_text(&self, invite: &QrInvite) -> String {
+        format!("Secure-Join: {}", self.securejoin_header(invite))
+    }
+
+    /// Returns the `Secure-Join` header value.
+    ///
+    /// This identifies the step this message is sending information about.  Most protocol
+    /// steps include additional information into other headers, see
+    /// [`send_handshake_message`] for these.
+    fn securejoin_header(&self, invite: &QrInvite) -> &'static str {
+        match self {
+            Self::Request => match invite {
+                QrInvite::Contact { .. } => "vc-request",
+                QrInvite::Group { .. } => "vg-request",
+            },
+            Self::RequestWithAuth => match invite {
+                QrInvite::Contact { .. } => "vc-request-with-auth",
+                QrInvite::Group { .. } => "vg-request-with-auth",
+            },
+        }
+    }
+}
+
+/// Returns the [`ChatId`] of the chat being joined.
+///
+/// This is the chat in which you want to notify the user as well.
+///
+/// When joining a group this is the [`ChatId`] of the group chat, when verifying a
+/// contact this is the [`ChatId`] of the 1:1 chat.
+/// The group chat will be created if it does not yet exist.
+async fn joining_chat_id(
+    context: &Context,
+    invite: &QrInvite,
+    alice_chat_id: ChatId,
+) -> Result<ChatId> {
+    match invite {
+        QrInvite::Contact { .. } => Ok(alice_chat_id),
+        QrInvite::Group {
+            ref grpid,
+            ref name,
+            ..
+        } => {
+            let group_chat_id = match chat::get_chat_id_by_grpid(context, grpid).await? {
+                Some((chat_id, _protected, _blocked)) => {
+                    chat_id.unblock_ex(context, Nosync).await?;
+                    chat_id
+                }
+                None => {
+                    ChatId::create_multiuser_record(
+                        context,
+                        Chattype::Group,
+                        grpid,
+                        name,
+                        Blocked::Not,
+                        ProtectionStatus::Unprotected, // protection is added later as needed
+                        None,
+                        create_smeared_timestamp(context),
+                    )
+                    .await?
+                }
+            };
+            Ok(group_chat_id)
+        }
     }
 }
 
@@ -233,8 +372,6 @@ impl BobState {
 /// This has an `From<JoinerProgress> for usize` impl yielding numbers between 0 and a 1000
 /// which can be shown as a progress bar.
 pub(crate) enum JoinerProgress {
-    /// An error occurred.
-    Error,
     /// vg-vc-request-with-auth sent.
     ///
     /// Typically shows as "alice@addr verified, introducing myself."
@@ -243,10 +380,10 @@ pub(crate) enum JoinerProgress {
     Succeeded,
 }
 
-impl From<JoinerProgress> for usize {
-    fn from(progress: JoinerProgress) -> Self {
-        match progress {
-            JoinerProgress::Error => 0,
+impl JoinerProgress {
+    #[expect(clippy::wrong_self_convention)]
+    pub(crate) fn to_usize(self) -> usize {
+        match self {
             JoinerProgress::RequestWithAuthSent => 400,
             JoinerProgress::Succeeded => 1000,
         }

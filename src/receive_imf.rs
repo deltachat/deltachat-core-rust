@@ -364,7 +364,7 @@ pub(crate) async fn receive_imf_inner(
     if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
         let res;
         if mime_parser.incoming {
-            res = handle_securejoin_handshake(context, &mime_parser, from_id)
+            res = handle_securejoin_handshake(context, &mut mime_parser, from_id)
                 .await
                 .context("error in Secure-Join message handling")?;
 

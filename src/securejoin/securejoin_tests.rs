@@ -209,7 +209,7 @@ async fn test_setup_contact_ex(case: SetupContactCase) {
             .insert(alice_addr.to_string(), wrong_pubkey)
             .unwrap();
         let contact_bob = alice.add_or_lookup_contact(&bob).await;
-        let handshake_msg = handle_securejoin_handshake(&alice, &msg, contact_bob.id)
+        let handshake_msg = handle_securejoin_handshake(&alice, &mut msg, contact_bob.id)
             .await
             .unwrap();
         assert_eq!(handshake_msg, HandshakeMessage::Ignore);
@@ -218,7 +218,7 @@ async fn test_setup_contact_ex(case: SetupContactCase) {
         msg.gossiped_keys
             .insert(alice_addr.to_string(), alice_pubkey)
             .unwrap();
-        let handshake_msg = handle_securejoin_handshake(&alice, &msg, contact_bob.id)
+        let handshake_msg = handle_securejoin_handshake(&alice, &mut msg, contact_bob.id)
             .await
             .unwrap();
         assert_eq!(handshake_msg, HandshakeMessage::Ignore);
@@ -837,5 +837,112 @@ async fn test_shared_bobs_key() -> Result<()> {
             .unwrap(),
     );
     assert_eq!(bob_ids.len(), 3);
+    Ok(())
+}
+
+/// Tests Bob joining two groups by scanning two QR codes
+/// from the same Alice at the same time.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_parallel_securejoin() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+
+    let alice_chat1_id =
+        chat::create_group_chat(alice, ProtectionStatus::Protected, "First chat").await?;
+    let alice_chat2_id =
+        chat::create_group_chat(alice, ProtectionStatus::Protected, "Second chat").await?;
+
+    let qr1 = get_securejoin_qr(alice, Some(alice_chat1_id)).await?;
+    let qr2 = get_securejoin_qr(alice, Some(alice_chat2_id)).await?;
+
+    // Bob scans both QR codes.
+    let bob_chat1_id = join_securejoin(bob, &qr1).await?;
+    let sent_vg_request1 = bob.pop_sent_msg().await;
+
+    let bob_chat2_id = join_securejoin(bob, &qr2).await?;
+    let sent_vg_request2 = bob.pop_sent_msg().await;
+
+    // Alice receives two `vg-request` messages
+    // and sends back two `vg-auth-required` messages.
+    alice.recv_msg_trash(&sent_vg_request1).await;
+    let sent_vg_auth_required1 = alice.pop_sent_msg().await;
+
+    alice.recv_msg_trash(&sent_vg_request2).await;
+    let _sent_vg_auth_required2 = alice.pop_sent_msg().await;
+
+    // Bob receives first `vg-auth-required` message.
+    // Bob has two securejoin processes started,
+    // so he should send two `vg-request-with-auth` messages.
+    bob.recv_msg_trash(&sent_vg_auth_required1).await;
+
+    // Bob sends `vg-request-with-auth` messages.
+    let sent_vg_request_with_auth2 = bob.pop_sent_msg().await;
+    let sent_vg_request_with_auth1 = bob.pop_sent_msg().await;
+
+    // Alice receives both `vg-request-with-auth` messages.
+    alice.recv_msg_trash(&sent_vg_request_with_auth1).await;
+    let sent_vg_member_added1 = alice.pop_sent_msg().await;
+    let joined_chat_id1 = bob.recv_msg(&sent_vg_member_added1).await.chat_id;
+    assert_eq!(joined_chat_id1, bob_chat1_id);
+
+    alice.recv_msg_trash(&sent_vg_request_with_auth2).await;
+    let sent_vg_member_added2 = alice.pop_sent_msg().await;
+    let joined_chat_id2 = bob.recv_msg(&sent_vg_member_added2).await.chat_id;
+    assert_eq!(joined_chat_id2, bob_chat2_id);
+
+    Ok(())
+}
+
+/// Tests Bob scanning setup contact QR codes of Alice and Fiona
+/// concurrently.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_parallel_setup_contact() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let fiona = &tcm.fiona().await;
+
+    // Bob scans Alice's QR code,
+    // but Alice is offline and takes a while to respond.
+    let alice_qr = get_securejoin_qr(alice, None).await?;
+    join_securejoin(bob, &alice_qr).await?;
+    let sent_alice_vc_request = bob.pop_sent_msg().await;
+
+    // Bob scans Fiona's QR code while SecureJoin
+    // process with Alice is not finished.
+    let fiona_qr = get_securejoin_qr(fiona, None).await?;
+    join_securejoin(bob, &fiona_qr).await?;
+    let sent_fiona_vc_request = bob.pop_sent_msg().await;
+
+    fiona.recv_msg_trash(&sent_fiona_vc_request).await;
+    let sent_fiona_vc_auth_required = fiona.pop_sent_msg().await;
+
+    bob.recv_msg_trash(&sent_fiona_vc_auth_required).await;
+    let sent_fiona_vc_request_with_auth = bob.pop_sent_msg().await;
+
+    fiona.recv_msg_trash(&sent_fiona_vc_request_with_auth).await;
+    let sent_fiona_vc_contact_confirm = fiona.pop_sent_msg().await;
+
+    bob.recv_msg_trash(&sent_fiona_vc_contact_confirm).await;
+    let bob_fiona_contact_id = bob.add_or_lookup_contact_id(fiona).await;
+    let bob_fiona_contact = Contact::get_by_id(bob, bob_fiona_contact_id).await.unwrap();
+    assert_eq!(bob_fiona_contact.is_verified(bob).await.unwrap(), true);
+
+    // Alice gets online and previously started SecureJoin process finishes.
+    alice.recv_msg_trash(&sent_alice_vc_request).await;
+    let sent_alice_vc_auth_required = alice.pop_sent_msg().await;
+
+    bob.recv_msg_trash(&sent_alice_vc_auth_required).await;
+    let sent_alice_vc_request_with_auth = bob.pop_sent_msg().await;
+
+    alice.recv_msg_trash(&sent_alice_vc_request_with_auth).await;
+    let sent_alice_vc_contact_confirm = alice.pop_sent_msg().await;
+
+    bob.recv_msg_trash(&sent_alice_vc_contact_confirm).await;
+    let bob_alice_contact_id = bob.add_or_lookup_contact_id(alice).await;
+    let bob_alice_contact = Contact::get_by_id(bob, bob_alice_contact_id).await.unwrap();
+    assert_eq!(bob_alice_contact.is_verified(bob).await.unwrap(), true);
+
     Ok(())
 }
