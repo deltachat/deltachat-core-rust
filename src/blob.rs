@@ -92,7 +92,7 @@ impl<'a> BlobObject<'a> {
         let mut src_file = fs::File::open(src)
             .await
             .with_context(|| format!("failed to open file {}", src.display()))?;
-        let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
+        let (stem, ext) = BlobObject::sanitize_name_and_split_extension(&src.to_string_lossy());
         let (name, mut dst_file) =
             BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
         let name_for_err = name.clone();
@@ -311,41 +311,14 @@ impl<'a> BlobObject<'a> {
         }
     }
 
-    /// Create a safe name based on a messy input string.
-    ///
-    /// The safe name will be a valid filename on Unix and Windows and
-    /// not contain any path separators.  The input can contain path
-    /// segments separated by either Unix or Windows path separators,
-    /// the rightmost non-empty segment will be used as name,
-    /// sanitised for special characters.
-    ///
-    /// The resulting name is returned as a tuple, the first part
+    /// The name is returned as a tuple, the first part
     /// being the stem or basename and the second being an extension,
     /// including the dot.  E.g. "foo.txt" is returned as `("foo",
     /// ".txt")` while "bar" is returned as `("bar", "")`.
     ///
     /// The extension part will always be lowercased.
-    fn sanitise_name(name: &str) -> (String, String) {
-        let mut name = name;
-        for part in name.rsplit('/') {
-            if !part.is_empty() {
-                name = part;
-                break;
-            }
-        }
-        for part in name.rsplit('\\') {
-            if !part.is_empty() {
-                name = part;
-                break;
-            }
-        }
-        let opts = sanitize_filename::Options {
-            truncate: true,
-            windows: true,
-            replacement: "",
-        };
-
-        let name = sanitize_filename::sanitize_with_options(name, opts);
+    fn sanitize_name_and_split_extension(name: &str) -> (String, String) {
+        let name = crate::tools::sanitize_filename(name);
         // Let's take a tricky filename,
         // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
         // Assume that the extension is 32 chars maximum.
