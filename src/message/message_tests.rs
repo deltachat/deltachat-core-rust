@@ -771,5 +771,15 @@ async fn test_sanitize_filename_message() -> Result<()> {
     let blob = msg.param.get_blob(Param::File, t).await?.unwrap();
     assert_eq!(blob.suffix().unwrap(), "txt");
 
+    // The filename shouldn't be empty if there were only illegal characters:
+    msg.set_file_from_bytes(t, "/\\:.txt", b"hallo", None)?;
+    assert_eq!(msg.get_filename().unwrap(), "file.txt");
+
+    msg.set_file_from_bytes(t, "/\\:", b"hallo", None)?;
+    assert_eq!(msg.get_filename().unwrap(), "file");
+
+    msg.set_file_from_bytes(t, ".txt", b"hallo", None)?;
+    assert_eq!(msg.get_filename().unwrap(), ".txt");
+
     Ok(())
 }
