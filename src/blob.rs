@@ -215,7 +215,7 @@ impl<'a> BlobObject<'a> {
     /// the file will be copied into the blob directory first.  If the
     /// source file is already in the blobdir it will not be copied
     /// and only be created if it is a valid blobname, that is no
-    /// subdirectory is used and [BlobObject::sanitise_name] does not
+    /// subdirectory is used and [BlobObject::sanitize_name_and_split_extension] does not
     /// modify the filename.
     ///
     /// Paths into the blob directory may be either defined by an absolute path
