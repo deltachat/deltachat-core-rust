@@ -5600,7 +5600,7 @@ Sent with my Delta Chat Messenger: https://delta.chat
 
 --mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z
 Content-Type: text/html
-Content-Disposition: attachment; filename=\"te\xE2\x80\xACst/../../test.html\"
+Content-Disposition: attachment; filename=\"te\xE2\x80\xACst/../../test.H|TML\xE2\x80\xAC \"
 Content-Transfer-Encoding: base64
 
 PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
@@ -5610,7 +5610,10 @@ PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
     let msg = receive_imf(alice, raw, false).await?.unwrap();
     let msg = Message::load_from_db(alice, msg.msg_ids[0]).await?;
 
-    assert_eq!(msg.get_filename().unwrap(), "test.html");
+    assert_eq!(msg.get_filename().unwrap(), "test.HTML");
+
+    let blob = msg.param.get_blob(Param::File, alice).await?.unwrap();
+    assert_eq!(blob.suffix().unwrap(), "html");
 
     Ok(())
 }
