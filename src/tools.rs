@@ -373,8 +373,7 @@ pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Re
 /// segments separated by either Unix or Windows path separators,
 /// the rightmost non-empty segment will be used as name,
 /// sanitised for special characters.
-pub(crate) fn sanitize_filename(name: &str) -> String {
-    let mut name = name;
+pub(crate) fn sanitize_filename(mut name: &str) -> String {
     for part in name.rsplit('/') {
         if !part.is_empty() {
             name = part;
@@ -387,12 +386,12 @@ pub(crate) fn sanitize_filename(name: &str) -> String {
             break;
         }
     }
+
     let opts = sanitize_filename::Options {
         truncate: true,
         windows: true,
         replacement: "",
     };
-
     let sanitized = sanitize_filename::sanitize_with_options(name, opts);
 
     if (sanitized.starts_with('.') && !name.starts_with('.')) || sanitized.is_empty() {

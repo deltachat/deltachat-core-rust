@@ -318,7 +318,7 @@ impl<'a> BlobObject<'a> {
     ///
     /// The extension part will always be lowercased.
     fn sanitize_name_and_split_extension(name: &str) -> (String, String) {
-        let name = crate::tools::sanitize_filename(name);
+        let name = sanitize_filename(name);
         // Let's take a tricky filename,
         // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
         // Assume that the extension is 32 chars maximum.
