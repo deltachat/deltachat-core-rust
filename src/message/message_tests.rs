@@ -755,3 +755,16 @@ async fn test_delete_msgs_offline() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_sanitize_filename_message() -> Result<()> {
+    let t = TestContext::new().await;
+    let mut msg = Message::new(Viewtype::File);
+    // Even if some of these characters may be valid on one platform,
+    // they need to be removed in case a backup is transferred to another platform
+    // and the UI there tries to copy the blob to a file with the original name
+    // before passing it to an external program.
+    msg.set_file_from_bytes(&t, "/\\:ee.txt", b"hallo", None)?;
+    assert_eq!(msg.get_filename().unwrap(), "ee.txt");
+    Ok(())
+}
