@@ -23,6 +23,7 @@ use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
+use crate::tools::sanitize_filename;
 
 /// Represents a file in the blob directory.
 ///
@@ -159,10 +160,9 @@ impl<'a> BlobObject<'a> {
             let hash = hash.get(0..31).unwrap_or(hash);
             let new_file =
                 if let Some(extension) = original_name.extension().filter(|e| e.len() <= 32) {
-                    format!(
-                        "$BLOBDIR/{hash}.{}",
-                        extension.to_string_lossy().to_lowercase()
-                    )
+                    let extension = extension.to_string_lossy().to_lowercase();
+                    let extension = sanitize_filename(&extension);
+                    format!("$BLOBDIR/{hash}.{}", extension)
                 } else {
                     format!("$BLOBDIR/{hash}")
                 };
