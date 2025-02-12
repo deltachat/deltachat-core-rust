@@ -393,8 +393,13 @@ pub(crate) fn sanitize_filename(name: &str) -> String {
         replacement: "",
     };
 
-    let name = sanitize_filename::sanitize_with_options(name, opts);
-    name
+    let sanitized = sanitize_filename::sanitize_with_options(name, opts);
+
+    if (sanitized.starts_with('.') && !name.starts_with('.')) || sanitized.is_empty() {
+        format!("file{sanitized}")
+    } else {
+        sanitized
+    }
 }
 
 /// A guard which will remove the path when dropped.
