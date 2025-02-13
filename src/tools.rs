@@ -366,6 +366,41 @@ pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Re
     Ok(())
 }
 
+/// Create a safe name based on a messy input string.
+///
+/// The safe name will be a valid filename on Unix and Windows and
+/// not contain any path separators.  The input can contain path
+/// segments separated by either Unix or Windows path separators,
+/// the rightmost non-empty segment will be used as name,
+/// sanitised for special characters.
+pub(crate) fn sanitize_filename(mut name: &str) -> String {
+    for part in name.rsplit('/') {
+        if !part.is_empty() {
+            name = part;
+            break;
+        }
+    }
+    for part in name.rsplit('\\') {
+        if !part.is_empty() {
+            name = part;
+            break;
+        }
+    }
+
+    let opts = sanitize_filename::Options {
+        truncate: true,
+        windows: true,
+        replacement: "",
+    };
+    let name = sanitize_filename::sanitize_with_options(name, opts);
+
+    if name.starts_with('.') || name.is_empty() {
+        format!("file{name}")
+    } else {
+        name
+    }
+}
+
 /// A guard which will remove the path when dropped.
 ///
 /// It implements [`Deref`] so it can be used as a `&Path`.

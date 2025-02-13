@@ -23,6 +23,7 @@ use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
+use crate::tools::sanitize_filename;
 
 /// Represents a file in the blob directory.
 ///
@@ -92,7 +93,7 @@ impl<'a> BlobObject<'a> {
         let mut src_file = fs::File::open(src)
             .await
             .with_context(|| format!("failed to open file {}", src.display()))?;
-        let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
+        let (stem, ext) = BlobObject::sanitize_name_and_split_extension(&src.to_string_lossy());
         let (name, mut dst_file) =
             BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
         let name_for_err = name.clone();
@@ -159,10 +160,9 @@ impl<'a> BlobObject<'a> {
             let hash = hash.get(0..31).unwrap_or(hash);
             let new_file =
                 if let Some(extension) = original_name.extension().filter(|e| e.len() <= 32) {
-                    format!(
-                        "$BLOBDIR/{hash}.{}",
-                        extension.to_string_lossy().to_lowercase()
-                    )
+                    let extension = extension.to_string_lossy().to_lowercase();
+                    let extension = sanitize_filename(&extension);
+                    format!("$BLOBDIR/{hash}.{}", extension)
                 } else {
                     format!("$BLOBDIR/{hash}")
                 };
@@ -215,7 +215,7 @@ impl<'a> BlobObject<'a> {
     /// the file will be copied into the blob directory first.  If the
     /// source file is already in the blobdir it will not be copied
     /// and only be created if it is a valid blobname, that is no
-    /// subdirectory is used and [BlobObject::sanitise_name] does not
+    /// subdirectory is used and [BlobObject::sanitize_name_and_split_extension] does not
     /// modify the filename.
     ///
     /// Paths into the blob directory may be either defined by an absolute path
@@ -311,41 +311,14 @@ impl<'a> BlobObject<'a> {
         }
     }
 
-    /// Create a safe name based on a messy input string.
-    ///
-    /// The safe name will be a valid filename on Unix and Windows and
-    /// not contain any path separators.  The input can contain path
-    /// segments separated by either Unix or Windows path separators,
-    /// the rightmost non-empty segment will be used as name,
-    /// sanitised for special characters.
-    ///
-    /// The resulting name is returned as a tuple, the first part
+    /// The name is returned as a tuple, the first part
     /// being the stem or basename and the second being an extension,
     /// including the dot.  E.g. "foo.txt" is returned as `("foo",
     /// ".txt")` while "bar" is returned as `("bar", "")`.
     ///
     /// The extension part will always be lowercased.
-    fn sanitise_name(name: &str) -> (String, String) {
-        let mut name = name;
-        for part in name.rsplit('/') {
-            if !part.is_empty() {
-                name = part;
-                break;
-            }
-        }
-        for part in name.rsplit('\\') {
-            if !part.is_empty() {
-                name = part;
-                break;
-            }
-        }
-        let opts = sanitize_filename::Options {
-            truncate: true,
-            windows: true,
-            replacement: "",
-        };
-
-        let name = sanitize_filename::sanitize_with_options(name, opts);
+    fn sanitize_name_and_split_extension(name: &str) -> (String, String) {
+        let name = sanitize_filename(name);
         // Let's take a tricky filename,
         // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
         // Assume that the extension is 32 chars maximum.

@@ -181,30 +181,33 @@ fn test_is_blob_name() {
 
 #[test]
 fn test_sanitise_name() {
-    let (stem, ext) = BlobObject::sanitise_name("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension(
+        "Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt",
+    );
     assert_eq!(ext, ".txt");
     assert!(!stem.is_empty());
 
     // the extensions are kept together as between stem and extension a number may be added -
     // and `foo.tar.gz` should become `foo-1234.tar.gz` and not `foo.tar-1234.gz`
-    let (stem, ext) = BlobObject::sanitise_name("wot.tar.gz");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension("wot.tar.gz");
     assert_eq!(stem, "wot");
     assert_eq!(ext, ".tar.gz");
 
-    let (stem, ext) = BlobObject::sanitise_name(".foo.bar");
-    assert_eq!(stem, "");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension(".foo.bar");
+    assert_eq!(stem, "file");
     assert_eq!(ext, ".foo.bar");
 
-    let (stem, ext) = BlobObject::sanitise_name("foo?.bar");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension("foo?.bar");
     assert!(stem.contains("foo"));
     assert!(!stem.contains('?'));
     assert_eq!(ext, ".bar");
 
-    let (stem, ext) = BlobObject::sanitise_name("no-extension");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension("no-extension");
     assert_eq!(stem, "no-extension");
     assert_eq!(ext, "");
 
-    let (stem, ext) = BlobObject::sanitise_name("path/ignored\\this: is* forbidden?.c");
+    let (stem, ext) =
+        BlobObject::sanitize_name_and_split_extension("path/ignored\\this: is* forbidden?.c");
     assert_eq!(ext, ".c");
     assert!(!stem.contains("path"));
     assert!(!stem.contains("ignored"));
@@ -216,7 +219,7 @@ fn test_sanitise_name() {
     assert!(!stem.contains('*'));
     assert!(!stem.contains('?'));
 
-    let (stem, ext) = BlobObject::sanitise_name(
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension(
         "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz",
     );
     assert_eq!(
@@ -225,11 +228,11 @@ fn test_sanitise_name() {
     );
     assert_eq!(ext, ".tar.gz");
 
-    let (stem, ext) = BlobObject::sanitise_name("a. tar.tar.gz");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension("a. tar.tar.gz");
     assert_eq!(stem, "a. tar");
     assert_eq!(ext, ".tar.gz");
 
-    let (stem, ext) = BlobObject::sanitise_name("Guia_uso_GNB (v0.8).pdf");
+    let (stem, ext) = BlobObject::sanitize_name_and_split_extension("Guia_uso_GNB (v0.8).pdf");
     assert_eq!(stem, "Guia_uso_GNB (v0.8)");
     assert_eq!(ext, ".pdf");
 }

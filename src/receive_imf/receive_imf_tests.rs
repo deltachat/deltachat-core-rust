@@ -5582,3 +5582,38 @@ async fn test_two_group_securejoins() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_sanitize_filename_in_received() -> Result<()> {
+    let alice = &TestContext::new_alice().await;
+    let raw = b"Message-ID: Mr.XA6y3og8-az.WGbH9_dNcQx@testr
+To: <tmp_5890965001269692@testrun.org>
+From: \"=?utf-8?q??=\" <tmp_6272287793210918@testrun.org>
+Content-Type: multipart/mixed; boundary=\"mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z\"
+
+
+--mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z
+Content-Type: text/plain; charset=utf-8
+
+-- 
+Sent with my Delta Chat Messenger: https://delta.chat
+
+--mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z
+Content-Type: text/html
+Content-Disposition: attachment; filename=\"te\xE2\x80\xACst/../../test.H|TML\xE2\x80\xAC \"
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z--";
+
+    let msg = receive_imf(alice, raw, false).await?.unwrap();
+    let msg = Message::load_from_db(alice, msg.msg_ids[0]).await?;
+
+    assert_eq!(msg.get_filename().unwrap(), "test.HTML");
+
+    let blob = msg.param.get_blob(Param::File, alice).await?.unwrap();
+    assert_eq!(blob.suffix().unwrap(), "html");
+
+    Ok(())
+}

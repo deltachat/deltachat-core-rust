@@ -32,8 +32,8 @@ use crate::reaction::get_msg_reactions;
 use crate::sql;
 use crate::summary::Summary;
 use crate::tools::{
-    buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
-    timestamp_to_str, truncate,
+    buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file,
+    sanitize_filename, time, timestamp_to_str, truncate,
 };
 
 /// Message ID, including reserved IDs.
@@ -807,12 +807,12 @@ impl Message {
     /// To get the full path, use [`Self::get_file()`].
     pub fn get_filename(&self) -> Option<String> {
         if let Some(name) = self.param.get(Param::Filename) {
-            return Some(name.to_string());
+            return Some(sanitize_filename(name));
         }
         self.param
             .get(Param::File)
             .and_then(|file| Path::new(file).file_name())
-            .map(|name| name.to_string_lossy().to_string())
+            .map(|name| sanitize_filename(&name.to_string_lossy()))
     }
 
     /// Returns the size of the file in bytes, if applicable.
