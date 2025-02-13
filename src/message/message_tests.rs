@@ -779,7 +779,7 @@ async fn test_sanitize_filename_message() -> Result<()> {
     assert_eq!(msg.get_filename().unwrap(), "file");
 
     msg.set_file_from_bytes(t, ".txt", b"hallo", None)?;
-    assert_eq!(msg.get_filename().unwrap(), ".txt");
+    assert_eq!(msg.get_filename().unwrap(), "file.txt");
 
     Ok(())
 }

@@ -194,7 +194,7 @@ fn test_sanitise_name() {
     assert_eq!(ext, ".tar.gz");
 
     let (stem, ext) = BlobObject::sanitize_name_and_split_extension(".foo.bar");
-    assert_eq!(stem, "");
+    assert_eq!(stem, "file");
     assert_eq!(ext, ".foo.bar");
 
     let (stem, ext) = BlobObject::sanitize_name_and_split_extension("foo?.bar");

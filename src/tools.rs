@@ -392,12 +392,12 @@ pub(crate) fn sanitize_filename(mut name: &str) -> String {
         windows: true,
         replacement: "",
     };
-    let sanitized = sanitize_filename::sanitize_with_options(name, opts);
+    let name = sanitize_filename::sanitize_with_options(name, opts);
 
-    if (sanitized.starts_with('.') && !name.starts_with('.')) || sanitized.is_empty() {
-        format!("file{sanitized}")
+    if name.starts_with('.') || name.is_empty() {
+        format!("file{name}")
     } else {
-        sanitized
+        name
     }
 }
 
