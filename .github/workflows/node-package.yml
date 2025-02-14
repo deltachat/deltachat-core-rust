@@ -6,6 +6,8 @@ on:
       - "*"
       - "!py-*"
 
+permissions: {}
+
 jobs:
   prebuild:
     name: Prebuild
@@ -17,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
@@ -78,6 +81,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
@@ -142,6 +146,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
