@@ -1,7 +1,7 @@
 //! # Synchronize items between devices.
 
 use anyhow::Result;
-use lettre_email::PartBuilder;
+use mail_builder::mime::MimePart;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, ChatId};
@@ -227,14 +227,8 @@ impl Context {
         }
     }
 
-    pub(crate) fn build_sync_part(&self, json: String) -> PartBuilder {
-        PartBuilder::new()
-            .content_type(&"application/json".parse::<mime::Mime>().unwrap())
-            .header((
-                "Content-Disposition",
-                "attachment; filename=\"multi-device-sync.json\"",
-            ))
-            .body(json)
+    pub(crate) fn build_sync_part(&self, json: String) -> MimePart<'static> {
+        MimePart::new("application/json", json).attachment("multi-device-sync.json")
     }
 
     /// Takes a JSON string created by `build_sync_json()`
