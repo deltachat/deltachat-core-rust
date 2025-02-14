@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [main]
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
   RUST_MIN_STACK: "8388608"
@@ -17,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+          persist-credentials: false
       - name: Use Node.js 18.x
         uses: actions/setup-node@v4
         with:

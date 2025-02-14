@@ -9,6 +9,8 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+          persist-credentials: false
       - name: Build the documentation with cargo
         run: |
           cargo doc --package deltachat_ffi --no-deps
