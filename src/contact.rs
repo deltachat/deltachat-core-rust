@@ -496,7 +496,11 @@ pub enum Origin {
     /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling contact_is_verified() !
     SecurejoinInvited = 0x0100_0000,
 
-    /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling contact_is_verified() !
+    /// Set on Bob's side for contacts scanned from a QR code.
+    /// Only means the contact has been scanned from the QR code,
+    /// but does not mean that securejoin succeeded
+    /// or the key has not changed since the last scan.
+    /// Getting the current key verification status requires calling contact_is_verified() !
     SecurejoinJoined = 0x0200_0000,
 
     /// contact added manually by create_contact(), this should be the largest origin as otherwise the user cannot modify the names
