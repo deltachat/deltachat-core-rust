@@ -1042,6 +1042,26 @@ pub unsafe extern "C" fn dc_send_text_msg(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_send_edit_request(
+    context: *mut dc_context_t,
+    msg_id: u32,
+    new_text: *const libc::c_char,
+) {
+    if context.is_null() || new_text.is_null() {
+        eprintln!("ignoring careless call to dc_send_edit_request()");
+        return;
+    }
+    let ctx = &*context;
+    let new_text = to_string_lossy(new_text);
+
+    block_on(async move {
+        chat::send_edit_request(ctx, MsgId::new(msg_id), new_text)
+            .await
+            .unwrap_or_log_default(ctx, "Failed to send text edit")
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_send_videochat_invitation(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -3681,6 +3701,16 @@ pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg_t) -> libc::c_int 
     }
     let ffi_msg = &*msg;
     ffi_msg.message.is_forwarded().into()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_edited(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_is_edited()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.is_edited().into()
 }
 
 #[no_mangle]
