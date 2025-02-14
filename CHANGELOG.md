@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.155.5] - 2025-02-14
+
+### Fixes
+
+- Get_filename() is now guaranteed to return a valid filename ([#6537](https://github.com/deltachat/deltachat-core-rust/pull/6537)).
+
+### Miscellaneous Tasks
+
+- Add RUSTSEC-2025-0006 to deny.toml.
+
+### Refactor
+
+- Do not cancel the task returned from async_imap `Handle.wait_with_timeout`.
+
 ## [1.155.4] - 2025-02-10
 
 ### CI
@@ -5787,3 +5801,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.1..v1.155.2
 [1.155.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.2..v1.155.3
 [1.155.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.3..v1.155.4
+[1.155.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.4..v1.155.5
