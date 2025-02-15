@@ -45,19 +45,6 @@ jobs:
       - name: Check with only default features
         run: cargo check --all-targets
 
-  npm_constants:
-    name: Check if node constants are up to date
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          show-progress: false
-          persist-credentials: false
-      - name: Rebuild constants
-        run: npm run build:core:constants
-      - name: Check that constants are not changed
-        run: git diff --exit-code
-
   cargo_deny:
     name: cargo deny
     runs-on: ubuntu-latest
