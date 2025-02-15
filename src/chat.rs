@@ -3493,6 +3493,8 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
 }
 
 /// Returns a vector of contact IDs for given chat ID that are no longer part of the group.
+///
+/// Members that have been removed recently are in the beginning of the list.
 pub async fn get_past_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec<ContactId>> {
     let now = time();
     let list = context
@@ -3505,7 +3507,7 @@ pub async fn get_past_chat_contacts(context: &Context, chat_id: ChatId) -> Resul
              WHERE cc.chat_id=?
              AND cc.add_timestamp < cc.remove_timestamp
              AND ? < cc.remove_timestamp
-             ORDER BY c.id=1, c.last_seen DESC, c.id DESC",
+             ORDER BY c.id=1, cc.remove_timestamp DESC, c.id DESC",
             (chat_id, now.saturating_sub(60 * 24 * 3600)),
             |row| row.get::<_, ContactId>(0),
             |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
