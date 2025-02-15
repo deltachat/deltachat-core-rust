@@ -3418,6 +3418,61 @@ async fn test_expire_past_members_after_60_days() -> Result<()> {
     Ok(())
 }
 
+/// Test that past members are ordered by the timestamp of their removal.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_past_members_order() -> Result<()> {
+    let t = &TestContext::new_alice().await;
+
+    let bob_contact_id = Contact::create(t, "Bob", "bob@example.net").await?;
+    let charlie_contact_id = Contact::create(t, "Charlie", "charlie@example.org").await?;
+    let fiona_contact_id = Contact::create(t, "Fiona", "fiona@example.net").await?;
+
+    let chat_id = create_group_chat(t, ProtectionStatus::Unprotected, "Group chat").await?;
+    add_contact_to_chat(t, chat_id, bob_contact_id).await?;
+    add_contact_to_chat(t, chat_id, charlie_contact_id).await?;
+    add_contact_to_chat(t, chat_id, fiona_contact_id).await?;
+    t.send_text(chat_id, "Hi! I created a group.").await;
+
+    assert_eq!(get_past_chat_contacts(t, chat_id).await?.len(), 0);
+
+    remove_contact_from_chat(t, chat_id, charlie_contact_id).await?;
+
+    let past_contacts = get_past_chat_contacts(t, chat_id).await?;
+    assert_eq!(past_contacts.len(), 1);
+    assert_eq!(past_contacts[0], charlie_contact_id);
+
+    SystemTime::shift(Duration::from_secs(5));
+    remove_contact_from_chat(t, chat_id, bob_contact_id).await?;
+
+    let past_contacts = get_past_chat_contacts(t, chat_id).await?;
+    assert_eq!(past_contacts.len(), 2);
+    assert_eq!(past_contacts[0], bob_contact_id);
+    assert_eq!(past_contacts[1], charlie_contact_id);
+
+    SystemTime::shift(Duration::from_secs(5));
+    remove_contact_from_chat(t, chat_id, fiona_contact_id).await?;
+
+    let past_contacts = get_past_chat_contacts(t, chat_id).await?;
+    assert_eq!(past_contacts.len(), 3);
+    assert_eq!(past_contacts[0], fiona_contact_id);
+    assert_eq!(past_contacts[1], bob_contact_id);
+    assert_eq!(past_contacts[2], charlie_contact_id);
+
+    // Adding and removing Bob
+    // moves him to the top of past member list.
+    SystemTime::shift(Duration::from_secs(5));
+    add_contact_to_chat(t, chat_id, bob_contact_id).await?;
+    remove_contact_from_chat(t, chat_id, bob_contact_id).await?;
+
+    let past_contacts = get_past_chat_contacts(t, chat_id).await?;
+    assert_eq!(past_contacts.len(), 3);
+    assert_eq!(past_contacts[0], bob_contact_id);
+    assert_eq!(past_contacts[1], fiona_contact_id);
+    assert_eq!(past_contacts[2], charlie_contact_id);
+
+    Ok(())
+}
+
 /// Test the case when Alice restores a backup older than 60 days
 /// with outdated member list.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
