@@ -287,6 +287,44 @@ def test_message(acfactory) -> None:
     assert reactions == snapshot.reactions
 
 
+def test_reaction_seen_on_another_dev(acfactory, tmp_path) -> None:
+    alice, bob = acfactory.get_online_accounts(2)
+    alice.export_backup(tmp_path)
+    files = list(tmp_path.glob("*.tar"))
+    alice2 = acfactory.get_unconfigured_account()
+    alice2.import_backup(files[0])
+    alice2.start_io()
+
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = alice_contact_bob.create_chat()
+    alice_chat_bob.send_text("Hello!")
+
+    event = bob.wait_for_incoming_msg_event()
+    msg_id = event.msg_id
+
+    message = bob.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    snapshot.chat.accept()
+    message.send_reaction("😎")
+    for a in [alice, alice2]:
+        while True:
+            event = a.wait_for_event()
+            if event.kind == EventType.INCOMING_REACTION:
+                break
+
+    alice2.clear_all_events()
+    alice_chat_bob.mark_noticed()
+    while True:
+        event = alice2.wait_for_event()
+        if event.kind == EventType.MSGS_NOTICED:
+            chat_id = event.chat_id
+            break
+    alice2_contact_bob = alice2.get_contact_by_addr(bob_addr)
+    alice2_chat_bob = alice2_contact_bob.create_chat()
+    assert chat_id == alice2_chat_bob.id
+
+
 def test_is_bot(acfactory) -> None:
     """Test that we can recognize messages submitted by bots."""
     alice, bob = acfactory.get_online_accounts(2)
