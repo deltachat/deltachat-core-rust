@@ -108,6 +108,10 @@ fn http_url_cache_timestamps(url: &str, mimetype: Option<&str>) -> (i64, i64) {
         // use the same path for all app versions,
         // so may change, but it is not critical if outdated icon is displayed.
         now + 3600 * 24
+    } else if url.ends_with(".json") {
+        // Revalidate JSON such as https://apps.testrun.org/xdcget-lock.json
+        // every 10 minutes.
+        now + 600
     } else {
         // Revalidate everything else after 1 hour.
         //
