@@ -205,7 +205,12 @@ pub enum Param {
 
     /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
     ForceSticker = b'X',
-    // 'L' was defined as ProtectionSettingsTimestamp for Chats, however, never used in production.
+
+    /// For messages: Message is a text edit message. the value of this parameter is the rfc724_mid of the original message.
+    TextEditFor = b'I',
+
+    /// For messages: Message text was edited.
+    IsEdited = b'L',
 }
 
 /// An object for handling key=value parameter lists.

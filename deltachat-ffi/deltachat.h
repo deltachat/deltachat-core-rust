@@ -1040,6 +1040,22 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
 
 
 /**
+ * Send chat members a request to edit the given message's text.
+ *
+ * Only outgoing messages sent by self can be edited.
+ * Edited messages should be flagged as such in the UI, see dc_msg_is_edited().
+ * UI is informed about changes using the event #DC_EVENT_MSGS_CHANGED.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param msg_id The message ID of the message to edit.
+ * @param new_text The new text.
+ *      This must not be NULL nor empty.
+ */
+void            dc_send_edit_request         (dc_context_t* context, uint32_t msg_id, const char* new_text);
+
+
+/**
  * Send invitation to a videochat.
  *
  * This function reads the `webrtc_instance` config value,
@@ -4430,6 +4446,20 @@ int             dc_msg_is_sent                (const dc_msg_t* msg);
  * @return 1=message is a forwarded message, 0=message not forwarded.
  */
 int             dc_msg_is_forwarded           (const dc_msg_t* msg);
+
+
+/**
+ * Check if the message was edited.
+ *
+ * Edited messages should be marked by the UI as such,
+ * eg. by the text "Edited" beside the time.
+ * To edit messages, use dc_send_edit_request().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is edited, 0=message not edited.
+ */
+ int             dc_msg_is_edited             (const dc_msg_t* msg);
 
 
 /**

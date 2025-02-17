@@ -110,6 +110,9 @@ pub enum HeaderDef {
     /// Advertised gossip topic for one webxdc.
     IrohGossipTopic,
 
+    /// This message obsoletes the text of the message defined here by rfc724_mid.
+    Obsoletes,
+
     #[cfg(test)]
     TestHeader,
 }

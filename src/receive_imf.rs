@@ -15,7 +15,7 @@ use regex::Regex;
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
+use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH, EDITED_PREFIX};
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc_inner;
@@ -1497,6 +1497,28 @@ async fn add_parts(
                     "Cannot add iroh peer because the message has no In-Reply-To."
                 );
             }
+        }
+    }
+
+    if let Some(rfc724_mid) = mime_parser.get_header(HeaderDef::Obsoletes) {
+        chat_id = DC_CHAT_ID_TRASH;
+        if let Some((original_msg_id, _)) = rfc724_mid_exists(context, rfc724_mid).await? {
+            if let Some(mut original_msg) =
+                Message::load_from_db_optional(context, original_msg_id).await?
+            {
+                if original_msg.from_id == from_id {
+                    if let Some(part) = mime_parser.parts.first() {
+                        let new_text = part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
+                        chat::save_text_edit_to_db(context, &mut original_msg, new_text).await?;
+                    }
+                } else {
+                    warn!(context, "Edit message: Bad sender.");
+                }
+            } else {
+                warn!(context, "Edit message: Database entry does not exist.");
+            }
+        } else {
+            warn!(context, "Edit message: rfc724_mid not found.");
         }
     }
 

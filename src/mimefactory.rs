@@ -708,6 +708,15 @@ impl MimeFactory {
             }
         }
 
+        if let Loaded::Message { msg, .. } = &self.loaded {
+            if let Some(original_rfc724_mid) = msg.param.get(Param::TextEditFor) {
+                headers.push(Header::new(
+                    HeaderDef::Obsoletes.get_headername().to_string(),
+                    render_rfc724_mid(original_rfc724_mid),
+                ));
+            }
+        }
+
         // Non-standard headers.
         headers.push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
 

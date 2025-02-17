@@ -931,6 +931,11 @@ impl Message {
         0 != self.param.get_int(Param::Forwarded).unwrap_or_default()
     }
 
+    /// Returns true if the message is edited.
+    pub fn is_edited(&self) -> bool {
+        self.param.get_bool(Param::IsEdited).unwrap_or_default()
+    }
+
     /// Returns true if the message is an informational message.
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
