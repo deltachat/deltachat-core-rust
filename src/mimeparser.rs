@@ -10,8 +10,8 @@ use anyhow::{bail, Context as _, Result};
 use deltachat_contact_tools::{addr_cmp, addr_normalize, sanitize_bidi_characters};
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
-use lettre_email::mime::Mime;
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
+use mime::Mime;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::authres::handle_authres;
