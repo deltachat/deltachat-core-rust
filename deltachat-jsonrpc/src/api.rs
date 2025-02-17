@@ -1305,6 +1305,16 @@ impl CommandApi {
         Ok(results)
     }
 
+    async fn save_msgs(
+        &self,
+        account_id: u32,
+        message_ids: Vec<u32>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message_ids: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
+        chat::save_msgs(&ctx, &message_ids).await
+    }
+
     // ---------------------------------------------
     //  contact
     // ---------------------------------------------
