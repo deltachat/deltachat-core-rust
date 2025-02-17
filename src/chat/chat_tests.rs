@@ -774,6 +774,21 @@ async fn test_self_talk() -> Result<()> {
     Ok(())
 }
 
+/// Tests that when BCC-self is disabled
+/// and no messages are actually sent
+/// in a self-chat, they have a padlock.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_self_talk_no_bcc_padlock() -> Result<()> {
+    let t = &TestContext::new_alice().await;
+    t.set_config_bool(Config::BccSelf, false).await?;
+    let chat = &t.get_self_chat().await;
+
+    let msg_id = send_text_msg(t, chat.id, "Foobar".to_string()).await?;
+    let msg = Message::load_from_db(t, msg_id).await?;
+    assert!(msg.get_showpadlock());
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_add_device_msg_unlabelled() {
     let t = TestContext::new().await;

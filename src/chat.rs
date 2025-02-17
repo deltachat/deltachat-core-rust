@@ -3024,6 +3024,8 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
             context,
             "Message {} has no recipient, skipping smtp-send.", msg.id
         );
+        msg.param.set_int(Param::GuaranteeE2ee, 1);
+        msg.update_param(context).await?;
         msg.id.set_delivered(context).await?;
         msg.state = MessageState::OutDelivered;
         return Ok(Vec::new());
