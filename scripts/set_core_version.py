@@ -67,7 +67,6 @@ def main():
     parser.add_argument("newversion")
 
     json_list = [
-        "package.json",
         "deltachat-jsonrpc/typescript/package.json",
         "deltachat-rpc-server/npm-package/package.json",
     ]

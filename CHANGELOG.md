@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.155.6] - 2025-02-17
+
+### Features / Changes
+
+- Sort past members by the timestamp of removal.
+- Use UUID v4 to generate Message-IDs.
+
+### Fixes
+
+- Use dedicated ID for sync messages affecting device chat.
+- Do not allow non-members to change ephemeral timer settings.
+- Show padlock when the message is not sent over the network.
+
+### Build system
+
+- Remove deprecated node module.
+
+### CI
+
+- Audit workflows with zizmor.
+
+### Documentation
+
+- Improve docstrings ([#6496](https://github.com/deltachat/deltachat-core-rust/pull/6496)).
+
 ## [1.155.5] - 2025-02-14
 
 ### Fixes
@@ -5802,3 +5827,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.2..v1.155.3
 [1.155.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.3..v1.155.4
 [1.155.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.4..v1.155.5
+[1.155.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.5..v1.155.6
