@@ -3645,3 +3645,68 @@ async fn test_one_to_one_chat_no_group_member_timestamps() {
     let payload = sent.payload;
     assert!(!payload.contains("Chat-Group-Member-Timestamps:"));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_send_edit_request() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat = alice.create_chat(&bob).await;
+
+    // Alice sends a messag with typos, followed by a correction message
+    let sent1 = alice.send_text(alice_chat.id, "zext me in delra.cat").await;
+    let alice_msg = alice.get_last_msg_in(alice_chat.id).await;
+    assert_eq!(alice_msg.text, "zext me in delra.cat");
+
+    send_edit_request(alice, alice_msg.id, "Text me on Delta.Chat".to_string()).await?;
+    let sent2 = alice.pop_sent_msg().await;
+    let test = Message::load_from_db(&alice, alice_msg.id).await?;
+    assert_eq!(test.text, "Text me on Delta.Chat");
+
+    // Bob receives both messages and has the correct text at the end
+    let bob_msg = bob.recv_msg(&sent1).await;
+    assert_eq!(bob_msg.text, "zext me in delra.cat");
+
+    bob.recv_msg_opt(&sent2).await;
+    let test = Message::load_from_db(&bob, bob_msg.id).await?;
+    assert_eq!(test.text, "Text me on Delta.Chat");
+
+    // alice has another device, and sees the correction also there
+    let alice2 = tcm.alice().await;
+    let alice2_msg = alice2.recv_msg(&sent1).await;
+    assert_eq!(alice2_msg.text, "zext me in delra.cat");
+
+    alice2.recv_msg_opt(&sent2).await;
+    let test = Message::load_from_db(&alice2, alice2_msg.id).await?;
+    assert_eq!(test.text, "Text me on Delta.Chat");
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_receive_edit_request_after_removal() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat = alice.create_chat(&bob).await;
+
+    // Alice sends a messag with typos, followed by a correction message
+    let sent1 = alice.send_text(alice_chat.id, "zext me in delra.cat").await;
+    let alice_msg = alice.get_last_msg_in(alice_chat.id).await;
+    send_edit_request(alice, alice_msg.id, "Text me on Delta.Chat".to_string()).await?;
+    let sent2 = alice.pop_sent_msg().await;
+
+    // Bob receives first message, deletes it and then ignores the correction
+    let bob_msg = bob.recv_msg(&sent1).await;
+    let bob_chat_id = bob_msg.chat_id;
+    assert_eq!(bob_msg.text, "zext me in delra.cat");
+    assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 1);
+
+    delete_msgs(&bob, &[bob_msg.id]).await?;
+    assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 0);
+
+    bob.recv_msg_trash(&sent2).await;
+    assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 0);
+
+    Ok(())
+}
