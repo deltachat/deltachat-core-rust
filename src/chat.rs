@@ -2298,6 +2298,10 @@ impl Chat {
     async fn get_sync_id(&self, context: &Context) -> Result<Option<SyncId>> {
         match self.typ {
             Chattype::Single => {
+                if self.is_device_talk() {
+                    return Ok(Some(SyncId::Device));
+                }
+
                 let mut r = None;
                 for contact_id in get_chat_contacts(context, self.id).await? {
                     if contact_id == ContactId::SELF && !self.is_self_talk() {
@@ -4748,6 +4752,9 @@ pub(crate) enum SyncId {
     Grpid(String),
     /// "Message-ID"-s, from oldest to latest. Used for ad-hoc groups.
     Msgids(Vec<String>),
+
+    // Special id for device chat.
+    Device,
 }
 
 /// An action synchronised to other devices.
@@ -4809,6 +4816,7 @@ impl Context {
                 ChatId::lookup_by_message(&msg)
                     .with_context(|| format!("No chat found for Message-IDs {msgids:?}"))?
             }
+            SyncId::Device => ChatId::get_for_contact(self, ContactId::DEVICE).await?,
         };
         match action {
             SyncAction::Block => chat_id.block_ex(self, Nosync).await,
