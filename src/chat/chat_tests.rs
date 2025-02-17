@@ -3059,6 +3059,34 @@ async fn test_sync_visibility() -> Result<()> {
     Ok(())
 }
 
+/// Tests syncing of chat visibility on device message chat.
+///
+/// Previously due to a bug pinning "Device Messages"
+/// chat resulted in creation of `device@localhost` chat
+/// on another device.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_sync_device_messages_visibility() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice0 = &tcm.alice().await;
+    let alice1 = &tcm.alice().await;
+    for a in [alice0, alice1] {
+        a.set_config_bool(Config::SyncMsgs, true).await?;
+    }
+
+    let device_chat_id0 = ChatId::get_for_contact(alice0, ContactId::DEVICE).await?;
+    device_chat_id0
+        .set_visibility(alice0, ChatVisibility::Pinned)
+        .await?;
+
+    sync(alice0, alice1).await;
+
+    let device_chat_id1 = ChatId::get_for_contact(alice1, ContactId::DEVICE).await?;
+    let device_chat1 = Chat::load_from_db(alice1, device_chat_id1).await?;
+    assert_eq!(device_chat1.get_visibility(), ChatVisibility::Pinned);
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_sync_muted() -> Result<()> {
     let alice0 = &TestContext::new_alice().await;
