@@ -1292,8 +1292,18 @@ async fn add_parts(
         && !mime_parser.parts.is_empty()
         && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
     {
+        let chat_contacts =
+            HashSet::<ContactId>::from_iter(chat::get_chat_contacts(context, chat_id).await?);
+        let is_from_in_chat =
+            !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
+
         info!(context, "Received new ephemeral timer value {ephemeral_timer:?} for chat {chat_id}, checking if it should be applied.");
-        if is_dc_message == MessengerMessage::Yes
+        if !is_from_in_chat {
+            warn!(
+                context,
+                "Ignoring ephemeral timer change to {ephemeral_timer:?} for chat {chat_id} because sender {from_id} is not a member.",
+            );
+        } else if is_dc_message == MessengerMessage::Yes
             && get_previous_message(context, mime_parser)
                 .await?
                 .map(|p| p.ephemeral_timer)

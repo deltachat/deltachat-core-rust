@@ -1,7 +1,11 @@
 use super::*;
-use crate::chat::{marknoticed_chat, set_muted, ChatVisibility, MuteDuration};
+use crate::chat::{
+    add_contact_to_chat, marknoticed_chat, remove_contact_from_chat, set_muted, ChatVisibility,
+    MuteDuration,
+};
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_ARCHIVED_LINK;
+use crate::contact::Contact;
 use crate::download::DownloadState;
 use crate::location;
 use crate::message::markseen_msgs;
@@ -775,6 +779,42 @@ async fn test_archived_ephemeral_timer() -> Result<()> {
         Message::load_from_db_optional(bob, bob_received_message_2.id)
             .await?
             .is_none()
+    );
+
+    Ok(())
+}
+
+/// Tests that non-members cannot change ephemeral timer settings.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ephemeral_timer_non_member() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+
+    let alice_bob_contact_id = Contact::create(alice, "Bob", "bob@example.net").await?;
+    let alice_chat_id =
+        create_group_chat(alice, ProtectionStatus::Unprotected, "Group name").await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+    send_text_msg(alice, alice_chat_id, "Hi!".to_string()).await?;
+
+    let sent = alice.pop_sent_msg().await;
+    let bob_chat_id = bob.recv_msg(&sent).await.chat_id;
+
+    // Bob wants to modify the timer.
+    bob_chat_id.accept(bob).await?;
+    bob_chat_id
+        .set_ephemeral_timer(bob, Timer::Enabled { duration: 60 })
+        .await?;
+    let sent_ephemeral_timer_change = bob.pop_sent_msg().await;
+
+    // Alice removes Bob before receiving the timer change.
+    remove_contact_from_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+    alice.recv_msg(&sent_ephemeral_timer_change).await;
+
+    // Timer is not changed because Bob is not a member.
+    assert_eq!(
+        alice_chat_id.get_ephemeral_timer(alice).await?,
+        Timer::Disabled
     );
 
     Ok(())
