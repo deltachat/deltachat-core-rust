@@ -3653,7 +3653,7 @@ async fn test_send_edit_request() -> Result<()> {
     let bob = &tcm.bob().await;
     let alice_chat = alice.create_chat(bob).await;
 
-    // Alice sends a messag with typos, followed by a correction message
+    // Alice sends a message with typos, followed by a correction message
     let sent1 = alice.send_text(alice_chat.id, "zext me in delra.cat").await;
     let alice_msg = alice.get_last_msg_in(alice_chat.id).await;
     assert_eq!(alice_msg.text, "zext me in delra.cat");
