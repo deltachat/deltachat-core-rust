@@ -89,6 +89,10 @@ pub struct MessageObject {
 
     download_state: DownloadState,
 
+    original_msg_id: Option<u32>,
+
+    saved_message_id: Option<u32>,
+
     reactions: Option<JSONRPCReactions>,
 
     vcard_contact: Option<VcardContact>,
@@ -252,6 +256,16 @@ impl MessageObject {
             webxdc_href: message.get_webxdc_href(),
 
             download_state,
+
+            original_msg_id: message
+                .get_original_msg_id(context)
+                .await?
+                .map(|id| id.to_u32()),
+
+            saved_message_id: message
+                .get_saved_msg_id(context)
+                .await?
+                .map(|id| id.to_u32()),
 
             reactions,
 
