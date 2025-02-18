@@ -257,9 +257,15 @@ impl MessageObject {
 
             download_state,
 
-            original_msg_id: message.get_original_msg_id(context).await?.map(|id| id.to_u32()),
+            original_msg_id: message
+                .get_original_msg_id(context)
+                .await?
+                .map(|id| id.to_u32()),
 
-            saved_message_id: message.get_saved_msg_id(context).await?.map(|id| id.to_u32()),
+            saved_message_id: message
+                .get_saved_msg_id(context)
+                .await?
+                .map(|id| id.to_u32()),
 
             reactions,
 
