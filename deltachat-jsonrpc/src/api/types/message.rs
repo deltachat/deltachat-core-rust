@@ -726,3 +726,13 @@ impl From<deltachat::ephemeral::Timer> for EphemeralTimer {
         }
     }
 }
+
+#[derive(Deserialize, Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotedText {
+    /// Text shown in the Quote
+    pub text: String,
+    /// protect specifies whether text should only be sent encrypted.
+    /// If it should, but the message is unencrypted, text is replaced with "...".
+    pub protect: bool,
+}

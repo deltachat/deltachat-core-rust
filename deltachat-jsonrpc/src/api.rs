@@ -49,7 +49,7 @@ use types::chat::FullChat;
 use types::contact::{ContactObject, VcardContact};
 use types::events::Event;
 use types::http::HttpResponse;
-use types::message::{MessageData, MessageObject, MessageReadReceipt};
+use types::message::{MessageData, MessageObject, MessageReadReceipt, QuotedText};
 use types::provider_info::ProviderInfo;
 use types::reactions::JSONRPCReactions;
 use types::webxdc::WebxdcMessageInfo;
@@ -2042,6 +2042,132 @@ impl CommandApi {
         }
     }
 
+    /// Create a new draft (overwriting existing draft)
+    ///
+    /// You can modify some fields of an existing draft while keeping it's message id (important to keep webxdc status updates) with the following methods:
+    /// - [Self::draft_set_text]
+    /// - [Self::draft_set_quoted_message]
+    /// - [Self::draft_set_quoted_text]
+    /// For other actions like changing the view type or file attachment you have to recreate the draft.
+    ///
+    /// You can send the draft with [Self::send_draft]
+    async fn create_draft(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = data
+            .create_message(&ctx)
+            .await
+            .context("Failed to create message")?;
+
+        ChatId::new(chat_id)
+            .set_draft(&ctx, Some(&mut message))
+            .await
+            .context("Failed to set draft message")?;
+        Ok(message.get_id().to_u32())
+    }
+
+    /// set text of draft
+    async fn draft_set_text(&self, account_id: u32, msg_id: u32, text: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+
+        if message.get_state() != deltachat::message::MessageState::OutDraft {
+            bail!("provided message is not a draft");
+        }
+
+        message.set_text(text);
+        message
+            .get_chat_id()
+            .set_draft(&ctx, Some(&mut message))
+            .await?;
+
+        Ok(())
+    }
+
+    /// set (email) subject of draft
+    async fn draft_set_subject(&self, account_id: u32, msg_id: u32, subject: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+
+        if message.get_state() != deltachat::message::MessageState::OutDraft {
+            bail!("provided message is not a draft");
+        }
+
+        message.set_subject(subject);
+        message
+            .get_chat_id()
+            .set_draft(&ctx, Some(&mut message))
+            .await?;
+
+        Ok(())
+    }
+
+    /// set quoted message id of draft
+    async fn draft_set_quoted_message(
+        &self,
+        account_id: u32,
+        msg_id: u32,
+        quoted_message_id: Option<u32>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+
+        if message.get_state() != deltachat::message::MessageState::OutDraft {
+            bail!("provided message is not a draft");
+        }
+
+        let message_to_qoute = match quoted_message_id {
+            Some(msg_id) => Some(message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await?),
+            None => None,
+        };
+
+        message.set_quote(&ctx, message_to_qoute.as_ref()).await?;
+        message
+            .get_chat_id()
+            .set_draft(&ctx, Some(&mut message))
+            .await?;
+
+        Ok(())
+    }
+
+    /// set quoted text of draft
+    async fn draft_set_quoted_text(
+        &self,
+        account_id: u32,
+        msg_id: u32,
+        quoted_text: Option<QuotedText>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+
+        if message.get_state() != deltachat::message::MessageState::OutDraft {
+            bail!("provided message is not a draft");
+        }
+
+        message.set_quote_text(quoted_text.map(|qt| (qt.text, qt.protect)));
+
+        message
+            .get_chat_id()
+            .set_draft(&ctx, Some(&mut message))
+            .await?;
+
+        Ok(())
+    }
+
+    /// send draft
+    async fn send_draft(&self, account_id: u32, msg_id: u32) -> Result<u32> {
+        // uses message id instead of chat id to force ui to have the right message id / know about the draft - reduce the chance of undefined behaviour
+        let ctx = self.get_context(account_id).await?;
+        let mut draft = message::Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+
+        if draft.get_state() != deltachat::message::MessageState::OutDraft {
+            bail!("provided message is not a draft");
+        }
+
+        let chat = draft.get_chat_id();
+        let msg_id = chat::send_msg(&ctx, chat, &mut draft).await?.to_u32();
+        Ok(msg_id)
+    }
+
     async fn send_videochat_invitation(&self, account_id: u32, chat_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         chat::send_videochat_invitation(&ctx, ChatId::new(chat_id))
@@ -2215,6 +2341,7 @@ impl CommandApi {
     // the better version should support:
     // - changing viewtype to enable/disable compression
     // - keeping same message id as long as attachment does not change for webxdc messages
+    /// @deprecated use [Self::send_draft] instead
     async fn misc_set_draft(
         &self,
         account_id: u32,
@@ -2256,6 +2383,7 @@ impl CommandApi {
     }
 
     // send the chat's current set draft
+    /// @deprecated use [Self::send_draft] instead
     async fn misc_send_draft(&self, account_id: u32, chat_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
