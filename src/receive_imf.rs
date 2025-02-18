@@ -1508,8 +1508,18 @@ async fn add_parts(
             {
                 if original_msg.from_id == from_id {
                     if let Some(part) = mime_parser.parts.first() {
-                        let new_text = part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
-                        chat::save_text_edit_to_db(context, &mut original_msg, new_text).await?;
+                        let showpadlock = part
+                            .param
+                            .get_bool(Param::GuaranteeE2ee)
+                            .unwrap_or_default();
+                        if showpadlock == original_msg.get_showpadlock() {
+                            let new_text =
+                                part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
+                            chat::save_text_edit_to_db(context, &mut original_msg, new_text)
+                                .await?;
+                        } else {
+                            warn!(context, "Edit message: Not encrypted.");
+                        }
                     }
                 } else {
                     warn!(context, "Edit message: Bad sender.");
