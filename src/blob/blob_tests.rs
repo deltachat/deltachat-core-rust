@@ -337,7 +337,7 @@ async fn test_selfavatar_in_blobdir() {
         .unwrap();
     let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
     assert!(
-        avatar_cfg.ends_with("9e7f409ac5c92b942cc4f31cee2770a.png"),
+        avatar_cfg.ends_with("fa7418e646301203538041f60d03190.png"),
         "Avatar file name {avatar_cfg} should end with its hash"
     );
 
