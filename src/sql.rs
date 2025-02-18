@@ -912,42 +912,47 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                         continue;
                     }
 
-                    if let Ok(stats) = tokio::fs::metadata(entry.path()).await {
-                        if stats.is_dir() {
-                            if let Err(e) = tokio::fs::remove_dir(entry.path()).await {
-                                // The dir could be created not by a user, but by a desktop
-                                // environment f.e. So, no warning.
-                                info!(
-                                    context,
-                                    "Housekeeping: Cannot rmdir {}: {:#}.",
-                                    entry.path().display(),
-                                    e
-                                );
-                            }
-                            continue;
-                        }
-                        unreferenced_count += 1;
-                        let recently_created =
-                            stats.created().is_ok_and(|t| t > keep_files_newer_than);
-                        let recently_modified =
-                            stats.modified().is_ok_and(|t| t > keep_files_newer_than);
-                        let recently_accessed =
-                            stats.accessed().is_ok_and(|t| t > keep_files_newer_than);
+                    let Ok(stats) = tokio::fs::metadata(entry.path()).await else {
+                        warn!(
+                            context,
+                            "Cannot get metadata for {}.",
+                            entry.path().display()
+                        );
+                        continue;
+                    };
 
-                        if p == blobdir
-                            && (recently_created || recently_modified || recently_accessed)
-                        {
+                    if stats.is_dir() {
+                        if let Err(e) = tokio::fs::remove_dir(entry.path()).await {
+                            // The dir could be created not by a user, but by a desktop
+                            // environment f.e. So, no warning.
                             info!(
                                 context,
-                                "Housekeeping: Keeping new unreferenced file #{}: {:?}.",
-                                unreferenced_count,
-                                entry.file_name(),
+                                "Housekeeping: Cannot rmdir {}: {:#}.",
+                                entry.path().display(),
+                                e
                             );
-                            continue;
                         }
-                    } else {
-                        unreferenced_count += 1;
+                        continue;
                     }
+
+                    unreferenced_count += 1;
+                    let recently_created = stats.created().is_ok_and(|t| t > keep_files_newer_than);
+                    let recently_modified =
+                        stats.modified().is_ok_and(|t| t > keep_files_newer_than);
+                    let recently_accessed =
+                        stats.accessed().is_ok_and(|t| t > keep_files_newer_than);
+
+                    if p == blobdir && (recently_created || recently_modified || recently_accessed)
+                    {
+                        info!(
+                            context,
+                            "Housekeeping: Keeping new unreferenced file #{}: {:?}.",
+                            unreferenced_count,
+                            entry.file_name(),
+                        );
+                        continue;
+                    }
+
                     info!(
                         context,
                         "Housekeeping: Deleting unreferenced file #{}: {:?}.",
