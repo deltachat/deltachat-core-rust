@@ -3150,6 +3150,9 @@ pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: Strin
 
     let mut edit_msg = Message::new_text(EDITED_PREFIX.to_owned() + &new_text); // prefix only set for nicer display in Non-Delta-MUAs
     edit_msg.set_quote(context, Some(&original_msg)).await?; // quote only set for nicer display in Non-Delta-MUAs
+    if original_msg.get_showpadlock() {
+        edit_msg.param.set_int(Param::GuaranteeE2ee, 1);
+    }
     edit_msg
         .param
         .set(Param::TextEditFor, original_msg.rfc724_mid);
