@@ -88,8 +88,7 @@
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
-            "email-0.0.20" = "sha256-cfR3D5jFQpw32bGsgapK2Uwuxmht+rRK/n1ZUmCb2WA=";
-            "lettre-0.9.2" = "sha256-+hU1cFacyyeC9UGVBpS14BWlJjHy90i/3ynMkKAzclk=";
+            "mail-builder-0.4.1" = "sha256-1hnsU76ProcX7iXT2UBjHnHbJ/ROT3077sLi3+yAV58=";
           };
         };
         mkRustPackage = packageName:
