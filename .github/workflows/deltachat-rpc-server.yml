@@ -35,7 +35,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Build deltachat-rpc-server binaries
         run: nix build .#deltachat-rpc-server-${{ matrix.arch }}-linux
@@ -60,7 +59,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Build deltachat-rpc-server binaries
         run: nix build .#deltachat-rpc-server-${{ matrix.arch }}
@@ -112,7 +110,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Build deltachat-rpc-server binaries
         run: nix build .#deltachat-rpc-server-${{ matrix.arch }}-android
@@ -140,7 +137,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Download Linux aarch64 binary
         uses: actions/download-artifact@v4

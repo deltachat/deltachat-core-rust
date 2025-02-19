@@ -37,7 +37,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0 # Fetch history to calculate VCS version number.
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build Python documentation
         run: nix build .#python-docs
       - name: Upload to py.delta.chat
@@ -57,7 +56,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0 # Fetch history to calculate VCS version number.
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build C documentation
         run: nix build .#docs
       - name: Upload to c.delta.chat
