@@ -24,7 +24,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
       - run: nix fmt
 
       # Check that formatting does not change anything.
@@ -85,7 +84,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
       - run: nix build .#${{ matrix.installable }}
 
   build-macos:
@@ -105,5 +103,4 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
       - run: nix build .#${{ matrix.installable }}

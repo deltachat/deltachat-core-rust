@@ -19,7 +19,6 @@ jobs:
           show-progress: false
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build
         run: nix build .#deltachat-repl-win64
       - name: Upload binary
