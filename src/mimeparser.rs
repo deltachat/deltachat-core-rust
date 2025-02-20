@@ -290,7 +290,9 @@ impl MimeMessage {
 
                     // For now only avatar headers can be hidden.
                     if !headers.contains_key(&key)
-                        && (key == "chat-user-avatar" || key == "chat-group-avatar")
+                        && (key == "chat-user-avatar"
+                            || key == "chat-group-avatar"
+                            || key == "obsoletes")
                     {
                         headers.insert(key.to_string(), field.get_value());
                     }

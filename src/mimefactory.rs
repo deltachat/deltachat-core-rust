@@ -861,7 +861,7 @@ impl MimeFactory {
             if header_name == "message-id" {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header.clone());
-            } else if header_name == "chat-user-avatar" {
+            } else if header_name == "chat-user-avatar" || header_name == "obsoletes" {
                 hidden_headers.push(header.clone());
             } else if header_name == "autocrypt"
                 && !context.get_config_bool(Config::ProtectAutocrypt).await?
