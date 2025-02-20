@@ -174,7 +174,7 @@ async fn test_selfavatar_outside_blobdir() {
     let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
     let avatar_path = Path::new(&avatar_blob);
     assert!(
-        avatar_blob.ends_with("d98cd30ed8f2129bf3968420208849d.jpg"),
+        avatar_blob.ends_with("009161310a6afc319163e4bcabd23b9.jpg"),
         "The avatar filename should be its hash, put instead it's {avatar_blob}"
     );
     let scaled_avatar_size = file_size(avatar_path).await;
@@ -226,7 +226,7 @@ async fn test_selfavatar_in_blobdir() {
         .unwrap();
     let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
     assert!(
-        avatar_cfg.ends_with("fa7418e646301203538041f60d03190.png"),
+        avatar_cfg.ends_with("ec054c444a5755adf2b0aaea40209f2.png"),
         "Avatar file name {avatar_cfg} should end with its hash"
     );
 
