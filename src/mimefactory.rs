@@ -727,9 +727,12 @@ impl MimeFactory {
 
         if let Loaded::Message { msg, .. } = &self.loaded {
             if let Some(original_rfc724_mid) = msg.param.get(Param::TextEditFor) {
-                headers.push(Header::new(
-                    HeaderDef::Obsoletes.get_headername().to_string(),
-                    render_rfc724_mid(original_rfc724_mid),
+                headers.push((
+                    "Obsoletes",
+                    mail_builder::headers::message_id::MessageId::new(
+                        original_rfc724_mid.to_string(),
+                    )
+                    .into(),
                 ));
             }
         }
