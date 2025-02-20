@@ -891,12 +891,6 @@ impl ChatId {
                 }
             }
             _ => {
-                let blob = msg
-                    .param
-                    .get_blob(Param::File, context)
-                    .await?
-                    .context("no file stored in params")?;
-                msg.param.set(Param::File, blob.as_name());
                 if msg.viewtype == Viewtype::File {
                     if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg)
                         // We do not do an automatic conversion to other viewtypes here so that
@@ -909,6 +903,11 @@ impl ChatId {
                     }
                 }
                 if msg.viewtype == Viewtype::Vcard {
+                    let blob = msg
+                        .param
+                        .get_blob(Param::File, context)
+                        .await?
+                        .context("no file stored in params")?;
                     msg.try_set_vcard(context, &blob.to_abs_path()).await?;
                 }
             }
