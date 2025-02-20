@@ -252,24 +252,27 @@ impl<'a> BlobObject<'a> {
     }
 
     pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
-        let img_wh =
+        let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
             {
-                MediaQuality::Balanced => constants::BALANCED_AVATAR_SIZE,
-                MediaQuality::Worse => constants::WORSE_AVATAR_SIZE,
+                MediaQuality::Balanced => (
+                    constants::BALANCED_AVATAR_SIZE,
+                    constants::BALANCED_AVATAR_BYTES,
+                ),
+                MediaQuality::Worse => {
+                    (constants::WORSE_AVATAR_SIZE, constants::WORSE_AVATAR_BYTES)
+                }
             };
 
         let maybe_sticker = &mut false;
         let strict_limits = true;
-        // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
-        // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
         self.recode_to_size(
             context,
             None, // The name of an avatar doesn't matter
             maybe_sticker,
             img_wh,
-            20_000,
+            max_bytes,
             strict_limits,
         )?;
 

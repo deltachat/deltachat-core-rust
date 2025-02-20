@@ -204,9 +204,11 @@ pub(crate) const DC_FETCH_EXISTING_MSGS_COUNT: i64 = 100;
 pub const BALANCED_IMAGE_BYTES: usize = 500_000;
 pub const WORSE_IMAGE_BYTES: usize = 130_000;
 
-// max. width/height of an avatar
-pub(crate) const BALANCED_AVATAR_SIZE: u32 = 256;
+// max. width/height and bytes of an avatar
+pub(crate) const BALANCED_AVATAR_SIZE: u32 = 512;
+pub(crate) const BALANCED_AVATAR_BYTES: usize = 60_000;
 pub(crate) const WORSE_AVATAR_SIZE: u32 = 128;
+pub(crate) const WORSE_AVATAR_BYTES: usize = 20_000; // this also fits to Outlook servers don't allowing headers larger than 32k.
 
 // max. width/height of images scaled down because of being too huge
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
