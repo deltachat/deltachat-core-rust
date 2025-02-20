@@ -624,9 +624,11 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    if let Some(replace_chat_id) = replace_chat_id {
+    if received_msg.hidden {
+        // No need to emit an event about the changed message
+    } else if let Some(replace_chat_id) = replace_chat_id {
         context.emit_msgs_changed_without_msg_id(replace_chat_id);
-    } else if !chat_id.is_trash() && !received_msg.hidden {
+    } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
             chat_id.emit_msg_event(context, *msg_id, mime_parser.incoming && fresh);
@@ -1600,8 +1602,8 @@ RETURNING id
                     replace_msg_id,
                     rfc724_mid_orig,
                     if trash { DC_CHAT_ID_TRASH } else { chat_id },
-                    if trash || hidden { ContactId::UNDEFINED } else { from_id },
-                    if trash || hidden { ContactId::UNDEFINED } else { to_id },
+                    if trash { ContactId::UNDEFINED } else { from_id },
+                    if trash { ContactId::UNDEFINED } else { to_id },
                     sort_timestamp,
                     mime_parser.timestamp_sent,
                     mime_parser.timestamp_rcvd,
