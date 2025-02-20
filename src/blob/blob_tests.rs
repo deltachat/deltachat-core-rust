@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use super::*;
 use crate::message::{Message, Viewtype};
+use crate::param::Param;
 use crate::sql;
 use crate::test_utils::{self, TestContext};
 use crate::tools::SystemTime;
@@ -641,6 +642,12 @@ impl SendImageCheckMediaquality<'_> {
         alice_msg.save_file(&alice, &file_saved).await?;
         check_image_size(file_saved, compressed_width, compressed_height);
 
+        if original_width == compressed_width {
+            assert_extension(&alice, alice_msg, extension).await;
+        } else {
+            assert_extension(&alice, alice_msg, "jpg").await;
+        }
+
         let bob_msg = bob.recv_msg(&sent).await;
         assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
         assert_eq!(bob_msg.get_width() as u32, compressed_width);
@@ -659,8 +666,51 @@ impl SendImageCheckMediaquality<'_> {
         assert!(exif.is_none());
 
         let img = check_image_size(file_saved, compressed_width, compressed_height);
+
+        if original_width == compressed_width {
+            assert_extension(&bob, bob_msg, extension).await;
+        } else {
+            assert_extension(&bob, bob_msg, "jpg").await;
+        }
+
         Ok(img)
     }
+}
+
+async fn assert_extension(context: &TestContext, msg: Message, extension: &str) {
+    assert!(msg
+        .param
+        .get(Param::File)
+        .unwrap()
+        .ends_with(&format!(".{extension}")));
+    assert!(msg
+        .param
+        .get(Param::Filename)
+        .unwrap()
+        .ends_with(&format!(".{extension}")));
+    assert!(msg
+        .get_filename()
+        .unwrap()
+        .ends_with(&format!(".{extension}")));
+    assert_eq!(
+        msg.get_file(context)
+            .unwrap()
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        extension
+    );
+    assert_eq!(
+        msg.param
+            .get_blob(Param::File, context)
+            .await
+            .unwrap()
+            .unwrap()
+            .suffix()
+            .unwrap(),
+        extension
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
