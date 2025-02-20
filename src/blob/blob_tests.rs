@@ -45,20 +45,6 @@ async fn test_lowercase_ext() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_as_file_name() {
-    let t = TestContext::new().await;
-    let blob = BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
-    assert_eq!(blob.as_file_name(), FILE_DEDUPLICATED);
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_as_rel_path() {
-    let t = TestContext::new().await;
-    let blob = BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();
-    assert_eq!(blob.as_rel_path(), Path::new(FILE_DEDUPLICATED));
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_suffix() {
     let t = TestContext::new().await;
     let blob = BlobObject::create_and_deduplicate_from_bytes(&t, FILE_BYTES, "foo.txt").unwrap();

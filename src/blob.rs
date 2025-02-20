@@ -288,16 +288,6 @@ impl<'a> BlobObject<'a> {
         &self.name
     }
 
-    /// Returns the filename of the blob.
-    pub fn as_file_name(&self) -> &str {
-        self.name.rsplit('/').next().unwrap_or_default()
-    }
-
-    /// The path relative in the blob directory.
-    pub fn as_rel_path(&self) -> &Path {
-        Path::new(self.as_file_name())
-    }
-
     /// Returns the extension of the blob.
     ///
     /// If a blob's filename has an extension, it is always guaranteed

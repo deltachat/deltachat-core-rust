@@ -542,7 +542,7 @@ mod tests {
 
         fs::write(fname, b"boo").await.unwrap();
         let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
-        assert!(blob.as_file_name().starts_with("foo"));
+        assert!(blob.as_name().starts_with("$BLOBDIR/foo"));
 
         // Blob in blobdir, expect blob.
         let bar_path = t.get_blobdir().join("bar");
