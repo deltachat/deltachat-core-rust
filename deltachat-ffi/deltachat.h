@@ -1045,6 +1045,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  * Only outgoing messages sent by self can be edited.
  * Edited messages should be flagged as such in the UI, see dc_msg_is_edited().
  * UI is informed about changes using the event #DC_EVENT_MSGS_CHANGED.
+ * If the text is not changed, no event and no edit request message are sent.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().

@@ -3146,6 +3146,11 @@ pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: Strin
         "can edit only own text messages"
     );
     ensure!(!new_text.trim().is_empty(), "edited text cannot be empty");
+    if original_msg.text == new_text {
+        info!(context, "text unchanged");
+        return Ok(());
+    }
+
     save_text_edit_to_db(context, &mut original_msg, &new_text).await?;
 
     let mut edit_msg = Message::new_text(EDITED_PREFIX.to_owned() + &new_text); // prefix only set for nicer display in Non-Delta-MUAs
