@@ -4742,18 +4742,6 @@ void            dc_msg_set_override_sender_name(dc_msg_t* msg, const char* name)
 
 
 /**
- * Deprecated alias for `dc_msg_set_file_and_deduplicate()`.
- *
- * @memberof dc_msg_t
- * @param msg The message object.
- * @param file The path of the file to attach. Must not be NULL.
- * @param filemime The MIME type of the file. NULL if you don't know or don't care.
- * @deprecated 2025-01-21 Use dc_msg_set_file_and_deduplicate instead
- */
-void            dc_msg_set_file               (dc_msg_t* msg, const char* file, const char* filemime);
-
-
-/**
  * Sets the file associated with a message.
  *
  * If `name` is non-null, it is used as the file name
