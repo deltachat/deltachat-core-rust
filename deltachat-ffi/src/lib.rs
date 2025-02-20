@@ -3829,10 +3829,19 @@ pub unsafe extern "C" fn dc_msg_set_file(
         return;
     }
     let ffi_msg = &mut *msg;
-    ffi_msg.message.set_file(
-        to_string_lossy(file),
-        to_opt_string_lossy(filemime).as_deref(),
-    )
+    let ctx = &*ffi_msg.context;
+
+    ffi_msg
+        .message
+        .set_file_and_deduplicate(
+            ctx,
+            as_path(file),
+            None,
+            to_opt_string_lossy(filemime).as_deref(),
+        )
+        .context("Failed to set file")
+        .log_err(&*ffi_msg.context)
+        .ok();
 }
 
 #[no_mangle]

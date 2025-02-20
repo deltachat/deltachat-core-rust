@@ -436,11 +436,11 @@ class TestOfflineChat:
         assert msg.id > 0
         assert msg.is_file()
         assert os.path.exists(msg.filename)
-        assert msg.filename.endswith(msg.basename)
+        assert msg.filename.endswith(".txt") == fn.endswith(".txt")
         assert msg.filemime == typeout
         msg2 = chat1.send_file(fp, typein)
         assert msg2 != msg
-        assert msg2.filename != msg.filename
+        assert msg2.filename == msg.filename
 
     def test_create_contact(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()
