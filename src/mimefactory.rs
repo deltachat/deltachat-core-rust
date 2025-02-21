@@ -728,7 +728,7 @@ impl MimeFactory {
         if let Loaded::Message { msg, .. } = &self.loaded {
             if let Some(original_rfc724_mid) = msg.param.get(Param::TextEditFor) {
                 headers.push((
-                    "Obsoletes",
+                    "Chat-Edit",
                     mail_builder::headers::message_id::MessageId::new(
                         original_rfc724_mid.to_string(),
                     )
@@ -861,7 +861,7 @@ impl MimeFactory {
             if header_name == "message-id" {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header.clone());
-            } else if header_name == "chat-user-avatar" || header_name == "obsoletes" {
+            } else if header_name == "chat-user-avatar" || header_name == "chat-edit" {
                 hidden_headers.push(header.clone());
             } else if header_name == "autocrypt"
                 && !context.get_config_bool(Config::ProtectAutocrypt).await?

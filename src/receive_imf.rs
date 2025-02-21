@@ -1500,7 +1500,7 @@ async fn add_parts(
         }
     }
 
-    if let Some(rfc724_mid) = mime_parser.get_header(HeaderDef::Obsoletes) {
+    if let Some(rfc724_mid) = mime_parser.get_header(HeaderDef::ChatEdit) {
         chat_id = DC_CHAT_ID_TRASH;
         if let Some((original_msg_id, _)) = rfc724_mid_exists(context, rfc724_mid).await? {
             if let Some(mut original_msg) =

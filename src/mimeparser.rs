@@ -292,7 +292,7 @@ impl MimeMessage {
                     if !headers.contains_key(&key)
                         && (key == "chat-user-avatar"
                             || key == "chat-group-avatar"
-                            || key == "obsoletes")
+                            || key == "chat-edit")
                     {
                         headers.insert(key.to_string(), field.get_value());
                     }
@@ -450,7 +450,7 @@ impl MimeMessage {
                     HeaderDef::ChatGroupMemberAdded,
                     HeaderDef::ChatGroupMemberTimestamps,
                     HeaderDef::ChatGroupPastMembers,
-                    HeaderDef::Obsoletes,
+                    HeaderDef::ChatEdit,
                 ] {
                     headers.remove(h.get_headername());
                 }
