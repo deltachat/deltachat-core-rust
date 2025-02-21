@@ -3139,11 +3139,17 @@ pub async fn send_text_msg(
 pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: String) -> Result<()> {
     let mut original_msg = Message::load_from_db(context, msg_id).await?;
     ensure!(
-        original_msg.from_id == ContactId::SELF
-            && original_msg.viewtype != Viewtype::VideochatInvitation
-            && !original_msg.is_info()
-            && !original_msg.text.is_empty(), // avoid complexity in UI element changes. focus is typos and rewordings
-        "can edit only own text messages"
+        original_msg.from_id == ContactId::SELF,
+        "Can edit only own messages"
+    );
+    ensure!(!original_msg.is_info(), "Cannot edit info messages");
+    ensure!(
+        original_msg.viewtype != Viewtype::VideochatInvitation,
+        "Cannot edit videochat invitations"
+    );
+    ensure!(
+        !original_msg.text.is_empty(), // avoid complexity in UI element changes. focus is typos and rewordings
+        "Cannot add text"
     );
     ensure!(!new_text.trim().is_empty(), "Edited text cannot be empty");
     if original_msg.text == new_text {
