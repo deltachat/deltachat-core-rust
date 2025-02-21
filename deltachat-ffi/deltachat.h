@@ -4453,7 +4453,7 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * Check if the message was edited.
  *
  * Edited messages should be marked by the UI as such,
- * eg. by the text "Edited" beside the time.
+ * e.g. by the text "Edited" beside the time.
  * To edit messages, use dc_send_edit_request().
  *
  * @memberof dc_msg_t
