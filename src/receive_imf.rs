@@ -1508,11 +1508,11 @@ async fn add_parts(
             {
                 if original_msg.from_id == from_id {
                     if let Some(part) = mime_parser.parts.first() {
-                        let showpadlock = part
+                        let edit_msg_showpadlock = part
                             .param
                             .get_bool(Param::GuaranteeE2ee)
                             .unwrap_or_default();
-                        if !showpadlock && original_msg.get_showpadlock() {
+                        if edit_msg_showpadlock || !original_msg.get_showpadlock() {
                             let new_text =
                                 part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
                             chat::save_text_edit_to_db(context, &mut original_msg, new_text)
