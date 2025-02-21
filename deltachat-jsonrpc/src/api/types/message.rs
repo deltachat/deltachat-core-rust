@@ -39,6 +39,8 @@ pub struct MessageObject {
 
     text: String,
 
+    is_edited: bool,
+
     /// Check if a message has a POI location bound to it.
     /// These locations are also returned by `get_locations` method.
     /// The UI may decide to display a special icon beside such messages.
@@ -204,6 +206,7 @@ impl MessageObject {
             quote,
             parent_id,
             text: message.get_text(),
+            is_edited: message.is_edited(),
             has_location: message.has_location(),
             has_html: message.has_html(),
             view_type: message.get_viewtype().into(),
