@@ -450,6 +450,7 @@ impl MimeMessage {
                     HeaderDef::ChatGroupMemberAdded,
                     HeaderDef::ChatGroupMemberTimestamps,
                     HeaderDef::ChatGroupPastMembers,
+                    HeaderDef::Obsoletes,
                 ] {
                     headers.remove(h.get_headername());
                 }
