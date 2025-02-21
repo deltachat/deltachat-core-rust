@@ -3145,7 +3145,7 @@ pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: Strin
             && !original_msg.text.is_empty(), // avoid complexity in UI element changes. focus is typos and rewordings
         "can edit only own text messages"
     );
-    ensure!(!new_text.trim().is_empty(), "edited text cannot be empty");
+    ensure!(!new_text.trim().is_empty(), "Edited text cannot be empty");
     if original_msg.text == new_text {
         info!(context, "Text unchanged.");
         return Ok(());
