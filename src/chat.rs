@@ -3147,7 +3147,7 @@ pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: Strin
     );
     ensure!(!new_text.trim().is_empty(), "edited text cannot be empty");
     if original_msg.text == new_text {
-        info!(context, "text unchanged");
+        info!(context, "Text unchanged.");
         return Ok(());
     }
 
