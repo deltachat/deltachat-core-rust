@@ -1054,11 +1054,8 @@ pub unsafe extern "C" fn dc_send_edit_request(
     let ctx = &*context;
     let new_text = to_string_lossy(new_text);
 
-    block_on(async move {
-        chat::send_edit_request(ctx, MsgId::new(msg_id), new_text)
-            .await
-            .unwrap_or_log_default(ctx, "Failed to send text edit")
-    })
+    block_on(chat::send_edit_request(ctx, MsgId::new(msg_id), new_text))
+        .unwrap_or_log_default(ctx, "Failed to send text edit")
 }
 
 #[no_mangle]
