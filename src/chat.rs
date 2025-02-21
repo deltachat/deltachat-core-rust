@@ -3175,7 +3175,7 @@ pub(crate) async fn save_text_edit_to_db(
     context
         .sql
         .execute(
-            "UPDATE msgs SET txt=?, txt_normalized=?, param=? WHERE id=?;",
+            "UPDATE msgs SET txt=?, txt_normalized=?, param=? WHERE id=?",
             (
                 new_text,
                 message::normalize_text(new_text),
