@@ -1512,7 +1512,7 @@ async fn add_parts(
                             .param
                             .get_bool(Param::GuaranteeE2ee)
                             .unwrap_or_default();
-                        if showpadlock == original_msg.get_showpadlock() {
+                        if !showpadlock && original_msg.get_showpadlock() {
                             let new_text =
                                 part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
                             chat::save_text_edit_to_db(context, &mut original_msg, new_text)
