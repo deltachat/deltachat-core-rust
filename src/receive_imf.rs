@@ -1528,7 +1528,7 @@ async fn add_parts(
                 warn!(context, "Edit message: Database entry does not exist.");
             }
         } else {
-            warn!(context, "Edit message: rfc724_mid not found.");
+            warn!(context, "Edit message: rfc724_mid {rfc724_mid:?} not found.");
         }
     }
 
