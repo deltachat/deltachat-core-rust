@@ -25,7 +25,7 @@ use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
     self, Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
-    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
+    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS, EDITED_PREFIX,
     TIMESTAMP_SENT_TOLERANCE,
 };
 use crate::contact::{self, Contact, ContactId, Origin};
@@ -3140,6 +3140,65 @@ pub async fn send_text_msg(
 
     let mut msg = Message::new_text(text_to_send);
     send_msg(context, chat_id, &mut msg).await
+}
+
+/// Sends chat members a request to edit the given message's text.
+pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: String) -> Result<()> {
+    let mut original_msg = Message::load_from_db(context, msg_id).await?;
+    ensure!(
+        original_msg.from_id == ContactId::SELF,
+        "Can edit only own messages"
+    );
+    ensure!(!original_msg.is_info(), "Cannot edit info messages");
+    ensure!(
+        original_msg.viewtype != Viewtype::VideochatInvitation,
+        "Cannot edit videochat invitations"
+    );
+    ensure!(
+        !original_msg.text.is_empty(), // avoid complexity in UI element changes. focus is typos and rewordings
+        "Cannot add text"
+    );
+    ensure!(!new_text.trim().is_empty(), "Edited text cannot be empty");
+    if original_msg.text == new_text {
+        info!(context, "Text unchanged.");
+        return Ok(());
+    }
+
+    save_text_edit_to_db(context, &mut original_msg, &new_text).await?;
+
+    let mut edit_msg = Message::new_text(EDITED_PREFIX.to_owned() + &new_text); // prefix only set for nicer display in Non-Delta-MUAs
+    edit_msg.set_quote(context, Some(&original_msg)).await?; // quote only set for nicer display in Non-Delta-MUAs
+    if original_msg.get_showpadlock() {
+        edit_msg.param.set_int(Param::GuaranteeE2ee, 1);
+    }
+    edit_msg
+        .param
+        .set(Param::TextEditFor, original_msg.rfc724_mid);
+    edit_msg.hidden = true;
+    send_msg(context, original_msg.chat_id, &mut edit_msg).await?;
+    Ok(())
+}
+
+pub(crate) async fn save_text_edit_to_db(
+    context: &Context,
+    original_msg: &mut Message,
+    new_text: &str,
+) -> Result<()> {
+    original_msg.param.set_int(Param::IsEdited, 1);
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET txt=?, txt_normalized=?, param=? WHERE id=?",
+            (
+                new_text,
+                message::normalize_text(new_text),
+                original_msg.param.to_string(),
+                original_msg.id,
+            ),
+        )
+        .await?;
+    context.emit_msgs_changed(original_msg.chat_id, original_msg.id);
+    Ok(())
 }
 
 /// Sends invitation to a videochat.

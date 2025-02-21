@@ -234,6 +234,10 @@ pub(crate) const TIMESTAMP_SENT_TOLERANCE: i64 = 60;
 /// on mobile devices. See also [`crate::chat::CantSendReason::SecurejoinWait`].
 pub(crate) const SECUREJOIN_WAIT_TIMEOUT: u64 = 15;
 
+// To make text edits clearer for Non-Delta-MUA or old Delta Chats, edited text will be prefixed by EDITED_PREFIX.
+// Newer Delta Chats will remove the prefix as needed.
+pub(crate) const EDITED_PREFIX: &str = "✏️";
+
 #[cfg(test)]
 mod tests {
     use num_traits::FromPrimitive;
