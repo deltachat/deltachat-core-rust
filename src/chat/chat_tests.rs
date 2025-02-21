@@ -3655,7 +3655,7 @@ async fn test_send_edit_request() -> Result<()> {
 
     // Alice sends a message with typos, followed by a correction message
     let sent1 = alice.send_text(alice_chat.id, "zext me in delra.cat").await;
-    let alice_msg = alice.get_last_msg_in(alice_chat.id).await;
+    let alice_msg = sent1.load_from_db().await;
     assert_eq!(alice_msg.text, "zext me in delra.cat");
 
     send_edit_request(alice, alice_msg.id, "Text me on Delta.Chat".to_string()).await?;
@@ -3692,7 +3692,7 @@ async fn test_receive_edit_request_after_removal() -> Result<()> {
 
     // Alice sends a messag with typos, followed by a correction message
     let sent1 = alice.send_text(alice_chat.id, "zext me in delra.cat").await;
-    let alice_msg = alice.get_last_msg_in(alice_chat.id).await;
+    let alice_msg = sent1.load_from_db().await;
     send_edit_request(alice, alice_msg.id, "Text me on Delta.Chat".to_string()).await?;
     let sent2 = alice.pop_sent_msg().await;
 
