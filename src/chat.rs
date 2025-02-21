@@ -3135,7 +3135,7 @@ pub async fn send_text_msg(
     send_msg(context, chat_id, &mut msg).await
 }
 
-/// Send chat members a request to edit the given message's text.
+/// Sends chat members a request to edit the given message's text.
 pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: String) -> Result<()> {
     let mut original_msg = Message::load_from_db(context, msg_id).await?;
     ensure!(
