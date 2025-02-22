@@ -3710,3 +3710,21 @@ async fn test_receive_edit_request_after_removal() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_cannot_edit_html() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let chat = alice.create_chat(bob).await;
+
+    let mut msg = Message::new_text("plain text".to_string());
+    msg.set_html(Some("<b>html</b> text".to_string()));
+    send_msg(alice, chat.id, &mut msg).await.unwrap();
+    assert!(msg.has_html());
+    assert!(send_edit_request(alice, msg.id, "foo".to_string())
+        .await
+        .is_err());
+
+    Ok(())
+}
