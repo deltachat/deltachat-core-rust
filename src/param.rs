@@ -361,18 +361,6 @@ impl Params {
         self.get(key).and_then(|s| s.parse().ok())
     }
 
-    /// Gets the given parameter and parse as [ParamsFile].
-    ///
-    /// See also [Params::get_blob] and [Params::get_path] which may
-    /// be more convenient.
-    pub fn get_file<'a>(&self, key: Param, context: &'a Context) -> Result<Option<ParamsFile<'a>>> {
-        let val = match self.get(key) {
-            Some(val) => val,
-            None => return Ok(None),
-        };
-        ParamsFile::from_param(context, val).map(Some)
-    }
-
     /// Returns a [BlobObject] for the [Param::File] parameter.
     pub fn get_file_blob<'a>(&self, context: &'a Context) -> Result<Option<BlobObject<'a>>> {
         let Some(val) = self.get(Param::File) else {
