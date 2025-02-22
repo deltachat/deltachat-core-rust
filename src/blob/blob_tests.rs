@@ -643,9 +643,9 @@ impl SendImageCheckMediaquality<'_> {
         check_image_size(file_saved, compressed_width, compressed_height);
 
         if original_width == compressed_width {
-            assert_extension(&alice, alice_msg, extension).await;
+            assert_extension(&alice, alice_msg, extension);
         } else {
-            assert_extension(&alice, alice_msg, "jpg").await;
+            assert_extension(&alice, alice_msg, "jpg");
         }
 
         let bob_msg = bob.recv_msg(&sent).await;
@@ -668,16 +668,16 @@ impl SendImageCheckMediaquality<'_> {
         let img = check_image_size(file_saved, compressed_width, compressed_height);
 
         if original_width == compressed_width {
-            assert_extension(&bob, bob_msg, extension).await;
+            assert_extension(&bob, bob_msg, extension);
         } else {
-            assert_extension(&bob, bob_msg, "jpg").await;
+            assert_extension(&bob, bob_msg, "jpg");
         }
 
         Ok(img)
     }
 }
 
-async fn assert_extension(context: &TestContext, msg: Message, extension: &str) {
+fn assert_extension(context: &TestContext, msg: Message, extension: &str) {
     assert!(msg
         .param
         .get(Param::File)
