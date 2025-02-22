@@ -20,7 +20,6 @@ use tokio::task;
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
 use crate::chatlist::Chatlist;
-use crate::chatlist_events;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
@@ -51,6 +50,7 @@ use crate::tools::{
     truncate_msg_text, IsNoneOrEmpty, SystemTime,
 };
 use crate::webxdc::StatusUpdateSerial;
+use crate::{chatlist_events, imap};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -3396,7 +3396,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
     } else {
         start_chat_ephemeral_timers(context, chat_id).await?;
 
-        if context
+        let noticed_msgs_count = context
             .sql
             .execute(
                 "UPDATE msgs
@@ -3406,9 +3406,36 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             AND chat_id=?;",
                 (MessageState::InNoticed, MessageState::InFresh, chat_id),
             )
-            .await?
-            == 0
-        {
+            .await?;
+
+        // This is to trigger emitting `MsgsNoticed` on other devices when reactions are noticed
+        // locally (i.e. when the chat was opened locally).
+        let hidden_messages = context
+            .sql
+            .query_map(
+                "SELECT id, rfc724_mid FROM msgs
+                    WHERE state=?
+                      AND hidden=1
+                      AND chat_id=?
+                    ORDER BY id LIMIT 100", // LIMIT to 100 in order to avoid blocking the UI too long, usually there will be less than 100 messages anyway
+                (MessageState::InFresh, chat_id), // No need to check for InNoticed messages, because reactions are never InNoticed
+                |row| {
+                    let msg_id: MsgId = row.get(0)?;
+                    let rfc724_mid: String = row.get(1)?;
+                    Ok((msg_id, rfc724_mid))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await?;
+        for (msg_id, rfc724_mid) in &hidden_messages {
+            message::update_msg_state(context, *msg_id, MessageState::InSeen).await?;
+            imap::markseen_on_imap_table(context, rfc724_mid).await?;
+        }
+
+        if noticed_msgs_count == 0 {
             return Ok(());
         }
     }

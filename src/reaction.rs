@@ -398,7 +398,7 @@ mod tests {
     use deltachat_contact_tools::ContactAddress;
 
     use super::*;
-    use crate::chat::{forward_msgs, get_chat_msgs, send_text_msg};
+    use crate::chat::{forward_msgs, get_chat_msgs, marknoticed_chat, send_text_msg};
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::{Contact, Origin};
@@ -623,7 +623,9 @@ Here's my footer -- bob@example.net"
             .get_matching_opt(t, |evt| {
                 matches!(
                     evt,
-                    EventType::IncomingReaction { .. } | EventType::IncomingMsg { .. }
+                    EventType::IncomingReaction { .. }
+                        | EventType::IncomingMsg { .. }
+                        | EventType::MsgsChanged { .. }
                 )
             })
             .await;
@@ -667,7 +669,8 @@ Here's my footer -- bob@example.net"
         assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
-        alice.recv_msg_trash(&bob_reaction_msg).await;
+        let alice_reaction_msg = alice.recv_msg_hidden(&bob_reaction_msg).await;
+        assert_eq!(alice_reaction_msg.state, MessageState::InFresh);
         assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 2);
 
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
@@ -690,6 +693,20 @@ Here's my footer -- bob@example.net"
         )
         .await?;
         expect_no_unwanted_events(&alice).await;
+
+        marknoticed_chat(&alice, chat_alice.id).await?;
+        assert_eq!(
+            alice_reaction_msg.id.get_state(&alice).await?,
+            MessageState::InSeen
+        );
+        // Reactions don't request MDNs.
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM smtp_mdns", ())
+                .await?,
+            0
+        );
 
         // Alice reacts to own message.
         send_reaction(&alice, alice_msg.sender_msg_id, "👍 😀")
@@ -730,7 +747,7 @@ Here's my footer -- bob@example.net"
         bob_msg1.chat_id.accept(&bob).await?;
         send_reaction(&bob, bob_msg1.id, "👍").await?;
         let bob_send_reaction = bob.pop_sent_msg().await;
-        alice.recv_msg_trash(&bob_send_reaction).await;
+        alice.recv_msg_hidden(&bob_send_reaction).await;
         expect_incoming_reactions_event(
             &alice,
             alice_chat.id,
@@ -899,7 +916,7 @@ Here's my footer -- bob@example.net"
         let bob_reaction_msg = bob.pop_sent_msg().await;
 
         // Alice receives a reaction.
-        alice.recv_msg_trash(&bob_reaction_msg).await;
+        alice.recv_msg_hidden(&bob_reaction_msg).await;
 
         let reactions = get_msg_reactions(&alice, alice_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍1");
@@ -951,7 +968,7 @@ Here's my footer -- bob@example.net"
         {
             send_reaction(&alice2, alice2_msg.id, "👍").await?;
             let msg = alice2.pop_sent_msg().await;
-            alice1.recv_msg_trash(&msg).await;
+            alice1.recv_msg_hidden(&msg).await;
         }
 
         // Check that the status is still the same.
@@ -973,7 +990,7 @@ Here's my footer -- bob@example.net"
         let alice1_msg = alice1.recv_msg(&alice0.pop_sent_msg().await).await;
 
         send_reaction(&alice0, alice0_msg_id, "👀").await?;
-        alice1.recv_msg_trash(&alice0.pop_sent_msg().await).await;
+        alice1.recv_msg_hidden(&alice0.pop_sent_msg().await).await;
 
         expect_reactions_changed_event(&alice0, chat_id, alice0_msg_id, ContactId::SELF).await?;
         expect_reactions_changed_event(&alice1, alice1_msg.chat_id, alice1_msg.id, ContactId::SELF)
