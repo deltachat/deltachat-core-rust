@@ -636,7 +636,7 @@ impl Message {
 
     /// Returns the full path to the file associated with a message.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
-        self.param.get_path(Param::File, context).unwrap_or(None)
+        self.param.get_file_path(context).unwrap_or(None)
     }
 
     /// Returns vector of vcards if the file has a vCard attachment.
@@ -669,7 +669,7 @@ impl Message {
     /// If message is an image or gif, set Param::Width and Param::Height
     pub(crate) async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
         if self.viewtype.has_file() {
-            let file_param = self.param.get_path(Param::File, context)?;
+            let file_param = self.param.get_file_path(context)?;
             if let Some(path_and_filename) = file_param {
                 if (self.viewtype == Viewtype::Image || self.viewtype == Viewtype::Gif)
                     && !self.param.exists(Param::Width)
@@ -817,7 +817,7 @@ impl Message {
 
     /// Returns the size of the file in bytes, if applicable.
     pub async fn get_filebytes(&self, context: &Context) -> Result<Option<u64>> {
-        if let Some(path) = self.param.get_path(Param::File, context)? {
+        if let Some(path) = self.param.get_file_path(context)? {
             Ok(Some(get_filebytes(context, &path).await.with_context(
                 || format!("failed to get {} size in bytes", path.display()),
             )?))

@@ -9,7 +9,6 @@ use crate::tools::time;
 use crate::webxdc::StatusUpdateItem;
 use async_channel::{self as channel, Receiver, Sender};
 use serde_json::json;
-use std::path::PathBuf;
 use tokio::task;
 
 #[derive(Debug)]
@@ -100,9 +99,7 @@ pub async fn maybe_set_logging_xdc(
         context,
         msg.get_viewtype(),
         chat_id,
-        msg.param
-            .get_path(Param::Filename, context)
-            .unwrap_or_default(),
+        msg.param.get(Param::Filename),
         msg.get_id(),
     )
     .await?;
@@ -115,18 +112,16 @@ pub async fn maybe_set_logging_xdc_inner(
     context: &Context,
     viewtype: Viewtype,
     chat_id: ChatId,
-    filename: Option<PathBuf>,
+    filename: Option<&str>,
     msg_id: MsgId,
 ) -> anyhow::Result<()> {
     if viewtype == Viewtype::Webxdc {
-        if let Some(file) = filename {
-            if let Some(file_name) = file.file_name().and_then(|name| name.to_str()) {
-                if file_name.starts_with("debug_logging")
-                    && file_name.ends_with(".xdc")
-                    && chat_id.is_self_talk(context).await?
-                {
-                    set_debug_logging_xdc(context, Some(msg_id)).await?;
-                }
+        if let Some(filename) = filename {
+            if filename.starts_with("debug_logging")
+                && filename.ends_with(".xdc")
+                && chat_id.is_self_talk(context).await?
+            {
+                set_debug_logging_xdc(context, Some(msg_id)).await?;
             }
         }
     }
