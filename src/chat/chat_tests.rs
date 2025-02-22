@@ -3722,7 +3722,7 @@ async fn test_cannot_edit_html() -> Result<()> {
     msg.set_html(Some("<b>html</b> text".to_string()));
     send_msg(alice, chat.id, &mut msg).await.unwrap();
     assert!(msg.has_html());
-    assert!(send_edit_request(&alice, msg.id, "foo".to_string())
+    assert!(send_edit_request(alice, msg.id, "foo".to_string())
         .await
         .is_err());
 
