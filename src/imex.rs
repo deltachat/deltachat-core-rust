@@ -15,14 +15,13 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_tar::Archive;
 
 use crate::blob::BlobDirContents;
-use crate::chat::{self, delete_and_reset_all_device_msgs};
+use crate::chat::delete_and_reset_all_device_msgs;
 use crate::config::Config;
 use crate::context::Context;
 use crate::e2ee;
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::log::LogExt;
-use crate::message::{Message, Viewtype};
 use crate::pgp;
 use crate::sql;
 use crate::tools::{
@@ -137,19 +136,6 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
         Some(path) => Ok(path.to_string_lossy().into_owned()),
         None => bail!("no backup found in {}", dir_name.display()),
     }
-}
-
-async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
-    if !context.sql.get_raw_config_bool("bcc_self").await? {
-        let mut msg = Message::new(Viewtype::Text);
-        // TODO: define this as a stockstring once the wording is settled.
-        msg.text = "It seems you are using multiple devices with Delta Chat. Great!\n\n\
-             If you also want to synchronize outgoing messages across all devices, \
-             go to \"Settings → Advanced\" and enable \"Send Copy to Self\"."
-            .to_string();
-        chat::add_device_msg(context, Some("bcc-self-hint"), Some(&mut msg)).await?;
-    }
-    Ok(())
 }
 
 async fn set_self_key(context: &Context, armored: &str, set_default: bool) -> Result<()> {

@@ -8,7 +8,6 @@ use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::imex::maybe_add_bcc_self_device_msg;
 use crate::imex::set_self_key;
 use crate::key::{load_self_secret_key, DcKey};
 use crate::message::{Message, MsgId, Viewtype};
@@ -48,11 +47,10 @@ pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
     msg.param.set_int(Param::SkipAutocrypt, 1);
 
     chat::send_msg(context, chat_id, &mut msg).await?;
-    // no maybe_add_bcc_self_device_msg() here.
-    // the ui shows the dialog with the setup code on this device,
-    // it would be too much noise to have two things popping up at the same time.
-    // maybe_add_bcc_self_device_msg() is called on the other device
-    // once the transfer is completed.
+
+    // Enable BCC-self, because transferring a key
+    // means we have a multi-device setup.
+    context.set_config_bool(Config::BccSelf, true).await?;
     Ok(setup_code)
 }
 
@@ -78,7 +76,7 @@ pub async fn continue_key_transfer(
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(&sc, file).await?;
         set_self_key(context, &armored_key, true).await?;
-        maybe_add_bcc_self_device_msg(context).await?;
+        context.set_config_bool(Config::BccSelf, true).await?;
 
         Ok(())
     } else {
@@ -301,7 +299,11 @@ mod tests {
     async fn test_key_transfer() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
+        alice.set_config(Config::BccSelf, Some("0")).await?;
         let setup_code = initiate_key_transfer(&alice).await?;
+
+        // Test that sending Autocrypt Setup Message enables `bcc_self`.
+        assert_eq!(alice.get_config_bool(Config::BccSelf).await?, true);
 
         // Get Autocrypt Setup Message.
         let sent = alice.pop_sent_msg().await;
@@ -322,12 +324,14 @@ mod tests {
         assert_ne!(alice.get_last_msg().await.get_text(), "Test");
 
         // Transfer the key.
+        alice2.set_config(Config::BccSelf, Some("0")).await?;
         continue_key_transfer(&alice2, msg.id, &setup_code).await?;
+        assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, true);
 
         // Alice sends a message to self from the new device.
         let sent = alice2.send_text(msg.chat_id, "Test").await;
-        alice.recv_msg(&sent).await;
-        assert_eq!(alice.get_last_msg().await.get_text(), "Test");
+        let rcvd_msg = alice.recv_msg(&sent).await;
+        assert_eq!(rcvd_msg.get_text(), "Test");
 
         Ok(())
     }
