@@ -890,12 +890,6 @@ impl ChatId {
                 }
             }
             _ => {
-                let blob = msg
-                    .param
-                    .get_blob(Param::File, context)
-                    .await?
-                    .context("no file stored in params")?;
-                msg.param.set(Param::File, blob.as_name());
                 if msg.viewtype == Viewtype::File {
                     if let Some((better_type, _)) = message::guess_msgtype_from_suffix(msg)
                         // We do not do an automatic conversion to other viewtypes here so that
@@ -908,6 +902,11 @@ impl ChatId {
                     }
                 }
                 if msg.viewtype == Viewtype::Vcard {
+                    let blob = msg
+                        .param
+                        .get_blob(Param::File, context)
+                        .await?
+                        .context("no file stored in params")?;
                     msg.try_set_vcard(context, &blob.to_abs_path()).await?;
                 }
             }
@@ -2801,19 +2800,11 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
                 .recode_to_image_size(context, msg.get_filename(), &mut maybe_sticker)
                 .await?;
             msg.param.set(Param::Filename, new_name);
+            msg.param.set(Param::File, blob.as_name());
 
             if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
             }
-        }
-        msg.param.set(Param::File, blob.as_name());
-        if let (Some(filename), Some(blob_ext)) = (msg.param.get(Param::Filename), blob.suffix()) {
-            let stem = match filename.rsplit_once('.') {
-                Some((stem, _)) => stem,
-                None => filename,
-            };
-            msg.param
-                .set(Param::Filename, stem.to_string() + "." + blob_ext);
         }
 
         if !msg.param.exists(Param::MimeType) {

@@ -118,7 +118,7 @@ class Message:
         mtype = ffi.NULL if mime_type is None else as_dc_charpointer(mime_type)
         if not os.path.exists(path):
             raise ValueError(f"path does not exist: {path!r}")
-        lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
+        lib.dc_msg_set_file_and_deduplicate(self._dc_msg, as_dc_charpointer(path), ffi.NULL, mtype)
 
     @props.with_doc
     def basename(self) -> str:

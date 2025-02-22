@@ -1075,21 +1075,6 @@ impl Message {
         self.subject = subject;
     }
 
-    /// Sets the file associated with a message.
-    ///
-    /// This function does not use the file or check if it exists,
-    /// the file will only be used when the message is prepared
-    /// for sending.
-    pub fn set_file(&mut self, file: impl ToString, filemime: Option<&str>) {
-        if let Some(name) = Path::new(&file.to_string()).file_name() {
-            if let Some(name) = name.to_str() {
-                self.param.set(Param::Filename, name);
-            }
-        }
-        self.param.set(Param::File, file);
-        self.param.set_optional(Param::MimeType, filemime);
-    }
-
     /// Sets the file associated with a message, deduplicating files with the same name.
     ///
     /// If `name` is Some, it is used as the file name
@@ -2167,12 +2152,12 @@ pub enum Viewtype {
     /// Image message.
     /// If the image is a GIF and has the appropriate extension, the viewtype is auto-changed to
     /// `Gif` when sending the message.
-    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
-    /// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
+    /// File, width and height are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_dimension()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_height(), dc_msg_get_width().
     Image = 20,
 
     /// Animated GIF message.
-    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+    /// File, width and height are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_dimension()
     /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
     Gif = 21,
 
@@ -2185,26 +2170,26 @@ pub enum Viewtype {
     Sticker = 23,
 
     /// Message containing an Audio file.
-    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// File and duration are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_duration()
     /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
     Audio = 40,
 
     /// A voice message that was directly recorded by the user.
     /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
-    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// File and duration are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_duration()
     /// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
     Voice = 41,
 
     /// Video messages.
     /// File, width, height and durarion
-    /// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
+    /// are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_dimension(), dc_msg_set_duration()
     /// and retrieved via
     /// dc_msg_get_file(), dc_msg_get_width(),
     /// dc_msg_get_height(), dc_msg_get_duration().
     Video = 50,
 
     /// Message containing any file, eg. a PDF.
-    /// The file is set via dc_msg_set_file()
+    /// The file is set via dc_msg_set_file_and_deduplicate()
     /// and retrieved via dc_msg_get_file().
     File = 60,
 

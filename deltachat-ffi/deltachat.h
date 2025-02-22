@@ -975,7 +975,7 @@ uint32_t        dc_get_chat_id_by_contact_id (dc_context_t* context, uint32_t co
  * ~~~
  * dc_msg_t* msg = dc_msg_new(context, DC_MSG_IMAGE);
  *
- * dc_msg_set_file(msg, "/file/to/send.jpg", NULL);
+ * dc_msg_set_file_and_deduplicate(msg, "/file/to/send.jpg", NULL, NULL);
  * dc_send_msg(context, chat_id, msg);
  *
  * dc_msg_unref(msg);
@@ -4773,22 +4773,6 @@ void            dc_msg_set_override_sender_name(dc_msg_t* msg, const char* name)
 
 
 /**
- * Set the file associated with a message object.
- * This does not alter any information in the database
- * nor copy or move the file or checks if the file exist.
- * All this can be done with dc_send_msg() later.
- *
- * @memberof dc_msg_t
- * @param msg The message object.
- * @param file If the message object is used in dc_send_msg() later,
- *     this must be the full path of the image file to send.
- * @param filemime The MIME type of the file. NULL if you don't know or don't care.
- * @deprecated 2025-01-21 Use dc_msg_set_file_and_deduplicate instead
- */
-void            dc_msg_set_file               (dc_msg_t* msg, const char* file, const char* filemime);
-
-
-/**
  * Sets the file associated with a message.
  *
  * If `name` is non-null, it is used as the file name
@@ -4815,7 +4799,7 @@ void            dc_msg_set_file_and_deduplicate(dc_msg_t* msg, const char* file,
 
 /**
  * Set the dimensions associated with message object.
- * Typically this is the width and the height of an image or video associated using dc_msg_set_file().
+ * Typically this is the width and the height of an image or video associated using dc_msg_set_file_and_deduplicate().
  * This does not alter any information in the database; this may be done by dc_send_msg() later.
  *
  * @memberof dc_msg_t
@@ -4828,7 +4812,7 @@ void            dc_msg_set_dimension          (dc_msg_t* msg, int width, int hei
 
 /**
  * Set the duration associated with message object.
- * Typically this is the duration of an audio or video associated using dc_msg_set_file().
+ * Typically this is the duration of an audio or video associated using dc_msg_set_file_and_deduplicate().
  * This does not alter any information in the database; this may be done by dc_send_msg() later.
  *
  * @memberof dc_msg_t
@@ -5467,7 +5451,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
  * If you want to define the type of a dc_msg_t object for sending,
  * use dc_msg_new().
  * Depending on the type, you will set more properties using e.g.
- * dc_msg_set_text() or dc_msg_set_file().
+ * dc_msg_set_text() or dc_msg_set_file_and_deduplicate().
  * To finally send the message, use dc_send_msg().
  *
  * To get the types of dc_msg_t objects received, use dc_msg_get_viewtype().
@@ -5488,7 +5472,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 /**
  * Image message.
  * If the image is an animated GIF, the type #DC_MSG_GIF should be used.
- * File, width, and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+ * File, width, and height are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_dimension()
  * and retrieved via dc_msg_get_file(), dc_msg_get_width(), and dc_msg_get_height().
  *
  * Before sending, the image is recoded to an reasonable size,
@@ -5501,7 +5485,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Animated GIF message.
- * File, width, and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+ * File, width, and height are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_dimension()
  * and retrieved via dc_msg_get_file(), dc_msg_get_width(), and dc_msg_get_height().
  */
 #define DC_MSG_GIF       21
@@ -5519,7 +5503,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Message containing an audio file.
- * File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+ * File and duration are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_duration()
  * and retrieved via dc_msg_get_file(), and dc_msg_get_duration().
  */
 #define DC_MSG_AUDIO     40
@@ -5528,7 +5512,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 /**
  * A voice message that was directly recorded by the user.
  * For all other audio messages, the type #DC_MSG_AUDIO should be used.
- * File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+ * File and duration are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_duration()
  * and retrieved via dc_msg_get_file(), and dc_msg_get_duration().
  */
 #define DC_MSG_VOICE     41
@@ -5537,7 +5521,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 /**
  * Video messages.
  * File, width, height, and duration
- * are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
+ * are set via dc_msg_set_file_and_deduplicate(), dc_msg_set_dimension(), dc_msg_set_duration()
  * and retrieved via
  * dc_msg_get_file(), dc_msg_get_width(),
  * dc_msg_get_height(), and dc_msg_get_duration().
@@ -5547,7 +5531,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * Message containing any file, e.g. a PDF.
- * The file is set via dc_msg_set_file()
+ * The file is set via dc_msg_set_file_and_deduplicate()
  * and retrieved via dc_msg_get_file().
  */
 #define DC_MSG_FILE      60
