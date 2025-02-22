@@ -3141,6 +3141,7 @@ pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: Strin
         "Can edit only own messages"
     );
     ensure!(!original_msg.is_info(), "Cannot edit info messages");
+    ensure!(!original_msg.has_html(), "Cannot edit HTML messages");
     ensure!(
         original_msg.viewtype != Viewtype::VideochatInvitation,
         "Cannot edit videochat invitations"
