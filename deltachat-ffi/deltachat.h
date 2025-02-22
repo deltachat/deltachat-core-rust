@@ -1040,6 +1040,20 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
 
 
 /**
+ * Check if a message can be edited using dc_send_edit_request().
+ *
+ * Messages that cannot be edited are eg. info messages or messages not sent by self.
+ * UI will usually check this function whether to display an "Edit" option or not.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_id The message ID to check.
+ * @return 1=message can be edited, 0=message cannot be edited.
+ */
+ int             dc_can_send_edit_request    (dc_context_t* context, uint32_t msg_id);
+
+
+/**
  * Send chat members a request to edit the given message's text.
  *
  * Only outgoing messages sent by self can be edited.

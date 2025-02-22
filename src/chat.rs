@@ -3133,22 +3133,13 @@ pub async fn send_text_msg(
 
 /// Sends chat members a request to edit the given message's text.
 pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: String) -> Result<()> {
-    let mut original_msg = Message::load_from_db(context, msg_id).await?;
     ensure!(
-        original_msg.from_id == ContactId::SELF,
-        "Can edit only own messages"
-    );
-    ensure!(!original_msg.is_info(), "Cannot edit info messages");
-    ensure!(!original_msg.has_html(), "Cannot edit HTML messages");
-    ensure!(
-        original_msg.viewtype != Viewtype::VideochatInvitation,
-        "Cannot edit videochat invitations"
-    );
-    ensure!(
-        !original_msg.text.is_empty(), // avoid complexity in UI element changes. focus is typos and rewordings
-        "Cannot add text"
+        message::can_send_edit_request(context, msg_id).await?,
+        "Message cannot be edited"
     );
     ensure!(!new_text.trim().is_empty(), "Edited text cannot be empty");
+
+    let mut original_msg = Message::load_from_db(context, msg_id).await?;
     if original_msg.text == new_text {
         info!(context, "Text unchanged.");
         return Ok(());
