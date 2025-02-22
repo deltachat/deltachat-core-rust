@@ -3,6 +3,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::str;
 
+use anyhow::ensure;
 use anyhow::{bail, Error, Result};
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -295,6 +296,9 @@ impl Params {
 
     /// Set the given key to the passed in value.
     pub fn set(&mut self, key: Param, value: impl ToString) -> &mut Self {
+        if key == Param::File {
+            debug_assert!(value.to_string().starts_with("$BLOBDIR/"));
+        }
         self.inner.insert(key, value.to_string());
         self
     }
@@ -369,29 +373,13 @@ impl Params {
         ParamsFile::from_param(context, val).map(Some)
     }
 
-    /// Gets the parameter and returns a [BlobObject] for it.
-    ///
-    /// This parses the parameter value as a [ParamsFile] and than
-    /// tries to return a [BlobObject] for that file.  If the file is
-    /// not yet a valid blob, one will be created by copying the file.
-    ///
-    /// Note that in the [ParamsFile::FsPath] case the blob can be
-    /// created without copying if the path already refers to a valid
-    /// blob.  If so a [BlobObject] will be returned.
-    pub async fn get_blob<'a>(
-        &self,
-        key: Param,
-        context: &'a Context,
-    ) -> Result<Option<BlobObject<'a>>> {
-        let val = match self.get(key) {
-            Some(val) => val,
-            None => return Ok(None),
+    /// Returns a [BlobObject] for the [Param::File] parameter.
+    pub fn get_file_blob<'a>(&self, context: &'a Context) -> Result<Option<BlobObject<'a>>> {
+        let Some(val) = self.get(Param::File) else {
+            return Ok(None);
         };
-        let file = ParamsFile::from_param(context, val)?;
-        let blob = match file {
-            ParamsFile::FsPath(path) => BlobObject::new_from_path(context, &path).await?,
-            ParamsFile::Blob(blob) => blob,
-        };
+        ensure!(val.starts_with("$BLOBDIR/"));
+        let blob = BlobObject::from_name(context, val.to_string())?;
         Ok(Some(blob))
     }
 
@@ -462,17 +450,15 @@ mod tests {
     use std::path::Path;
     use std::str::FromStr;
 
-    use tokio::fs;
-
     use super::*;
     use crate::test_utils::TestContext;
 
     #[test]
     fn test_dc_param() {
-        let mut p1: Params = "a=1\nf=2\nc=3".parse().unwrap();
+        let mut p1: Params = "a=1\nw=2\nc=3".parse().unwrap();
 
         assert_eq!(p1.get_int(Param::Forwarded), Some(1));
-        assert_eq!(p1.get_int(Param::File), Some(2));
+        assert_eq!(p1.get_int(Param::Width), Some(2));
         assert_eq!(p1.get_int(Param::Height), None);
         assert!(!p1.exists(Param::Height));
 
@@ -483,13 +469,13 @@ mod tests {
         let mut p1 = Params::new();
 
         p1.set(Param::Forwarded, "foo")
-            .set_int(Param::File, 2)
+            .set_int(Param::Width, 2)
             .remove(Param::GuaranteeE2ee)
             .set_int(Param::Duration, 4);
 
-        assert_eq!(p1.to_string(), "a=foo\nd=4\nf=2");
+        assert_eq!(p1.to_string(), "a=foo\nd=4\nw=2");
 
-        p1.remove(Param::File);
+        p1.remove(Param::Width);
 
         assert_eq!(p1.to_string(), "a=foo\nd=4",);
         assert_eq!(p1.len(), 2);
@@ -529,36 +515,6 @@ mod tests {
         } else {
             panic!("Wrong enum variant");
         }
-    }
-
-    // Tests for Params::get_file(), Params::get_path() and Params::get_blob().
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_params_get_fileparam() {
-        let t = TestContext::new().await;
-        let fname = t.dir.path().join("foo");
-        let mut p = Params::new();
-        p.set(Param::File, fname.to_str().unwrap());
-
-        let file = p.get_file(Param::File, &t).unwrap().unwrap();
-        assert_eq!(file, ParamsFile::FsPath(fname.clone()));
-
-        let path: PathBuf = p.get_path(Param::File, &t).unwrap().unwrap();
-        assert_eq!(path, fname);
-
-        fs::write(fname, b"boo").await.unwrap();
-        let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
-        assert!(blob.as_name().starts_with("$BLOBDIR/foo"));
-
-        // Blob in blobdir, expect blob.
-        let bar_path = t.get_blobdir().join("bar");
-        p.set(Param::File, bar_path.to_str().unwrap());
-        let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
-        assert_eq!(blob, BlobObject::from_name(&t, "bar".to_string()).unwrap());
-
-        p.remove(Param::File);
-        assert!(p.get_file(Param::File, &t).unwrap().is_none());
-        assert!(p.get_path(Param::File, &t).unwrap().is_none());
-        assert!(p.get_blob(Param::File, &t).await.unwrap().is_none());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

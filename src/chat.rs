@@ -904,8 +904,7 @@ impl ChatId {
                 if msg.viewtype == Viewtype::Vcard {
                     let blob = msg
                         .param
-                        .get_blob(Param::File, context)
-                        .await?
+                        .get_file_blob(context)?
                         .context("no file stored in params")?;
                     msg.try_set_vcard(context, &blob.to_abs_path()).await?;
                 }
@@ -2751,8 +2750,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     } else if msg.viewtype.has_file() {
         let mut blob = msg
             .param
-            .get_blob(Param::File, context)
-            .await?
+            .get_file_blob(context)?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
         let send_as_is = msg.viewtype == Viewtype::File;
 

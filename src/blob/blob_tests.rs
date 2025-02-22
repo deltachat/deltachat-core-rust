@@ -703,8 +703,7 @@ async fn assert_extension(context: &TestContext, msg: Message, extension: &str) 
     );
     assert_eq!(
         msg.param
-            .get_blob(Param::File, context)
-            .await
+            .get_file_blob(context)
             .unwrap()
             .unwrap()
             .suffix()

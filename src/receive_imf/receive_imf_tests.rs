@@ -5612,7 +5612,7 @@ PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
 
     assert_eq!(msg.get_filename().unwrap(), "test.HTML");
 
-    let blob = msg.param.get_blob(Param::File, alice).await?.unwrap();
+    let blob = msg.param.get_file_blob(alice)?.unwrap();
     assert_eq!(blob.suffix().unwrap(), "html");
 
     Ok(())

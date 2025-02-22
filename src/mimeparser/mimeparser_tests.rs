@@ -785,7 +785,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
     // Make sure the file is there even though the html is wrong:
     let param = &message.parts[0].param;
-    let blob: BlobObject = param.get_blob(Param::File, &t).await.unwrap().unwrap();
+    let blob: BlobObject = param.get_file_blob(&t).unwrap().unwrap();
     let f = tokio::fs::File::open(blob.to_abs_path()).await.unwrap();
     let size = f.metadata().await.unwrap().len();
     assert_eq!(size, 154);
@@ -1871,8 +1871,7 @@ This is the epilogue.  It is also to be ignored.";
     assert_eq!(mimeparser.parts[0].typ, Viewtype::File);
     let blob: BlobObject = mimeparser.parts[0]
         .param
-        .get_blob(Param::File, &context)
-        .await
+        .get_file_blob(&context)
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1883,8 +1882,7 @@ This is the epilogue.  It is also to be ignored.";
     assert_eq!(mimeparser.parts[1].typ, Viewtype::File);
     let blob: BlobObject = mimeparser.parts[1]
         .param
-        .get_blob(Param::File, &context)
-        .await
+        .get_file_blob(&context)
         .unwrap()
         .unwrap();
     assert_eq!(
