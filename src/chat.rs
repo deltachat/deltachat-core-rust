@@ -3349,7 +3349,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
                     WHERE state=?
                       AND hidden=1
                       AND chat_id=?
-                    ORDER BY id DESC LIMIT 100", // LIMIT to 100 in order to avoid blocking the UI too long, usually there will be less than 100 messages anyway
+                    ORDER BY id LIMIT 100", // LIMIT to 100 in order to avoid blocking the UI too long, usually there will be less than 100 messages anyway
                 (MessageState::InFresh, chat_id), // No need to check for InNoticed messages, because reactions are never InNoticed
                 |row| {
                     let msg_id: MsgId = row.get(0)?;
