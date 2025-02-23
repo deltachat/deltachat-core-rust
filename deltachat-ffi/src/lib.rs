@@ -1045,9 +1045,8 @@ pub unsafe extern "C" fn dc_send_text_msg(
 pub unsafe extern "C" fn dc_can_send_edit_request(
     context: *mut dc_context_t,
     msg_id: u32,
-    new_text: *const libc::c_char,
 ) -> libc::c_int {
-    if context.is_null() || new_text.is_null() {
+    if context.is_null() {
         eprintln!("ignoring careless call to dc_can_send_edit_request()");
         return 0;
     }
