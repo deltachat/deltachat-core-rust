@@ -105,24 +105,6 @@ async fn test_create_long_names() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_create_and_copy() {
-    let t = TestContext::new().await;
-    let src = t.dir.path().join("src");
-    fs::write(&src, b"boo").await.unwrap();
-    let blob = BlobObject::create_and_copy(&t, src.as_ref()).await.unwrap();
-    assert_eq!(blob.as_name(), "$BLOBDIR/src");
-    let data = fs::read(blob.to_abs_path()).await.unwrap();
-    assert_eq!(data, b"boo");
-
-    let whoops = t.dir.path().join("whoops");
-    assert!(BlobObject::create_and_copy(&t, whoops.as_ref())
-        .await
-        .is_err());
-    let whoops = t.get_blobdir().join("whoops");
-    assert!(!whoops.exists());
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_create_from_name_long() {
     let t = TestContext::new().await;
     let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");

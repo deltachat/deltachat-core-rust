@@ -14,8 +14,7 @@ use image::codecs::jpeg::JpegEncoder;
 use image::ImageReader;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageFormat, Pixel, Rgba};
 use num_traits::FromPrimitive;
-use tokio::io::AsyncWriteExt;
-use tokio::{fs, io, task};
+use tokio::{fs, task};
 use tokio_stream::wrappers::ReadDirStream;
 
 use crate::config::Config;
@@ -48,73 +47,6 @@ enum ImageOutputFormat {
 }
 
 impl<'a> BlobObject<'a> {
-    /// Creates a new file, returning a tuple of the name and the handle.
-    async fn create_new_file(
-        context: &Context,
-        dir: &Path,
-        stem: &str,
-        ext: &str,
-    ) -> Result<(String, fs::File)> {
-        const MAX_ATTEMPT: u32 = 16;
-        let mut attempt = 0;
-        let mut name = format!("{stem}{ext}");
-        loop {
-            attempt += 1;
-            let path = dir.join(&name);
-            match fs::OpenOptions::new()
-                // Using `create_new(true)` in order to avoid race conditions
-                // when creating multiple files with the same name.
-                .create_new(true)
-                .write(true)
-                .open(&path)
-                .await
-            {
-                Ok(file) => return Ok((name, file)),
-                Err(err) => {
-                    if attempt >= MAX_ATTEMPT {
-                        return Err(err).context("failed to create file");
-                    } else if attempt == 1 && !dir.exists() {
-                        fs::create_dir_all(dir).await.log_err(context).ok();
-                    } else {
-                        name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
-                    }
-                }
-            }
-        }
-    }
-
-    /// Creates a new blob object with unique name by copying an existing file.
-    ///
-    /// This creates a new blob
-    /// and copies an existing file into it.  This is done in a
-    /// in way which avoids race-conditions when multiple files are
-    /// concurrently created.
-    pub async fn create_and_copy(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
-        let mut src_file = fs::File::open(src)
-            .await
-            .with_context(|| format!("failed to open file {}", src.display()))?;
-        let (stem, ext) = BlobObject::sanitize_name_and_split_extension(&src.to_string_lossy());
-        let (name, mut dst_file) =
-            BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
-        let name_for_err = name.clone();
-        if let Err(err) = io::copy(&mut src_file, &mut dst_file).await {
-            // Attempt to remove the failed file, swallow errors resulting from that.
-            let path = context.get_blobdir().join(&name_for_err);
-            fs::remove_file(path).await.ok();
-            return Err(err).context("failed to copy file");
-        }
-
-        // Ensure that all buffered bytes are written
-        dst_file.flush().await?;
-
-        let blob = BlobObject {
-            blobdir: context.get_blobdir(),
-            name: format!("$BLOBDIR/{name}"),
-        };
-        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
-        Ok(blob)
-    }
-
     /// Creates a blob object by copying or renaming an existing file.
     /// If the source file is already in the blobdir, it will be renamed,
     /// otherwise it will be copied to the blobdir first.
