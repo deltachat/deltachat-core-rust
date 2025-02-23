@@ -120,7 +120,7 @@ async fn test_create_from_name_long() {
 fn test_is_blob_name() {
     assert!(BlobObject::is_acceptible_blob_name("foo"));
     assert!(BlobObject::is_acceptible_blob_name("foo.txt"));
-    assert!(BlobObject::is_acceptible_blob_name("f".repeat(128)));
+    assert!(BlobObject::is_acceptible_blob_name(&"f".repeat(128)));
     assert!(!BlobObject::is_acceptible_blob_name("foo/bar"));
     assert!(!BlobObject::is_acceptible_blob_name("foo\\bar"));
     assert!(!BlobObject::is_acceptible_blob_name("foo\x00bar"));

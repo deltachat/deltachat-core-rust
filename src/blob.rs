@@ -1,7 +1,6 @@
 //! # Blob directory management.
 
 use core::cmp::max;
-use std::ffi::OsStr;
 use std::io::{Cursor, Seek};
 use std::iter::FusedIterator;
 use std::mem;
@@ -151,10 +150,10 @@ impl<'a> BlobObject<'a> {
         let rel_path = path
             .strip_prefix(context.get_blobdir())
             .with_context(|| format!("wrong blobdir: {}", path.display()))?;
-        if !BlobObject::is_acceptible_blob_name(rel_path) {
+        let name = rel_path.to_str().context("wrong name")?;
+        if !BlobObject::is_acceptible_blob_name(name) {
             return Err(format_err!("bad blob name: {}", rel_path.display()));
         }
-        let name = rel_path.to_str().context("wrong name")?;
         BlobObject::from_name(context, name)
     }
 
@@ -217,18 +216,14 @@ impl<'a> BlobObject<'a> {
     /// This is slightly less strict than stanitise_name, presumably
     /// someone already created a file with such a name so we just
     /// ensure it's not actually a path in disguise is actually utf-8.
-    fn is_acceptible_blob_name(name: impl AsRef<OsStr>) -> bool {
-        let uname = match name.as_ref().to_str() {
-            Some(name) => name,
-            None => return false,
-        };
-        if uname.find('/').is_some() {
+    fn is_acceptible_blob_name(name: &str) -> bool {
+        if name.find('/').is_some() {
             return false;
         }
-        if uname.find('\\').is_some() {
+        if name.find('\\').is_some() {
             return false;
         }
-        if uname.find('\0').is_some() {
+        if name.find('\0').is_some() {
             return false;
         }
         true
