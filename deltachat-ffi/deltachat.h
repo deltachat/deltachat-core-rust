@@ -1963,7 +1963,7 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
 
 
 /**
- * Delete messages. The messages are deleted on the current device and
+ * Delete messages. The messages are deleted on all devices and
  * on the IMAP server.
  *
  * @memberof dc_context_t
