@@ -212,50 +212,6 @@ impl<'a> BlobObject<'a> {
         }
     }
 
-    /// The name is returned as a tuple, the first part
-    /// being the stem or basename and the second being an extension,
-    /// including the dot.  E.g. "foo.txt" is returned as `("foo",
-    /// ".txt")` while "bar" is returned as `("bar", "")`.
-    ///
-    /// The extension part will always be lowercased.
-    fn sanitize_name_and_split_extension(name: &str) -> (String, String) {
-        let name = sanitize_filename(name);
-        // Let's take a tricky filename,
-        // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
-        // Assume that the extension is 32 chars maximum.
-        let ext: String = name
-            .chars()
-            .rev()
-            .take_while(|c| {
-                (!c.is_ascii_punctuation() || *c == '.') && !c.is_whitespace() && !c.is_control()
-            })
-            .take(33)
-            .collect::<Vec<_>>()
-            .iter()
-            .rev()
-            .collect();
-        // ext == "nd_point_and_double_ending.tar.gz"
-
-        // Split it into "nd_point_and_double_ending" and "tar.gz":
-        let mut iter = ext.splitn(2, '.');
-        iter.next();
-
-        let ext = iter.next().unwrap_or_default();
-        let ext = if ext.is_empty() {
-            String::new()
-        } else {
-            format!(".{ext}")
-            // ".tar.gz"
-        };
-        let stem = name
-            .strip_suffix(&ext)
-            .unwrap_or_default()
-            .chars()
-            .take(64)
-            .collect();
-        (stem, ext.to_lowercase())
-    }
-
     /// Checks whether a name is a valid blob name.
     ///
     /// This is slightly less strict than stanitise_name, presumably
