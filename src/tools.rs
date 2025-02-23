@@ -348,8 +348,8 @@ pub(crate) fn get_abs_path(context: &Context, path: &Path) -> PathBuf {
     }
 }
 
-pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> Result<u64> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub(crate) async fn get_filebytes(context: &Context, path: &Path) -> Result<u64> {
+    let path_abs = get_abs_path(context, path);
     let meta = fs::metadata(&path_abs).await?;
     Ok(meta.len())
 }

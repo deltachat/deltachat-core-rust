@@ -290,7 +290,12 @@ async fn test_file_handling() {
         .is_ok());
     assert!(file_exist!(context, "$BLOBDIR/foobar"));
     assert!(!file_exist!(context, "$BLOBDIR/foobarx"));
-    assert_eq!(get_filebytes(context, "$BLOBDIR/foobar").await.unwrap(), 7);
+    assert_eq!(
+        get_filebytes(context, "$BLOBDIR/foobar".as_ref())
+            .await
+            .unwrap(),
+        7
+    );
 
     let abs_path = context
         .get_blobdir()
