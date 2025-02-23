@@ -123,36 +123,14 @@ async fn test_create_and_copy() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_create_from_path() {
-    let t = TestContext::new().await;
-
-    let src_ext = t.dir.path().join("external");
-    fs::write(&src_ext, b"boo").await.unwrap();
-    let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
-        .await
-        .unwrap();
-    assert_eq!(blob.as_name(), "$BLOBDIR/external");
-    let data = fs::read(blob.to_abs_path()).await.unwrap();
-    assert_eq!(data, b"boo");
-
-    let src_int = t.get_blobdir().join("internal");
-    fs::write(&src_int, b"boo").await.unwrap();
-    let blob = BlobObject::new_from_path(&t, &src_int).await.unwrap();
-    assert_eq!(blob.as_name(), "$BLOBDIR/internal");
-    let data = fs::read(blob.to_abs_path()).await.unwrap();
-    assert_eq!(data, b"boo");
-}
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_create_from_name_long() {
     let t = TestContext::new().await;
     let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
     fs::write(&src_ext, b"boo").await.unwrap();
-    let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
-        .await
-        .unwrap();
+    let blob = BlobObject::create_and_deduplicate(&t, &src_ext, &src_ext).unwrap();
     assert_eq!(
         blob.as_name(),
-        "$BLOBDIR/autocrypt-setup-message-4137848473.html"
+        "$BLOBDIR/06f010b24d1efe57ffab44a8ad20c54.html"
     );
 }
 
@@ -236,7 +214,7 @@ async fn test_add_white_bg() {
         let avatar_src = t.dir.path().join("avatar.png");
         fs::write(&avatar_src, bytes).await.unwrap();
 
-        let mut blob = BlobObject::new_from_path(&t, &avatar_src).await.unwrap();
+        let mut blob = BlobObject::create_and_deduplicate(&t, &avatar_src, &avatar_src).unwrap();
         let img_wh = 128;
         let maybe_sticker = &mut false;
         let strict_limits = true;
@@ -285,7 +263,7 @@ async fn test_selfavatar_outside_blobdir() {
         constants::BALANCED_AVATAR_SIZE,
     );
 
-    let mut blob = BlobObject::new_from_path(&t, avatar_path).await.unwrap();
+    let mut blob = BlobObject::create_and_deduplicate(&t, avatar_path, avatar_path).unwrap();
     let maybe_sticker = &mut false;
     let strict_limits = true;
     blob.recode_to_size(&t, None, maybe_sticker, 1000, 3000, strict_limits)

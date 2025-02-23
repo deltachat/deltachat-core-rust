@@ -209,27 +209,6 @@ impl<'a> BlobObject<'a> {
         })
     }
 
-    /// Creates a blob from a file, possibly copying it to the blobdir.
-    ///
-    /// If the source file is not a path to into the blob directory
-    /// the file will be copied into the blob directory first.  If the
-    /// source file is already in the blobdir it will not be copied
-    /// and only be created if it is a valid blobname, that is no
-    /// subdirectory is used and [BlobObject::sanitize_name_and_split_extension] does not
-    /// modify the filename.
-    ///
-    /// Paths into the blob directory may be either defined by an absolute path
-    /// or by the relative prefix `$BLOBDIR`.
-    pub async fn new_from_path(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
-        if src.starts_with(context.get_blobdir()) {
-            BlobObject::from_path(context, src)
-        } else if src.starts_with("$BLOBDIR/") {
-            BlobObject::from_name(context, src.to_str().unwrap_or_default().to_string())
-        } else {
-            BlobObject::create_and_copy(context, src).await
-        }
-    }
-
     /// Returns a [BlobObject] for an existing blob from a path.
     ///
     /// The path must designate a file directly in the blobdir and
