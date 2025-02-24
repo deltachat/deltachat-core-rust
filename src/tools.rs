@@ -499,8 +499,8 @@ pub async fn read_file(context: &Context, path: &Path) -> Result<Vec<u8>> {
     }
 }
 
-pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::File> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub async fn open_file(context: &Context, path: &Path) -> Result<fs::File> {
+    let path_abs = get_abs_path(context, path);
 
     match fs::File::open(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -508,7 +508,7 @@ pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::
             warn!(
                 context,
                 "Cannot read \"{}\" or file is empty: {}",
-                path.as_ref().display(),
+                path.display(),
                 err
             );
             Err(err.into())
