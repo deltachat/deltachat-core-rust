@@ -465,16 +465,16 @@ pub(crate) async fn create_folder(context: &Context, path: &Path) -> Result<(), 
 /// Write a the given content to provided file path.
 pub(crate) async fn write_file(
     context: &Context,
-    path: impl AsRef<Path>,
+    path: &Path,
     buf: &[u8],
 ) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, path.as_ref());
+    let path_abs = get_abs_path(context, path);
     fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
             context,
             "Cannot write {} bytes to \"{}\": {}",
             buf.len(),
-            path.as_ref().display(),
+            path.display(),
             err
         );
         err

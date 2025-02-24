@@ -285,9 +285,11 @@ async fn test_file_handling() {
     assert!(delete_file(context, Path::new("$BLOBDIR/lkqwjelqkwlje"))
         .await
         .is_err());
-    assert!(write_file(context, "$BLOBDIR/foobar", b"content")
-        .await
-        .is_ok());
+    assert!(
+        write_file(context, Path::new("$BLOBDIR/foobar"), b"content")
+            .await
+            .is_ok()
+    );
     assert!(file_exist!(context, "$BLOBDIR/foobar"));
     assert!(!file_exist!(context, "$BLOBDIR/foobarx"));
     assert_eq!(
@@ -317,7 +319,9 @@ async fn test_file_handling() {
         .is_err());
 
     let fn0 = "$BLOBDIR/data.data";
-    assert!(write_file(context, &fn0, b"content").await.is_ok());
+    assert!(write_file(context, Path::new(fn0), b"content")
+        .await
+        .is_ok());
 
     assert!(delete_file(context, Path::new(fn0)).await.is_ok());
     assert!(!file_exist!(context, &fn0));
