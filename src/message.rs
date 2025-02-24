@@ -1360,7 +1360,7 @@ impl Message {
     /// * Lack of valid signature on an e2ee message, usually for received messages.
     /// * Failure to decrypt an e2ee message, usually for received messages.
     /// * When a message could not be delivered to one or more recipients the non-delivery
-    ///    notification text can be stored in the error status.
+    ///   notification text can be stored in the error status.
     pub fn error(&self) -> Option<String> {
         self.error.clone()
     }

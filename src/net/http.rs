@@ -253,7 +253,7 @@ async fn fetch_url(context: &Context, original_url: &str) -> Result<Response> {
                 .headers()
                 .get_all("location")
                 .iter()
-                .last()
+                .next_back()
                 .ok_or_else(|| anyhow!("Redirection doesn't have a target location"))?
                 .to_str()?;
             info!(context, "Following redirect to {}", header);
