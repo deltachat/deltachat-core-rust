@@ -66,8 +66,8 @@ pub(crate) enum SyncData {
         src: String,  // RFC724 id (i.e. "Message-Id" header)
         dest: String, // RFC724 id (i.e. "Message-Id" header)
     },
-    DeleteMessage {
-        msg: String, // RFC724 id (i.e. "Message-Id" header)
+    DeleteMessages {
+        msgs: Vec<String>, // RFC724 id (i.e. "Message-Id" header)
     },
 }
 
@@ -261,7 +261,7 @@ impl Context {
                     AlterChat { id, action } => self.sync_alter_chat(id, action).await,
                     SyncData::Config { key, val } => self.sync_config(key, val).await,
                     SyncData::SaveMessage { src, dest } => self.save_message(src, dest).await,
-                    SyncData::DeleteMessage { msg } => self.sync_message_deletion(msg).await,
+                    SyncData::DeleteMessages { msgs } => self.sync_message_deletion(msgs).await,
                 },
                 SyncDataOrUnknown::Unknown(data) => {
                     warn!(self, "Ignored unknown sync item: {data}.");
@@ -302,10 +302,12 @@ impl Context {
         Ok(())
     }
 
-    async fn sync_message_deletion(&self, rfc724_mid: &str) -> Result<()> {
-        if let Some((msg_id, _)) = message::rfc724_mid_exists(self, rfc724_mid).await? {
-            let msg = Message::load_from_db(self, msg_id).await?;
-            message::delete_msg_locally(self, &msg).await?;
+    async fn sync_message_deletion(&self, msgs: &Vec<String>) -> Result<()> {
+        for rfc724_mid in msgs {
+            if let Some((msg_id, _)) = message::rfc724_mid_exists(self, rfc724_mid).await? {
+                let msg = Message::load_from_db(self, msg_id).await?;
+                message::delete_msg_locally(self, &msg).await?;
+            }
         }
         Ok(())
     }

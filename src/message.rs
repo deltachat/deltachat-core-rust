@@ -1692,6 +1692,7 @@ pub(crate) async fn delete_msg_locally(context: &Context, msg: &Message) -> Resu
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     let mut modified_chat_ids = BTreeSet::new();
     let mut res = Ok(());
+    let mut deleted_rfc724_mid = Vec::new();
 
     for &msg_id in msg_ids {
         let msg = Message::load_from_db(context, msg_id).await?;
@@ -1699,11 +1700,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
         modified_chat_ids.insert(msg.chat_id);
 
-        context
-            .add_sync_item(SyncData::DeleteMessage {
-                msg: msg.rfc724_mid.clone(),
-            })
-            .await?;
+        deleted_rfc724_mid.push(msg.rfc724_mid.clone());
 
         let target = context.get_delete_msgs_target().await?;
         let update_db = |trans: &mut rusqlite::Transaction| {
@@ -1722,6 +1719,11 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     }
     res?;
 
+    context
+        .add_sync_item(SyncData::DeleteMessages {
+            msgs: deleted_rfc724_mid,
+        })
+        .await?;
     context.send_sync_msg().await?;
 
     for modified_chat_id in modified_chat_ids {
