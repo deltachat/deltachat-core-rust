@@ -1652,6 +1652,8 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
     Ok(headers)
 }
 
+/// Delete a single message from the database, including references in other tables.
+/// This may be called in batches; the final events are emitted in delete_msgs_locally_done() then.
 pub(crate) async fn delete_msg_locally(context: &Context, msg: &Message) -> Result<()> {
     if msg.location_id > 0 {
         delete_poi_location(context, msg.location_id).await?;
@@ -1686,13 +1688,35 @@ pub(crate) async fn delete_msg_locally(context: &Context, msg: &Message) -> Resu
     Ok(())
 }
 
+/// Do final events and jobs after batch deletion using calls to delete_msg_locally().
+/// To avoid additional database queries, collecting data is up to the caller.
+pub(crate) async fn delete_msgs_locally_done(
+    context: &Context,
+    msg_ids: &[MsgId],
+    modified_chat_ids: BTreeSet<ChatId>,
+) -> Result<()> {
+    for modified_chat_id in modified_chat_ids {
+        context.emit_msgs_changed_without_msg_id(modified_chat_id);
+        chatlist_events::emit_chatlist_item_changed(context, modified_chat_id);
+    }
+    if !msg_ids.is_empty() {
+        context.emit_msgs_changed_without_ids();
+        chatlist_events::emit_chatlist_changed(context);
+        // Run housekeeping to delete unused blobs.
+        context
+            .set_config_internal(Config::LastHousekeeping, None)
+            .await?;
+    }
+    Ok(())
+}
+
 /// Deletes requested messages
 /// by moving them to the trash chat
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     let mut modified_chat_ids = BTreeSet::new();
-    let mut res = Ok(());
     let mut deleted_rfc724_mid = Vec::new();
+    let mut res = Ok(());
 
     for &msg_id in msg_ids {
         let msg = Message::load_from_db(context, msg_id).await?;
@@ -1719,29 +1743,17 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     }
     res?;
 
+    delete_msgs_locally_done(context, msg_ids, modified_chat_ids).await?;
+
+    // Interrupt Inbox loop to start message deletion and run housekeeping.
+    context.scheduler.interrupt_inbox().await;
+
     context
         .add_sync_item(SyncData::DeleteMessages {
             msgs: deleted_rfc724_mid,
         })
         .await?;
     context.send_sync_msg().await?;
-
-    for modified_chat_id in modified_chat_ids {
-        context.emit_msgs_changed_without_msg_id(modified_chat_id);
-        chatlist_events::emit_chatlist_item_changed(context, modified_chat_id);
-    }
-
-    if !msg_ids.is_empty() {
-        context.emit_msgs_changed_without_ids();
-        chatlist_events::emit_chatlist_changed(context);
-        // Run housekeeping to delete unused blobs.
-        context
-            .set_config_internal(Config::LastHousekeeping, None)
-            .await?;
-    }
-
-    // Interrupt Inbox loop to start message deletion and run housekeeping.
-    context.scheduler.interrupt_inbox().await;
     Ok(())
 }
 

@@ -17,6 +17,7 @@ use crate::sync::SyncData::{AddQrToken, AlterChat, DeleteQrToken};
 use crate::token::Namespace;
 use crate::tools::time;
 use crate::{message, stock_str, token};
+use std::collections::BTreeSet;
 
 /// Whether to send device sync messages. Aimed for usage in the internal API.
 #[derive(Debug, PartialEq)]
@@ -303,12 +304,17 @@ impl Context {
     }
 
     async fn sync_message_deletion(&self, msgs: &Vec<String>) -> Result<()> {
+        let mut modified_chat_ids = BTreeSet::new();
+        let mut msg_ids = Vec::new();
         for rfc724_mid in msgs {
             if let Some((msg_id, _)) = message::rfc724_mid_exists(self, rfc724_mid).await? {
                 let msg = Message::load_from_db(self, msg_id).await?;
                 message::delete_msg_locally(self, &msg).await?;
+                msg_ids.push(msg.id);
+                modified_chat_ids.insert(msg.chat_id);
             }
         }
+        message::delete_msgs_locally_done(self, &msg_ids, modified_chat_ids).await?;
         Ok(())
     }
 }
