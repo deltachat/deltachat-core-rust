@@ -85,27 +85,6 @@ def test_configure_unref(tmp_path):
     lib.dc_context_unref(dc_context)
 
 
-def test_export_import_self_keys(acfactory, tmp_path, lp):
-    ac1, ac2 = acfactory.get_online_accounts(2)
-
-    dir = tmp_path / "exportdir"
-    dir.mkdir()
-    export_files = ac1.export_self_keys(str(dir))
-    assert len(export_files) == 2
-    for x in export_files:
-        assert x.startswith(str(dir))
-    (key_id,) = ac1._evtracker.get_info_regex_groups(r".*xporting.*KeyId\((.*)\).*")
-    ac1._evtracker.consume_events()
-
-    lp.sec("exported keys (private and public)")
-    for name in dir.iterdir():
-        lp.indent(str(dir / name))
-    lp.sec("importing into existing account")
-    ac2.import_self_keys(str(dir))
-    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*")
-    assert key_id2 == key_id
-
-
 def test_one_account_send_bcc_setting(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account()
     ac2 = acfactory.new_online_configuring_account()
@@ -1595,53 +1574,6 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
     assert os.path.exists(path2)
     assert path2 != path
     assert ac2.get_latest_backupfile(str(backupdir)) == path2
-
-
-def test_ac_setup_message(acfactory, lp):
-    # note that the receiving account needs to be configured and running
-    # before the setup message is send. DC does not read old messages
-    # as of Jul2019
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
-
-    lp.sec("trigger ac setup message and return setupcode")
-    assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
-    setup_code = ac1.initiate_key_transfer()
-    ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-    msg = ac2.get_message_by_id(ev.data2)
-    assert msg.is_setup_message()
-    assert msg.get_setupcodebegin() == setup_code[:2]
-    lp.sec("try a bad setup code")
-    with pytest.raises(ValueError):
-        msg.continue_key_transfer(str(reversed(setup_code)))
-    lp.sec("try a good setup code")
-    print("*************** Incoming ASM File at: ", msg.filename)
-    print("*************** Setup Code: ", setup_code)
-    msg.continue_key_transfer(setup_code)
-    assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
-
-
-def test_ac_setup_message_twice(acfactory, lp):
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
-
-    lp.sec("trigger ac setup message but ignore")
-    assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
-    ac1.initiate_key_transfer()
-    ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-
-    lp.sec("trigger second ac setup message, wait for receive ")
-    setup_code2 = ac1.initiate_key_transfer()
-    ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-    msg = ac2.get_message_by_id(ev.data2)
-    assert msg.is_setup_message()
-    assert msg.get_setupcodebegin() == setup_code2[:2]
-
-    lp.sec("process second setup message")
-    msg.continue_key_transfer(setup_code2)
-    assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
 
 def test_qr_email_capitalization(acfactory, lp):

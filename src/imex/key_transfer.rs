@@ -75,7 +75,7 @@ pub async fn continue_key_transfer(
         let file = open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(&sc, file).await?;
-        set_self_key(context, &armored_key, true).await?;
+        set_self_key(context, &armored_key).await?;
         context.set_config_bool(Config::BccSelf, true).await?;
 
         Ok(())
@@ -315,18 +315,19 @@ mod tests {
         alice2.recv_msg(&sent).await;
         let msg = alice2.get_last_msg().await;
         assert!(msg.is_setupmessage());
-
-        // Send a message that cannot be decrypted because the keys are
-        // not synchronized yet.
-        let sent = alice2.send_text(msg.chat_id, "Test").await;
-        let trashed_message = alice.recv_msg_opt(&sent).await;
-        assert!(trashed_message.is_none());
-        assert_ne!(alice.get_last_msg().await.get_text(), "Test");
+        assert_eq!(
+            crate::key::load_self_secret_keyring(&alice2).await?.len(),
+            0
+        );
 
         // Transfer the key.
         alice2.set_config(Config::BccSelf, Some("0")).await?;
         continue_key_transfer(&alice2, msg.id, &setup_code).await?;
         assert_eq!(alice2.get_config_bool(Config::BccSelf).await?, true);
+        assert_eq!(
+            crate::key::load_self_secret_keyring(&alice2).await?.len(),
+            1
+        );
 
         // Alice sends a message to self from the new device.
         let sent = alice2.send_text(msg.chat_id, "Test").await;

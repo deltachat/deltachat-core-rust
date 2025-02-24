@@ -52,6 +52,9 @@ class Message:
         """Mark the message as seen."""
         self._rpc.markseen_msgs(self.account.id, [self.id])
 
+    def continue_autocrypt_key_transfer(self, setup_code: str) -> None:
+        self._rpc.continue_autocrypt_key_transfer(self.account.id, self.id, setup_code)
+
     def send_webxdc_status_update(self, update: Union[dict, str], description: str) -> None:
         """Send a webxdc status update. This message must be a webxdc."""
         if not isinstance(update, str):

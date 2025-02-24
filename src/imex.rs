@@ -138,7 +138,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
     }
 }
 
-async fn set_self_key(context: &Context, armored: &str, set_default: bool) -> Result<()> {
+async fn set_self_key(context: &Context, armored: &str) -> Result<()> {
     // try hard to only modify key-state
     let (private_key, header) = SignedSecretKey::from_asc(armored)?;
     let public_key = private_key.split_public_key()?;
@@ -170,16 +170,7 @@ async fn set_self_key(context: &Context, armored: &str, set_default: bool) -> Re
         public: public_key,
         secret: private_key,
     };
-    key::store_self_keypair(
-        context,
-        &keypair,
-        if set_default {
-            key::KeyPairUse::Default
-        } else {
-            key::KeyPairUse::ReadOnly
-        },
-    )
-    .await?;
+    key::store_self_keypair(context, &keypair).await?;
 
     info!(context, "stored self key: {:?}", keypair.secret.key_id());
     Ok(())
@@ -599,10 +590,10 @@ where
 }
 
 /// Imports secret key from a file.
-async fn import_secret_key(context: &Context, path: &Path, set_default: bool) -> Result<()> {
+async fn import_secret_key(context: &Context, path: &Path) -> Result<()> {
     let buf = read_file(context, path).await?;
     let armored = std::string::String::from_utf8_lossy(&buf);
-    set_self_key(context, &armored, set_default).await?;
+    set_self_key(context, &armored).await?;
     Ok(())
 }
 
@@ -624,8 +615,7 @@ async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
             "Importing secret key from {} as the default key.",
             path.display()
         );
-        let set_default = true;
-        import_secret_key(context, path, set_default).await?;
+        import_secret_key(context, path).await?;
         return Ok(());
     }
 
@@ -643,14 +633,13 @@ async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
         } else {
             continue;
         };
-        let set_default = !name_f.contains("legacy");
         info!(
             context,
             "Considering key file: {}.",
             path_plus_name.display()
         );
 
-        if let Err(err) = import_secret_key(context, &path_plus_name, set_default).await {
+        if let Err(err) = import_secret_key(context, &path_plus_name).await {
             warn!(
                 context,
                 "Failed to import secret key from {}: {:#}.",
@@ -871,7 +860,7 @@ mod tests {
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
 
-        let alice = &TestContext::new_alice().await;
+        let alice = &TestContext::new().await;
         if let Err(err) = imex(alice, ImexMode::ImportSelfKeys, Path::new(&filename), None).await {
             panic!("got error on import: {err:#}");
         }
@@ -893,7 +882,7 @@ mod tests {
             panic!("got error on export: {err:#}");
         }
 
-        let context2 = TestContext::new_alice().await;
+        let context2 = TestContext::new().await;
         if let Err(err) = imex(
             &context2.ctx,
             ImexMode::ImportSelfKeys,
@@ -920,14 +909,17 @@ mod tests {
         let alice = &TestContext::new_alice().await;
         let old_key = key::load_self_secret_key(alice).await?;
 
-        imex(alice, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
-
-        let new_key = key::load_self_secret_key(alice).await?;
-        assert_ne!(new_key, old_key);
-        assert_eq!(
-            key::load_self_secret_keyring(alice).await?,
-            vec![new_key, old_key]
+        assert!(
+            imex(alice, ImexMode::ImportSelfKeys, export_dir.path(), None)
+                .await
+                .is_err()
         );
+
+        // Importing a second key is not allowed anymore,
+        // even as a non-default key.
+        assert_eq!(key::load_self_secret_key(alice).await?, old_key);
+
+        assert_eq!(key::load_self_secret_keyring(alice).await?, vec![old_key]);
 
         let msg = alice.recv_msg(&sent).await;
         assert!(msg.get_showpadlock());
