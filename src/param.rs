@@ -3,6 +3,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::str;
 
+use anyhow::ensure;
 use anyhow::{bail, Error, Result};
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -365,7 +366,7 @@ impl Params {
         let Some(val) = self.get(Param::File) else {
             return Ok(None);
         };
-        debug_assert!(val.starts_with("$BLOBDIR/"));
+        ensure!(val.starts_with("$BLOBDIR/"));
         let blob = BlobObject::from_name(context, val.to_string())?;
         Ok(Some(blob))
     }
