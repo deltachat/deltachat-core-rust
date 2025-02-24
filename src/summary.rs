@@ -469,7 +469,8 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::File);
         msg.set_text(some_text.clone());
-        msg.param.set(Param::File, "foo.bar");
+        msg.set_file_from_bytes(ctx, "foo.bar", b"data", None)
+            .unwrap();
         msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_summary_texts(&msg, ctx, "Autocrypt Setup Message").await; // file name is not added for autocrypt setup messages
     }

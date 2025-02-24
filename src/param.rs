@@ -3,6 +3,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::str;
 
+use anyhow::ensure;
 use anyhow::{bail, Error, Result};
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -295,6 +296,9 @@ impl Params {
 
     /// Set the given key to the passed in value.
     pub fn set(&mut self, key: Param, value: impl ToString) -> &mut Self {
+        if key == Param::File {
+            debug_assert!(value.to_string().starts_with("$BLOBDIR/"));
+        }
         self.inner.insert(key, value.to_string());
         self
     }
@@ -357,59 +361,20 @@ impl Params {
         self.get(key).and_then(|s| s.parse().ok())
     }
 
-    /// Gets the given parameter and parse as [ParamsFile].
-    ///
-    /// See also [Params::get_blob] and [Params::get_path] which may
-    /// be more convenient.
-    pub fn get_file<'a>(&self, key: Param, context: &'a Context) -> Result<Option<ParamsFile<'a>>> {
-        let val = match self.get(key) {
-            Some(val) => val,
-            None => return Ok(None),
+    /// Returns a [BlobObject] for the [Param::File] parameter.
+    pub fn get_file_blob<'a>(&self, context: &'a Context) -> Result<Option<BlobObject<'a>>> {
+        let Some(val) = self.get(Param::File) else {
+            return Ok(None);
         };
-        ParamsFile::from_param(context, val).map(Some)
-    }
-
-    /// Gets the parameter and returns a [BlobObject] for it.
-    ///
-    /// This parses the parameter value as a [ParamsFile] and than
-    /// tries to return a [BlobObject] for that file.  If the file is
-    /// not yet a valid blob, one will be created by copying the file.
-    ///
-    /// Note that in the [ParamsFile::FsPath] case the blob can be
-    /// created without copying if the path already refers to a valid
-    /// blob.  If so a [BlobObject] will be returned.
-    pub async fn get_blob<'a>(
-        &self,
-        key: Param,
-        context: &'a Context,
-    ) -> Result<Option<BlobObject<'a>>> {
-        let val = match self.get(key) {
-            Some(val) => val,
-            None => return Ok(None),
-        };
-        let file = ParamsFile::from_param(context, val)?;
-        let blob = match file {
-            ParamsFile::FsPath(path) => BlobObject::new_from_path(context, &path).await?,
-            ParamsFile::Blob(blob) => blob,
-        };
+        ensure!(val.starts_with("$BLOBDIR/"));
+        let blob = BlobObject::from_name(context, val.to_string())?;
         Ok(Some(blob))
     }
 
-    /// Gets the parameter and returns a [PathBuf] for it.
-    ///
-    /// This parses the parameter value as a [ParamsFile] and returns
-    /// a [PathBuf] to the file.
-    pub fn get_path(&self, key: Param, context: &Context) -> Result<Option<PathBuf>> {
-        let val = match self.get(key) {
-            Some(val) => val,
-            None => return Ok(None),
-        };
-        let file = ParamsFile::from_param(context, val)?;
-        let path = match file {
-            ParamsFile::FsPath(path) => path,
-            ParamsFile::Blob(blob) => blob.to_abs_path(),
-        };
-        Ok(Some(path))
+    /// Returns a [PathBuf] for the [Param::File] parameter.
+    pub fn get_file_path(&self, context: &Context) -> Result<Option<PathBuf>> {
+        let blob = self.get_file_blob(context)?;
+        Ok(blob.map(|p| p.to_abs_path()))
     }
 
     /// Set the given parameter to the passed in `i32`.
@@ -431,48 +396,18 @@ impl Params {
     }
 }
 
-/// The value contained in [Param::File].
-///
-/// Because the only way to construct this object is from a valid
-/// UTF-8 string it is always safe to convert the value contained
-/// within the [ParamsFile::FsPath] back to a [String] or [&str].
-/// Despite the type itself does not guarantee this.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParamsFile<'a> {
-    FsPath(PathBuf),
-    Blob(BlobObject<'a>),
-}
-
-impl<'a> ParamsFile<'a> {
-    /// Parse the [Param::File] value into an object.
-    ///
-    /// If the value was stored into the [Params] correctly this
-    /// should not fail.
-    pub fn from_param(context: &'a Context, src: &str) -> Result<ParamsFile<'a>> {
-        let param = match src.starts_with("$BLOBDIR/") {
-            true => ParamsFile::Blob(BlobObject::from_name(context, src.to_string())?),
-            false => ParamsFile::FsPath(PathBuf::from(src)),
-        };
-        Ok(param)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
     use std::str::FromStr;
 
-    use tokio::fs;
-
     use super::*;
-    use crate::test_utils::TestContext;
 
     #[test]
     fn test_dc_param() {
-        let mut p1: Params = "a=1\nf=2\nc=3".parse().unwrap();
+        let mut p1: Params = "a=1\nw=2\nc=3".parse().unwrap();
 
         assert_eq!(p1.get_int(Param::Forwarded), Some(1));
-        assert_eq!(p1.get_int(Param::File), Some(2));
+        assert_eq!(p1.get_int(Param::Width), Some(2));
         assert_eq!(p1.get_int(Param::Height), None);
         assert!(!p1.exists(Param::Height));
 
@@ -483,13 +418,13 @@ mod tests {
         let mut p1 = Params::new();
 
         p1.set(Param::Forwarded, "foo")
-            .set_int(Param::File, 2)
+            .set_int(Param::Width, 2)
             .remove(Param::GuaranteeE2ee)
             .set_int(Param::Duration, 4);
 
-        assert_eq!(p1.to_string(), "a=foo\nd=4\nf=2");
+        assert_eq!(p1.to_string(), "a=foo\nd=4\nw=2");
 
-        p1.remove(Param::File);
+        p1.remove(Param::Width);
 
         assert_eq!(p1.to_string(), "a=foo\nd=4",);
         assert_eq!(p1.len(), 2);
@@ -509,56 +444,6 @@ mod tests {
         params.set(Param::Height, "foo\nbar=baz\nquux");
         params.set(Param::Width, "\n\n\na=\n=");
         assert_eq!(params.to_string().parse::<Params>().unwrap(), params);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_params_file_fs_path() {
-        let t = TestContext::new().await;
-        if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t, "/foo/bar/baz").unwrap() {
-            assert_eq!(p, Path::new("/foo/bar/baz"));
-        } else {
-            panic!("Wrong enum variant");
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_params_file_blob() {
-        let t = TestContext::new().await;
-        if let ParamsFile::Blob(b) = ParamsFile::from_param(&t, "$BLOBDIR/foo").unwrap() {
-            assert_eq!(b.as_name(), "$BLOBDIR/foo");
-        } else {
-            panic!("Wrong enum variant");
-        }
-    }
-
-    // Tests for Params::get_file(), Params::get_path() and Params::get_blob().
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_params_get_fileparam() {
-        let t = TestContext::new().await;
-        let fname = t.dir.path().join("foo");
-        let mut p = Params::new();
-        p.set(Param::File, fname.to_str().unwrap());
-
-        let file = p.get_file(Param::File, &t).unwrap().unwrap();
-        assert_eq!(file, ParamsFile::FsPath(fname.clone()));
-
-        let path: PathBuf = p.get_path(Param::File, &t).unwrap().unwrap();
-        assert_eq!(path, fname);
-
-        fs::write(fname, b"boo").await.unwrap();
-        let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
-        assert!(blob.as_name().starts_with("$BLOBDIR/foo"));
-
-        // Blob in blobdir, expect blob.
-        let bar_path = t.get_blobdir().join("bar");
-        p.set(Param::File, bar_path.to_str().unwrap());
-        let blob = p.get_blob(Param::File, &t).await.unwrap().unwrap();
-        assert_eq!(blob, BlobObject::from_name(&t, "bar".to_string()).unwrap());
-
-        p.remove(Param::File);
-        assert!(p.get_file(Param::File, &t).unwrap().is_none());
-        assert!(p.get_path(Param::File, &t).unwrap().is_none());
-        assert!(p.get_blob(Param::File, &t).await.unwrap().is_none());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

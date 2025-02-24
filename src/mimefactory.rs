@@ -1628,8 +1628,7 @@ async fn build_body_file(context: &Context, msg: &Message) -> Result<MimePart<'s
 
     let blob = msg
         .param
-        .get_blob(Param::File, context)
-        .await?
+        .get_file_blob(context)?
         .context("msg has no file")?;
 
     // Get file name to use for sending.  For privacy purposes, we do

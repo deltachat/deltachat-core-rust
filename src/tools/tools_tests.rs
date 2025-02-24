@@ -560,3 +560,38 @@ fn test_parse_mailto() {
         reps
     );
 }
+
+#[test]
+fn test_sanitize_filename() {
+    let name = sanitize_filename("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
+    assert!(!name.is_empty());
+
+    let name = sanitize_filename("wot.tar.gz");
+    assert_eq!(name, "wot.tar.gz");
+
+    let name = sanitize_filename(".foo.bar");
+    assert_eq!(name, "file.foo.bar");
+
+    let name = sanitize_filename("foo?.bar");
+    assert_eq!(name, "foo.bar");
+    assert!(!name.contains('?'));
+
+    let name = sanitize_filename("no-extension");
+    assert_eq!(name, "no-extension");
+
+    let name = sanitize_filename("path/ignored\\this: is* forbidden?.c");
+    assert_eq!(name, "this is forbidden.c");
+
+    let name =
+        sanitize_filename("file.with_lots_of_characters_behind_point_and_double_ending.tar.gz");
+    assert_eq!(
+        name,
+        "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz"
+    );
+
+    let name = sanitize_filename("a. tar.tar.gz");
+    assert_eq!(name, "a. tar.tar.gz");
+
+    let name = sanitize_filename("Guia_uso_GNB (v0.8).pdf");
+    assert_eq!(name, "Guia_uso_GNB (v0.8).pdf");
+}
