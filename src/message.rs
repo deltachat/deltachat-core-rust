@@ -1500,22 +1500,6 @@ pub async fn get_msg_read_receipts(
         .await
 }
 
-/// Returns true if the message can be edited.
-pub async fn can_send_edit_request(context: &Context, msg_id: MsgId) -> Result<bool> {
-    let msg = Message::load_from_db(context, msg_id).await?;
-    if msg.from_id != ContactId::SELF
-        || msg.is_info()
-        || msg.viewtype == Viewtype::VideochatInvitation
-        || msg.has_html()
-        || msg.text.is_empty()
-    {
-        return Ok(false);
-    }
-    let chat = Chat::load_from_db(context, msg.get_chat_id()).await?;
-    let can_send = chat.can_send(context).await?;
-    Ok(can_send)
-}
-
 pub(crate) fn guess_msgtype_from_suffix(msg: &Message) -> Option<(Viewtype, &'static str)> {
     msg.param
         .get(Param::Filename)

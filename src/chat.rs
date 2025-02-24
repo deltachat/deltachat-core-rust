@@ -3131,10 +3131,26 @@ pub async fn send_text_msg(
     send_msg(context, chat_id, &mut msg).await
 }
 
+/// Returns true if the message can be edited.
+pub async fn can_send_edit_request(context: &Context, msg_id: MsgId) -> Result<bool> {
+    let msg = Message::load_from_db(context, msg_id).await?;
+    if msg.from_id != ContactId::SELF
+        || msg.is_info()
+        || msg.viewtype == Viewtype::VideochatInvitation
+        || msg.has_html()
+        || msg.text.is_empty()
+    {
+        return Ok(false);
+    }
+    let chat = Chat::load_from_db(context, msg.get_chat_id()).await?;
+    let can_send = chat.can_send(context).await?;
+    Ok(can_send)
+}
+
 /// Sends chat members a request to edit the given message's text.
 pub async fn send_edit_request(context: &Context, msg_id: MsgId, new_text: String) -> Result<()> {
     ensure!(
-        message::can_send_edit_request(context, msg_id).await?,
+        can_send_edit_request(context, msg_id).await?,
         "Message cannot be edited"
     );
     ensure!(!new_text.trim().is_empty(), "Edited text cannot be empty");

@@ -1052,7 +1052,7 @@ pub unsafe extern "C" fn dc_can_send_edit_request(
     }
     let ctx = &*context;
 
-    block_on(message::can_send_edit_request(ctx, MsgId::new(msg_id)))
+    block_on(chat::can_send_edit_request(ctx, MsgId::new(msg_id)))
         .log_err(ctx)
         .unwrap_or_default() as libc::c_int
 }
