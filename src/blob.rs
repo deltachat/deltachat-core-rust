@@ -155,7 +155,7 @@ impl<'a> BlobObject<'a> {
             return Err(format_err!("bad blob name: {}", rel_path.display()));
         }
         let name = rel_path.to_str().context("wrong name")?;
-        BlobObject::from_name(context, name.to_string())
+        BlobObject::from_name(context, name)
     }
 
     /// Returns a [BlobObject] for an existing blob.
@@ -164,13 +164,13 @@ impl<'a> BlobObject<'a> {
     /// prefixed, as returned by [BlobObject::as_name].  This is how
     /// you want to create a [BlobObject] for a filename read from the
     /// database.
-    pub fn from_name(context: &'a Context, name: String) -> Result<BlobObject<'a>> {
-        let name: String = match name.starts_with("$BLOBDIR/") {
-            true => name.splitn(2, '/').last().unwrap().to_string(),
+    pub fn from_name(context: &'a Context, name: &str) -> Result<BlobObject<'a>> {
+        let name = match name.starts_with("$BLOBDIR/") {
+            true => name.splitn(2, '/').last().unwrap(),
             false => name,
         };
-        if !BlobObject::is_acceptible_blob_name(&name) {
-            return Err(format_err!("not an acceptable blob name: {}", &name));
+        if !BlobObject::is_acceptible_blob_name(name) {
+            return Err(format_err!("not an acceptable blob name: {}", name));
         }
         Ok(BlobObject {
             blobdir: context.get_blobdir(),

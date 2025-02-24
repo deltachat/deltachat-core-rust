@@ -1699,7 +1699,7 @@ async fn build_body_file(context: &Context, msg: &Message) -> Result<MimePart<'s
 
 async fn build_avatar_file(context: &Context, path: &str) -> Result<String> {
     let blob = match path.starts_with("$BLOBDIR/") {
-        true => BlobObject::from_name(context, path.to_string())?,
+        true => BlobObject::from_name(context, path)?,
         false => BlobObject::from_path(context, path.as_ref())?,
     };
     let body = fs::read(blob.to_abs_path()).await?;
