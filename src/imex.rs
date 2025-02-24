@@ -632,6 +632,7 @@ async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
     let mut imported_cnt = 0;
 
     let mut dir_handle = tokio::fs::read_dir(&path).await?;
+    let mut set_default = !context.config_exists(Config::KeyId).await?;
     while let Ok(Some(entry)) = dir_handle.next_entry().await {
         let entry_fn = entry.file_name();
         let name_f = entry_fn.to_string_lossy();
@@ -643,7 +644,6 @@ async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
         } else {
             continue;
         };
-        let set_default = !name_f.contains("legacy");
         info!(
             context,
             "Considering key file: {}.",
@@ -660,6 +660,7 @@ async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
             continue;
         }
 
+        set_default = false;
         imported_cnt += 1;
     }
     ensure!(
@@ -871,7 +872,7 @@ mod tests {
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
 
-        let alice = &TestContext::new_alice().await;
+        let alice = &TestContext::new().await;
         if let Err(err) = imex(alice, ImexMode::ImportSelfKeys, Path::new(&filename), None).await {
             panic!("got error on import: {err:#}");
         }
@@ -893,7 +894,7 @@ mod tests {
             panic!("got error on export: {err:#}");
         }
 
-        let context2 = TestContext::new_alice().await;
+        let context2 = TestContext::new().await;
         if let Err(err) = imex(
             &context2.ctx,
             ImexMode::ImportSelfKeys,
@@ -916,17 +917,20 @@ mod tests {
         let alice = &TestContext::new().await;
         alice.configure_addr("alice@example.org").await;
         imex(alice, ImexMode::ExportSelfKeys, export_dir.path(), None).await?;
+        let new_key = key::load_self_secret_key(alice).await?;
 
         let alice = &TestContext::new_alice().await;
         let old_key = key::load_self_secret_key(alice).await?;
 
         imex(alice, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
 
-        let new_key = key::load_self_secret_key(alice).await?;
-        assert_ne!(new_key, old_key);
+        // Importing a second key does not change our default key.
+        assert_eq!(key::load_self_secret_key(alice).await?, old_key);
+
+        // Keyring has two keys for decryption now.
         assert_eq!(
             key::load_self_secret_keyring(alice).await?,
-            vec![new_key, old_key]
+            vec![old_key, new_key]
         );
 
         let msg = alice.recv_msg(&sent).await;

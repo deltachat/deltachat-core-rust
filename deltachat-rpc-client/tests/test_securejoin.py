@@ -26,7 +26,9 @@ def test_qr_setup_contact(acfactory, tmp_path) -> None:
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
     assert bob_contact_alice_snapshot.is_verified
 
-    # Test that if Bob changes the key, backwards verification is lost.
+    # Test that if Bob imports a key,
+    # backwards verification is not lost
+    # because default key is not changed.
     logging.info("Bob 2 is created")
     bob2 = acfactory.new_configured_account()
     bob2.export_self_keys(tmp_path)
@@ -34,9 +36,9 @@ def test_qr_setup_contact(acfactory, tmp_path) -> None:
     logging.info("Bob imports a key")
     bob.import_self_keys(tmp_path)
 
-    assert bob.get_config("key_id") == "2"
+    assert bob.get_config("key_id") == "1"
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
-    assert not bob_contact_alice_snapshot.is_verified
+    assert bob_contact_alice_snapshot.is_verified
 
 
 def test_qr_setup_contact_svg(acfactory) -> None:

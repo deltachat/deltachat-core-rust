@@ -367,9 +367,12 @@ pub(crate) async fn store_self_keypair(
                 KeyPairUse::ReadOnly => false,
             };
 
+            // private_key and public_key columns
+            // are UNIQUE since migration 107,
+            // so this fails if we already have this key.
             transaction
                 .execute(
-                    "INSERT OR REPLACE INTO keypairs (public_key, private_key)
+                    "INSERT INTO keypairs (public_key, private_key)
                      VALUES (?,?)",
                     (&public_key, &secret_key),
                 )
@@ -377,8 +380,13 @@ pub(crate) async fn store_self_keypair(
 
             if is_default {
                 let new_key_id = transaction.last_insert_rowid();
+
+                // This will fail if we already have `key_id`.
+                //
+                // Setting default key is only possible if we don't
+                // have a key already.
                 transaction.execute(
-                    "INSERT OR REPLACE INTO config (keyname, value) VALUES ('key_id', ?)",
+                    "INSERT INTO config (keyname, value) VALUES ('key_id', ?)",
                     (new_key_id,),
                 )?;
                 Ok(Some(new_key_id))
@@ -700,6 +708,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(pubkey.primary_key, KEYPAIR.public.primary_key);
     }
 
+    /// Tests that setting a default key second time is not allowed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_self_key_twice() {
         // Saving the same key twice should result in only one row in
@@ -718,9 +727,11 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             .await
             .unwrap();
         assert_eq!(nrows().await, 1);
-        store_self_keypair(&ctx, &KEYPAIR, KeyPairUse::Default)
-            .await
-            .unwrap();
+
+        // Saving a second key fails.
+        let res = store_self_keypair(&ctx, &KEYPAIR, KeyPairUse::Default).await;
+        assert!(res.is_err());
+
         assert_eq!(nrows().await, 1);
     }
 
