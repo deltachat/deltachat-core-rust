@@ -92,7 +92,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     context.emit_msgs_changed_without_ids();
 }
 
-async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<()> {
+async fn poke_eml_file(context: &Context, filename: &Path) -> Result<()> {
     let data = read_file(context, filename).await?;
 
     if let Err(err) = receive_imf(context, &data, false).await {
@@ -126,7 +126,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
         real_spec = rs.unwrap();
     }
     if let Some(suffix) = get_filesuffix_lc(&real_spec) {
-        if suffix == "eml" && poke_eml_file(context, &real_spec).await.is_ok() {
+        if suffix == "eml" && poke_eml_file(context, Path::new(&real_spec)).await.is_ok() {
             read_cnt += 1
         }
     } else {
@@ -140,7 +140,10 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
                 if name.ends_with(".eml") {
                     let path_plus_name = format!("{}/{}", &real_spec, name);
                     println!("Import: {path_plus_name}");
-                    if poke_eml_file(context, path_plus_name).await.is_ok() {
+                    if poke_eml_file(context, Path::new(&path_plus_name))
+                        .await
+                        .is_ok()
+                    {
                         read_cnt += 1
                     }
                 }
@@ -1278,7 +1281,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "fileinfo" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing.");
 
-            if let Ok(buf) = read_file(&context, &arg1).await {
+            if let Ok(buf) = read_file(&context, Path::new(arg1)).await {
                 let (width, height) = get_filemeta(&buf)?;
                 println!("width={width}, height={height}");
             } else {

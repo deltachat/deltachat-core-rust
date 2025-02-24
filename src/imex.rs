@@ -600,7 +600,7 @@ where
 
 /// Imports secret key from a file.
 async fn import_secret_key(context: &Context, path: &Path, set_default: bool) -> Result<()> {
-    let buf = read_file(context, &path).await?;
+    let buf = read_file(context, path).await?;
     let armored = std::string::String::from_utf8_lossy(&buf);
     set_self_key(context, &armored, set_default).await?;
     Ok(())

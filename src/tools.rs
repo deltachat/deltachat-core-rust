@@ -482,8 +482,8 @@ pub(crate) async fn write_file(
 }
 
 /// Reads the file and returns its context as a byte vector.
-pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub async fn read_file(context: &Context, path: &Path) -> Result<Vec<u8>> {
+    let path_abs = get_abs_path(context, path);
 
     match fs::read(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -491,7 +491,7 @@ pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<
             warn!(
                 context,
                 "Cannot read \"{}\" or file is empty: {}",
-                path.as_ref().display(),
+                path.display(),
                 err
             );
             Err(err.into())
