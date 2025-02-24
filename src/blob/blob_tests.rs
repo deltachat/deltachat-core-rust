@@ -100,7 +100,7 @@ async fn test_create_long_names() {
     let t = TestContext::new().await;
     let s = format!("file.{}", "a".repeat(100));
     let blob = BlobObject::create_and_deduplicate_from_bytes(&t, b"data", &s).unwrap();
-    let blobname = blob.as_name().split('/').last().unwrap();
+    let blobname = blob.as_name().split('/').next_back().unwrap();
     assert!(blobname.len() < 70);
 }
 

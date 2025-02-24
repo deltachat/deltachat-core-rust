@@ -458,7 +458,9 @@ impl Sql {
     ///   in parallel with other transactions. NB: Creating and modifying temporary tables are also
     ///   allowed with `query_only`, temporary tables aren't visible in other connections, but you
     ///   need to pass `PRAGMA query_only=0;` to SQLite before that:
-    ///     `pragma_update(None, "query_only", "0")`.
+    ///   ```text
+    ///   pragma_update(None, "query_only", "0")
+    ///   ```
     ///   Also temporary tables need to be dropped because the connection is returned to the pool
     ///   then.
     ///
