@@ -3712,19 +3712,64 @@ async fn test_receive_edit_request_after_removal() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_cannot_edit_html() -> Result<()> {
+async fn test_cannot_send_edit_request() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = &tcm.alice().await;
     let bob = &tcm.bob().await;
-    let chat = alice.create_chat(bob).await;
+    let chat_id = alice
+        .create_group_with_members(ProtectionStatus::Unprotected, "My Group", &[bob])
+        .await;
 
-    let mut msg = Message::new_text("plain text".to_string());
-    msg.set_html(Some("<b>html</b> text".to_string()));
-    send_msg(alice, chat.id, &mut msg).await.unwrap();
-    assert!(msg.has_html());
-    assert!(send_edit_request(alice, msg.id, "foo".to_string())
+    // Alice can edit her message
+    let sent1 = alice.send_text(chat_id, "foo").await;
+    send_edit_request(alice, sent1.sender_msg_id, "bar".to_string()).await?;
+
+    // Bob cannot edit Alice's message
+    let msg = bob.recv_msg(&sent1).await;
+    assert!(send_edit_request(bob, msg.id, "bar".to_string())
         .await
         .is_err());
+
+    // HTML messages cannot be edited
+    let mut msg = Message::new_text("plain text".to_string());
+    msg.set_html(Some("<b>html</b> text".to_string()));
+    let sent2 = alice.send_msg(chat_id, &mut msg).await;
+    assert!(msg.has_html());
+    assert!(
+        send_edit_request(alice, sent2.sender_msg_id, "foo".to_string())
+            .await
+            .is_err()
+    );
+
+    // Info messages cannot be edited
+    set_chat_name(alice, chat_id, "bar").await?;
+    let msg = alice.get_last_msg().await;
+    assert!(msg.is_info());
+    assert_eq!(msg.from_id, ContactId::SELF);
+    assert!(send_edit_request(alice, msg.id, "bar".to_string())
+        .await
+        .is_err());
+
+    // Videochat invitations cannot be edited
+    alice
+        .set_config(Config::WebrtcInstance, Some("https://foo.bar"))
+        .await?;
+    let msg_id = send_videochat_invitation(alice, chat_id).await?;
+    assert!(send_edit_request(alice, msg_id, "bar".to_string())
+        .await
+        .is_err());
+
+    // If not text was given initally, there is nothing to edit
+    // (this also avoids complexity in UI element changes; focus is typos and rewordings)
+    let mut msg = Message::new(Viewtype::File);
+    msg.make_vcard(alice, &[ContactId::SELF]).await?;
+    let sent3 = alice.send_msg(chat_id, &mut msg).await;
+    assert!(msg.text.is_empty());
+    assert!(
+        send_edit_request(alice, sent3.sender_msg_id, "bar".to_string())
+            .await
+            .is_err()
+    );
 
     Ok(())
 }
