@@ -1435,7 +1435,7 @@ impl Contact {
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if self.id == ContactId::SELF {
             if let Some(p) = context.get_config(Config::Selfavatar).await? {
-                return Ok(Some(PathBuf::from(p)));
+                return Ok(Some(PathBuf::from(p))); // get_config() calls get_abs_path() internally already
             }
         } else if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
