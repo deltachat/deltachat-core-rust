@@ -215,7 +215,7 @@ class Message:
         """extract key and use it as primary key for this account."""
         res = lib.dc_continue_key_transfer(self.account._dc_context, self.id, as_dc_charpointer(setup_code))
         if res == 0:
-            raise ValueError("could not decrypt")
+            raise ValueError("Importing the key from Autocrypt Setup Message failed")
 
     @props.with_doc
     def time_sent(self):

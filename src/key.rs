@@ -289,7 +289,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
                 .spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
                 .await??;
 
-            store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
+            store_self_keypair(context, &keypair).await?;
             info!(
                 context,
                 "Keypair generated in {:.3}s.",
@@ -326,18 +326,6 @@ pub(crate) async fn load_keypair(context: &Context) -> Result<Option<KeyPair>> {
     })
 }
 
-/// Use of a key pair for encryption or decryption.
-///
-/// This is used by `store_self_keypair` to know what kind of key is
-/// being saved.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum KeyPairUse {
-    /// The default key used to encrypt new messages.
-    Default,
-    /// Only used to decrypt existing message.
-    ReadOnly,
-}
-
 /// Store the keypair as an owned keypair for addr in the database.
 ///
 /// This will save the keypair as keys for the given address.  The
@@ -350,11 +338,7 @@ pub enum KeyPairUse {
 /// same key again overwrites it.
 ///
 /// [Config::ConfiguredAddr]: crate::config::Config::ConfiguredAddr
-pub(crate) async fn store_self_keypair(
-    context: &Context,
-    keypair: &KeyPair,
-    default: KeyPairUse,
-) -> Result<()> {
+pub(crate) async fn store_self_keypair(context: &Context, keypair: &KeyPair) -> Result<()> {
     let mut config_cache_lock = context.sql.config_cache.write().await;
     let new_key_id = context
         .sql
@@ -362,29 +346,28 @@ pub(crate) async fn store_self_keypair(
             let public_key = DcKey::to_bytes(&keypair.public);
             let secret_key = DcKey::to_bytes(&keypair.secret);
 
-            let is_default = match default {
-                KeyPairUse::Default => true,
-                KeyPairUse::ReadOnly => false,
-            };
-
+            // private_key and public_key columns
+            // are UNIQUE since migration 107,
+            // so this fails if we already have this key.
             transaction
                 .execute(
-                    "INSERT OR REPLACE INTO keypairs (public_key, private_key)
+                    "INSERT INTO keypairs (public_key, private_key)
                      VALUES (?,?)",
                     (&public_key, &secret_key),
                 )
                 .context("Failed to insert keypair")?;
 
-            if is_default {
-                let new_key_id = transaction.last_insert_rowid();
-                transaction.execute(
-                    "INSERT OR REPLACE INTO config (keyname, value) VALUES ('key_id', ?)",
-                    (new_key_id,),
-                )?;
-                Ok(Some(new_key_id))
-            } else {
-                Ok(None)
-            }
+            let new_key_id = transaction.last_insert_rowid();
+
+            // This will fail if we already have `key_id`.
+            //
+            // Setting default key is only possible if we don't
+            // have a key already.
+            transaction.execute(
+                "INSERT INTO config (keyname, value) VALUES ('key_id', ?)",
+                (new_key_id,),
+            )?;
+            Ok(Some(new_key_id))
         })
         .await?;
 
@@ -405,7 +388,7 @@ pub async fn preconfigure_keypair(context: &Context, secret_data: &str) -> Resul
     let secret = SignedSecretKey::from_asc(secret_data)?.0;
     let public = secret.split_public_key()?;
     let keypair = KeyPair { public, secret };
-    store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
+    store_self_keypair(context, &keypair).await?;
     Ok(())
 }
 
@@ -700,6 +683,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(pubkey.primary_key, KEYPAIR.public.primary_key);
     }
 
+    /// Tests that setting a default key second time is not allowed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_self_key_twice() {
         // Saving the same key twice should result in only one row in
@@ -714,13 +698,13 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
                 .unwrap()
         };
         assert_eq!(nrows().await, 0);
-        store_self_keypair(&ctx, &KEYPAIR, KeyPairUse::Default)
-            .await
-            .unwrap();
+        store_self_keypair(&ctx, &KEYPAIR).await.unwrap();
         assert_eq!(nrows().await, 1);
-        store_self_keypair(&ctx, &KEYPAIR, KeyPairUse::Default)
-            .await
-            .unwrap();
+
+        // Saving a second key fails.
+        let res = store_self_keypair(&ctx, &KEYPAIR).await;
+        assert!(res.is_err());
+
         assert_eq!(nrows().await, 1);
     }
 

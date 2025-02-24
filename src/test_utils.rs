@@ -33,7 +33,7 @@ use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventEmitter, EventType, Events};
-use crate::key::{self, DcKey, KeyPairUse};
+use crate::key::{self, DcKey};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::peerstate::Peerstate;
@@ -271,7 +271,7 @@ impl TestContextBuilder {
 
             let test_context = TestContext::new_internal(Some(name), self.log_sink).await;
             test_context.configure_addr(&addr).await;
-            key::store_self_keypair(&test_context, &key_pair, KeyPairUse::Default)
+            key::store_self_keypair(&test_context, &key_pair)
                 .await
                 .expect("Failed to save key");
             test_context

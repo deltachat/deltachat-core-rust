@@ -38,7 +38,7 @@ use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::sync::Sync::*;
 use crate::tools::time;
-use crate::{chat, e2ee, provider};
+use crate::{chat, provider};
 use crate::{stock_str, EventType};
 use deltachat_contact_tools::addr_cmp;
 
@@ -472,9 +472,6 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
         .await?;
 
     progress!(ctx, 920);
-
-    e2ee::ensure_secret_key_exists(ctx).await?;
-    info!(ctx, "key generation completed");
 
     ctx.set_config_internal(Config::FetchedExistingMsgs, config::from_bool(false))
         .await?;
