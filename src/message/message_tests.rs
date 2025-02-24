@@ -772,7 +772,6 @@ async fn test_delete_msgs_sync() -> Result<()> {
     let sent1 = alice.send_text(alice_chat_id, "foo").await;
     assert_eq!(alice_chat_id.get_msg_cnt(alice).await?, 1);
 
-    let alice2 = &tcm.alice().await;
     let msg = alice2.recv_msg(&sent1).await;
     let alice2_chat_id = msg.chat_id;
     assert_eq!(alice2.get_last_msg_in(alice2_chat_id).await.id, msg.id);
@@ -783,7 +782,7 @@ async fn test_delete_msgs_sync() -> Result<()> {
     assert_eq!(alice_chat_id.get_msg_cnt(alice).await?, 0);
 
     let sent3 = alice.pop_sent_sync_msg().await;
-    alice2.recv_msg_opt(&sent3).await;
+    alice2.recv_msg_trash(&sent3).await;
     assert_eq!(alice2_chat_id.get_msg_cnt(alice2).await?, 0);
 
     Ok(())
