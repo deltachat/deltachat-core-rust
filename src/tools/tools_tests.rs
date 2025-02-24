@@ -282,7 +282,7 @@ async fn test_file_handling() {
         };
     }
 
-    assert!(delete_file(context, "$BLOBDIR/lkqwjelqkwlje".as_ref())
+    assert!(delete_file(context, Path::new("$BLOBDIR/lkqwjelqkwlje"))
         .await
         .is_err());
     assert!(write_file(context, "$BLOBDIR/foobar", b"content")
@@ -291,7 +291,7 @@ async fn test_file_handling() {
     assert!(file_exist!(context, "$BLOBDIR/foobar"));
     assert!(!file_exist!(context, "$BLOBDIR/foobarx"));
     assert_eq!(
-        get_filebytes(context, "$BLOBDIR/foobar".as_ref())
+        get_filebytes(context, Path::new("$BLOBDIR/foobar"))
             .await
             .unwrap(),
         7
@@ -305,21 +305,21 @@ async fn test_file_handling() {
 
     assert!(file_exist!(context, &abs_path));
 
-    assert!(delete_file(context, "$BLOBDIR/foobar".as_ref())
+    assert!(delete_file(context, Path::new("$BLOBDIR/foobar"))
         .await
         .is_ok());
     assert!(create_folder(context, "$BLOBDIR/foobar-folder")
         .await
         .is_ok());
     assert!(file_exist!(context, "$BLOBDIR/foobar-folder"));
-    assert!(delete_file(context, "$BLOBDIR/foobar-folder".as_ref())
+    assert!(delete_file(context, Path::new("$BLOBDIR/foobar-folder"))
         .await
         .is_err());
 
     let fn0 = "$BLOBDIR/data.data";
     assert!(write_file(context, &fn0, b"content").await.is_ok());
 
-    assert!(delete_file(context, &fn0.as_ref()).await.is_ok());
+    assert!(delete_file(context, Path::new(fn0)).await.is_ok());
     assert!(!file_exist!(context, &fn0));
 }
 

@@ -355,7 +355,6 @@ pub(crate) async fn get_filebytes(context: &Context, path: &Path) -> Result<u64>
 }
 
 pub(crate) async fn delete_file(context: &Context, path: &Path) -> Result<()> {
-    let path = path.as_ref();
     let path_abs = get_abs_path(context, path);
     if !path_abs.exists() {
         bail!("path {} does not exist", path_abs.display());
