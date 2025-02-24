@@ -308,7 +308,7 @@ async fn test_file_handling() {
     assert!(delete_file(context, Path::new("$BLOBDIR/foobar"))
         .await
         .is_ok());
-    assert!(create_folder(context, "$BLOBDIR/foobar-folder")
+    assert!(create_folder(context, Path::new("$BLOBDIR/foobar-folder"))
         .await
         .is_ok());
     assert!(file_exist!(context, "$BLOBDIR/foobar-folder"));

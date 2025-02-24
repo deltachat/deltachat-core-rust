@@ -442,11 +442,8 @@ impl AsRef<Path> for TempPathGuard {
     }
 }
 
-pub(crate) async fn create_folder(
-    context: &Context,
-    path: impl AsRef<Path>,
-) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub(crate) async fn create_folder(context: &Context, path: &Path) -> Result<(), io::Error> {
+    let path_abs = get_abs_path(context, path);
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
@@ -454,7 +451,7 @@ pub(crate) async fn create_folder(
                 warn!(
                     context,
                     "Cannot create directory \"{}\": {}",
-                    path.as_ref().display(),
+                    path.display(),
                     err
                 );
                 Err(err)
