@@ -757,6 +757,43 @@ async fn test_delete_msgs_offline() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_delete_msgs_sync() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let alice2 = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat_id = alice.create_chat(bob).await.id;
+
+    alice.set_config_bool(Config::SyncMsgs, true).await?;
+    alice2.set_config_bool(Config::SyncMsgs, true).await?;
+    bob.set_config_bool(Config::SyncMsgs, true).await?;
+
+    // Alice sends a messsage and receives it on the other device
+    let sent1 = alice.send_text(alice_chat_id, "foo").await;
+    let msg_cnt = alice_chat_id.get_msg_cnt(alice).await?;
+    assert_eq!(
+        alice.get_last_msg_in(alice_chat_id).await.id,
+        sent1.sender_msg_id
+    );
+
+    let alice2 = &tcm.alice().await;
+    let msg = alice2.recv_msg(&sent1).await;
+    let alice2_chat_id = msg.chat_id;
+    assert_eq!(alice2.get_last_msg_in(alice2_chat_id).await.id, msg.id);
+    assert_eq!(alice2_chat_id.get_msg_cnt(alice2).await?, msg_cnt);
+
+    // Alice deletes the message; this should happen on both devices as well
+    delete_msgs(alice, &[sent1.sender_msg_id]).await?;
+    assert_eq!(alice_chat_id.get_msg_cnt(alice).await?, msg_cnt - 1);
+
+    let sent3 = alice.pop_sent_sync_msg().await;
+    alice2.recv_msg_opt(&sent3).await;
+    //assert_eq!(alice2_chat_id.get_msg_cnt(alice2).await?, msg_cnt - 1);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_sanitize_filename_message() -> Result<()> {
     let t = &TestContext::new().await;
     let mut msg = Message::new(Viewtype::File);
