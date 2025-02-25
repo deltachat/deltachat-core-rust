@@ -616,6 +616,7 @@ def test_verified_group_vs_delete_server_after(acfactory, tmp_path, lp):
     - Now the seconds device has all members verified.
     """
     ac1, ac2 = acfactory.get_online_accounts(2)
+    acfactory.remove_preconfigured_keys()
     ac2_offl = acfactory.new_online_configuring_account(cloned_from=ac2)
     for ac in [ac2, ac2_offl]:
         ac.set_config("bcc_self", "1")
