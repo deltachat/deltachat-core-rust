@@ -1597,31 +1597,6 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
     assert ac2.get_latest_backupfile(str(backupdir)) == path2
 
 
-def test_ac_setup_message(acfactory, lp):
-    # note that the receiving account needs to be configured and running
-    # before the setup message is send. DC does not read old messages
-    # as of Jul2019
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
-
-    lp.sec("trigger ac setup message and return setupcode")
-    assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
-    setup_code = ac1.initiate_key_transfer()
-    ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-    msg = ac2.get_message_by_id(ev.data2)
-    assert msg.is_setup_message()
-    assert msg.get_setupcodebegin() == setup_code[:2]
-    lp.sec("try a bad setup code")
-    with pytest.raises(ValueError):
-        msg.continue_key_transfer(str(reversed(setup_code)))
-    lp.sec("try a good setup code")
-    print("*************** Incoming ASM File at: ", msg.filename)
-    print("*************** Setup Code: ", setup_code)
-    msg.continue_key_transfer(setup_code)
-    assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
-
-
 def test_ac_setup_message_twice(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account()
     ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
