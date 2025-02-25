@@ -1405,9 +1405,13 @@ async fn add_parts(
     // This does not help if parent message arrives later than the
     // reply.
     let parent_timestamp = mime_parser.get_parent_timestamp(context).await?;
-    let sort_timestamp = parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
-        std::cmp::max(sort_timestamp, parent_timestamp)
-    });
+    let sort_timestamp = if group_changes.silent {
+        get_last_msg_timestamp(context, chat_id).await?
+    } else {
+        parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
+            std::cmp::max(sort_timestamp, parent_timestamp)
+        })
+    };
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
@@ -1802,6 +1806,26 @@ RETURNING id
         needs_delete_job,
         #[cfg(test)]
         from_is_signed: mime_parser.from_is_signed,
+    })
+}
+
+async fn get_last_msg_timestamp(context: &Context, chat_id: ChatId) -> Result<i64> {
+    let last_msg_timestamp = context
+        .sql
+        .query_get_value(
+            "SELECT id
+FROM msgs
+WHERE chat_id=?
+AND hidden=0
+ORDER BY timestamp DESC, id DESC LIMIT 1",
+            (chat_id,),
+        )
+        .await?;
+
+    Ok(if let Some(t) = last_msg_timestamp {
+        t
+    } else {
+        chat_id.get_created_timestamp(context).await?
     })
 }
 

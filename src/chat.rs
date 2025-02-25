@@ -1480,6 +1480,14 @@ impl ChatId {
             Result::<()>::Ok(())
         });
     }
+
+    pub(crate) async fn get_created_timestamp(&self, context: &Context) -> Result<i64> {
+        Ok(context
+            .sql
+            .query_get_value("SELECT created_timestamp FROM chats WHERE id=?;", (self,))
+            .await?
+            .unwrap_or(0))
+    }
 }
 
 impl std::fmt::Display for ChatId {
