@@ -695,15 +695,31 @@ async fn test_leave_group() -> Result<()> {
 
     assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
 
+    // Clear events so that we can later check
+    // that the 'Group left' message didn't trigger IncomingMsg:
+    alice.evtracker.clear_events();
+
     // Bob leaves the group.
     let bob_chat_id = bob_msg.chat_id;
     bob_chat_id.accept(&bob).await?;
     remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
 
     let leave_msg = bob.pop_sent_msg().await;
-    alice.recv_msg(&leave_msg).await;
+    let rcvd = alice.recv_msg(&leave_msg).await;
 
     assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 1);
+
+    assert_eq!(rcvd.state, MessageState::InSeen);
+
+    alice.emit_event(EventType::Test);
+    alice
+        .evtracker
+        .get_matching(|ev| match ev {
+            EventType::Test => true,
+            EventType::IncomingMsg { .. } => panic!("'Group left' message should be silent"),
+            _ => false,
+        })
+        .await;
 
     Ok(())
 }
