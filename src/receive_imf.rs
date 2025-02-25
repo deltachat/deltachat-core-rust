@@ -730,7 +730,7 @@ async fn add_parts(
     let mut chat_id_blocked = Blocked::Not;
 
     let mut better_msg = None;
-    let mut group_changes_msgs = (Vec::new(), None);
+    let mut group_changes = GroupChangesInfo::default();
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
         better_msg = Some(stock_str::msg_location_enabled_by(context, from_id).await);
     }
@@ -922,7 +922,7 @@ async fn add_parts(
                 }
             }
 
-            group_changes_msgs = apply_group_changes(
+            group_changes = apply_group_changes(
                 context,
                 mime_parser,
                 group_chat_id,
@@ -1040,7 +1040,11 @@ async fn add_parts(
             }
         }
 
-        state = if seen || fetching_existing_messages || is_mdn || chat_id_blocked == Blocked::Yes
+        state = if seen
+            || fetching_existing_messages
+            || is_mdn
+            || chat_id_blocked == Blocked::Yes
+            || group_changes.silent
         // No check for `hidden` because only reactions are such and they should be `InFresh`.
         {
             MessageState::InSeen
@@ -1189,7 +1193,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            group_changes_msgs = apply_group_changes(
+            group_changes = apply_group_changes(
                 context,
                 mime_parser,
                 chat_id,
@@ -1447,19 +1451,19 @@ async fn add_parts(
 
     let mut created_db_entries = Vec::with_capacity(mime_parser.parts.len());
 
-    if let Some(msg) = group_changes_msgs.1 {
+    if let Some(m) = group_changes.better_msg {
         match &better_msg {
-            None => better_msg = Some(msg),
+            None => better_msg = Some(m),
             Some(_) => {
-                if !msg.is_empty() {
-                    group_changes_msgs.0.push(msg)
+                if !m.is_empty() {
+                    group_changes.extra_msgs.push(m)
                 }
             }
         }
     }
 
-    for group_changes_msg in group_changes_msgs.0 {
-        // Currently all additional group changes messages are "Member added".
+    for group_changes_msg in group_changes.extra_msgs {
+        // Currently all additional group changes messages are "Member added". // TODO this is wrong today
         chat::add_info_msg_with_cmd(
             context,
             chat_id,
@@ -2249,11 +2253,23 @@ async fn update_chats_contacts_timestamps(
     Ok(modified)
 }
 
+/// The return type of [apply_group_changes].
+/// Contains information on which system messages
+/// should be shown in the chat.
+#[derive(Default)]
+struct GroupChangesInfo {
+    /// Optional: A better message that should replace the original system message.
+    /// If this is an empty string, the original system message should be trashed.
+    better_msg: Option<String>,
+    /// If true, the user should not be notified about the group change.
+    silent: bool,
+    /// A list of additional group changes messages that should be shown in the chat.
+    extra_msgs: Vec<String>,
+}
+
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
 ///
-/// Returns `Vec` of group changes messages and, optionally, a better message to replace the
-/// original system message. If the better message is empty, the original system message
-/// should be trashed.
+/// Returns [GroupChangesInfo].
 ///
 /// * `to_ids` - contents of the `To` and `Cc` headers.
 /// * `past_ids` - contents of the `Chat-Group-Past-Members` header.
@@ -2265,19 +2281,20 @@ async fn apply_group_changes(
     to_ids: &[ContactId],
     past_ids: &[ContactId],
     verified_encryption: &VerifiedEncryption,
-) -> Result<(Vec<String>, Option<String>)> {
+) -> Result<GroupChangesInfo> {
     if chat_id.is_special() {
         // Do not apply group changes to the trash chat.
-        return Ok((Vec::new(), None));
+        return Ok(GroupChangesInfo::default());
     }
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
-        return Ok((Vec::new(), None));
+        return Ok(GroupChangesInfo::default());
     }
 
     let mut send_event_chat_modified = false;
     let (mut removed_id, mut added_id) = (None, None);
     let mut better_msg = None;
+    let mut silent = false;
 
     // True if a Delta Chat client has explicitly added our current primary address.
     let self_added =
@@ -2315,6 +2332,7 @@ async fn apply_group_changes(
         removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
         if let Some(id) = removed_id {
             better_msg = if id == from_id {
+                silent = true;
                 Some(stock_str::msg_group_left_local(context, from_id).await)
             } else {
                 Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
@@ -2541,7 +2559,11 @@ async fn apply_group_changes(
         context.emit_event(EventType::ChatModified(chat_id));
         chatlist_events::emit_chatlist_item_changed(context, chat_id);
     }
-    Ok((group_changes_msgs, better_msg))
+    Ok(GroupChangesInfo {
+        better_msg,
+        silent,
+        extra_msgs: group_changes_msgs,
+    })
 }
 
 /// Returns a list of strings that should be shown as info messages, informing about group membership changes.
