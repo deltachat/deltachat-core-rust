@@ -86,7 +86,9 @@ def test_configure_unref(tmp_path):
 
 
 def test_export_import_self_keys(acfactory, tmp_path, lp):
-    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1, = acfactory.get_online_accounts(1)
+    acfactory.remove_preconfigured_keys()
+    ac2, = acfactory.get_online_accounts(1)
 
     dir = tmp_path / "exportdir"
     dir.mkdir()
