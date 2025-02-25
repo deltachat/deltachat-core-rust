@@ -1,6 +1,7 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -1693,7 +1694,7 @@ pub(crate) async fn delete_msg_locally(context: &Context, msg: &Message) -> Resu
 pub(crate) async fn delete_msgs_locally_done(
     context: &Context,
     msg_ids: &[MsgId],
-    modified_chat_ids: BTreeSet<ChatId>,
+    modified_chat_ids: HashSet<ChatId>,
 ) -> Result<()> {
     for modified_chat_id in modified_chat_ids {
         context.emit_msgs_changed_without_msg_id(modified_chat_id);
@@ -1714,7 +1715,7 @@ pub(crate) async fn delete_msgs_locally_done(
 /// by moving them to the trash chat
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
-    let mut modified_chat_ids = BTreeSet::new();
+    let mut modified_chat_ids = HashSet::new();
     let mut deleted_rfc724_mid = Vec::new();
     let mut res = Ok(());
 
