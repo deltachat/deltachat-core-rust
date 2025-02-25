@@ -720,6 +720,9 @@ async fn test_leave_group() -> Result<()> {
         .get_matching(|ev| match ev {
             EventType::Test => true,
             EventType::IncomingMsg { .. } => panic!("'Group left' message should be silent"),
+            EventType::MsgsNoticed(..) => {
+                panic!("'Group left' message shouldn't clear notifications")
+            }
             _ => false,
         })
         .await;
