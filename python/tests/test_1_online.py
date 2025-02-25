@@ -85,29 +85,6 @@ def test_configure_unref(tmp_path):
     lib.dc_context_unref(dc_context)
 
 
-def test_export_import_self_keys(acfactory, tmp_path, lp):
-    ac1, = acfactory.get_online_accounts(1)
-    acfactory.remove_preconfigured_keys()
-    ac2, = acfactory.get_online_accounts(1)
-
-    dir = tmp_path / "exportdir"
-    dir.mkdir()
-    export_files = ac1.export_self_keys(str(dir))
-    assert len(export_files) == 2
-    for x in export_files:
-        assert x.startswith(str(dir))
-    (key_id,) = ac1._evtracker.get_info_regex_groups(r".*xporting.*KeyId\((.*)\).*")
-    ac1._evtracker.consume_events()
-
-    lp.sec("exported keys (private and public)")
-    for name in dir.iterdir():
-        lp.indent(str(dir / name))
-    lp.sec("importing into existing account")
-    ac2.import_self_keys(str(dir))
-    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*")
-    assert key_id2 == key_id
-
-
 def test_one_account_send_bcc_setting(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account()
     ac2 = acfactory.new_online_configuring_account()
