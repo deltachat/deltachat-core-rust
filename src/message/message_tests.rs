@@ -779,6 +779,7 @@ async fn test_delete_msgs_sync() -> Result<()> {
 
     // Alice deletes the message; this should happen on both devices as well
     delete_msgs(alice, &[sent1.sender_msg_id]).await?;
+    alice.send_sync_msg().await?;
     assert_eq!(alice_chat_id.get_msg_cnt(alice).await?, 0);
 
     let sent3 = alice.pop_sent_sync_msg().await;

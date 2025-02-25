@@ -1746,15 +1746,15 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     delete_msgs_locally_done(context, msg_ids, modified_chat_ids).await?;
 
-    // Interrupt Inbox loop to start message deletion and run housekeeping.
-    context.scheduler.interrupt_inbox().await;
-
     context
         .add_sync_item(SyncData::DeleteMessages {
             msgs: deleted_rfc724_mid,
         })
         .await?;
-    context.send_sync_msg().await?;
+
+    // Interrupt Inbox loop to start message deletion, run housekeeping and call send_sync_msg().
+    context.scheduler.interrupt_inbox().await;
+
     Ok(())
 }
 
