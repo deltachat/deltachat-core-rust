@@ -973,7 +973,7 @@ impl Message {
         }
 
         if let Some(filename) = self.get_file(context) {
-            if let Ok(ref buf) = read_file(context, filename).await {
+            if let Ok(ref buf) = read_file(context, &filename).await {
                 if let Ok((typ, headers, _)) = split_armored_data(buf) {
                     if typ == pgp::armor::BlockType::Message {
                         return headers.get(crate::pgp::HEADER_SETUPCODE).cloned();

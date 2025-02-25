@@ -400,11 +400,11 @@ impl TestContext {
     /// Sets a name for this [`TestContext`] if one isn't yet set.
     ///
     /// This will show up in events logged in the test output.
-    pub fn set_name(&self, name: impl Into<String>) {
+    pub fn set_name(&self, name: &str) {
         let mut context_names = CONTEXT_NAMES.write().unwrap();
         context_names
             .entry(self.ctx.get_id())
-            .or_insert_with(|| name.into());
+            .or_insert_with(|| name.to_string());
     }
 
     /// Returns the name of this [`TestContext`].

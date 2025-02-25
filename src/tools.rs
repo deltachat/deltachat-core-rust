@@ -348,14 +348,13 @@ pub(crate) fn get_abs_path(context: &Context, path: &Path) -> PathBuf {
     }
 }
 
-pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> Result<u64> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub(crate) async fn get_filebytes(context: &Context, path: &Path) -> Result<u64> {
+    let path_abs = get_abs_path(context, path);
     let meta = fs::metadata(&path_abs).await?;
     Ok(meta.len())
 }
 
-pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Result<()> {
-    let path = path.as_ref();
+pub(crate) async fn delete_file(context: &Context, path: &Path) -> Result<()> {
     let path_abs = get_abs_path(context, path);
     if !path_abs.exists() {
         bail!("path {} does not exist", path_abs.display());
@@ -443,11 +442,8 @@ impl AsRef<Path> for TempPathGuard {
     }
 }
 
-pub(crate) async fn create_folder(
-    context: &Context,
-    path: impl AsRef<Path>,
-) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub(crate) async fn create_folder(context: &Context, path: &Path) -> Result<(), io::Error> {
+    let path_abs = get_abs_path(context, path);
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
@@ -455,7 +451,7 @@ pub(crate) async fn create_folder(
                 warn!(
                     context,
                     "Cannot create directory \"{}\": {}",
-                    path.as_ref().display(),
+                    path.display(),
                     err
                 );
                 Err(err)
@@ -469,16 +465,16 @@ pub(crate) async fn create_folder(
 /// Write a the given content to provided file path.
 pub(crate) async fn write_file(
     context: &Context,
-    path: impl AsRef<Path>,
+    path: &Path,
     buf: &[u8],
 ) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, path.as_ref());
+    let path_abs = get_abs_path(context, path);
     fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
             context,
             "Cannot write {} bytes to \"{}\": {}",
             buf.len(),
-            path.as_ref().display(),
+            path.display(),
             err
         );
         err
@@ -486,8 +482,8 @@ pub(crate) async fn write_file(
 }
 
 /// Reads the file and returns its context as a byte vector.
-pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub async fn read_file(context: &Context, path: &Path) -> Result<Vec<u8>> {
+    let path_abs = get_abs_path(context, path);
 
     match fs::read(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -495,7 +491,7 @@ pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<
             warn!(
                 context,
                 "Cannot read \"{}\" or file is empty: {}",
-                path.as_ref().display(),
+                path.display(),
                 err
             );
             Err(err.into())
@@ -503,8 +499,8 @@ pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<
     }
 }
 
-pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::File> {
-    let path_abs = get_abs_path(context, path.as_ref());
+pub async fn open_file(context: &Context, path: &Path) -> Result<fs::File> {
+    let path_abs = get_abs_path(context, path);
 
     match fs::File::open(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -512,7 +508,7 @@ pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::
             warn!(
                 context,
                 "Cannot read \"{}\" or file is empty: {}",
-                path.as_ref().display(),
+                path.display(),
                 err
             );
             Err(err.into())
