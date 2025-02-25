@@ -215,7 +215,9 @@ impl<'a> BlobObject<'a> {
     ///
     /// This is slightly less strict than stanitise_name, presumably
     /// someone already created a file with such a name so we just
-    /// ensure it's not actually a path in disguise is actually utf-8.
+    /// ensure it's not actually a path in disguise.
+    ///
+    /// Acceptible blob name always have to be valid utf-8.
     fn is_acceptible_blob_name(name: &str) -> bool {
         if name.find('/').is_some() {
             return false;
