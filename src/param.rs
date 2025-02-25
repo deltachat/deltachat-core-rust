@@ -367,7 +367,7 @@ impl Params {
             return Ok(None);
         };
         ensure!(val.starts_with("$BLOBDIR/"));
-        let blob = BlobObject::from_name(context, val.to_string())?;
+        let blob = BlobObject::from_name(context, val)?;
         Ok(Some(blob))
     }
 
