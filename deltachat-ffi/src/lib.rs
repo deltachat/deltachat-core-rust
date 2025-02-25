@@ -1059,6 +1059,25 @@ pub unsafe extern "C" fn dc_send_edit_request(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_send_delete_request(
+    context: *mut dc_context_t,
+    msg_ids: *const u32,
+    msg_cnt: libc::c_int,
+) {
+    if context.is_null() || msg_ids.is_null() || msg_cnt <= 0 {
+        eprintln!("ignoring careless call to dc_send_delete_request()");
+        return;
+    }
+    let ctx = &*context;
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
+
+    block_on(message::delete_msgs_ex(ctx, &msg_ids, true))
+        .context("failed dc_send_delete_request() call")
+        .log_err(ctx)
+        .ok();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_send_videochat_invitation(
     context: *mut dc_context_t,
     chat_id: u32,

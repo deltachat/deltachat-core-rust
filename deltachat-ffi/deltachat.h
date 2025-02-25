@@ -1057,6 +1057,20 @@ void            dc_send_edit_request         (dc_context_t* context, uint32_t ms
 
 
 /**
+ * Send chat members a request to delete the given messages.
+ *
+ * Only outgoing messages can be deleted this way
+ * and no tombstone or sth. like that is left.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param msg_ids An array of uint32_t containing all message IDs to delete.
+ * @param msg_cnt The number of messages IDs in the msg_ids array.
+ */
+ void            dc_send_delete_request       (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
+
+
+/**
  * Send invitation to a videochat.
  *
  * This function reads the `webrtc_instance` config value,

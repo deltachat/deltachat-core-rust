@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs, io};
 
 use crate::blob::BlobObject;
-use crate::chat::{Chat, ChatId, ChatIdBlocked, ChatVisibility};
+use crate::chat::{send_msg, Chat, ChatId, ChatIdBlocked, ChatVisibility};
 use crate::chatlist_events;
 use crate::config::Config;
+use crate::constants::EDITED_PREFIX;
 use crate::constants::{
     Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
@@ -1711,20 +1712,34 @@ pub(crate) async fn delete_msgs_locally_done(
     Ok(())
 }
 
-/// Deletes requested messages
-/// by moving them to the trash chat
-/// and scheduling for deletion on IMAP.
+/// Delete messages on all devices and on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
+    delete_msgs_ex(context, msg_ids, false).await
+}
+
+/// Delete messages on all devices, on IMAP and optionally for all chat members.
+/// Deleted messages are moved to the trash chat and scheduling for deletion on IMAP.
+pub async fn delete_msgs_ex(
+    context: &Context,
+    msg_ids: &[MsgId],
+    delete_for_all: bool,
+) -> Result<()> {
     let mut modified_chat_ids = HashSet::new();
     let mut deleted_rfc724_mid = Vec::new();
+    let mut any_padlock = false;
     let mut res = Ok(());
 
     for &msg_id in msg_ids {
         let msg = Message::load_from_db(context, msg_id).await?;
+        ensure!(
+            !delete_for_all || msg.from_id == ContactId::SELF,
+            "Can delete only own messages for others"
+        );
+        any_padlock = any_padlock || msg.get_showpadlock();
+
         delete_msg_locally(context, &msg).await?;
 
         modified_chat_ids.insert(msg.chat_id);
-
         deleted_rfc724_mid.push(msg.rfc724_mid.clone());
 
         let target = context.get_delete_msgs_target().await?;
@@ -1744,13 +1759,26 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     }
     res?;
 
-    delete_msgs_locally_done(context, msg_ids, modified_chat_ids).await?;
+    if delete_for_all {
+        if let Some(any_chat_id) = modified_chat_ids.iter().next() {
+            let mut msg = Message::new_text(EDITED_PREFIX.to_owned());
+            if any_padlock {
+                msg.param.set_int(Param::GuaranteeE2ee, 1);
+            }
+            msg.param
+                .set(Param::DeleteRequestFor, deleted_rfc724_mid.join(" "));
+            msg.hidden = true;
+            send_msg(context, *any_chat_id, &mut msg).await?;
+        }
+    } else {
+        context
+            .add_sync_item(SyncData::DeleteMessages {
+                msgs: deleted_rfc724_mid,
+            })
+            .await?;
+    }
 
-    context
-        .add_sync_item(SyncData::DeleteMessages {
-            msgs: deleted_rfc724_mid,
-        })
-        .await?;
+    delete_msgs_locally_done(context, msg_ids, modified_chat_ids).await?;
 
     // Interrupt Inbox loop to start message deletion, run housekeeping and call send_sync_msg().
     context.scheduler.interrupt_inbox().await;

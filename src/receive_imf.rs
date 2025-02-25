@@ -1533,6 +1533,40 @@ async fn add_parts(
                 "Edit message: rfc724_mid {rfc724_mid:?} not found."
             );
         }
+    } else if let Some(rfc724_mid_list) = mime_parser.get_header(HeaderDef::ChatDelete) {
+        chat_id = DC_CHAT_ID_TRASH;
+        if let Some(part) = mime_parser.parts.first() {
+            let showpadlock = part
+                .param
+                .get_bool(Param::GuaranteeE2ee)
+                .unwrap_or_default();
+            let mut modified_chat_ids = HashSet::new();
+            let mut msg_ids = Vec::new();
+
+            let rfc724_mid_vec: Vec<&str> = rfc724_mid_list.split_whitespace().collect();
+            for rfc724_mid in rfc724_mid_vec {
+                if let Some((msg_id, _)) = message::rfc724_mid_exists(context, rfc724_mid).await? {
+                    if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
+                        if msg.from_id == from_id {
+                            if showpadlock || !msg.get_showpadlock() {
+                                message::delete_msg_locally(context, &msg).await?;
+                                msg_ids.push(msg.id);
+                                modified_chat_ids.insert(msg.chat_id);
+                            } else {
+                                warn!(context, "Delete message: Not encrypted.");
+                            }
+                        } else {
+                            warn!(context, "Delete message: Bad sender.");
+                        }
+                    } else {
+                        warn!(context, "Delete message: Database entry does not exist.");
+                    }
+                } else {
+                    warn!(context, "Delete message: {rfc724_mid:?} not found.");
+                }
+            }
+            message::delete_msgs_locally_done(context, &msg_ids, modified_chat_ids).await?;
+        }
     }
 
     let mut parts = mime_parser.parts.iter().peekable();
