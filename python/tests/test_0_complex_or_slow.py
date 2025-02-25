@@ -510,6 +510,7 @@ def test_see_new_verified_member_after_going_online(acfactory, tmp_path, lp):
     """
     ac1, ac2 = acfactory.get_online_accounts(2)
     ac2_addr = ac2.get_config("addr")
+    acfactory.remove_preconfigured_keys()
     ac1_offl = acfactory.new_online_configuring_account(cloned_from=ac1)
     for ac in [ac1, ac1_offl]:
         ac.set_config("bcc_self", "1")
