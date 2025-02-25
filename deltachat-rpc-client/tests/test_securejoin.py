@@ -653,6 +653,8 @@ def test_withdraw_securejoin_qr(acfactory):
     bob_chat = bob.secure_join(qr_code)
     bob.wait_for_securejoin_joiner_success()
 
+    alice.clear_all_events()
+
     snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Member Me ({}) added by {}.".format(bob.get_config("addr"), alice.get_config("addr"))
     assert snapshot.chat.get_basic_snapshot().is_protected
