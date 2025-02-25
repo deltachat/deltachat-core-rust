@@ -1825,7 +1825,7 @@ async fn tweak_sort_timestamp(
     // set the timestamp to be no more than the same as last message
     // so that the chat is not sorted to the top of the chatlist.
     if silent {
-        let last_msg_timestamp = if let Some(t) = chat_id.get_last_msg_timestamp(context).await? {
+        let last_msg_timestamp = if let Some(t) = chat_id.get_timestamp(context).await? {
             t
         } else {
             chat_id.get_created_timestamp(context).await?
