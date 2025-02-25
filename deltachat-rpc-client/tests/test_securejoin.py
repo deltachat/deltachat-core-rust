@@ -658,7 +658,7 @@ def test_withdraw_securejoin_qr(acfactory):
     assert snapshot.chat.get_basic_snapshot().is_protected
     bob_chat.leave()
 
-    snapshot = alice.get_message_by_id(alice.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    snapshot = alice.get_message_by_id(alice.wait_for_msgs_changed_event().msg_id).get_snapshot()
     assert snapshot.text == "Group left by {}.".format(bob.get_config("addr"))
 
     logging.info("Alice withdraws QR code.")

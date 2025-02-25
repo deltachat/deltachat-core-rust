@@ -1409,21 +1409,7 @@ impl ChatId {
         let mut sort_timestamp = cmp::min(message_timestamp, smeared_time(context));
 
         let last_msg_time: Option<i64> = if always_sort_to_bottom {
-            // get newest message for this chat
-
-            // Let hidden messages also be ordered with protection messages because hidden messages
-            // also can be or not be verified, so let's preserve this information -- even it's not
-            // used currently, it can be useful in the future versions.
-            context
-                .sql
-                .query_get_value(
-                    "SELECT MAX(timestamp)
-                     FROM msgs
-                     WHERE chat_id=? AND state!=?
-                     HAVING COUNT(*) > 0",
-                    (self, MessageState::OutDraft),
-                )
-                .await?
+            self.get_last_msg_timestamp(context).await?
         } else if received {
             // Received messages shouldn't mingle with just sent ones and appear somewhere in the
             // middle of the chat, so we go after the newest non fresh message.
@@ -1469,6 +1455,31 @@ impl ChatId {
         Ok(sort_timestamp)
     }
 
+    pub(crate) async fn get_last_msg_timestamp(self, context: &Context) -> Result<Option<i64>> {
+        // Let hidden messages also be ordered with protection messages because hidden messages
+        // also can be or not be verified, so let's preserve this information -- even it's not
+        // used currently, it can be useful in the future versions.
+
+        context
+            .sql
+            .query_get_value(
+                "SELECT MAX(timestamp)
+                FROM msgs
+                WHERE chat_id=? AND state!=?
+                HAVING COUNT(*) > 0",
+                (self, MessageState::OutDraft),
+            )
+            .await
+    }
+
+    pub(crate) async fn get_created_timestamp(self, context: &Context) -> Result<i64> {
+        Ok(context
+            .sql
+            .query_get_value("SELECT created_timestamp FROM chats WHERE id=?;", (self,))
+            .await?
+            .unwrap_or(0))
+    }
+
     /// Spawns a task checking after a timeout whether the SecureJoin has finished for the 1:1 chat
     /// and otherwise notifying the user accordingly.
     pub(crate) fn spawn_securejoin_wait(self, context: &Context, timeout: u64) {
@@ -1479,14 +1490,6 @@ impl ChatId {
             chat.check_securejoin_wait(&context, 0).await?;
             Result::<()>::Ok(())
         });
-    }
-
-    pub(crate) async fn get_created_timestamp(&self, context: &Context) -> Result<i64> {
-        Ok(context
-            .sql
-            .query_get_value("SELECT created_timestamp FROM chats WHERE id=?;", (self,))
-            .await?
-            .unwrap_or(0))
     }
 }
 

@@ -1396,22 +1396,14 @@ async fn add_parts(
         }
     }
 
-    // Ensure replies to messages are sorted after the parent message.
-    //
-    // This is useful in a case where sender clocks are not
-    // synchronized and parent message has a Date: header with a
-    // timestamp higher than reply timestamp.
-    //
-    // This does not help if parent message arrives later than the
-    // reply.
-    let parent_timestamp = mime_parser.get_parent_timestamp(context).await?;
-    let sort_timestamp = if group_changes.silent {
-        get_last_msg_timestamp(context, chat_id).await?
-    } else {
-        parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
-            std::cmp::max(sort_timestamp, parent_timestamp)
-        })
-    };
+    let sort_timestamp = tweak_sort_timestamp(
+        context,
+        mime_parser,
+        group_changes.silent,
+        chat_id,
+        sort_timestamp,
+    )
+    .await?;
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
@@ -1809,24 +1801,38 @@ RETURNING id
     })
 }
 
-async fn get_last_msg_timestamp(context: &Context, chat_id: ChatId) -> Result<i64> {
-    let last_msg_timestamp = context
-        .sql
-        .query_get_value(
-            "SELECT id
-FROM msgs
-WHERE chat_id=?
-AND hidden=0
-ORDER BY timestamp DESC, id DESC LIMIT 1",
-            (chat_id,),
-        )
-        .await?;
+async fn tweak_sort_timestamp(
+    context: &Context,
+    mime_parser: &mut MimeMessage,
+    silent: bool,
+    chat_id: ChatId,
+    sort_timestamp: i64,
+) -> Result<i64> {
+    // Ensure replies to messages are sorted after the parent message.
+    //
+    // This is useful in a case where sender clocks are not
+    // synchronized and parent message has a Date: header with a
+    // timestamp higher than reply timestamp.
+    //
+    // This does not help if parent message arrives later than the
+    // reply.
+    let parent_timestamp = mime_parser.get_parent_timestamp(context).await?;
+    let mut sort_timestamp = parent_timestamp.map_or(sort_timestamp, |parent_timestamp| {
+        std::cmp::max(sort_timestamp, parent_timestamp)
+    });
 
-    Ok(if let Some(t) = last_msg_timestamp {
-        t
-    } else {
-        chat_id.get_created_timestamp(context).await?
-    })
+    // If the message should be silent,
+    // set the timestamp to be no more than the same as last message
+    // so that the chat is not sorted to the top of the chatlist.
+    if silent {
+        let last_msg_timestamp = if let Some(t) = chat_id.get_last_msg_timestamp(context).await? {
+            t
+        } else {
+            chat_id.get_created_timestamp(context).await?
+        };
+        sort_timestamp = std::cmp::min(sort_timestamp, last_msg_timestamp);
+    }
+    Ok(sort_timestamp)
 }
 
 /// Saves attached locations to the database.
