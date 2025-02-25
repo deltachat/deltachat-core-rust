@@ -308,10 +308,15 @@ impl Context {
         let mut msg_ids = Vec::new();
         for rfc724_mid in msgs {
             if let Some((msg_id, _)) = message::rfc724_mid_exists(self, rfc724_mid).await? {
-                let msg = Message::load_from_db(self, msg_id).await?;
-                message::delete_msg_locally(self, &msg).await?;
-                msg_ids.push(msg.id);
-                modified_chat_ids.insert(msg.chat_id);
+                if let Some(msg) = Message::load_from_db_optional(self, msg_id).await? {
+                    message::delete_msg_locally(self, &msg).await?;
+                    msg_ids.push(msg.id);
+                    modified_chat_ids.insert(msg.chat_id);
+                } else {
+                    warn!(self, "Sync message delete: Database entry does not exist.");
+                }
+            } else {
+                warn!(self, "Sync message delete: {rfc724_mid:?} not found.");
             }
         }
         message::delete_msgs_locally_done(self, &msg_ids, modified_chat_ids).await?;
