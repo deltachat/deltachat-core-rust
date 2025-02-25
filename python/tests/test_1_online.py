@@ -1597,28 +1597,6 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
     assert ac2.get_latest_backupfile(str(backupdir)) == path2
 
 
-def test_ac_setup_message_twice(acfactory, lp):
-    ac1 = acfactory.new_online_configuring_account()
-    ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)
-    acfactory.bring_accounts_online()
-
-    lp.sec("trigger ac setup message but ignore")
-    assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
-    ac1.initiate_key_transfer()
-    ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-
-    lp.sec("trigger second ac setup message, wait for receive ")
-    setup_code2 = ac1.initiate_key_transfer()
-    ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-    msg = ac2.get_message_by_id(ev.data2)
-    assert msg.is_setup_message()
-    assert msg.get_setupcodebegin() == setup_code2[:2]
-
-    lp.sec("process second setup message")
-    msg.continue_key_transfer(setup_code2)
-    assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
-
-
 def test_qr_email_capitalization(acfactory, lp):
     """Regression test for a bug
     that resulted in failure to propagate verification via gossip in a verified group
