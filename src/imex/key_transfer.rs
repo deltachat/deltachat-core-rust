@@ -75,7 +75,7 @@ pub async fn continue_key_transfer(
         let file = open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(&sc, file).await?;
-        set_self_key(context, &armored_key, true).await?;
+        set_self_key(context, &armored_key).await?;
         context.set_config_bool(Config::BccSelf, true).await?;
 
         Ok(())
