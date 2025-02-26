@@ -2004,6 +2004,16 @@ impl CommandApi {
         Ok(msg_id)
     }
 
+    async fn send_edit_request(
+        &self,
+        account_id: u32,
+        msg_id: u32,
+        new_text: String,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        chat::send_edit_request(&ctx, MsgId::new(msg_id), new_text).await
+    }
+
     /// Checks if messages can be sent to a given chat.
     async fn can_send(&self, account_id: u32, chat_id: u32) -> Result<bool> {
         let ctx = self.get_context(account_id).await?;
