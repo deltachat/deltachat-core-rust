@@ -914,13 +914,17 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                         continue;
                     }
 
-                    let Ok(stats) = tokio::fs::metadata(entry.path()).await else {
-                        warn!(
-                            context,
-                            "Cannot get metadata for {}.",
-                            entry.path().display()
-                        );
-                        continue;
+                    let stats = match tokio::fs::metadata(entry.path()).await {
+                        Err(err) => {
+                            warn!(
+                                context,
+                                "Cannot get metadata for {}: {:#}.",
+                                entry.path().display(),
+                                err
+                            );
+                            continue;
+                        }
+                        Ok(stats) => stats,
                     };
 
                     if stats.is_dir() {
