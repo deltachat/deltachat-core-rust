@@ -2169,6 +2169,8 @@ async fn create_group(
             // serialization/deserialization #3650" issue. DC itself never creates group names with
             // leading/trailing whitespace.
             .trim();
+        let mut param = Params::new();
+        param.set_i64(Param::GroupNameTimestamp, mime_parser.timestamp_sent);
         let new_chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Group,
@@ -2176,7 +2178,7 @@ async fn create_group(
             grpname,
             create_blocked,
             create_protected,
-            None,
+            Some(param.to_string()),
             mime_parser.timestamp_sent,
         )
         .await
@@ -2411,9 +2413,18 @@ async fn apply_group_changes(
         }
 
         better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
-    } else if let Some(old_name) = mime_parser
+    }
+
+    let group_name_timestamp = mime_parser
+        .get_header(HeaderDef::ChatGroupNameTimestamp)
+        .and_then(|s| s.parse::<i64>().ok());
+    if let Some(old_name) = mime_parser
         .get_header(HeaderDef::ChatGroupNameChanged)
         .map(|s| s.trim())
+        .or(match group_name_timestamp {
+            Some(_) => Some(chat.name.as_str()),
+            None => None,
+        })
     {
         if let Some(grpname) = mime_parser
             .get_header(HeaderDef::ChatGroupName)
@@ -2422,13 +2433,17 @@ async fn apply_group_changes(
         {
             let grpname = &sanitize_single_line(grpname);
             let old_name = &sanitize_single_line(old_name);
-            if chat_id
-                .update_timestamp(
-                    context,
-                    Param::GroupNameTimestamp,
-                    mime_parser.timestamp_sent,
-                )
-                .await?
+
+            let chat_group_name_timestamp = chat.param.get_i64(Param::GroupNameTimestamp);
+            let group_name_timestamp = group_name_timestamp.unwrap_or(mime_parser.timestamp_sent);
+            // NB: For old chats (created before "Chat-Group-Name-Timestamp" header introduction)
+            // this may cause an extra name update and `ChatModified` event, but that's fine.
+            //
+            // To provide group name consistency, compare names if timestamps are equal.
+            if (chat_group_name_timestamp, grpname) < (Some(group_name_timestamp), old_name)
+                && chat_id
+                    .update_timestamp(context, Param::GroupNameTimestamp, group_name_timestamp)
+                    .await?
             {
                 info!(context, "Updating grpname for chat {chat_id}.");
                 context
@@ -2437,10 +2452,18 @@ async fn apply_group_changes(
                     .await?;
                 send_event_chat_modified = true;
             }
-
-            better_msg = Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
+            if mime_parser
+                .get_header(HeaderDef::ChatGroupNameChanged)
+                .is_some()
+            {
+                better_msg.get_or_insert(
+                    stock_str::msg_grp_name(context, old_name, grpname, from_id).await,
+                );
+            }
         }
-    } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
+    }
+
+    if let (Some(value), None) = (mime_parser.get_header(HeaderDef::ChatContent), &better_msg) {
         if value == "group-avatar-changed" {
             if let Some(avatar_action) = &mime_parser.group_avatar {
                 // this is just an explicit message containing the group-avatar,
@@ -2922,6 +2945,8 @@ async fn create_adhoc_group(
         return Ok(None);
     }
 
+    let mut param = Params::new();
+    param.set_i64(Param::GroupNameTimestamp, mime_parser.timestamp_sent);
     let new_chat_id: ChatId = ChatId::create_multiuser_record(
         context,
         Chattype::Group,
@@ -2929,7 +2954,7 @@ async fn create_adhoc_group(
         grpname,
         create_blocked,
         ProtectionStatus::Unprotected,
-        None,
+        Some(param.to_string()),
         mime_parser.timestamp_sent,
     )
     .await?;
