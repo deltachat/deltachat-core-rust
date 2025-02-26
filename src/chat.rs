@@ -3039,6 +3039,11 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         msg.state = MessageState::OutDelivered;
         return Ok(Vec::new());
     }
+    if msg.param.get_cmd() == SystemMessage::GroupNameChanged {
+        msg.chat_id
+            .update_timestamp(context, Param::GroupNameTimestamp, msg.timestamp_sort)
+            .await?;
+    }
 
     let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),

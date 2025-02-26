@@ -213,6 +213,44 @@ mod tests {
         // Assert that the \n was correctly removed from the group name also in the system message
         assert_eq!(msg.text.contains('\n'), false);
 
+        // This doesn't update the name because Date is the same and name is greater.
+        receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.org\n\
+                 Message-ID: <msg4@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: abcde123456\n\
+                 Chat-Group-Name: another name update 4\n\
+                 Chat-Group-Name-Changed: another name update\n\
+                 Date: Sun, 22 Mar 2021 03:00:00 +0000\n\
+                 \n\
+                 4th message\n",
+            false,
+        )
+        .await?;
+        let chat = Chat::load_from_db(&t, chat.id).await?;
+        assert_eq!(chat.name, "another name update");
+
+        // This updates the name because Date is the same and name is lower.
+        receive_imf(
+            &t,
+            b"From: Bob Authname <bob@example.org>\n\
+                 To: alice@example.org\n\
+                 Message-ID: <msg5@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: abcde123456\n\
+                 Chat-Group-Name: another name updat\n\
+                 Chat-Group-Name-Changed: another name update\n\
+                 Date: Sun, 22 Mar 2021 03:00:00 +0000\n\
+                 \n\
+                 5th message\n",
+            false,
+        )
+        .await?;
+        let chat = Chat::load_from_db(&t, chat.id).await?;
+        assert_eq!(chat.name, "another name updat");
+
         Ok(())
     }
 }

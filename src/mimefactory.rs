@@ -1190,6 +1190,12 @@ impl MimeFactory {
                 "Chat-Group-Name",
                 mail_builder::headers::text::Text::new(chat.name.to_string()).into(),
             ));
+            if let Some(ts) = chat.param.get_i64(Param::GroupNameTimestamp) {
+                headers.push((
+                    "Chat-Group-Name-Timestamp",
+                    mail_builder::headers::text::Text::new(ts.to_string()).into(),
+                ));
+            }
 
             match command {
                 SystemMessage::MemberRemovedFromGroup => {
