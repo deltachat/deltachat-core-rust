@@ -3802,3 +3802,44 @@ async fn test_cannot_send_edit_request() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_send_delete_request() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat = alice.create_chat(bob).await;
+    let bob_chat = bob.create_chat(alice).await;
+
+    // Bobs sends a message to Alice, so Alice learns Bob's key
+    let sent0 = bob.send_text(bob_chat.id, "¡ola!").await;
+    alice.recv_msg(&sent0).await;
+
+    // Alice sends a message, then sends a deletion request
+    let sent1 = alice.send_text(alice_chat.id, "wtf").await;
+    let alice_msg = sent1.load_from_db().await;
+    assert_eq!(alice_chat.id.get_msg_cnt(alice).await?, 2);
+
+    message::delete_msgs_ex(alice, &[alice_msg.id], true).await?;
+    let sent2 = alice.pop_sent_msg().await;
+    assert_eq!(alice_chat.id.get_msg_cnt(alice).await?, 1);
+
+    // Bob receives both messages and has nothing the end
+    let bob_msg = bob.recv_msg(&sent1).await;
+    assert_eq!(bob_msg.text, "wtf");
+    assert_eq!(bob_msg.chat_id.get_msg_cnt(bob).await?, 2);
+
+    bob.recv_msg_opt(&sent2).await;
+    assert_eq!(bob_msg.chat_id.get_msg_cnt(bob).await?, 1);
+
+    // Alice has another device, and there is also nothing at the end
+    let alice2 = &tcm.alice().await;
+    alice2.recv_msg(&sent0).await;
+    let alice2_msg = alice2.recv_msg(&sent1).await;
+    assert_eq!(alice2_msg.chat_id.get_msg_cnt(alice2).await?, 2);
+
+    alice2.recv_msg_opt(&sent2).await;
+    assert_eq!(alice2_msg.chat_id.get_msg_cnt(alice2).await?, 1);
+
+    Ok(())
+}

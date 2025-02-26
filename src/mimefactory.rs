@@ -734,6 +734,12 @@ impl MimeFactory {
                     )
                     .into(),
                 ));
+            } else if let Some(rfc724_mid_list) = msg.param.get(Param::DeleteRequestFor) {
+                headers.push((
+                    "Chat-Delete",
+                    mail_builder::headers::message_id::MessageId::new(rfc724_mid_list.to_string())
+                        .into(),
+                ));
             }
         }
 
@@ -861,7 +867,10 @@ impl MimeFactory {
             if header_name == "message-id" {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header.clone());
-            } else if header_name == "chat-user-avatar" || header_name == "chat-edit" {
+            } else if header_name == "chat-user-avatar"
+                || header_name == "chat-delete"
+                || header_name == "chat-edit"
+            {
                 hidden_headers.push(header.clone());
             } else if header_name == "autocrypt"
                 && !context.get_config_bool(Config::ProtectAutocrypt).await?

@@ -207,6 +207,9 @@ pub enum Param {
     /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
     ForceSticker = b'X',
 
+    /// For messages: Message is a deletion request. The value is a list of rfc724_mid of the messages to delete.
+    DeleteRequestFor = b'M',
+
     /// For messages: Message is a text edit message. the value of this parameter is the rfc724_mid of the original message.
     TextEditFor = b'I',
 
