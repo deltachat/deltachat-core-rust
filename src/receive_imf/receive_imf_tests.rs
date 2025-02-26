@@ -5428,6 +5428,40 @@ Hello!"
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_rename_chat_on_missing_message() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let bob = TestContext::new_bob().await;
+    let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+    add_to_chat_contacts_table(
+        &alice,
+        time(),
+        chat_id,
+        &[Contact::create(&alice, "bob", "bob@example.net").await?],
+    )
+    .await?;
+    send_text_msg(&alice, chat_id, "populate".to_string()).await?;
+    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+    bob_chat_id.accept(&bob).await?;
+
+    // Bob changes the group name. NB: If Bob does this too fast, it's not guaranteed that his group
+    // name wins because "Group-Name-Timestamp" may not increase.
+    SystemTime::shift(Duration::from_secs(3600));
+    chat::set_chat_name(&bob, bob_chat_id, "Renamed").await?;
+    bob.pop_sent_msg().await;
+
+    // Bob adds a new member.
+    let bob_orange = Contact::create(&bob, "orange", "orange@example.net").await?;
+    add_contact_to_chat(&bob, bob_chat_id, bob_orange).await?;
+    let add_msg = bob.pop_sent_msg().await;
+
+    // Alice only receives the member addition.
+    alice.recv_msg(&add_msg).await;
+    let chat = Chat::load_from_db(&alice, chat_id).await?;
+    assert_eq!(chat.get_name(), "Renamed");
+    Ok(())
+}
+
 /// Tests that creating a group
 /// is preferred over assigning message to existing
 /// chat based on `In-Reply-To` and `References`.
