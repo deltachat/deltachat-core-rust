@@ -833,10 +833,7 @@ async fn adjust_bcc_self(context: &Context) -> Result<()> {
 }
 
 async fn check_backup_version(context: &Context) -> Result<()> {
-    let version = match context.sql.get_raw_config_int("backup_version").await? {
-        Some(version) => version,
-        None => 2, // we added backup_version at that number, this "2" must not change
-    };
+    let version = (context.sql.get_raw_config_int("backup_version").await?).unwrap_or(2);
     ensure!(
         version <= DCBACKUP_VERSION,
         "Backup too new, please update Delta Chat"
