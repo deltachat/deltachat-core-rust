@@ -1737,8 +1737,6 @@ pub async fn delete_msgs_ex(
         );
         any_padlock = any_padlock || msg.get_showpadlock();
 
-        delete_msg_locally(context, &msg).await?;
-
         modified_chat_ids.insert(msg.chat_id);
         deleted_rfc724_mid.push(msg.rfc724_mid.clone());
 
@@ -1778,6 +1776,10 @@ pub async fn delete_msgs_ex(
             .await?;
     }
 
+    for &msg_id in msg_ids {
+        let msg = Message::load_from_db(context, msg_id).await?;
+        delete_msg_locally(context, &msg).await?;
+    }
     delete_msgs_locally_done(context, msg_ids, modified_chat_ids).await?;
 
     // Interrupt Inbox loop to start message deletion, run housekeeping and call send_sync_msg().
