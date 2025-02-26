@@ -301,6 +301,13 @@ class Account:
             if event.kind == EventType.INCOMING_MSG:
                 return event
 
+    def wait_for_msgs_changed_event(self):
+        """Wait for messages changed event and return it."""
+        while True:
+            event = self.wait_for_event()
+            if event.kind == EventType.MSGS_CHANGED:
+                return event
+
     def wait_for_incoming_msg(self):
         """Wait for incoming message and return it.
 
