@@ -1536,11 +1536,7 @@ async fn add_parts(
     } else if let Some(rfc724_mid_list) = mime_parser.get_header(HeaderDef::ChatDelete) {
         chat_id = DC_CHAT_ID_TRASH;
         if let Some(part) = mime_parser.parts.first() {
-            if part
-                .param
-                .get_bool(Param::GuaranteeE2ee)
-                .unwrap_or_default()
-            {
+            if part.param.get_bool(Param::GuaranteeE2ee).unwrap_or(false) {
                 let mut modified_chat_ids = HashSet::new();
                 let mut msg_ids = Vec::new();
 

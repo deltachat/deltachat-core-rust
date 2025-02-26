@@ -1761,13 +1761,13 @@ pub async fn delete_msgs_ex(
             modified_chat_ids.len() == 1,
             "Can delete only from same chat."
         );
-        if let Some(any_chat_id) = modified_chat_ids.iter().next() {
+        if let Some(chat_id) = modified_chat_ids.iter().next() {
             let mut msg = Message::new_text(EDITED_PREFIX.to_owned());
             msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param
                 .set(Param::DeleteRequestFor, deleted_rfc724_mid.join(" "));
             msg.hidden = true;
-            send_msg(context, *any_chat_id, &mut msg).await?;
+            send_msg(context, *chat_id, &mut msg).await?;
         }
     } else {
         context
