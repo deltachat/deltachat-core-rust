@@ -1060,7 +1060,8 @@ void            dc_send_edit_request         (dc_context_t* context, uint32_t ms
  * Send chat members a request to delete the given messages.
  *
  * Only outgoing messages can be deleted this way
- * and no tombstone or sth. like that is left.
+ * and all messages must be in the same chat.
+ * No tombstone or sth. like that is left.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().

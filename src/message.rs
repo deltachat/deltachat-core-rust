@@ -1719,6 +1719,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
 /// Delete messages on all devices, on IMAP and optionally for all chat members.
 /// Deleted messages are moved to the trash chat and scheduling for deletion on IMAP.
+/// When deleting messages for others, all messages must be self-sent and in the same chat.
 pub async fn delete_msgs_ex(
     context: &Context,
     msg_ids: &[MsgId],
@@ -1756,6 +1757,10 @@ pub async fn delete_msgs_ex(
     res?;
 
     if delete_for_all {
+        ensure!(
+            modified_chat_ids.len() == 1,
+            "Can delete only from same chat."
+        );
         if let Some(any_chat_id) = modified_chat_ids.iter().next() {
             let mut msg = Message::new_text(EDITED_PREFIX.to_owned());
             msg.param.set_int(Param::GuaranteeE2ee, 1);
