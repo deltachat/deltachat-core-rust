@@ -50,6 +50,7 @@ impl Lot {
                 Qr::FprWithoutAddr { fingerprint, .. } => Some(Cow::Borrowed(fingerprint)),
                 Qr::Account { domain } => Some(Cow::Borrowed(domain)),
                 Qr::Backup2 { .. } => None,
+                Qr::BackupTooNew { .. } => None,
                 Qr::WebrtcInstance { domain, .. } => Some(Cow::Borrowed(domain)),
                 Qr::Proxy { host, port, .. } => Some(Cow::Owned(format!("{host}:{port}"))),
                 Qr::Addr { draft, .. } => draft.as_deref().map(Cow::Borrowed),
@@ -103,6 +104,7 @@ impl Lot {
                 Qr::FprWithoutAddr { .. } => LotState::QrFprWithoutAddr,
                 Qr::Account { .. } => LotState::QrAccount,
                 Qr::Backup2 { .. } => LotState::QrBackup2,
+                Qr::BackupTooNew { .. } => LotState::QrBackupTooNew,
                 Qr::WebrtcInstance { .. } => LotState::QrWebrtcInstance,
                 Qr::Proxy { .. } => LotState::QrProxy,
                 Qr::Addr { .. } => LotState::QrAddr,
@@ -129,6 +131,7 @@ impl Lot {
                 Qr::FprWithoutAddr { .. } => Default::default(),
                 Qr::Account { .. } => Default::default(),
                 Qr::Backup2 { .. } => Default::default(),
+                Qr::BackupTooNew { .. } => Default::default(),
                 Qr::WebrtcInstance { .. } => Default::default(),
                 Qr::Proxy { .. } => Default::default(),
                 Qr::Addr { contact_id, .. } => contact_id.to_u32(),
@@ -178,9 +181,9 @@ pub enum LotState {
     /// text1=domain
     QrAccount = 250,
 
-    QrBackup = 251,
-
     QrBackup2 = 252,
+
+    QrBackupTooNew = 255,
 
     /// text1=domain, text2=instance pattern
     QrWebrtcInstance = 260,

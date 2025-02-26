@@ -63,6 +63,7 @@ pub enum QrObject {
         /// Iroh node address.
         node_addr: String,
     },
+    BackupTooNew {},
     /// Ask the user if they want to use the given service for video chats.
     WebrtcInstance {
         domain: String,
@@ -100,11 +101,15 @@ pub enum QrObject {
     /// URL scanned.
     ///
     /// Ask the user if they want to open a browser or copy the URL to clipboard.
-    Url { url: String },
+    Url {
+        url: String,
+    },
     /// Text scanned.
     ///
     /// Ask the user if they want to copy the text to clipboard.
-    Text { text: String },
+    Text {
+        text: String,
+    },
     /// Ask the user if they want to withdraw their own QR code.
     WithdrawVerifyContact {
         /// Contact ID.
@@ -160,7 +165,9 @@ pub enum QrObject {
     /// `dclogin:` scheme parameters.
     ///
     /// Ask the user if they want to login with the email address.
-    Login { address: String },
+    Login {
+        address: String,
+    },
 }
 
 impl From<Qr> for QrObject {
@@ -217,6 +224,7 @@ impl From<Qr> for QrObject {
                 node_addr: serde_json::to_string(node_addr).unwrap_or_default(),
                 auth_token,
             },
+            Qr::BackupTooNew {} => QrObject::BackupTooNew {},
             Qr::WebrtcInstance {
                 domain,
                 instance_pattern,

@@ -23,6 +23,7 @@ use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::log::LogExt;
 use crate::pgp;
+use crate::qr::DCBACKUP_VERSION;
 use crate::sql;
 use crate::tools::{
     create_folder, delete_file, get_filesuffix_lc, read_file, time, write_file, TempPathGuard,
@@ -391,6 +392,9 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
             .import(&unpacked_database, passphrase.clone())
             .await
             .context("cannot import unpacked database");
+    }
+    if res.is_ok() {
+        res = check_backup_version(context).await;
     }
     if res.is_ok() {
         res = adjust_bcc_self(context).await;
@@ -776,6 +780,10 @@ async fn export_database(
         .sql
         .set_raw_config_int("backup_time", timestamp)
         .await?;
+    context
+        .sql
+        .set_raw_config_int("backup_version", DCBACKUP_VERSION)
+        .await?;
     sql::housekeeping(context).await.log_err(context).ok();
     context
         .sql
@@ -810,6 +818,15 @@ async fn adjust_bcc_self(context: &Context) -> Result<()> {
     if context.is_chatmail().await? && !context.config_exists(Config::BccSelf).await? {
         context.set_config(Config::BccSelf, Some("1")).await?;
     }
+    Ok(())
+}
+
+async fn check_backup_version(context: &Context) -> Result<()> {
+    let version = (context.sql.get_raw_config_int("backup_version").await?).unwrap_or(2);
+    ensure!(
+        version <= DCBACKUP_VERSION,
+        "Backup too new, please update Delta Chat"
+    );
     Ok(())
 }
 
