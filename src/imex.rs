@@ -403,6 +403,9 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
             .context("cannot import unpacked database");
     }
     if res.is_ok() {
+        res = check_backup_version(context).await;
+    }
+    if res.is_ok() {
         res = adjust_bcc_self(context).await;
     }
     fs::remove_file(unpacked_database)
@@ -826,6 +829,18 @@ async fn adjust_bcc_self(context: &Context) -> Result<()> {
     if context.is_chatmail().await? && !context.config_exists(Config::BccSelf).await? {
         context.set_config(Config::BccSelf, Some("1")).await?;
     }
+    Ok(())
+}
+
+async fn check_backup_version(context: &Context) -> Result<()> {
+    let version = match context.sql.get_raw_config_int("backup_version").await? {
+        Some(version) => version,
+        None => 2, // we added backup_version at that number, this "2" must not change
+    };
+    ensure!(
+        version <= DCBACKUP_VERSION,
+        "Backup too new, please update Delta Chat"
+    );
     Ok(())
 }
 
