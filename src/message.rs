@@ -1,6 +1,7 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -31,6 +32,7 @@ use crate::pgp::split_armored_data;
 use crate::reaction::get_msg_reactions;
 use crate::sql;
 use crate::summary::Summary;
+use crate::sync::SyncData;
 use crate::tools::{
     buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file,
     sanitize_filename, time, timestamp_to_str, truncate,
@@ -1651,34 +1653,79 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
     Ok(headers)
 }
 
+/// Delete a single message from the database, including references in other tables.
+/// This may be called in batches; the final events are emitted in delete_msgs_locally_done() then.
+pub(crate) async fn delete_msg_locally(context: &Context, msg: &Message) -> Result<()> {
+    if msg.location_id > 0 {
+        delete_poi_location(context, msg.location_id).await?;
+    }
+    let on_server = true;
+    msg.id
+        .trash(context, on_server)
+        .await
+        .with_context(|| format!("Unable to trash message {}", msg.id))?;
+
+    context.emit_event(EventType::MsgDeleted {
+        chat_id: msg.chat_id,
+        msg_id: msg.id,
+    });
+
+    if msg.viewtype == Viewtype::Webxdc {
+        context.emit_event(EventType::WebxdcInstanceDeleted { msg_id: msg.id });
+    }
+
+    let logging_xdc_id = context
+        .debug_logging
+        .read()
+        .expect("RwLock is poisoned")
+        .as_ref()
+        .map(|dl| dl.msg_id);
+    if let Some(id) = logging_xdc_id {
+        if id == msg.id {
+            set_debug_logging_xdc(context, None).await?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Do final events and jobs after batch deletion using calls to delete_msg_locally().
+/// To avoid additional database queries, collecting data is up to the caller.
+pub(crate) async fn delete_msgs_locally_done(
+    context: &Context,
+    msg_ids: &[MsgId],
+    modified_chat_ids: HashSet<ChatId>,
+) -> Result<()> {
+    for modified_chat_id in modified_chat_ids {
+        context.emit_msgs_changed_without_msg_id(modified_chat_id);
+        chatlist_events::emit_chatlist_item_changed(context, modified_chat_id);
+    }
+    if !msg_ids.is_empty() {
+        context.emit_msgs_changed_without_ids();
+        chatlist_events::emit_chatlist_changed(context);
+        // Run housekeeping to delete unused blobs.
+        context
+            .set_config_internal(Config::LastHousekeeping, None)
+            .await?;
+    }
+    Ok(())
+}
+
 /// Deletes requested messages
 /// by moving them to the trash chat
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
-    let mut modified_chat_ids = BTreeSet::new();
+    let mut modified_chat_ids = HashSet::new();
+    let mut deleted_rfc724_mid = Vec::new();
     let mut res = Ok(());
 
     for &msg_id in msg_ids {
         let msg = Message::load_from_db(context, msg_id).await?;
-        if msg.location_id > 0 {
-            delete_poi_location(context, msg.location_id).await?;
-        }
-        let on_server = true;
-        msg_id
-            .trash(context, on_server)
-            .await
-            .with_context(|| format!("Unable to trash message {msg_id}"))?;
-
-        context.emit_event(EventType::MsgDeleted {
-            chat_id: msg.chat_id,
-            msg_id,
-        });
-
-        if msg.viewtype == Viewtype::Webxdc {
-            context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
-        }
+        delete_msg_locally(context, &msg).await?;
 
         modified_chat_ids.insert(msg.chat_id);
+
+        deleted_rfc724_mid.push(msg.rfc724_mid.clone());
 
         let target = context.get_delete_msgs_target().await?;
         let update_db = |trans: &mut rusqlite::Transaction| {
@@ -1694,38 +1741,20 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             res = Err(e);
             continue;
         }
-
-        let logging_xdc_id = context
-            .debug_logging
-            .read()
-            .expect("RwLock is poisoned")
-            .as_ref()
-            .map(|dl| dl.msg_id);
-
-        if let Some(id) = logging_xdc_id {
-            if id == msg_id {
-                set_debug_logging_xdc(context, None).await?;
-            }
-        }
     }
     res?;
 
-    for modified_chat_id in modified_chat_ids {
-        context.emit_msgs_changed_without_msg_id(modified_chat_id);
-        chatlist_events::emit_chatlist_item_changed(context, modified_chat_id);
-    }
+    delete_msgs_locally_done(context, msg_ids, modified_chat_ids).await?;
 
-    if !msg_ids.is_empty() {
-        context.emit_msgs_changed_without_ids();
-        chatlist_events::emit_chatlist_changed(context);
-        // Run housekeeping to delete unused blobs.
-        context
-            .set_config_internal(Config::LastHousekeeping, None)
-            .await?;
-    }
+    context
+        .add_sync_item(SyncData::DeleteMessages {
+            msgs: deleted_rfc724_mid,
+        })
+        .await?;
 
-    // Interrupt Inbox loop to start message deletion and run housekeeping.
+    // Interrupt Inbox loop to start message deletion, run housekeeping and call send_sync_msg().
     context.scheduler.interrupt_inbox().await;
+
     Ok(())
 }
 
