@@ -1726,7 +1726,6 @@ pub async fn delete_msgs_ex(
 ) -> Result<()> {
     let mut modified_chat_ids = HashSet::new();
     let mut deleted_rfc724_mid = Vec::new();
-    let mut any_padlock = false;
     let mut res = Ok(());
 
     for &msg_id in msg_ids {
@@ -1735,7 +1734,6 @@ pub async fn delete_msgs_ex(
             !delete_for_all || msg.from_id == ContactId::SELF,
             "Can delete only own messages for others"
         );
-        any_padlock = any_padlock || msg.get_showpadlock();
 
         modified_chat_ids.insert(msg.chat_id);
         deleted_rfc724_mid.push(msg.rfc724_mid.clone());
@@ -1760,9 +1758,7 @@ pub async fn delete_msgs_ex(
     if delete_for_all {
         if let Some(any_chat_id) = modified_chat_ids.iter().next() {
             let mut msg = Message::new_text(EDITED_PREFIX.to_owned());
-            if any_padlock {
-                msg.param.set_int(Param::GuaranteeE2ee, 1);
-            }
+            msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param
                 .set(Param::DeleteRequestFor, deleted_rfc724_mid.join(" "));
             msg.hidden = true;
