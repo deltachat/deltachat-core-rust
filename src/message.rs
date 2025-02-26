@@ -15,7 +15,6 @@ use crate::blob::BlobObject;
 use crate::chat::{send_msg, Chat, ChatId, ChatIdBlocked, ChatVisibility};
 use crate::chatlist_events;
 use crate::config::Config;
-use crate::constants::EDITED_PREFIX;
 use crate::constants::{
     Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
@@ -1762,7 +1761,7 @@ pub async fn delete_msgs_ex(
             "Can delete only from same chat."
         );
         if let Some(chat_id) = modified_chat_ids.iter().next() {
-            let mut msg = Message::new_text(EDITED_PREFIX.to_owned());
+            let mut msg = Message::new_text("🚮".to_owned());
             msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param
                 .set(Param::DeleteRequestFor, deleted_rfc724_mid.join(" "));
