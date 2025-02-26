@@ -445,6 +445,7 @@ impl MimeMessage {
                     HeaderDef::ChatGroupId,
                     HeaderDef::ChatGroupName,
                     HeaderDef::ChatGroupNameChanged,
+                    HeaderDef::ChatGroupNameTimestamp,
                     HeaderDef::ChatGroupAvatar,
                     HeaderDef::ChatGroupMemberRemoved,
                     HeaderDef::ChatGroupMemberAdded,
