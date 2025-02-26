@@ -1548,7 +1548,7 @@ async fn add_parts(
                 if let Some((msg_id, _)) = message::rfc724_mid_exists(context, rfc724_mid).await? {
                     if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
                         if msg.from_id == from_id {
-                            if showpadlock || !msg.get_showpadlock() {
+                            if showpadlock {
                                 message::delete_msg_locally(context, &msg).await?;
                                 msg_ids.push(msg.id);
                                 modified_chat_ids.insert(msg.chat_id);
