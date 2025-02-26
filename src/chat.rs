@@ -4366,7 +4366,7 @@ pub async fn save_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             })
             .await?;
     }
-    context.send_sync_msg().await?;
+    context.scheduler.interrupt_inbox().await;
     Ok(())
 }
 

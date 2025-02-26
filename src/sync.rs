@@ -169,7 +169,7 @@ impl Context {
     ///
     /// Mustn't be called from multiple tasks in parallel to avoid sending the same sync items twice
     /// because sync items are removed from the db only after successful sending. We guarantee this
-    /// by calling `send_sync_msg()` only from the SMTP loop.
+    /// by calling `send_sync_msg()` only from the inbox loop.
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
             let chat_id =
