@@ -643,13 +643,13 @@ async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
         } else {
             continue;
         };
-        let set_default = !name_f.contains("legacy");
         info!(
             context,
             "Considering key file: {}.",
             path_plus_name.display()
         );
 
+        let set_default = true;
         if let Err(err) = import_secret_key(context, &path_plus_name, set_default).await {
             warn!(
                 context,
@@ -871,7 +871,7 @@ mod tests {
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
 
-        let alice = &TestContext::new_alice().await;
+        let alice = &TestContext::new().await;
         if let Err(err) = imex(alice, ImexMode::ImportSelfKeys, Path::new(&filename), None).await {
             panic!("got error on import: {err:#}");
         }
@@ -893,7 +893,7 @@ mod tests {
             panic!("got error on export: {err:#}");
         }
 
-        let context2 = TestContext::new_alice().await;
+        let context2 = TestContext::new().await;
         if let Err(err) = imex(
             &context2.ctx,
             ImexMode::ImportSelfKeys,
@@ -920,14 +920,18 @@ mod tests {
         let alice = &TestContext::new_alice().await;
         let old_key = key::load_self_secret_key(alice).await?;
 
-        imex(alice, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
-
-        let new_key = key::load_self_secret_key(alice).await?;
-        assert_ne!(new_key, old_key);
-        assert_eq!(
-            key::load_self_secret_keyring(alice).await?,
-            vec![new_key, old_key]
+        assert!(
+            imex(alice, ImexMode::ImportSelfKeys, export_dir.path(), None)
+                .await
+                .is_err()
         );
+
+        // Importing a second key is not allowed anymore,
+        // even as a non-default key.
+        assert_eq!(key::load_self_secret_key(alice).await?, old_key);
+
+        // Keyring has two keys for decryption now.
+        assert_eq!(key::load_self_secret_keyring(alice).await?, vec![old_key]);
 
         let msg = alice.recv_msg(&sent).await;
         assert!(msg.get_showpadlock());

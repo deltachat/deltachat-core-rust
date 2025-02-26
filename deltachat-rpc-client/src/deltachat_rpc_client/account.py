@@ -359,3 +359,7 @@ class Account:
         """Import keys."""
         passphrase = ""  # Importing passphrase-protected keys is currently not supported.
         self._rpc.import_self_keys(self.id, str(path), passphrase)
+
+    def initiate_autocrypt_key_transfer(self) -> None:
+        """Send Autocrypt Setup Message."""
+        return self._rpc.initiate_autocrypt_key_transfer(self.id)
