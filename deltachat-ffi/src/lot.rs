@@ -103,6 +103,7 @@ impl Lot {
                 Qr::FprWithoutAddr { .. } => LotState::QrFprWithoutAddr,
                 Qr::Account { .. } => LotState::QrAccount,
                 Qr::Backup2 { .. } => LotState::QrBackup2,
+                Qr::BackupTooNew { .. } => LotState::QrBackupTooNew,
                 Qr::WebrtcInstance { .. } => LotState::QrWebrtcInstance,
                 Qr::Proxy { .. } => LotState::QrProxy,
                 Qr::Addr { .. } => LotState::QrAddr,
@@ -178,9 +179,9 @@ pub enum LotState {
     /// text1=domain
     QrAccount = 250,
 
-    QrBackup = 251,
-
     QrBackup2 = 252,
+
+    QrBackupTooNew = 255,
 
     /// text1=domain, text2=instance pattern
     QrWebrtcInstance = 260,

@@ -40,7 +40,11 @@ const HTTPS_SCHEME: &str = "https://";
 const SHADOWSOCKS_SCHEME: &str = "ss://";
 
 /// Backup transfer based on iroh-net.
-pub(crate) const DCBACKUP2_SCHEME: &str = "DCBACKUP2:";
+pub(crate) const DCBACKUP_SCHEME_PREFIX: &str = "DCBACKUP";
+
+/// Version written to Backups and Backup-QR-Codes.
+/// Imports will fail when they have a larger version.
+pub(crate) const DCBACKUP_VERSION: i32 = 2;
 
 /// Scanned QR code.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,6 +121,9 @@ pub enum Qr {
         /// Authentication token.
         auth_token: String,
     },
+
+    /// The QR code is a backup, but it is too new. The user has to update its Delta Chat.
+    BackupTooNew {},
 
     /// Ask the user if they want to use the given service for video chats.
     WebrtcInstance {
@@ -296,7 +303,7 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         decode_tg_socks_proxy(context, qr)?
     } else if qr.starts_with(SHADOWSOCKS_SCHEME) {
         decode_shadowsocks_proxy(qr)?
-    } else if starts_with_ignore_case(qr, DCBACKUP2_SCHEME) {
+    } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME_PREFIX) {
         let qr_fixed = fix_add_second_device_qr(qr);
         decode_backup2(&qr_fixed)?
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -367,7 +374,9 @@ pub fn format_backup(qr: &Qr) -> Result<String> {
             ref auth_token,
         } => {
             let node_addr = serde_json::to_string(node_addr)?;
-            Ok(format!("{DCBACKUP2_SCHEME}{auth_token}&{node_addr}"))
+            Ok(format!(
+                "{DCBACKUP_SCHEME_PREFIX}{DCBACKUP_VERSION}:{auth_token}&{node_addr}"
+            ))
         }
         _ => Err(anyhow!("Not a backup QR code")),
     }
@@ -643,11 +652,19 @@ fn decode_shadowsocks_proxy(qr: &str) -> Result<Qr> {
     })
 }
 
-/// Decodes a [`DCBACKUP2_SCHEME`] QR code.
+/// Decodes a `DCBACKUP` QR code.
 fn decode_backup2(qr: &str) -> Result<Qr> {
-    let payload = qr
-        .strip_prefix(DCBACKUP2_SCHEME)
-        .ok_or_else(|| anyhow!("Invalid DCBACKUP2 scheme"))?;
+    let version_and_payload = qr
+        .strip_prefix(DCBACKUP_SCHEME_PREFIX)
+        .ok_or_else(|| anyhow!("Invalid DCBACKUP scheme"))?;
+    let (version, payload) = version_and_payload
+        .split_once(':')
+        .context("DCBACKUP scheme separator missing")?;
+    let version: i32 = version.parse().context("Not a valid number")?;
+    if version > DCBACKUP_VERSION {
+        return Ok(Qr::BackupTooNew {});
+    }
+
     let (auth_token, node_addr) = payload
         .split_once('&')
         .context("Backup QR code has no separator")?;
