@@ -1048,10 +1048,10 @@ impl ChatId {
         Ok(count)
     }
 
-    pub(crate) async fn get_created_timestamp(self, context: &Context) -> Result<i64> {
+    pub(crate) async fn created_timestamp(self, context: &Context) -> Result<i64> {
         Ok(context
             .sql
-            .query_get_value("SELECT created_timestamp FROM chats WHERE id=?;", (self,))
+            .query_get_value("SELECT created_timestamp FROM chats WHERE id=?", (self,))
             .await?
             .unwrap_or(0))
     }

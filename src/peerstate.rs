@@ -676,7 +676,7 @@ impl Peerstate {
                 let lastmsg = Message::load_from_db(context, *msg_id).await?;
                 lastmsg.timestamp_sort
             } else {
-                chat_id.get_created_timestamp(context).await?
+                chat_id.created_timestamp(context).await?
             };
 
             if let PeerstateChange::Aeap(new_addr) = &change {

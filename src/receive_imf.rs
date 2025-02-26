@@ -1452,19 +1452,18 @@ async fn add_parts(
             None => better_msg = Some(m),
             Some(_) => {
                 if !m.is_empty() {
-                    group_changes.extra_msgs.push(m)
+                    group_changes.extra_msgs.push((m, is_system_message))
                 }
             }
         }
     }
 
-    for group_changes_msg in group_changes.extra_msgs {
-        // Currently all additional group changes messages are "Member added". // TODO this is wrong today
+    for (group_changes_msg, cmd) in group_changes.extra_msgs {
         chat::add_info_msg_with_cmd(
             context,
             chat_id,
             &group_changes_msg,
-            SystemMessage::MemberAddedToGroup,
+            cmd,
             sort_timestamp,
             None,
             None,
@@ -1828,7 +1827,7 @@ async fn tweak_sort_timestamp(
         let last_msg_timestamp = if let Some(t) = chat_id.get_timestamp(context).await? {
             t
         } else {
-            chat_id.get_created_timestamp(context).await?
+            chat_id.created_timestamp(context).await?
         };
         sort_timestamp = std::cmp::min(sort_timestamp, last_msg_timestamp);
     }
@@ -2294,7 +2293,7 @@ struct GroupChangesInfo {
     /// If true, the user should not be notified about the group change.
     silent: bool,
     /// A list of additional group changes messages that should be shown in the chat.
-    extra_msgs: Vec<String>,
+    extra_msgs: Vec<(String, SystemMessage)>,
 }
 
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
@@ -2602,7 +2601,7 @@ async fn group_changes_msgs(
     added_ids: &HashSet<ContactId>,
     removed_ids: &HashSet<ContactId>,
     chat_id: ChatId,
-) -> Result<Vec<String>> {
+) -> Result<Vec<(String, SystemMessage)>> {
     let mut group_changes_msgs = Vec::new();
     if !added_ids.is_empty() {
         warn!(
@@ -2619,17 +2618,19 @@ async fn group_changes_msgs(
     group_changes_msgs.reserve(added_ids.len() + removed_ids.len());
     for contact_id in added_ids {
         let contact = Contact::get_by_id(context, *contact_id).await?;
-        group_changes_msgs.push(
+        group_changes_msgs.push((
             stock_str::msg_add_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
                 .await,
-        );
+            SystemMessage::MemberAddedToGroup,
+        ));
     }
     for contact_id in removed_ids {
         let contact = Contact::get_by_id(context, *contact_id).await?;
-        group_changes_msgs.push(
+        group_changes_msgs.push((
             stock_str::msg_del_member_local(context, contact.get_addr(), ContactId::UNDEFINED)
                 .await,
-        );
+            SystemMessage::MemberRemovedFromGroup,
+        ));
     }
 
     Ok(group_changes_msgs)
