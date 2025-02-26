@@ -9,7 +9,7 @@ use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::reaction::send_reaction;
 use crate::receive_imf::receive_imf;
-use crate::test_utils as test;
+use crate::test_utils;
 use crate::test_utils::{TestContext, TestContextManager};
 
 #[test]
@@ -106,7 +106,7 @@ async fn test_create_webrtc_instance_noroom() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_width_height() {
-    let t = test::TestContext::new().await;
+    let t = TestContext::new().await;
 
     // test that get_width() and get_height() are returning some dimensions for images;
     // (as the device-chat contains a welcome-images, we check that)
@@ -136,7 +136,7 @@ async fn test_get_width_height() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_quote() {
-    let d = test::TestContext::new().await;
+    let d = TestContext::new().await;
     let ctx = &d.ctx;
 
     ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
@@ -779,11 +779,9 @@ async fn test_delete_msgs_sync() -> Result<()> {
 
     // Alice deletes the message; this should happen on both devices as well
     delete_msgs(alice, &[sent1.sender_msg_id]).await?;
-    alice.send_sync_msg().await?;
     assert_eq!(alice_chat_id.get_msg_cnt(alice).await?, 0);
 
-    let sent3 = alice.pop_sent_sync_msg().await;
-    alice2.recv_msg_trash(&sent3).await;
+    test_utils::sync(alice, alice2).await;
     assert_eq!(alice2_chat_id.get_msg_cnt(alice2).await?, 0);
 
     Ok(())
