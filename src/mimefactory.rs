@@ -1149,7 +1149,7 @@ impl MimeFactory {
         let Loaded::Message { chat, msg } = &self.loaded else {
             bail!("Attempt to render MDN as a message");
         };
-        let chat = chat.clone();
+        let mut chat = chat.clone();
         let msg = msg.clone();
         let command = msg.param.get_cmd();
         let mut placeholdertext = None;
@@ -1180,6 +1180,23 @@ impl MimeFactory {
             headers.push((
                 "Chat-Group-Name",
                 mail_builder::headers::text::Text::new(chat.name.to_string()).into(),
+            ));
+            if chat.param.get_i64(Param::GroupNameTimestamp).is_none()
+                || command == SystemMessage::GroupNameChanged
+            {
+                chat.param
+                    .set_i64(Param::GroupNameTimestamp, self.timestamp);
+                chat.update_param(context).await?;
+            }
+            headers.push((
+                "Chat-Group-Name-Timestamp",
+                mail_builder::headers::text::Text::new(
+                    chat.param
+                        .get_i64(Param::GroupNameTimestamp)
+                        .unwrap_or(0)
+                        .to_string(),
+                )
+                .into(),
             ));
 
             match command {
