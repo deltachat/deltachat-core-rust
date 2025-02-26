@@ -23,6 +23,7 @@ use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::log::LogExt;
 use crate::pgp;
+use crate::qr::DCBACKUP_VERSION;
 use crate::sql;
 use crate::tools::{
     create_folder, delete_file, get_filesuffix_lc, read_file, time, write_file, TempPathGuard,
@@ -786,6 +787,10 @@ async fn export_database(
     context
         .sql
         .set_raw_config_int("backup_time", timestamp)
+        .await?;
+    context
+        .sql
+        .set_raw_config_int("backup_version", DCBACKUP_VERSION)
         .await?;
     sql::housekeeping(context).await.log_err(context).ok();
     context
