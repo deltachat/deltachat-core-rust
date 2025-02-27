@@ -312,6 +312,19 @@ fn test_mailparse_content_type() {
     );
 }
 
+/// Test to reproduce
+/// <https://github.com/staktrace/mailparse/issues/130>.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_mailparse_0_16_0_panic() {
+    let context = TestContext::new_alice().await;
+    let raw = include_bytes!("../../test-data/message/mailparse-0.16.0-panic.eml");
+
+    // There should be an error, but no panic.
+    assert!(MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+        .await
+        .is_err());
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_parse_first_addr() {
     let context = TestContext::new().await;
