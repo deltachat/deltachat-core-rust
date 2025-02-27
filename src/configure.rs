@@ -28,9 +28,10 @@ use crate::constants::NON_ALPHANUMERIC_WITHOUT_DOT;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::log::LogExt;
+pub use crate::login_param::EnteredLoginParam;
 use crate::login_param::{
     ConfiguredCertificateChecks, ConfiguredLoginParam, ConfiguredServerLoginParam,
-    ConnectionCandidate, EnteredCertificateChecks, EnteredLoginParam,
+    ConnectionCandidate, EnteredCertificateChecks,
 };
 use crate::message::Message;
 use crate::oauth2::get_oauth2_addr;
@@ -128,6 +129,7 @@ impl Context {
 
     /// Removes the specified transport.
     /// `index` is the position in the list returned by `list_transports()`.
+    #[expect(clippy::unused_async)]
     pub async fn delete_transport(_index: usize) -> Result<()> {
         bail!("Adding and removing additional transports is not supported yet. Check back in a few months!")
     }
@@ -136,7 +138,7 @@ impl Context {
         info!(self, "Configure ...");
 
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
-        let configured_param = configure(self, &param).await?;
+        let configured_param = configure(self, param).await?;
         self.set_config_internal(Config::NotifyAboutWrongPw, Some("1"))
             .await?;
         on_configure_completed(self, configured_param, old_addr).await?;

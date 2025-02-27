@@ -276,16 +276,14 @@ impl EnteredLoginParam {
         } else {
             None
         };
-        context.set_config(Config::ServerFlags, server_flags.as_deref()).await?;
+        context
+            .set_config(Config::ServerFlags, server_flags.as_deref())
+            .await?;
 
         context
             .set_config_bool(Config::ProxyEnabled, self.proxy_config.is_some())
             .await?;
-        let proxy = if let Some(proxy) = &self.proxy_config {
-            Some(proxy.to_url())
-        } else {
-            None
-        };
+        let proxy = self.proxy_config.as_ref().map(|proxy| proxy.to_url());
         context
             .set_config(Config::ProxyUrl, proxy.as_deref())
             .await?;

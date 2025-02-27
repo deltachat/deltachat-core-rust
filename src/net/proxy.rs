@@ -391,7 +391,7 @@ impl ProxyConfig {
 
     /// If `load_dns_cache` is true, loads cached DNS resolution results.
     /// Use this only if the connection is going to be protected with TLS checks.
-    pub async fn connect(
+    pub(crate) async fn connect(
         &self,
         context: &Context,
         target_host: &str,
