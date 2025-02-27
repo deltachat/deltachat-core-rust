@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.156.0] - 2025-02-26
+
+### API-Changes
+
+- Save messages API in JSON RPC ([#6554](https://github.com/deltachat/deltachat-core-rust/pull/6554)).
+- jsonrpc: Add `MessageObject.is_edited`.
+- jsonrpc: Add `send_edit_request`.
+- Deduplicate blob files in the JsonRPC API ([#6470](https://github.com/deltachat/deltachat-core-rust/pull/6470)).
+- Message deletion request API ([#6576](https://github.com/deltachat/deltachat-core-rust/pull/6576))
+
+### Features / Changes
+
+- Edit message's text ([#6550](https://github.com/deltachat/deltachat-core-rust/pull/6550))
+- Sync message deletion to other devices ([#6573](https://github.com/deltachat/deltachat-core-rust/pull/6573))
+- Allow scanning multiple securejoin QR codes in parallel.
+- When reactions are seen, remove notification from second device ([#6480](https://github.com/deltachat/deltachat-core-rust/pull/6480)).
+- Enable bcc-self automatically when doing Autocrypt Setup Message.
+- Don't send a notification when a group member left ([#6575](https://github.com/deltachat/deltachat-core-rust/pull/6575)).
+- Fail on too new backups ([#6580](https://github.com/deltachat/deltachat-core-rust/pull/6580)).
+
+### Fixes
+
+- Make it impossible to overwrite default key.
+- Do not allow to edit html messages ([#6564](https://github.com/deltachat/deltachat-core-rust/pull/6564)).
+- `get_config(Config::Selfavatar)` returns the path, not the name ([#6570](https://github.com/deltachat/deltachat-core-rust/pull/6570)).
+- `chat::save_msgs`: Interrupt inbox loop to send a sync message.
+- Do not delete files if cannot read their metadata.
+
+### Build system
+
+- nix: Update hashes of git dependencies.
+- Update some dependencies.
+
+### CI
+
+- Remove deprecated DeterminateSystems/magic-nix-cache-action.
+
+### Refactor
+
+- Use mail-builder instead of lettre_email.
+- Move even even more tests into their own files ([#6559](https://github.com/deltachat/deltachat-core-rust/pull/6559)).
+- Remove `Message.set_file()`, `dc_msg_set_file()` and related code ([#6558](https://github.com/deltachat/deltachat-core-rust/pull/6558)).
+- Remove unused blob functions ([#6563](https://github.com/deltachat/deltachat-core-rust/pull/6563)).
+- Let `BlobObject::from_name()` take `&str` ([#6571](https://github.com/deltachat/deltachat-core-rust/pull/6571)).
+- Don't use traits where it's not necessary ([#6567](https://github.com/deltachat/deltachat-core-rust/pull/6567)).
+
 ## [1.155.6] - 2025-02-17
 
 ### Features / Changes
@@ -5828,3 +5874,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.3..v1.155.4
 [1.155.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.4..v1.155.5
 [1.155.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.5..v1.155.6
+[1.156.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.6..v1.156.0
