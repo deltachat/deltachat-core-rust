@@ -76,6 +76,7 @@ impl Context {
     ///
     /// If the email address is the same as an existing transport,
     /// then this existing account will be reconfigured instead of a new one being added.
+    /// TODO this fn doesn't save the entered parameters
     pub async fn add_transport_by_params(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
