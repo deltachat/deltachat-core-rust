@@ -139,7 +139,7 @@ $ cargo test -- --ignored
 
 Install [`cargo-bolero`](https://github.com/camshaft/bolero) with
 ```sh
-$ cargo install cargo-bolero
+$ cargo install cargo-bolero@0.8.0
 ```
 
 Run fuzzing tests with
