@@ -8,7 +8,7 @@ edition = "2021"
 bolero = "0.8"
 
 [dependencies]
-mailparse = "0.13"
+mailparse = "0.16"
 deltachat = { path = ".." }
 format-flowed = { path = "../format-flowed" }
 

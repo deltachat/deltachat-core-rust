@@ -1,7 +1,9 @@
-/target
+target/
 **/*.rs.bk
 /build
 /dist
+/fuzz/fuzz_targets/corpus/
+/fuzz/fuzz_targets/crashes/
 
 # ignore vi temporaries
 *~
