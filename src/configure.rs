@@ -35,6 +35,7 @@ use crate::login_param::{
 use crate::message::Message;
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
+use crate::qr::set_account_from_qr;
 use crate::smtp::Smtp;
 use crate::sync::Sync::*;
 use crate::tools::time;
@@ -64,8 +65,18 @@ impl Context {
         self.sql.get_raw_config_bool("configured").await
     }
 
-    /// Configures this account with the currently set parameters.
+    /// Configures this account with the currently provided parameters.
     pub async fn configure(&self) -> Result<()> {
+        let param = EnteredLoginParam::load(self).await?;
+
+        self.add_transport_by_params(&param).await
+    }
+
+    /// Adds a new email account as a transport using the provided parameters.
+    ///
+    /// If the email address is the same as an existing transport,
+    /// then this existing account will be reconfigured instead of a new one being added.
+    pub async fn add_transport_by_params(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
             "cannot configure, already running"
@@ -74,10 +85,14 @@ impl Context {
             self.sql.is_open().await,
             "cannot configure, database not opened."
         );
+        let old_addr = self.get_config(Config::ConfiguredAddr).await?;
+        if self.is_configured().await? && !addr_cmp(&old_addr.unwrap_or_default(), &param.addr) {
+            bail!("Adding a new transport is not supported right now. Check back in a few months!");
+        }
         let cancel_channel = self.alloc_ongoing().await?;
 
         let res = self
-            .inner_configure()
+            .inner_configure(param)
             .race(cancel_channel.recv().map(|_| Err(format_err!("Cancelled"))))
             .await;
 
@@ -95,10 +110,30 @@ impl Context {
         res
     }
 
-    async fn inner_configure(&self) -> Result<()> {
+    /// Adds a new email account as a transport using the provided parameters.
+    pub async fn add_transport_from_qr(&self, qr: &str) -> Result<()> {
+        set_account_from_qr(self, qr).await?;
+        self.configure().await?;
+
+        Ok(())
+    }
+
+    /// Returns the list of all email accounts that are used as a transport in the current profile.
+    pub async fn list_transports(&self) -> Result<Vec<EnteredLoginParam>> {
+        let param = EnteredLoginParam::load(self).await?;
+
+        Ok(vec![param])
+    }
+
+    /// Removes the specified transport.
+    /// `index` is the position in the list returned by `list_transports()`.
+    pub async fn delete_transport(_index: usize) -> Result<()> {
+        bail!("Adding and removing additional transports is not supported yet. Check back in a few months!")
+    }
+
+    async fn inner_configure(&self, param: &EnteredLoginParam) -> Result<()> {
         info!(self, "Configure ...");
 
-        let param = EnteredLoginParam::load(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
         let configured_param = configure(self, &param).await?;
         self.set_config_internal(Config::NotifyAboutWrongPw, Some("1"))
