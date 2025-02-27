@@ -68,7 +68,7 @@ iroh = { version = "0.32", default-features = false }
 kamadak-exif = "0.6.1"
 libc = { workspace = true }
 mail-builder = { git = "https://github.com/stalwartlabs/mail-builder", branch = "main", default-features = false }
-mailparse = "0.16"
+mailparse = "0.16.1"
 mime = "0.3.17"
 num_cpus = "1.16"
 num-derive = "0.4"
