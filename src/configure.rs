@@ -76,7 +76,6 @@ impl Context {
     ///
     /// If the email address is the same as an existing transport,
     /// then this existing account will be reconfigured instead of a new one being added.
-    /// TODO this fn doesn't save the entered parameters
     pub async fn add_transport_by_params(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
@@ -105,6 +104,7 @@ impl Context {
             let error_msg = stock_str::configuration_failed(self, &format!("{err:#}")).await;
             progress!(self, 0, Some(error_msg));
         } else {
+            param.save(self).await?;
             progress!(self, 1000);
         }
 

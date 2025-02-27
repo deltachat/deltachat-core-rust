@@ -4,6 +4,7 @@ use std::fmt;
 
 use anyhow::{format_err, Context as _, Result};
 use deltachat_contact_tools::EmailAddress;
+use num_traits::ToPrimitive as _;
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
@@ -14,6 +15,7 @@ use crate::net::load_connection_timestamp;
 use crate::net::proxy::ProxyConfig;
 use crate::provider::{Protocol, Provider, Socket, UsernamePattern};
 use crate::sql::Sql;
+use crate::tools::ToOption;
 
 /// User-entered setting for certificate checks.
 ///
@@ -218,6 +220,77 @@ impl EnteredLoginParam {
             proxy_config,
             oauth2,
         })
+    }
+
+    /// Loads entered account settings.
+    pub async fn save(&self, context: &Context) -> Result<()> {
+        context.set_config(Config::Addr, Some(&self.addr)).await?;
+
+        context
+            .set_config(Config::MailServer, self.imap.server.to_option())
+            .await?;
+        context
+            .set_config(Config::MailPort, self.imap.port.to_option().as_deref())
+            .await?;
+        context
+            .set_config(
+                Config::MailSecurity,
+                self.imap.security.to_i32().to_option().as_deref(),
+            )
+            .await?;
+        context
+            .set_config(Config::MailUser, self.imap.user.to_option())
+            .await?;
+        context
+            .set_config(Config::MailPw, self.imap.password.to_option())
+            .await?;
+
+        context
+            .set_config(Config::SendServer, self.smtp.server.to_option())
+            .await?;
+        context
+            .set_config(Config::SendPort, self.smtp.port.to_option().as_deref())
+            .await?;
+        context
+            .set_config(
+                Config::SendSecurity,
+                self.smtp.security.to_i32().to_option().as_deref(),
+            )
+            .await?;
+        context
+            .set_config(Config::SendUser, self.smtp.user.to_option())
+            .await?;
+        context
+            .set_config(Config::SendPw, self.smtp.password.to_option())
+            .await?;
+
+        context
+            .set_config(
+                Config::ImapCertificateChecks,
+                self.certificate_checks.to_i32().to_option().as_deref(),
+            )
+            .await?;
+
+        let server_flags = if self.oauth2 {
+            Some(DC_LP_AUTH_OAUTH2.to_string())
+        } else {
+            None
+        };
+        context.set_config(Config::ServerFlags, server_flags.as_deref()).await?;
+
+        context
+            .set_config_bool(Config::ProxyEnabled, self.proxy_config.is_some())
+            .await?;
+        let proxy = if let Some(proxy) = &self.proxy_config {
+            Some(proxy.to_url())
+        } else {
+            None
+        };
+        context
+            .set_config(Config::ProxyUrl, proxy.as_deref())
+            .await?;
+
+        Ok(())
     }
 }
 
