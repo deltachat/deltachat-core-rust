@@ -439,7 +439,7 @@ impl CommandApi {
 
     async fn add_transport(&self, account_id: u32, param: EnteredLoginParam) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.add_transport_ex(&param.try_into()?).await
+        ctx.add_transport(&param.try_into()?).await
     }
 
     async fn add_transport_from_qr(&self, account_id: u32, qr: String) -> Result<()> {

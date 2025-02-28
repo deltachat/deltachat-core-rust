@@ -154,18 +154,21 @@ impl Socks5Config {
     }
 }
 
+/// Configuration for the proxy through which all traffic
+/// (except for iroh p2p connections)
+/// will be sent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProxyConfig {
-    // HTTP proxy.
+    /// HTTP proxy.
     Http(HttpConfig),
 
-    // HTTPS proxy.
+    /// HTTPS proxy.
     Https(HttpConfig),
 
-    // SOCKS5 proxy.
+    /// SOCKS5 proxy.
     Socks5(Socks5Config),
 
-    // Shadowsocks proxy.
+    /// Shadowsocks proxy.
     Shadowsocks(ShadowsocksConfig),
 }
 

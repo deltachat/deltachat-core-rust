@@ -122,6 +122,7 @@ pub struct EnteredLoginParam {
     /// Proxy configuration.
     pub proxy_config: Option<ProxyConfig>,
 
+    /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
 

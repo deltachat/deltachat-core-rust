@@ -73,6 +73,10 @@ impl Context {
         self.add_transport_ex(&param).await
     }
 
+    /// Adds a new email account as a transport using the provided parameters.
+    ///
+    /// If the email address is the same as an existing transport,
+    /// then this existing account will be reconfigured instead of a new one being added.
     pub async fn add_transport(&self, param: &EnteredLoginParam) -> Result<()> {
         self.stop_io().await;
         let result = self.add_transport_ex(param).await;
@@ -86,11 +90,7 @@ impl Context {
         Ok(())
     }
 
-    /// Adds a new email account as a transport using the provided parameters.
-    ///
-    /// If the email address is the same as an existing transport,
-    /// then this existing account will be reconfigured instead of a new one being added.
-    pub async fn add_transport_ex(&self, param: &EnteredLoginParam) -> Result<()> {
+    async fn add_transport_ex(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
             "cannot configure, already running"
