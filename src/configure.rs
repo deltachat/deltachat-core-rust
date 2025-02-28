@@ -141,7 +141,7 @@ impl Context {
     }
 
     /// Removes the specified transport.
-    /// `transport_id` is the position in the list returned by [list_transports].
+    /// `transport_id` is the position in the list returned by [Self::list_transports].
     #[expect(clippy::unused_async)]
     pub async fn delete_transport(&self, _transport_id: u32) -> Result<()> {
         bail!("Adding and removing additional transports is not supported yet. Check back in a few months!")

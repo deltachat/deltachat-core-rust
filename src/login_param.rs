@@ -224,7 +224,8 @@ impl EnteredLoginParam {
         })
     }
 
-    /// Loads entered account settings.
+    /// Saves entered account settings,
+    /// so that they can be prefilled if the user wants to configure the server again.
     pub(crate) async fn save(&self, context: &Context) -> Result<()> {
         context.set_config(Config::Addr, Some(&self.addr)).await?;
 
@@ -908,6 +909,43 @@ mod tests {
         t.set_config(Config::ImapCertificateChecks, Some("999"))
             .await?;
         assert!(EnteredLoginParam::load(t).await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_save_entered_login_param() -> Result<()> {
+        let t = TestContext::new().await;
+        let param = EnteredLoginParam {
+            addr: "alice@example.org".to_string(),
+            imap: EnteredServerLoginParam {
+                server: "".to_string(),
+                port: 0,
+                security: Socket::Starttls,
+                user: "".to_string(),
+                password: "foobar".to_string(),
+            },
+            smtp: EnteredServerLoginParam {
+                server: "".to_string(),
+                port: 2947,
+                security: Socket::default(),
+                user: "".to_string(),
+                password: "".to_string(),
+            },
+            certificate_checks: Default::default(),
+            proxy_config: Default::default(),
+            oauth2: false,
+        };
+        param.save(&t).await?;
+        assert_eq!(
+            t.get_config(Config::Addr).await?.unwrap(),
+            "alice@example.org"
+        );
+        assert_eq!(t.get_config(Config::MailPw).await?.unwrap(), "foobar");
+        assert_eq!(t.get_config(Config::SendPw).await?, None);
+        assert_eq!(t.get_config_int(Config::SendPort).await?, 2947);
+
+        assert_eq!(EnteredLoginParam::load(&t).await?, param);
 
         Ok(())
     }
