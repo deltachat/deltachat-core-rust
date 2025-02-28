@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.156.1] - 2025-02-28
+
+### Fixes
+
+- Update mailparse to 0.16.1 to fix panic when parsing a message.
+- Add Chat-Group-Name-Timestamp header and use it to update group names ([#6412](https://github.com/deltachat/deltachat-core-rust/pull/6412)).
+- Log tokio::fs::metadata errors.
+
+### Build system
+
+- Update fuzzing setup.
+
 ## [1.156.0] - 2025-02-26
 
 ### API-Changes
@@ -5875,3 +5887,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.4..v1.155.5
 [1.155.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.5..v1.155.6
 [1.156.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.6..v1.156.0
+[1.156.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.0..v1.156.1
