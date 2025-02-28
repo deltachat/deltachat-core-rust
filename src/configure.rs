@@ -73,10 +73,35 @@ impl Context {
         self.add_transport_ex(&param).await
     }
 
-    /// Adds a new email account as a transport using the provided parameters.
+    /// Configures a new email account using the provided parameters
+    /// and adds it as a transport.
     ///
     /// If the email address is the same as an existing transport,
     /// then this existing account will be reconfigured instead of a new one being added.
+    ///
+    /// This function stops and starts IO as needed.
+    ///
+    /// Usually it will be enough to only set `addr` and `imap.password`,
+    /// and all the other settings will be autoconfigured.
+    ///
+    /// During configuration, ConfigureProgress events are emitted;
+    /// they indicate a successful configuration as well as errors
+    /// and may be used to create a progress bar.
+    /// This function will return after configuration is finished.
+    ///
+    /// If configuration is successful:
+    /// - The parameters entered by the user will be saved
+    ///   so that they can be prefilled when the user opens the server-configuration screen again
+    /// - and the working server parameters will be saved
+    ///   and used for connecting to the server.
+    ///
+    /// See also:
+    /// - [Self::is_configured()] to check whether there is
+    ///   at least one working transport.
+    /// - [Self::add_transport_from_qr()] to add a transport
+    ///   from a server encoded in a QR code.
+    /// - [Self::list_transports()] to get a list of all configured transports.
+    /// - [Self::delete_transport()] to remove a transport.
     pub async fn add_transport(&self, param: &EnteredLoginParam) -> Result<()> {
         self.stop_io().await;
         let result = self.add_transport_ex(param).await;
@@ -125,7 +150,9 @@ impl Context {
         res
     }
 
-    /// Adds a new email account as a transport using the provided parameters.
+    /// Adds a new email account as a transport
+    /// using the server encoded in the QR code.
+    /// See [Self::add_transport].
     pub async fn add_transport_from_qr(&self, qr: &str) -> Result<()> {
         set_account_from_qr(self, qr).await?;
         self.configure().await?;
@@ -134,6 +161,8 @@ impl Context {
     }
 
     /// Returns the list of all email accounts that are used as a transport in the current profile.
+    /// Use [Self::add_transport()] to add or change a transport
+    /// and [Self::delete_transport()] to delete a transport.
     pub async fn list_transports(&self) -> Result<Vec<EnteredLoginParam>> {
         let param = EnteredLoginParam::load(self).await?;
 
