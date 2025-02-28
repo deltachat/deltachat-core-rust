@@ -1313,10 +1313,35 @@ impl Message {
     /// UI can use this to show a symbol beside the message, indicating it was saved.
     /// The message can be un-saved by deleting the returned message.
     pub async fn get_saved_msg_id(&self, context: &Context) -> Result<Option<MsgId>> {
+        // We force usage of `msgs_index5` here
+        // which indexes `msgs.starred` column.
+        //
+        // Otherwise with SQLite 3.49.1
+        // if you run ANALYZE on the database,
+        // query planner decides not to use the index:
+        //
+        // sqlite> EXPLAIN QUERY PLAN SELECT id FROM msgs WHERE starred=? AND chat_id!=?;
+        // QUERY PLAN
+        // `--SEARCH msgs USING INDEX msgs_index5 (starred=?)
+        // sqlite> ANALYZE;
+        // sqlite> EXPLAIN QUERY PLAN SELECT id FROM msgs WHERE starred=? AND chat_id!=?;
+        // QUERY PLAN
+        // `--SCAN msgs
+        //
+        // Dropping created sqlite_stat1 and sqlite_stat4 tables
+        // and reconnecting helps.
+        //
+        // Even if we don't run ANALYZE or PRAGMA OPTIMIZE
+        // as of 2025-02-28, ANALYZE is supposed to improve performance
+        // and this demonstrates a bug in the query planner.
+        //
+        // Note that usage of INDEXED BY is generally discouraged,
+        // see <https://sqlite.org/lang_indexedby.html>
+        // and <https://sqlite.org/queryplanner-ng.html#howtofix>.
         let res: Option<MsgId> = context
             .sql
             .query_get_value(
-                "SELECT id FROM msgs WHERE starred=? AND chat_id!=?",
+                "SELECT id FROM msgs INDEXED BY msgs_index5 WHERE starred=? AND chat_id!=?",
                 (self.id, DC_CHAT_ID_TRASH),
             )
             .await?;
