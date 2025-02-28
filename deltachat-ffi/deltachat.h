@@ -2540,10 +2540,13 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   ask the user if they want to create an account on the given domain,
  *   if so, call dc_set_config_from_qr() and then dc_configure().
  *
- * - DC_QR_BACKUP:
  * - DC_QR_BACKUP2:
  *   ask the user if they want to set up a new device.
  *   If so, pass the qr-code to dc_receive_backup().
+ *
+ * - DC_QR_BACKUP_TOO_NEW:
+ *   show a hint to the user that this backup comes from a newer Delta Chat version
+ *   and this device needs an update
  *
  * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
  *   ask the user if they want to use the given service for video chats;
