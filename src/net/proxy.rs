@@ -246,7 +246,7 @@ where
 
 impl ProxyConfig {
     /// Creates a new proxy configuration by parsing given proxy URL.
-    pub(crate) fn from_url(url: &str) -> Result<Self> {
+    pub fn from_url(url: &str) -> Result<Self> {
         let url = Url::parse(url).context("Cannot parse proxy URL")?;
         match url.scheme() {
             "http" => {
@@ -305,7 +305,7 @@ impl ProxyConfig {
     ///
     /// This function can be used to normalize proxy URL
     /// by parsing it and serializing back.
-    pub(crate) fn to_url(&self) -> String {
+    pub fn to_url(&self) -> String {
         match self {
             Self::Http(http_config) => http_config.to_url("http"),
             Self::Https(http_config) => http_config.to_url("https"),

@@ -38,6 +38,7 @@ use deltachat::{imex, info};
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
+use types::login_param::EnteredLoginParam;
 use walkdir::WalkDir;
 use yerpc::rpc;
 
@@ -434,6 +435,32 @@ impl CommandApi {
         }
         ctx.start_io().await;
         Ok(())
+    }
+
+    async fn add_transport(&self, account_id: u32, param: EnteredLoginParam) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.add_transport_ex(&param.try_into()?).await
+    }
+
+    async fn add_transport_from_qr(&self, account_id: u32, qr: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.add_transport_from_qr(&qr).await
+    }
+
+    async fn list_transports(&self, account_id: u32) -> Result<Vec<EnteredLoginParam>> {
+        let ctx = self.get_context(account_id).await?;
+        let res = ctx
+            .list_transports()
+            .await?
+            .into_iter()
+            .map(|t| t.into())
+            .collect();
+        Ok(res)
+    }
+
+    async fn delete_transport(&self, account_id: u32, transport_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.delete_transport(transport_id).await
     }
 
     /// Signal an ongoing process to stop.

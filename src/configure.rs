@@ -70,14 +70,27 @@ impl Context {
     pub async fn configure(&self) -> Result<()> {
         let param = EnteredLoginParam::load(self).await?;
 
-        self.add_transport_by_params(&param).await
+        self.add_transport_ex(&param).await
+    }
+
+    pub async fn add_transport(&self, param: &EnteredLoginParam) -> Result<()> {
+        self.stop_io().await;
+        let result = self.add_transport_ex(param).await;
+        if result.is_err() {
+            if let Ok(true) = self.is_configured().await {
+                self.start_io().await;
+            }
+            return result;
+        }
+        self.start_io().await;
+        Ok(())
     }
 
     /// Adds a new email account as a transport using the provided parameters.
     ///
     /// If the email address is the same as an existing transport,
     /// then this existing account will be reconfigured instead of a new one being added.
-    pub async fn add_transport_by_params(&self, param: &EnteredLoginParam) -> Result<()> {
+    pub async fn add_transport_ex(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
             "cannot configure, already running"
@@ -128,9 +141,9 @@ impl Context {
     }
 
     /// Removes the specified transport.
-    /// `index` is the position in the list returned by `list_transports()`.
+    /// `transport_id` is the position in the list returned by [list_transports].
     #[expect(clippy::unused_async)]
-    pub async fn delete_transport(_index: usize) -> Result<()> {
+    pub async fn delete_transport(&self, _transport_id: u32) -> Result<()> {
         bail!("Adding and removing additional transports is not supported yet. Check back in a few months!")
     }
 

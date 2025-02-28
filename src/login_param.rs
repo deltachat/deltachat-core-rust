@@ -12,8 +12,9 @@ use crate::configure::server_params::{expand_param_vector, ServerParams};
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
 use crate::net::load_connection_timestamp;
-use crate::net::proxy::ProxyConfig;
-use crate::provider::{Protocol, Provider, Socket, UsernamePattern};
+pub use crate::net::proxy::ProxyConfig;
+pub use crate::provider::Socket;
+use crate::provider::{Protocol, Provider, UsernamePattern};
 use crate::sql::Sql;
 use crate::tools::ToOption;
 
@@ -46,7 +47,7 @@ pub enum EnteredCertificateChecks {
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
-pub enum ConfiguredCertificateChecks {
+pub(crate) enum ConfiguredCertificateChecks {
     /// Use configuration from the provider database.
     /// If there is no provider database setting for certificate checks,
     /// accept invalid certificates.
@@ -126,7 +127,7 @@ pub struct EnteredLoginParam {
 
 impl EnteredLoginParam {
     /// Loads entered account settings.
-    pub async fn load(context: &Context) -> Result<Self> {
+    pub(crate) async fn load(context: &Context) -> Result<Self> {
         let addr = context
             .get_config(Config::Addr)
             .await?
@@ -223,7 +224,7 @@ impl EnteredLoginParam {
     }
 
     /// Loads entered account settings.
-    pub async fn save(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn save(&self, context: &Context) -> Result<()> {
         context.set_config(Config::Addr, Some(&self.addr)).await?;
 
         context
@@ -390,7 +391,7 @@ impl TryFrom<Socket> for ConnectionSecurity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ConfiguredServerLoginParam {
+pub(crate) struct ConfiguredServerLoginParam {
     pub connection: ConnectionCandidate,
 
     /// Username.
@@ -428,7 +429,7 @@ pub(crate) async fn prioritize_server_login_params(
 /// Login parameters saved to the database
 /// after successful configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConfiguredLoginParam {
+pub(crate) struct ConfiguredLoginParam {
     /// `From:` address that was used at the time of configuration.
     pub addr: String,
 
@@ -499,7 +500,7 @@ impl ConfiguredLoginParam {
     /// Load configured account settings from the database.
     ///
     /// Returns `None` if account is not configured.
-    pub async fn load(context: &Context) -> Result<Option<Self>> {
+    pub(crate) async fn load(context: &Context) -> Result<Option<Self>> {
         if !context.get_config_bool(Config::Configured).await? {
             return Ok(None);
         }
@@ -770,7 +771,7 @@ impl ConfiguredLoginParam {
     }
 
     /// Save this loginparam to the database.
-    pub async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
         context.set_primary_self_addr(&self.addr).await?;
 
         context
@@ -847,7 +848,7 @@ impl ConfiguredLoginParam {
         Ok(())
     }
 
-    pub fn strict_tls(&self) -> bool {
+    pub(crate) fn strict_tls(&self) -> bool {
         let provider_strict_tls = self.provider.map(|provider| provider.opt.strict_tls);
         match self.certificate_checks {
             ConfiguredCertificateChecks::OldAutomatic => {
