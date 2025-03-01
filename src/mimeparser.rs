@@ -292,6 +292,7 @@ impl MimeMessage {
                     if !headers.contains_key(&key)
                         && (key == "chat-user-avatar"
                             || key == "chat-group-avatar"
+                            // Compat code. These headers are just protected now.
                             || key == "chat-delete"
                             || key == "chat-edit")
                     {
