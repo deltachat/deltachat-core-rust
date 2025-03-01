@@ -68,7 +68,7 @@ mod imap;
 pub mod imex;
 pub mod key;
 pub mod location;
-mod login_param;
+pub mod login_param;
 pub mod message;
 mod mimefactory;
 pub mod mimeparser;
