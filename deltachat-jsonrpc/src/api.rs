@@ -423,6 +423,9 @@ impl CommandApi {
 
     /// Configures this account with the currently set parameters.
     /// Setup the credential config before calling this.
+    ///
+    /// Deprecated as of 2025-02; use `add_transport_from_qr()`
+    /// or `add_transport()` instead.
     async fn configure(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;

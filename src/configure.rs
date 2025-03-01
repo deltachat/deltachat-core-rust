@@ -67,6 +67,9 @@ impl Context {
     }
 
     /// Configures this account with the currently provided parameters.
+    ///
+    /// Deprecated since 2025-02; use `add_transport_from_qr()`
+    /// or `add_transport()` instead.
     pub async fn configure(&self) -> Result<()> {
         let param = EnteredLoginParam::load(self).await?;
 
