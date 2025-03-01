@@ -101,7 +101,7 @@ tagger = "4.3.4"
 textwrap = "0.16.1"
 thiserror = { workspace = true }
 tokio-io-timeout = "1.2.0"
-tokio-rustls = { version = "0.26.1", default-features = false }
+tokio-rustls = { version = "0.26.2", default-features = false }
 tokio-stream = { version = "0.1.17", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
 tokio-util = { workspace = true }
