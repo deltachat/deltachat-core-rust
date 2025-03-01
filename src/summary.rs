@@ -97,23 +97,26 @@ impl Summary {
         let prefix = if msg.state == MessageState::OutDraft {
             Some(SummaryPrefix::Draft(stock_str::draft(context).await))
         } else if msg.from_id == ContactId::SELF {
-            if msg.is_info() || chat.is_self_talk() {
+            if msg.is_info() {
                 None
             } else {
                 Some(SummaryPrefix::Me(stock_str::self_msg(context).await))
             }
         } else {
-            match chat.typ {
-                Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
-                    if msg.is_info() || contact.is_none() {
-                        None
-                    } else {
-                        msg.get_override_sender_name()
-                            .or_else(|| contact.map(|contact| msg.get_sender_name(contact)))
-                            .map(SummaryPrefix::Username)
-                    }
+            if chat.typ == Chattype::Group
+                || chat.typ == Chattype::Broadcast
+                || chat.typ == Chattype::Mailinglist
+                || chat.is_self_talk()
+            {
+                if msg.is_info() || contact.is_none() {
+                    None
+                } else {
+                    msg.get_override_sender_name()
+                        .or_else(|| contact.map(|contact| msg.get_sender_name(contact)))
+                        .map(SummaryPrefix::Username)
                 }
-                Chattype::Single => None,
+            } else {
+                None
             }
         };
 
