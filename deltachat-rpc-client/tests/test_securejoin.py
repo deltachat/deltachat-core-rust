@@ -461,7 +461,7 @@ def test_qr_new_group_unblocked(acfactory):
     assert ac2_msg.chat.get_basic_snapshot().is_contact_request
 
 
-@pytest.mark.ignored
+@pytest.mark.skip(reason="AEAP is disabled for now")
 def test_aeap_flow_verified(acfactory):
     """Test that a new address is added to a contact when it changes its address."""
     ac1, ac2 = acfactory.get_online_accounts(2)
