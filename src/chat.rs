@@ -434,7 +434,7 @@ impl ChatId {
                 .ok();
         }
         if delete {
-            self.delete(context).await?;
+            self.delete_ex(context, Nosync).await?;
         }
         Ok(())
     }
@@ -773,6 +773,10 @@ impl ChatId {
 
     /// Deletes a chat.
     pub async fn delete(self, context: &Context) -> Result<()> {
+        self.delete_ex(context, Sync).await
+    }
+
+    pub(crate) async fn delete_ex(self, context: &Context, sync: sync::Sync) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be a special chat: {}",
@@ -780,6 +784,10 @@ impl ChatId {
         );
 
         let chat = Chat::load_from_db(context, self).await?;
+        let sync_id = match sync {
+            Nosync => None,
+            Sync => chat.get_sync_id(context).await?,
+        };
 
         context
             .sql
@@ -796,18 +804,24 @@ impl ChatId {
             .await?;
 
         context.emit_msgs_changed_without_ids();
-        chatlist_events::emit_chatlist_changed(context);
 
-        context
-            .set_config_internal(Config::LastHousekeeping, None)
-            .await?;
-        context.scheduler.interrupt_inbox().await;
+        if let Some(id) = sync_id {
+            self::sync(context, id, SyncAction::Delete)
+                .await
+                .log_err(context)
+                .ok();
+        }
 
         if chat.is_self_talk() {
             let mut msg = Message::new_text(stock_str::self_deleted_msg_body(context).await);
             add_device_msg(context, None, Some(&mut msg)).await?;
         }
         chatlist_events::emit_chatlist_changed(context);
+
+        context
+            .set_config_internal(Config::LastHousekeeping, None)
+            .await?;
+        context.scheduler.interrupt_inbox().await;
 
         Ok(())
     }
@@ -4875,6 +4889,7 @@ pub(crate) enum SyncAction {
     Rename(String),
     /// Set chat contacts by their addresses.
     SetContacts(Vec<String>),
+    Delete,
 }
 
 impl Context {
@@ -4934,6 +4949,7 @@ impl Context {
             }
             SyncAction::Rename(to) => rename_ex(self, Nosync, chat_id, to).await,
             SyncAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
+            SyncAction::Delete => chat_id.delete_ex(self, Nosync).await,
         }
     }
 
