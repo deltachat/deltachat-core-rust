@@ -802,14 +802,14 @@ mod tests {
         save_msgs(&alice, &[sent1.sender_msg_id]).await?;
         let chatlist = Chatlist::try_load(&alice, 0, None, None).await?;
         let summary = chatlist.get_summary(&alice, 0, None).await?;
-        assert_eq!(format!("{}", summary.prefix.unwrap()), "Me");
+        assert_eq!(summary.prefix.unwrap().to_string(), "Me");
         assert_eq!(summary.text, "hi");
 
         let msg = bob.recv_msg(&sent1).await;
         save_msgs(&bob, &[msg.id]).await?;
         let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
         let summary = chatlist.get_summary(&bob, 0, None).await?;
-        assert_eq!(format!("{}", summary.prefix.unwrap()), "alice@example.org");
+        assert_eq!(summary.prefix.unwrap().to_string(), "alice@example.org");
         assert_eq!(summary.text, "hi");
 
         Ok(())
