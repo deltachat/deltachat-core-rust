@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.156.2] - 2025-03-02
+
+### Fixes
+
+- Upgrade native-tls from 0.2.13 to 0.2.14. This fixes "Accept invalid certificates" failing on Android with "OpenSSL error". The bug was there since 1.156.0 due to upgrade of native-tls from 0.2.11 to 0.2.13.
+
+### Features / Changes
+
+- Show sender name in 'Saved Messages' summary ([#6607](https://github.com/deltachat/deltachat-core-rust/pull/6607)).
+- Sync chats deletion across devices.
+
+### Documentation
+
+- Add DC_QR_BACKUP_TOO_NEW documentation.
+
+### Miscellaneous Tasks
+
+- cargo: Bump anyhow from 1.0.95 to 1.0.96.
+- cargo: Bump serde from 1.0.217 to 1.0.218.
+
 ## [1.156.1] - 2025-02-28
 
 ### Fixes
@@ -5888,3 +5908,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.155.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.5..v1.155.6
 [1.156.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.6..v1.156.0
 [1.156.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.0..v1.156.1
+[1.156.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.1..v1.156.2
