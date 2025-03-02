@@ -480,6 +480,7 @@ pub async fn get_last_message_for_chat(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::save_msgs;
     use crate::chat::{
         add_contact_to_chat, create_group_chat, get_chat_contacts, remove_contact_from_chat,
         send_text_msg, ProtectionStatus,
@@ -487,6 +488,7 @@ mod tests {
     use crate::receive_imf::receive_imf;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
+    use crate::test_utils::TestContextManager;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_try_load() {
@@ -786,6 +788,31 @@ mod tests {
 
         let summary_res = chats.get_summary(&t, 0, None).await;
         assert!(summary_res.is_ok());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_summary_for_saved_messages() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let chat_alice = alice.create_chat(&bob).await;
+
+        send_text_msg(&alice, chat_alice.id, "hi".into()).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        save_msgs(&alice, &[sent1.sender_msg_id]).await?;
+        let chatlist = Chatlist::try_load(&alice, 0, None, None).await?;
+        let summary = chatlist.get_summary(&alice, 0, None).await?;
+        assert_eq!(format!("{}", summary.prefix.unwrap()), "Me");
+        assert_eq!(summary.text, "hi");
+
+        let msg = bob.recv_msg(&sent1).await;
+        save_msgs(&bob, &[msg.id]).await?;
+        let chatlist = Chatlist::try_load(&bob, 0, None, None).await?;
+        let summary = chatlist.get_summary(&bob, 0, None).await?;
+        assert_eq!(format!("{}", summary.prefix.unwrap()), "alice@example.org");
+        assert_eq!(summary.text, "hi");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
