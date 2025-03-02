@@ -407,16 +407,17 @@ impl Chatlist {
         let lastcontact = if let Some(lastmsg) = &lastmsg {
             if lastmsg.from_id == ContactId::SELF {
                 None
+            } else if chat.typ == Chattype::Group
+                || chat.typ == Chattype::Broadcast
+                || chat.typ == Chattype::Mailinglist
+                || chat.is_self_talk()
+            {
+                let lastcontact = Contact::get_by_id(context, lastmsg.from_id)
+                    .await
+                    .context("loading contact failed")?;
+                Some(lastcontact)
             } else {
-                match chat.typ {
-                    Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
-                        let lastcontact = Contact::get_by_id(context, lastmsg.from_id)
-                            .await
-                            .context("loading contact failed")?;
-                        Some(lastcontact)
-                    }
-                    Chattype::Single => None,
-                }
+                None
             }
         } else {
             None
