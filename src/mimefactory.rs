@@ -870,6 +870,7 @@ impl MimeFactory {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header.clone());
             } else if header_name == "chat-user-avatar"
+                || header_name == "chat-group-avatar"
                 || header_name == "chat-delete"
                 || header_name == "chat-edit"
             {
