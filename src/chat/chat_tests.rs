@@ -2681,7 +2681,7 @@ async fn test_chat_get_encryption_info() -> Result<()> {
         "No encryption:\n\
             fiona@example.net\n\
             \n\
-            End-to-end encryption preferred:\n\
+            End-to-end encryption available:\n\
             bob@example.net"
     );
 
