@@ -299,10 +299,6 @@ async fn test_member_add_remove() -> Result<()> {
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
-    // Disable encryption so we can inspect raw message contents.
-    alice.set_config(Config::E2eeEnabled, Some("0")).await?;
-    bob.set_config(Config::E2eeEnabled, Some("0")).await?;
-
     // Create contact for Bob on the Alice side with name "robert".
     let alice_bob_contact_id = Contact::create(&alice, "robert", "bob@example.net").await?;
 
@@ -372,9 +368,6 @@ async fn test_parallel_member_remove() -> Result<()> {
 
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
-
-    alice.set_config(Config::E2eeEnabled, Some("0")).await?;
-    bob.set_config(Config::E2eeEnabled, Some("0")).await?;
 
     let alice_bob_contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
     let alice_fiona_contact_id = Contact::create(&alice, "Fiona", "fiona@example.net").await?;
@@ -2677,11 +2670,10 @@ async fn test_chat_get_encryption_info() -> Result<()> {
         "No encryption:\n\
             fiona@example.net\n\
             \n\
-            End-to-end encryption preferred:\n\
+            End-to-end encryption available:\n\
             bob@example.net"
     );
 
-    bob.set_config(Config::E2eeEnabled, Some("0")).await?;
     send_text_msg(&bob, direct_chat.id, "Hello!".to_string()).await?;
     alice.recv_msg(&bob.pop_sent_msg().await).await;
 

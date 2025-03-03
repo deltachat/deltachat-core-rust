@@ -86,7 +86,7 @@ async fn test_set_config_bool() -> Result<()> {
     let t = TestContext::new().await;
 
     // We need some config that defaults to true
-    let c = Config::E2eeEnabled;
+    let c = Config::MdnsEnabled;
     assert_eq!(t.get_config_bool(c).await?, true);
     t.set_config_bool(c, false).await?;
     assert_eq!(t.get_config_bool(c).await?, false);

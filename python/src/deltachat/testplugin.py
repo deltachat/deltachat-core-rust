@@ -423,8 +423,6 @@ class ACFactory:
         where we can make valid SMTP and IMAP connections with.
         """
         configdict = next(self._liveconfig_producer).copy()
-        if "e2ee_enabled" not in configdict:
-            configdict["e2ee_enabled"] = "1"
 
         if self.pytestconfig.getoption("--strict-tls"):
             # Enable strict certificate checks for online accounts

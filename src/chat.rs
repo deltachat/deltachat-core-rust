@@ -1313,8 +1313,7 @@ impl ChatId {
     ///
     /// To get more verbose summary for a contact, including its key fingerprint, use [`Contact::get_encrinfo`].
     pub async fn get_encryption_info(self, context: &Context) -> Result<String> {
-        let mut ret_mutual = String::new();
-        let mut ret_nopreference = String::new();
+        let mut ret_available = String::new();
         let mut ret_reset = String::new();
 
         for contact_id in get_chat_contacts(context, self)
@@ -1330,8 +1329,9 @@ impl ChatId {
                 .filter(|peerstate| peerstate.peek_key(false).is_some())
                 .map(|peerstate| peerstate.prefer_encrypt)
             {
-                Some(EncryptPreference::Mutual) => ret_mutual += &format!("{addr}\n"),
-                Some(EncryptPreference::NoPreference) => ret_nopreference += &format!("{addr}\n"),
+                Some(EncryptPreference::Mutual) | Some(EncryptPreference::NoPreference) => {
+                    ret_available += &format!("{addr}\n")
+                }
                 Some(EncryptPreference::Reset) | None => ret_reset += &format!("{addr}\n"),
             };
         }
@@ -1343,23 +1343,14 @@ impl ChatId {
             ret.push('\n');
             ret += &ret_reset;
         }
-        if !ret_nopreference.is_empty() {
+        if !ret_available.is_empty() {
             if !ret.is_empty() {
                 ret.push('\n');
             }
             ret += &stock_str::e2e_available(context).await;
             ret.push(':');
             ret.push('\n');
-            ret += &ret_nopreference;
-        }
-        if !ret_mutual.is_empty() {
-            if !ret.is_empty() {
-                ret.push('\n');
-            }
-            ret += &stock_str::e2e_preferred(context).await;
-            ret.push(':');
-            ret.push('\n');
-            ret += &ret_mutual;
+            ret += &ret_available;
         }
 
         Ok(ret.trim().to_string())
