@@ -835,11 +835,13 @@ impl MimeFactory {
         // placed here.
         let mut unprotected_headers: Vec<(&'static str, HeaderType<'static>)> = Vec::new();
 
-        // Headers that MUST NOT go into IMF header section.
-        //
-        // These are large headers which may hit the header section size limit on the server, such as
-        // Chat-User-Avatar with a base64-encoded image inside. Also there are headers duplicated here
-        // that servers mess up with in the IMF header section, like Message-ID.
+        // Headers that MUST NOT (only) go into IMF header section:
+        // - Large headers which may hit the header section size limit on the server, such as
+        //   Chat-User-Avatar with a base64-encoded image inside.
+        // - Headers duplicated here that servers mess up with in the IMF header section, like
+        //   Message-ID.
+        // - Nonstandard headers that should be DKIM-protected because e.g. OpenDKIM only signs
+        //   known headers.
         //
         // The header should be hidden from MTA
         // by moving it either into protected part
@@ -868,6 +870,7 @@ impl MimeFactory {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header.clone());
             } else if header_name == "chat-user-avatar"
+                || header_name == "chat-group-avatar"
                 || header_name == "chat-delete"
                 || header_name == "chat-edit"
             {

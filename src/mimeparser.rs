@@ -454,6 +454,7 @@ impl MimeMessage {
                     HeaderDef::ChatGroupPastMembers,
                     HeaderDef::ChatDelete,
                     HeaderDef::ChatEdit,
+                    HeaderDef::ChatUserAvatar,
                 ] {
                     headers.remove(h.get_headername());
                 }
