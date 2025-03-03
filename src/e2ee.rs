@@ -54,22 +54,13 @@ impl EncryptHelper {
         peerstates: &[(Option<Peerstate>, String)],
     ) -> Result<bool> {
         let is_chatmail = context.is_chatmail().await?;
-        let mut prefer_encrypt_count = if self.prefer_encrypt == EncryptPreference::Mutual {
-            1
-        } else {
-            0
-        };
+        let mut prefer_encrypt_count = 1;
         for (peerstate, addr) in peerstates {
             match peerstate {
                 Some(peerstate) => {
-                    let prefer_encrypt = peerstate.prefer_encrypt;
-                    info!(context, "Peerstate for {addr:?} is {prefer_encrypt}.");
                     if match peerstate.prefer_encrypt {
-                        EncryptPreference::NoPreference | EncryptPreference::Reset => {
-                            (peerstate.prefer_encrypt != EncryptPreference::Reset || is_chatmail)
-                                && self.prefer_encrypt == EncryptPreference::Mutual
-                        }
-                        EncryptPreference::Mutual => true,
+                        EncryptPreference::Reset => is_chatmail,
+                        EncryptPreference::NoPreference | EncryptPreference::Mutual => true,
                     } {
                         prefer_encrypt_count += 1;
                     }
@@ -176,6 +167,7 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<()> {
 mod tests {
     use super::*;
     use crate::chat::send_text_msg;
+    use crate::config::Config;
     use crate::key::DcKey;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
@@ -329,7 +321,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_should_encrypt() -> Result<()> {
         let t = TestContext::new_alice().await;
-        assert!(t.get_config_bool(Config::E2eeEnabled).await?);
         let encrypt_helper = EncryptHelper::new(&t).await.unwrap();
 
         let ps = new_peerstates(EncryptPreference::NoPreference);
@@ -349,61 +340,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let ps = vec![(None, "bob@foo.bar".to_string())];
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).await.is_err());
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).await?);
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_should_encrypt_e2ee_disabled() -> Result<()> {
-        let t = &TestContext::new_alice().await;
-        t.set_config_bool(Config::E2eeEnabled, false).await?;
-        let encrypt_helper = EncryptHelper::new(t).await.unwrap();
-
-        let ps = new_peerstates(EncryptPreference::NoPreference);
-        assert!(!encrypt_helper.should_encrypt(t, false, &ps).await?);
-
-        let ps = new_peerstates(EncryptPreference::Reset);
-        assert!(encrypt_helper.should_encrypt(t, true, &ps).await?);
-
-        let mut ps = new_peerstates(EncryptPreference::Mutual);
-        // Own preference is `NoPreference` and there's no majority with `Mutual`.
-        assert!(!encrypt_helper.should_encrypt(t, false, &ps).await?);
-        // Now the majority wants to encrypt. Let's encrypt, anyway there are other cases when we
-        // can't send unencrypted, e.g. protected groups.
-        ps.push(ps[0].clone());
-        assert!(encrypt_helper.should_encrypt(t, false, &ps).await?);
-
-        // Test with missing peerstate.
-        let ps = vec![(None, "bob@foo.bar".to_string())];
-        assert!(encrypt_helper.should_encrypt(t, true, &ps).await.is_err());
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_chatmail_prefers_to_encrypt() -> Result<()> {
-        let mut tcm = TestContextManager::new();
-        let alice = &tcm.alice().await;
-        let bob = &tcm.bob().await;
-        bob.set_config_bool(Config::IsChatmail, true).await?;
-
-        let bob_chat_id = tcm
-            .send_recv_accept(alice, bob, "Hello from DC")
-            .await
-            .chat_id;
-        receive_imf(
-            bob,
-            b"From: alice@example.org\n\
-            To: bob@example.net\n\
-            Message-ID: <2222@example.org>\n\
-            Date: Sun, 22 Mar 3000 22:37:58 +0000\n\
-            \n\
-            Hello from another MUA\n",
-            false,
-        )
-        .await?;
-        send_text_msg(bob, bob_chat_id, "hi".to_string()).await?;
-        let sent_msg = bob.pop_sent_msg().await;
-        let msg = Message::load_from_db(bob, sent_msg.sender_msg_id).await?;
-        assert!(msg.get_showpadlock());
         Ok(())
     }
 

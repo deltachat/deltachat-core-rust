@@ -442,7 +442,6 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
         ctx.set_config(Config::MvboxMove, Some("0")).await?;
         ctx.set_config(Config::OnlyFetchMvbox, None).await?;
         ctx.set_config(Config::ShowEmails, None).await?;
-        ctx.set_config(Config::E2eeEnabled, Some("1")).await?;
     }
 
     let create_mvbox = !is_chatmail;
