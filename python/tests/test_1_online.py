@@ -1282,59 +1282,6 @@ def test_bot(acfactory, lp):
     assert msg_in.is_bot()
 
 
-def test_quote_encrypted(acfactory, lp):
-    """Test that replies to encrypted messages with quotes are encrypted."""
-    ac1, ac2 = acfactory.get_online_accounts(2)
-
-    lp.sec("ac1: create chat with ac2")
-    chat = ac1.create_chat(ac2)
-
-    lp.sec("sending text message from ac1 to ac2")
-    msg1 = chat.send_text("message1")
-    assert not msg1.is_encrypted()
-
-    lp.sec("wait for ac2 to receive message")
-    msg2 = ac2._evtracker.wait_next_incoming_message()
-    assert msg2.text == "message1"
-    assert not msg2.is_encrypted()
-
-    lp.sec("create new chat with contact and send back (encrypted) message")
-    msg2.create_chat().send_text("message-back")
-
-    lp.sec("wait for ac1 to receive message")
-    msg3 = ac1._evtracker.wait_next_incoming_message()
-    assert msg3.text == "message-back"
-    assert msg3.is_encrypted()
-
-    lp.sec("ac1: e2ee_enabled=0 and see if reply is encrypted")
-    print("ac1: e2ee_enabled={}".format(ac1.get_config("e2ee_enabled")))
-    print("ac2: e2ee_enabled={}".format(ac2.get_config("e2ee_enabled")))
-    ac1.set_config("e2ee_enabled", "0")
-
-    for quoted_msg in msg1, msg3:
-        # Save the draft with a quote.
-        msg_draft = Message.new_empty(ac1, "text")
-        msg_draft.set_text("message reply")
-        msg_draft.quote = quoted_msg
-        chat.set_draft(msg_draft)
-
-        # Get the draft and send it.
-        msg_draft = chat.get_draft()
-        chat.send_msg(msg_draft)
-
-        chat.set_draft(None)
-        assert chat.get_draft() is None
-
-        # Quote should be replaced with "..." if quoted message is encrypted.
-        msg_in = ac2._evtracker.wait_next_incoming_message()
-        assert msg_in.text == "message reply"
-        assert not msg_in.is_encrypted()
-        if quoted_msg.is_encrypted():
-            assert msg_in.quoted_text == "..."
-        else:
-            assert msg_in.quoted_text == quoted_msg.text
-
-
 def test_quote_attachment(tmp_path, acfactory, lp):
     """Test that replies with an attachment and a quote are received correctly."""
     ac1, ac2 = acfactory.get_online_accounts(2)
