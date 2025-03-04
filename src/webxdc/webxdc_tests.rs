@@ -726,7 +726,7 @@ async fn test_send_webxdc_status_update() -> Result<()> {
     let bob = TestContext::new_bob().await;
 
     // Alice sends an webxdc instance and a status update
-    let alice_chat = alice.create_chat(&bob).await;
+    let alice_chat = alice.create_email_chat(&bob).await;
     let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
     let sent1 = &alice.pop_sent_msg().await;
     assert_eq!(alice_instance.viewtype, Viewtype::Webxdc);
@@ -1022,7 +1022,7 @@ async fn test_pop_status_update() -> Result<()> {
 async fn test_draft_and_send_webxdc_status_update() -> Result<()> {
     let alice = TestContext::new_alice().await;
     let bob = TestContext::new_bob().await;
-    let alice_chat_id = alice.create_chat(&bob).await.id;
+    let alice_chat_id = alice.create_email_chat(&bob).await.id;
 
     // prepare webxdc instance,
     // status updates are not sent for drafts, therefore send_webxdc_status_update() returns Ok(None)

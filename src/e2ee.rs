@@ -228,8 +228,8 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        let chat_alice = alice.create_chat(&bob).await.id;
-        let chat_bob = bob.create_chat(&alice).await.id;
+        let chat_alice = alice.create_email_chat(&bob).await.id;
+        let chat_bob = bob.create_email_chat(&alice).await.id;
 
         // Alice sends unencrypted message to Bob
         let mut msg = Message::new(Viewtype::Text);

@@ -1811,24 +1811,37 @@ async fn test_take_last_header() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_protect_autocrypt() -> Result<()> {
+async fn test_protect_autocrypt(enabled: bool) -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = &tcm.alice().await;
     let bob = &tcm.bob().await;
 
+    let chat = alice.create_chat(bob).await;
     alice
-        .set_config_bool(Config::ProtectAutocrypt, true)
+        .set_config_bool(Config::ProtectAutocrypt, enabled)
         .await?;
-    bob.set_config_bool(Config::ProtectAutocrypt, true).await?;
-
-    let msg = tcm.send_recv_accept(alice, bob, "Hello!").await;
-    assert_eq!(msg.get_showpadlock(), false);
-
-    let msg = tcm.send_recv(bob, alice, "Hi!").await;
+    let sent = alice.send_text(chat.id, "Hello!").await;
+    assert_eq!(sent.payload().contains("Autocrypt: "), !enabled);
+    let msg = bob.recv_msg(&sent).await;
     assert_eq!(msg.get_showpadlock(), true);
 
     Ok(())
+}
+
+/// Tests that if `protect_autocrypt` is enabled,
+/// `Autocrypt` header does not appear in the outer headers
+/// of encrypted messages.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_protect_autocrypt_enabled() -> Result<()> {
+    test_protect_autocrypt(true).await
+}
+
+/// Tests that if `protect_autocrypt` is disabled,
+/// `Autocrypt` header appears in the outer headers
+/// of encrypted messages.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_protect_autocrypt_false() -> Result<()> {
+    test_protect_autocrypt(false).await
 }
 
 /// Tests that CRLF before MIME boundary

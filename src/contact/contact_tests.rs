@@ -1207,16 +1207,16 @@ async fn test_reset_encryption() -> Result<()> {
     let alice = &tcm.alice().await;
     let bob = &tcm.bob().await;
 
-    let msg = tcm.send_recv_accept(alice, bob, "Hello!").await;
-    assert_eq!(msg.get_showpadlock(), false);
-
-    let msg = tcm.send_recv(bob, alice, "Hi!").await;
+    let msg = tcm.send_recv_accept(bob, alice, "Hi!").await;
     assert_eq!(msg.get_showpadlock(), true);
+
+    let alice_bob_chat_id = msg.chat_id;
     let alice_bob_contact_id = msg.from_id;
 
     alice_bob_contact_id.reset_encryption(alice).await?;
 
-    let msg = tcm.send_recv(alice, bob, "Unencrypted").await;
+    let sent = alice.send_text(alice_bob_chat_id, "Unencrypted").await;
+    let msg = bob.recv_msg(&sent).await;
     assert_eq!(msg.get_showpadlock(), false);
 
     Ok(())
@@ -1235,6 +1235,7 @@ async fn test_reset_verified_encryption() -> Result<()> {
 
     let alice_bob_chat_id = msg.chat_id;
     let alice_bob_contact_id = msg.from_id;
+
     alice_bob_contact_id.reset_encryption(alice).await?;
 
     // Check that the contact is still verified after resetting encryption.
@@ -1250,7 +1251,8 @@ async fn test_reset_verified_encryption() -> Result<()> {
         "bob@example.net sent a message from another device."
     );
 
-    let msg = tcm.send_recv(alice, bob, "Unencrypted").await;
+    let sent = alice.send_text(alice_bob_chat_id, "Unencrypted").await;
+    let msg = bob.recv_msg(&sent).await;
     assert_eq!(msg.get_showpadlock(), false);
 
     Ok(())

@@ -816,8 +816,13 @@ async fn test_shared_bobs_key() -> Result<()> {
     let bob3_addr = "bob3@example.net";
     bob3.configure_addr(bob3_addr).await;
     imex(bob3, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
-    tcm.send_recv(bob3, alice, "hi Alice!").await;
-    let msg = tcm.send_recv(alice, bob3, "hi Bob3!").await;
+    let chat = bob3.create_email_chat(alice).await;
+    let sent = bob3.send_text(chat.id, "hi Alice!").await;
+    let msg = alice.recv_msg(&sent).await;
+    assert!(!msg.get_showpadlock());
+    let chat = alice.create_email_chat(bob3).await;
+    let sent = alice.send_text(chat.id, "hi Bob3!").await;
+    let msg = bob3.recv_msg(&sent).await;
     assert!(msg.get_showpadlock());
 
     let mut bob_ids = HashSet::new();

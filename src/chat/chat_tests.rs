@@ -1883,10 +1883,6 @@ async fn test_sticker(
     msg.set_file_and_deduplicate(&alice, &file, Some(filename), None)?;
 
     let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
-    let mime = sent_msg.payload();
-    if res_viewtype == Viewtype::Sticker {
-        assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
-    }
 
     let msg = bob.recv_msg(&sent_msg).await;
     assert_eq!(msg.chat_id, bob_chat.id);

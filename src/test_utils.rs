@@ -29,7 +29,7 @@ use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
 use crate::constants::DC_GCL_NO_SPECIALS;
 use crate::constants::{Blocked, Chattype};
-use crate::contact::{Contact, ContactId, Modifier, Origin};
+use crate::contact::{import_vcard, make_vcard, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventEmitter, EventType, Events};
@@ -715,11 +715,26 @@ impl TestContext {
 
     /// Creates or returns an existing 1:1 [`Chat`] with another account.
     ///
-    /// This first creates a contact using the configured details on the other account, then
-    /// creates a 1:1 chat with this contact.
+    /// This first creates a contact by exporting a vCard from the `other`
+    /// and importing it into `self`,
+    /// then creates a 1:1 chat with this contact.
     pub async fn create_chat(&self, other: &TestContext) -> Chat {
+        let vcard = make_vcard(other, &[ContactId::SELF]).await.unwrap();
+        let contact_ids = import_vcard(self, &vcard).await.unwrap();
+        assert_eq!(contact_ids.len(), 1);
+        let contact_id = contact_ids.first().unwrap();
+        let chat_id = ChatId::create_for_contact(self, *contact_id).await.unwrap();
+        Chat::load_from_db(self, chat_id).await.unwrap()
+    }
+
+    /// Creates or returns an existing 1:1 [`Chat`] with another account
+    /// by email address.
+    ///
+    /// This function can be used to create unencrypted chats.
+    pub async fn create_email_chat(&self, other: &TestContext) -> Chat {
         let contact = self.add_or_lookup_contact(other).await;
         let chat_id = ChatId::create_for_contact(self, contact.id).await.unwrap();
+
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
