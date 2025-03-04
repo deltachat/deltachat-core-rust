@@ -1535,16 +1535,15 @@ async fn add_parts(
     } else if let Some(rfc724_mid_list) = mime_parser.get_header(HeaderDef::ChatDelete) {
         chat_id = DC_CHAT_ID_TRASH;
         if let Some(part) = mime_parser.parts.first() {
-            if part.param.get_bool(Param::GuaranteeE2ee).unwrap_or(false) {
-                let mut modified_chat_ids = HashSet::new();
-                let mut msg_ids = Vec::new();
+            let del_msg_encrypted = part.param.get_bool(Param::GuaranteeE2ee).unwrap_or(false);
+            let mut modified_chat_ids = HashSet::new();
+            let mut msg_ids = Vec::new();
 
-                let rfc724_mid_vec: Vec<&str> = rfc724_mid_list.split_whitespace().collect();
-                for rfc724_mid in rfc724_mid_vec {
-                    if let Some((msg_id, _)) =
-                        message::rfc724_mid_exists(context, rfc724_mid).await?
-                    {
-                        if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
+            let rfc724_mid_vec: Vec<&str> = rfc724_mid_list.split_whitespace().collect();
+            for rfc724_mid in rfc724_mid_vec {
+                if let Some((msg_id, _)) = message::rfc724_mid_exists(context, rfc724_mid).await? {
+                    if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
+                        if del_msg_encrypted || !msg.get_showpadlock() {
                             if msg.from_id == from_id {
                                 message::delete_msg_locally(context, &msg).await?;
                                 msg_ids.push(msg.id);
@@ -1553,16 +1552,19 @@ async fn add_parts(
                                 warn!(context, "Delete message: Bad sender.");
                             }
                         } else {
-                            warn!(context, "Delete message: Database entry does not exist.");
+                            warn!(context, "Delete message {rfc724_mid:?}: Not encrypted.");
                         }
                     } else {
-                        warn!(context, "Delete message: {rfc724_mid:?} not found.");
+                        warn!(
+                            context,
+                            "Delete message {rfc724_mid:?}: Database entry does not exist."
+                        );
                     }
+                } else {
+                    warn!(context, "Delete message: {rfc724_mid:?} not found.");
                 }
-                message::delete_msgs_locally_done(context, &msg_ids, modified_chat_ids).await?;
-            } else {
-                warn!(context, "Delete message: Not encrypted.");
             }
+            message::delete_msgs_locally_done(context, &msg_ids, modified_chat_ids).await?;
         }
     }
 
