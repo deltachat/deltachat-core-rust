@@ -35,7 +35,7 @@ use crate::ephemeral::{start_chat_ephemeral_timers, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::location;
 use crate::log::LogExt;
-use crate::message::{self, Message, MessageState, MsgId, Viewtype};
+use crate::message::{self, delete_single_msg_from_imap, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
@@ -786,7 +786,19 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
         let sync_id = match sync {
             Nosync => None,
-            Sync => chat.get_sync_id(context).await?,
+            Sync => {
+                let chat_items = get_chat_msgs(context, self).await?;
+                for item in chat_items {
+                    match item {
+                        ChatItem::Message { msg_id } => {
+                            let msg = Message::load_from_db(context, msg_id).await?;
+                            delete_single_msg_from_imap(context, msg).await?;
+                        }
+                        ChatItem::DayMarker { .. } => {}
+                    }
+                }
+                chat.get_sync_id(context).await?
+            }
         };
 
         context

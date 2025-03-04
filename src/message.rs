@@ -1738,16 +1738,7 @@ pub async fn delete_msgs_ex(
         modified_chat_ids.insert(msg.chat_id);
         deleted_rfc724_mid.push(msg.rfc724_mid.clone());
 
-        let target = context.get_delete_msgs_target().await?;
-        let update_db = |trans: &mut rusqlite::Transaction| {
-            trans.execute(
-                "UPDATE imap SET target=? WHERE rfc724_mid=?",
-                (target, msg.rfc724_mid),
-            )?;
-            trans.execute("DELETE FROM smtp WHERE msg_id=?", (msg_id,))?;
-            Ok(())
-        };
-        if let Err(e) = context.sql.transaction(update_db).await {
+        if let Err(e) = delete_single_msg_from_imap(context, msg).await {
             error!(context, "delete_msgs: failed to update db: {e:#}.");
             res = Err(e);
             continue;
@@ -1785,6 +1776,20 @@ pub async fn delete_msgs_ex(
     // Interrupt Inbox loop to start message deletion, run housekeeping and call send_sync_msg().
     context.scheduler.interrupt_inbox().await;
 
+    Ok(())
+}
+
+pub(crate) async fn delete_single_msg_from_imap(context: &Context, msg: Message) -> Result<()> {
+    let target = context.get_delete_msgs_target().await?;
+    let update_db = |trans: &mut rusqlite::Transaction| {
+        trans.execute(
+            "UPDATE imap SET target=? WHERE rfc724_mid=?",
+            (target, msg.rfc724_mid),
+        )?;
+        trans.execute("DELETE FROM smtp WHERE msg_id=?", (msg.id,))?;
+        Ok(())
+    };
+    context.sql.transaction(update_db).await?;
     Ok(())
 }
 
