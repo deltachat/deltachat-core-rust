@@ -3885,3 +3885,31 @@ async fn test_send_delete_request() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_send_delete_request_unencrypted() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat = alice.create_email_chat(bob).await;
+
+    // Alice sends a message, then sends a deletion request.
+    let sent1 = alice.send_text(alice_chat.id, "wtf").await;
+    let alice_msg = sent1.load_from_db().await;
+    assert_eq!(alice_chat.id.get_msg_cnt(alice).await?, 1);
+
+    message::delete_msgs_ex(alice, &[alice_msg.id], true).await?;
+    let sent2 = alice.pop_sent_msg().await;
+
+    // Bob receives both messages and has nothing at the end.
+    let bob_msg = bob.recv_msg(&sent1).await;
+    assert_eq!(bob_msg.text, "wtf");
+    assert_eq!(bob_msg.chat_id.get_msg_cnt(bob).await?, 1);
+
+    let sent2_parsed = bob.parse_msg(&sent2).await;
+    assert!(!sent2_parsed.was_encrypted());
+    bob.recv_msg_opt(&sent2).await;
+    assert_eq!(bob_msg.chat_id.get_msg_cnt(bob).await?, 0);
+
+    Ok(())
+}
