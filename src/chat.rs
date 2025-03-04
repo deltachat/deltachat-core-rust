@@ -793,16 +793,14 @@ impl ChatId {
         context
             .sql
             .transaction(|transaction| {
-                if sync_id.is_some() {
-                    transaction.execute(
-                        "UPDATE imap SET target=? WHERE rfc724_mid IN (SELECT rfc724_mid FROM msgs WHERE chat_id=?)",
-                        (delete_msgs_target, self,),
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM smtp WHERE msg_id IN (SELECT rfc724_mid FROM msgs WHERE chat_id=?)",
-                        (self,),
-                    )?;
-                }
+                transaction.execute(
+                    "UPDATE imap SET target=? WHERE rfc724_mid IN (SELECT rfc724_mid FROM msgs WHERE chat_id=?)",
+                    (delete_msgs_target, self,),
+                )?;
+                transaction.execute(
+                    "DELETE FROM smtp WHERE msg_id IN (SELECT rfc724_mid FROM msgs WHERE chat_id=?)",
+                    (self,),
+                )?;
                 transaction.execute(
                     "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?)",
                     (self,),
