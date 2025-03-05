@@ -1,11 +1,12 @@
 use mailparse::ParsedMail;
+use std::mem;
 
 use super::*;
 use crate::{
     chat,
     chatlist::Chatlist,
     constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
-    message::{MessageState, MessengerMessage},
+    message::{self, MessageState, MessengerMessage},
     receive_imf::receive_imf,
     test_utils::{TestContext, TestContextManager},
     tools::time,
@@ -1902,4 +1903,45 @@ This is the epilogue.  It is also to be ignored.";
         tokio::fs::read_to_string(blob.to_abs_path()).await.unwrap(),
         "This is explicitly typed plain US-ASCII text.\r\nIt DOES end with a linebreak.\r\n"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_chat_delete_imf_header() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat = alice.create_chat(bob).await;
+
+    // Alice sends a message, then sends an invalid deletion request.
+    let sent1 = alice.send_text(alice_chat.id, "wtf").await;
+    let alice_msg = sent1.load_from_db().await;
+    assert_eq!(alice_chat.id.get_msg_cnt(alice).await?, 1);
+
+    message::delete_msgs_ex(alice, &[alice_msg.id], true).await?;
+    let mut sent2 = alice.pop_sent_msg().await;
+    let mut s0 = String::new();
+    let mut s1 = String::new();
+    for l in sent2.payload.lines() {
+        if l.starts_with("Chat-Delete:") {
+            s1 += l;
+            s1 += "\n";
+            continue;
+        }
+        s0 += l;
+        s0 += "\n";
+        if l.starts_with("Message-ID:") && s1.is_empty() {
+            s1 = mem::take(&mut s0);
+        }
+    }
+    sent2.payload = s1 + &s0;
+
+    // Bob receives both messages, the deletion request with "Chat-Delete" in IMF headers is
+    // received as text message.
+    let bob_msg = bob.recv_msg(&sent1).await;
+    assert_eq!(bob_msg.text, "wtf");
+    assert_eq!(bob_msg.chat_id.get_msg_cnt(bob).await?, 1);
+    bob.recv_msg_opt(&sent2).await;
+    assert_eq!(bob_msg.chat_id.get_msg_cnt(bob).await?, 2);
+
+    Ok(())
 }
