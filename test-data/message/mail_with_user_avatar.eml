@@ -1,4 +1,3 @@
-Chat-User-Avatar: avatar.png
 Subject: =?utf-8?q?Chat=3A_this_is_a_message_with_a_=2E=2E=2E?=
 Message-ID: Mr.wOBwZNbBTVt.NZpmQDwWoNk@example.org
 In-Reply-To: Mr.ETXqza5-WpB.zDEYOLECxAw@example.org
@@ -12,6 +11,7 @@ Content-Type: multipart/mixed; boundary="luTiGu6GBoVLCvTkzVtmZmwsmhkNMw"
 
 --luTiGu6GBoVLCvTkzVtmZmwsmhkNMw
 Content-Type: text/plain; charset=utf-8
+Chat-User-Avatar: avatar.png
 
 this is a message with a profile-image attached
 

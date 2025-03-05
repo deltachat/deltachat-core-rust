@@ -23,7 +23,7 @@ use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
-use crate::mimeparser::SystemMessage;
+use crate::mimeparser::{is_hidden, SystemMessage};
 use crate::param::Param;
 use crate::peer_channels::create_iroh_header;
 use crate::peerstate::Peerstate;
@@ -869,11 +869,7 @@ impl MimeFactory {
             if header_name == "message-id" {
                 unprotected_headers.push(header.clone());
                 hidden_headers.push(header.clone());
-            } else if header_name == "chat-user-avatar"
-                || header_name == "chat-group-avatar"
-                || header_name == "chat-delete"
-                || header_name == "chat-edit"
-            {
+            } else if is_hidden(&header_name) {
                 hidden_headers.push(header.clone());
             } else if header_name == "autocrypt"
                 && !context.get_config_bool(Config::ProtectAutocrypt).await?
