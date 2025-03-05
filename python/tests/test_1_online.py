@@ -31,37 +31,6 @@ def test_basic_imap_api(acfactory, tmp_path):
     imap2.shutdown()
 
 
-@pytest.mark.ignored()
-def test_configure_generate_key(acfactory, lp):
-    # A slow test which will generate new keys.
-    acfactory.remove_preconfigured_keys()
-    ac1 = acfactory.new_online_configuring_account(key_gen_type=str(dc.const.DC_KEY_GEN_RSA2048))
-    ac2 = acfactory.new_online_configuring_account(key_gen_type=str(dc.const.DC_KEY_GEN_ED25519))
-    acfactory.bring_accounts_online()
-    chat = acfactory.get_accepted_chat(ac1, ac2)
-
-    lp.sec("ac1: send unencrypted message to ac2")
-    chat.send_text("message1")
-    lp.sec("ac2: waiting for message from ac1")
-    msg_in = ac2._evtracker.wait_next_incoming_message()
-    assert msg_in.text == "message1"
-    assert not msg_in.is_encrypted()
-
-    lp.sec("ac2: send encrypted message to ac1")
-    msg_in.chat.send_text("message2")
-    lp.sec("ac1: waiting for message from ac2")
-    msg2_in = ac1._evtracker.wait_next_incoming_message()
-    assert msg2_in.text == "message2"
-    assert msg2_in.is_encrypted()
-
-    lp.sec("ac1: send encrypted message to ac2")
-    msg2_in.chat.send_text("message3")
-    lp.sec("ac2: waiting for message from ac1")
-    msg3_in = ac2._evtracker.wait_next_incoming_message()
-    assert msg3_in.text == "message3"
-    assert msg3_in.is_encrypted()
-
-
 def test_configure_canceled(acfactory):
     ac1 = acfactory.new_online_configuring_account()
     ac1.stop_ongoing()

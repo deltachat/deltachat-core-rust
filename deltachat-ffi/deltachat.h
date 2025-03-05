@@ -440,14 +440,6 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    also show all mails of confirmed contacts,
  *                    DC_SHOW_EMAILS_ALL (2)=
  *                    also show mails of unconfirmed contacts (default).
- * - `key_gen_type` = DC_KEY_GEN_DEFAULT (0)=
- *                    generate recommended key type (default),
- *                    DC_KEY_GEN_RSA2048 (1)=
- *                    generate RSA 2048 keypair
- *                    DC_KEY_GEN_ED25519 (2)=
- *                    generate Curve25519 keypair
- *                    DC_KEY_GEN_RSA4096 (3)=
- *                    generate RSA 4096 keypair
  * - `delete_device_after` = 0=do not delete messages from device automatically (default),
  *                    >=1=seconds, after which messages are deleted automatically from the device.
  *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
@@ -6544,15 +6536,6 @@ void dc_event_unref(dc_event_t* event);
  */
 #define DC_MEDIA_QUALITY_BALANCED 0
 #define DC_MEDIA_QUALITY_WORSE    1
-
-
-/*
- * Values for dc_get|set_config("key_gen_type")
- */
-#define DC_KEY_GEN_DEFAULT 0
-#define DC_KEY_GEN_RSA2048 1
-#define DC_KEY_GEN_ED25519 2
-#define DC_KEY_GEN_RSA4096 3
 
 
 /**
