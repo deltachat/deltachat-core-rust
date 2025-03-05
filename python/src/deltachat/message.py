@@ -285,23 +285,6 @@ class Message:
         """Force the message to be sent in plain text."""
         lib.dc_msg_force_plaintext(self._dc_msg)
 
-    def get_mime_headers(self):
-        """return mime-header object for an incoming message.
-
-        This only returns a non-None object if ``save_mime_headers``
-        config option was set and the message is incoming.
-
-        :returns: email-mime message object (with headers only, no body).
-        """
-        import email
-
-        mime_headers = lib.dc_get_mime_headers(self.account._dc_context, self.id)
-        if mime_headers:
-            s = ffi.string(ffi.gc(mime_headers, lib.dc_str_unref))
-            if isinstance(s, bytes):
-                return email.message_from_bytes(s)
-            return email.message_from_string(s)
-
     @property
     def error(self) -> Optional[str]:
         """Error message."""

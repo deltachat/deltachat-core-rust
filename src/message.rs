@@ -1596,14 +1596,12 @@ pub(crate) fn guess_msgtype_from_path_suffix(path: &Path) -> Option<(Viewtype, &
 }
 
 /// Get the raw mime-headers of the given message.
-/// Raw headers are saved for incoming messages
-/// only if `set_config(context, "save_mime_headers", "1")`
-/// was called before.
+/// Raw headers are saved for large messages
+/// that need a "Show full message..."
+/// to see HTML part.
 ///
-/// Returns an empty vector if there are no headers saved for the given message,
-/// e.g. because of save_mime_headers is not set
-/// or the message is not incoming.
-pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8>> {
+/// Returns an empty vector if there are no headers saved for the given message.
+pub(crate) async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8>> {
     let (headers, compressed) = context
         .sql
         .query_row(

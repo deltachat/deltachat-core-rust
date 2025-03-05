@@ -1954,28 +1954,6 @@ pub unsafe extern "C" fn dc_get_msg_html(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_mime_headers(
-    context: *mut dc_context_t,
-    msg_id: u32,
-) -> *mut libc::c_char {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_get_mime_headers()");
-        return ptr::null_mut(); // NULL explicitly defined as "no mime headers"
-    }
-    let ctx = &*context;
-
-    block_on(async move {
-        let mime = message::get_mime_headers(ctx, MsgId::new(msg_id))
-            .await
-            .unwrap_or_log_default(ctx, "failed to get mime headers");
-        if mime.is_empty() {
-            return ptr::null_mut();
-        }
-        mime.strdup()
-    })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_delete_msgs(
     context: *mut dc_context_t,
     msg_ids: *const u32,

@@ -1405,10 +1405,6 @@ async fn add_parts(
     )
     .await?;
 
-    // if the mime-headers should be saved, find out its size
-    // (the mime-header ends with an empty line)
-    let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders).await?;
-
     let mime_in_reply_to = mime_parser
         .get_header(HeaderDef::InReplyTo)
         .unwrap_or_default();
@@ -1434,7 +1430,7 @@ async fn add_parts(
     // `true` finally.
     let mut save_mime_modified = false;
 
-    let mime_headers = if save_mime_headers || mime_parser.is_mime_modified {
+    let mime_headers = if mime_parser.is_mime_modified {
         let headers = if !mime_parser.decoded_data.is_empty() {
             mime_parser.decoded_data.clone()
         } else {
@@ -1698,7 +1694,7 @@ RETURNING id
                     },
                     hidden,
                     part.bytes as isize,
-                    if (save_mime_headers || save_mime_modified) && !(trash || hidden) {
+                    if save_mime_modified && !(trash || hidden) {
                         mime_headers.clone()
                     } else {
                         Vec::new()

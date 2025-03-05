@@ -105,10 +105,6 @@ class TestOfflineAccountBasic:
         ac1.update_config({"mvbox_move": False})
         assert ac1.get_config("mvbox_move") == "0"
 
-    def test_has_savemime(self, acfactory):
-        ac1 = acfactory.get_unconfigured_account()
-        assert "save_mime_headers" in ac1.get_config("sys.config_keys").split()
-
     def test_has_bccself(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         assert "bcc_self" in ac1.get_config("sys.config_keys").split()

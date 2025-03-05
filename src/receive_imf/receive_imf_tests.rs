@@ -1900,38 +1900,6 @@ async fn test_save_mime_headers_off() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_save_mime_headers_on() -> anyhow::Result<()> {
-    let alice = TestContext::new_alice().await;
-    alice.set_config_bool(Config::SaveMimeHeaders, true).await?;
-    let bob = TestContext::new_bob().await;
-    bob.set_config_bool(Config::SaveMimeHeaders, true).await?;
-
-    // alice sends a message to bob, bob sees full mime
-    let chat_alice = alice.create_chat(&bob).await;
-    chat::send_text_msg(&alice, chat_alice.id, "hi!".to_string()).await?;
-
-    let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
-    assert_eq!(msg.get_text(), "hi!");
-    assert!(!msg.get_showpadlock());
-    let mime = message::get_mime_headers(&bob, msg.id).await?;
-    let mime_str = String::from_utf8_lossy(&mime);
-    assert!(mime_str.contains("Message-ID:"));
-    assert!(mime_str.contains("From:"));
-
-    // another one, from bob to alice, that gets encrypted
-    let chat_bob = bob.create_chat(&alice).await;
-    chat::send_text_msg(&bob, chat_bob.id, "ho!".to_string()).await?;
-    let msg = alice.recv_msg(&bob.pop_sent_msg().await).await;
-    assert_eq!(msg.get_text(), "ho!");
-    assert!(msg.get_showpadlock());
-    let mime = message::get_mime_headers(&alice, msg.id).await?;
-    let mime_str = String::from_utf8_lossy(&mime);
-    assert!(mime_str.contains("Message-ID:"));
-    assert!(mime_str.contains("From:"));
-    Ok(())
-}
-
 async fn check_alias_reply(from_dc: bool, chat_request: bool, group_request: bool) {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;

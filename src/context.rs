@@ -920,12 +920,6 @@ impl Context {
             self.get_config_int(Config::ShowEmails).await?.to_string(),
         );
         res.insert(
-            "save_mime_headers",
-            self.get_config_bool(Config::SaveMimeHeaders)
-                .await?
-                .to_string(),
-        );
-        res.insert(
             "download_limit",
             self.get_config_int(Config::DownloadLimit)
                 .await?

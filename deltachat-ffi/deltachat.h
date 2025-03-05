@@ -448,9 +448,6 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    generate Curve25519 keypair
  *                    DC_KEY_GEN_RSA4096 (3)=
  *                    generate RSA 4096 keypair
- * - `save_mime_headers` = 1=save mime headers
- *                    and make dc_get_mime_headers() work for subsequent calls,
- *                    0=do not save mime headers (default)
  * - `delete_device_after` = 0=do not delete messages from device automatically (default),
  *                    >=1=seconds, after which messages are deleted automatically from the device.
  *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
@@ -1958,23 +1955,6 @@ char*           dc_get_msg_html              (dc_context_t* context, uint32_t ms
   * @param msg_id The message ID to download the content for.
   */
 void dc_download_full_msg (dc_context_t* context, int msg_id);
-
-
-/**
- * Get the raw mime-headers of the given message.
- * Raw headers are saved for incoming messages
- * only if `dc_set_config(context, "save_mime_headers", "1")`
- * was called before.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @param msg_id The message ID, must be the ID of an incoming message.
- * @return Raw headers as a multi-line string, must be released using dc_str_unref() after usage.
- *     Returns NULL if there are no headers saved for the given message,
- *     e.g. because of save_mime_headers is not set
- *     or the message is not incoming.
- */
-char*           dc_get_mime_headers          (dc_context_t* context, uint32_t msg_id);
 
 
 /**

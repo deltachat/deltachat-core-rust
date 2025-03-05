@@ -1010,7 +1010,6 @@ def test_gossip_encryption_preference(acfactory, lp):
 
 def test_send_first_message_as_long_unicode_with_cr(acfactory, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
-    ac2.set_config("save_mime_headers", "1")
 
     lp.sec("ac1: create chat with ac2")
     chat = acfactory.get_accepted_chat(ac1, ac2)
@@ -1398,26 +1397,6 @@ def test_quote_attachment(tmp_path, acfactory, lp):
     assert received_reply.text == "message reply"
     assert received_reply.quoted_text == received_message.text
     assert open(received_reply.filename).read() == "data to send"
-
-
-def test_saved_mime_on_received_message(acfactory, lp):
-    ac1, ac2 = acfactory.get_online_accounts(2)
-
-    lp.sec("configure ac2 to save mime headers, create ac1/ac2 chat")
-    ac2.set_config("save_mime_headers", "1")
-    chat = ac1.create_chat(ac2)
-
-    lp.sec("sending text message from ac1 to ac2")
-    msg_out = chat.send_text("message1")
-    ac1._evtracker.wait_msg_delivered(msg_out)
-    assert msg_out.get_mime_headers() is None
-
-    lp.sec("wait for ac2 to receive message")
-    ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-    in_id = ev.data2
-    mime = ac2.get_message_by_id(in_id).get_mime_headers()
-    assert mime.get_all("From")
-    assert mime.get_all("Received")
 
 
 def test_send_mark_seen_clean_incoming_events(acfactory, lp):

@@ -220,9 +220,6 @@ pub enum Config {
     /// `ProviderOptions::delete_to_trash`.
     DeleteToTrash,
 
-    /// Save raw MIME messages with headers in the database if true.
-    SaveMimeHeaders,
-
     /// The primary email address. Also see `SecondaryAddrs`.
     ConfiguredAddr,
 
@@ -716,7 +713,6 @@ impl Context {
             | Config::OnlyFetchMvbox
             | Config::FetchExistingMsgs
             | Config::DeleteToTrash
-            | Config::SaveMimeHeaders
             | Config::Configured
             | Config::Bot
             | Config::NotifyAboutWrongPw
