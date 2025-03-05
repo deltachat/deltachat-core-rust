@@ -1,7 +1,5 @@
 Chat-Group-ID: WVnDtF5azch
 Chat-Group-Name: =?utf-8?q?testgr1?=
-Chat-Group-Avatar: group-image.png
-Chat-User-Avatar: avatar.png
 Subject: =?utf-8?q?Chat=3A_testgr1=3A_hi!_?=
 Date: Thu, 12 Dec 2019 17:24:03 +0000
 X-Mailer: Delta Chat Core 1.0.0-beta.15/CLI
@@ -14,6 +12,8 @@ Content-Type: multipart/mixed; boundary="LV8nfXkpyyn39fsVyoB1b29PKDMeb5"
 
 --LV8nfXkpyyn39fsVyoB1b29PKDMeb5
 Content-Type: text/plain; charset=utf-8
+Chat-Group-Avatar: group-image.png
+Chat-User-Avatar: avatar.png
 
 hi! 
 
