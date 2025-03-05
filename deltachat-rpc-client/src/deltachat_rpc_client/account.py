@@ -118,9 +118,19 @@ class Account:
             obj = obj.get_snapshot().address
         return Contact(self, self._rpc.create_contact(self.id, obj, name))
 
+    def make_vcard(self, contacts: list[Contact]) -> str:
+        """Create vCard with the given contacts."""
+        assert all(contact.account == self for contact in contacts)
+        contact_ids = [contact.id for contact in contacts]
+        return self._rpc.make_vcard(self.id, contact_ids)
+
+    def import_vcard(self, vcard: str) -> list[Contact]:
+        contact_ids = self._rpc.import_vcard_contents(self.id, vcard)
+        return [Contact(self, contact_id) for contact_id in contact_ids]
+
     def create_chat(self, account: "Account") -> Chat:
-        addr = account.get_config("addr")
-        contact = self.create_contact(addr)
+        vcard = account.self_contact.make_vcard()
+        [contact] = self.import_vcard(vcard)
         return contact.create_chat()
 
     def get_contact_by_id(self, contact_id: int) -> Contact:

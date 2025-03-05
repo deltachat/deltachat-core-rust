@@ -66,4 +66,4 @@ class Contact:
         )
 
     def make_vcard(self) -> str:
-        return self._rpc.make_vcard(self.account.id, [self.id])
+        return self.account.make_vcard([self])
