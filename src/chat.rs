@@ -803,6 +803,7 @@ impl ChatId {
             })
             .await?;
 
+        context.emit_event(EventType::ChatDeleted { chat_id: self });
         context.emit_msgs_changed_without_ids();
 
         if let Some(id) = sync_id {

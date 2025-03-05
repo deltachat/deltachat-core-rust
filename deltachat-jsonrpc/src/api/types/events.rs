@@ -243,6 +243,12 @@ pub enum EventType {
         timer: u32,
     },
 
+    /// Chat deleted.
+    ChatDeleted {
+        /// Chat ID.
+        chat_id: u32,
+    },
+
     /// Contact(s) created, renamed, blocked or deleted.
     #[serde(rename_all = "camelCase")]
     ContactsChanged {
@@ -499,6 +505,9 @@ impl From<CoreEventType> for EventType {
                     timer: timer.to_u32(),
                 }
             }
+            CoreEventType::ChatDeleted { chat_id } => ChatDeleted {
+                chat_id: chat_id.to_u32(),
+            },
             CoreEventType::ContactsChanged(contact) => ContactsChanged {
                 contact_id: contact.map(|c| c.to_u32()),
             },
