@@ -544,6 +544,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::MsgDeleted { .. } => 2016,
         EventType::ChatModified(_) => 2020,
         EventType::ChatEphemeralTimerModified { .. } => 2021,
+        EventType::ChatDeleted { .. } => 2023,
         EventType::ContactsChanged(_) => 2030,
         EventType::LocationChanged(_) => 2035,
         EventType::ConfigureProgress { .. } => 2041,
@@ -610,7 +611,8 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::MsgRead { chat_id, .. }
         | EventType::MsgDeleted { chat_id, .. }
         | EventType::ChatModified(chat_id)
-        | EventType::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32() as libc::c_int,
+        | EventType::ChatEphemeralTimerModified { chat_id, .. }
+        | EventType::ChatDeleted { chat_id } => chat_id.to_u32() as libc::c_int,
         EventType::ContactsChanged(id) | EventType::LocationChanged(id) => {
             let id = id.unwrap_or_default();
             id.to_u32() as libc::c_int
@@ -676,6 +678,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::AccountsItemChanged
         | EventType::ConfigSynced { .. }
         | EventType::ChatModified(_)
+        | EventType::ChatDeleted { .. }
         | EventType::WebxdcRealtimeAdvertisementReceived { .. }
         | EventType::EventChannelOverflow { .. } => 0,
         EventType::MsgsChanged { msg_id, .. }
@@ -767,6 +770,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::WebxdcInstanceDeleted { .. }
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. }
+        | EventType::ChatDeleted { .. }
         | EventType::IncomingMsgBunch { .. }
         | EventType::ChatlistItemChanged { .. }
         | EventType::ChatlistChanged

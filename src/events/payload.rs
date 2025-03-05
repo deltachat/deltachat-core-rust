@@ -219,6 +219,12 @@ pub enum EventType {
         timer: EphemeralTimer,
     },
 
+    /// Chat was deleted.
+    ChatDeleted {
+        /// Chat ID.
+        chat_id: ChatId,
+    },
+
     /// Contact(s) created, renamed, blocked, deleted or changed their "recently seen" status.
     ///
     /// @param data1 (int) If set, this is the contact_id of an added contact that should be selected.

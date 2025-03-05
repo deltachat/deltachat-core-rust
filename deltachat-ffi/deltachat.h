@@ -6315,6 +6315,18 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
+ * Chat was deleted.
+ * This event is emitted in response to dc_delete_chat()
+ * called on this or another device.
+ * The event is a good place to remove notifications or homescreen shortcuts.
+ *
+ * @param data1 (int) chat_id
+ * @param data2 (int) 0
+ */
+#define DC_EVENT_CHAT_DELETED             2023
+
+
+/**
  * Contact(s) created, renamed, verified, blocked or deleted.
  *
  * @param data1 (int) contact_id of the changed contact or 0 on batch-changes or deletion.
