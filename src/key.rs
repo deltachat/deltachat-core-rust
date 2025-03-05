@@ -7,7 +7,6 @@ use std::io::Cursor;
 use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use deltachat_contact_tools::EmailAddress;
-use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
@@ -15,8 +14,6 @@ use pgp::types::{PublicKeyTrait, SecretKeyTrait};
 use rand::thread_rng;
 use tokio::runtime::Handle;
 
-use crate::config::Config;
-use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::log::LogExt;
 use crate::pgp::KeyPair;
@@ -282,11 +279,9 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
         Some(key_pair) => Ok(key_pair),
         None => {
             let start = tools::Time::now();
-            let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
-                .unwrap_or_default();
-            info!(context, "Generating keypair with type {}", keytype);
+            info!(context, "Generating keypair.");
             let keypair = Handle::current()
-                .spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
+                .spawn_blocking(move || crate::pgp::create_keypair(addr))
                 .await??;
 
             store_self_keypair(context, &keypair).await?;
@@ -466,6 +461,7 @@ mod tests {
     use once_cell::sync::Lazy;
 
     use super::*;
+    use crate::config::Config;
     use crate::test_utils::{alice_keypair, TestContext};
 
     static KEYPAIR: Lazy<KeyPair> = Lazy::new(alice_keypair);

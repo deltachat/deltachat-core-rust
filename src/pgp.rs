@@ -18,7 +18,6 @@ use pgp::types::{CompressionAlgorithm, PublicKeyTrait, SignatureBytes, StringToK
 use rand::{thread_rng, CryptoRng, Rng};
 use tokio::runtime::Handle;
 
-use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
 
 #[cfg(test)]
@@ -181,15 +180,9 @@ impl KeyPair {
 ///
 /// Both secret and public key consist of signing primary key and encryption subkey
 /// as [described in the Autocrypt standard](https://autocrypt.org/level1.html#openpgp-based-key-data).
-pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
-    let (signing_key_type, encryption_key_type) = match keygen_type {
-        KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
-        KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
-        KeyGenType::Ed25519 | KeyGenType::Default => (
-            PgpKeyType::EdDSALegacy,
-            PgpKeyType::ECDH(ECCCurve::Curve25519),
-        ),
-    };
+pub(crate) fn create_keypair(addr: EmailAddress) -> Result<KeyPair> {
+    let signing_key_type = PgpKeyType::EdDSALegacy;
+    let encryption_key_type = PgpKeyType::ECDH(ECCCurve::Curve25519);
 
     let user_id = format!("<{addr}>");
     let key_params = SecretKeyParamsBuilder::default()
@@ -478,16 +471,8 @@ mod tests {
 
     #[test]
     fn test_create_keypair() {
-        let keypair0 = create_keypair(
-            EmailAddress::new("foo@bar.de").unwrap(),
-            KeyGenType::Default,
-        )
-        .unwrap();
-        let keypair1 = create_keypair(
-            EmailAddress::new("two@zwo.de").unwrap(),
-            KeyGenType::Default,
-        )
-        .unwrap();
+        let keypair0 = create_keypair(EmailAddress::new("foo@bar.de").unwrap()).unwrap();
+        let keypair1 = create_keypair(EmailAddress::new("two@zwo.de").unwrap()).unwrap();
         assert_ne!(keypair0.public, keypair1.public);
     }
 

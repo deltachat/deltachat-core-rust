@@ -193,10 +193,6 @@ pub enum Config {
     #[strum(props(default = "1"))]
     FetchedExistingMsgs,
 
-    /// Type of the OpenPGP key to generate.
-    #[strum(props(default = "0"))]
-    KeyGenType,
-
     /// Timer in seconds after which the message is deleted from the
     /// server.
     ///
