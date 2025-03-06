@@ -253,6 +253,7 @@ impl MimeMessage {
             &mut chat_disposition_notification_to,
             &mail.headers,
         );
+        headers.retain(|k, _| !is_hidden(k));
 
         // Parse hidden headers.
         let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
@@ -289,12 +290,7 @@ impl MimeMessage {
                     let key = field.get_key().to_lowercase();
 
                     // For now only avatar headers can be hidden.
-                    if !headers.contains_key(&key)
-                        && (key == "chat-user-avatar"
-                            || key == "chat-group-avatar"
-                            || key == "chat-delete"
-                            || key == "chat-edit")
-                    {
+                    if !headers.contains_key(&key) && is_hidden(&key) {
                         headers.insert(key.to_string(), field.get_value());
                     }
                 }
@@ -1984,6 +1980,14 @@ fn is_known(key: &str) -> bool {
             | "references"
             | "subject"
             | "secure-join"
+    )
+}
+
+/// Returns if the header is hidden and must be ignored in the IMF section.
+fn is_hidden(key: &str) -> bool {
+    matches!(
+        key,
+        "chat-user-avatar" | "chat-group-avatar" | "chat-delete" | "chat-edit"
     )
 }
 
