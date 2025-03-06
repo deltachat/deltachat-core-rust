@@ -4,10 +4,8 @@ use std::io::Cursor;
 
 use anyhow::{format_err, Context as _, Result};
 use mail_builder::mime::MimePart;
-use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::config::Config;
 use crate::context::Context;
 use crate::key::{load_self_public_key, load_self_secret_key, SignedPublicKey};
 use crate::peerstate::Peerstate;
@@ -15,30 +13,23 @@ use crate::pgp;
 
 #[derive(Debug)]
 pub struct EncryptHelper {
-    pub prefer_encrypt: EncryptPreference,
     pub addr: String,
     pub public_key: SignedPublicKey,
 }
 
 impl EncryptHelper {
     pub async fn new(context: &Context) -> Result<EncryptHelper> {
-        let prefer_encrypt =
-            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await?)
-                .unwrap_or_default();
         let addr = context.get_primary_self_addr().await?;
         let public_key = load_self_public_key(context).await?;
 
-        Ok(EncryptHelper {
-            prefer_encrypt,
-            addr,
-            public_key,
-        })
+        Ok(EncryptHelper { addr, public_key })
     }
 
     pub fn get_aheader(&self) -> Aheader {
         let pk = self.public_key.clone();
         let addr = self.addr.to_string();
-        Aheader::new(addr, pk, self.prefer_encrypt)
+        let prefer_encrypt = EncryptPreference::Mutual;
+        Aheader::new(addr, pk, prefer_encrypt)
     }
 
     /// Determines if we can and should encrypt.
@@ -54,22 +45,13 @@ impl EncryptHelper {
         peerstates: &[(Option<Peerstate>, String)],
     ) -> Result<bool> {
         let is_chatmail = context.is_chatmail().await?;
-        let mut prefer_encrypt_count = if self.prefer_encrypt == EncryptPreference::Mutual {
-            1
-        } else {
-            0
-        };
+        let mut prefer_encrypt_count = 1;
         for (peerstate, addr) in peerstates {
             match peerstate {
                 Some(peerstate) => {
-                    let prefer_encrypt = peerstate.prefer_encrypt;
-                    info!(context, "Peerstate for {addr:?} is {prefer_encrypt}.");
                     if match peerstate.prefer_encrypt {
-                        EncryptPreference::NoPreference | EncryptPreference::Reset => {
-                            (peerstate.prefer_encrypt != EncryptPreference::Reset || is_chatmail)
-                                && self.prefer_encrypt == EncryptPreference::Mutual
-                        }
-                        EncryptPreference::Mutual => true,
+                        EncryptPreference::Reset => is_chatmail,
+                        EncryptPreference::NoPreference | EncryptPreference::Mutual => true,
                     } {
                         prefer_encrypt_count += 1;
                     }
@@ -176,6 +158,7 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<()> {
 mod tests {
     use super::*;
     use crate::chat::send_text_msg;
+    use crate::config::Config;
     use crate::key::DcKey;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
@@ -352,6 +335,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         Ok(())
     }
 
+    // Tests that when encryption is not preferred, we encrypt anyway when we can.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_should_encrypt_e2ee_disabled() -> Result<()> {
         let t = &TestContext::new_alice().await;
@@ -359,16 +343,14 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let encrypt_helper = EncryptHelper::new(t).await.unwrap();
 
         let ps = new_peerstates(EncryptPreference::NoPreference);
-        assert!(!encrypt_helper.should_encrypt(t, false, &ps).await?);
+        assert!(encrypt_helper.should_encrypt(t, false, &ps).await?);
 
         let ps = new_peerstates(EncryptPreference::Reset);
         assert!(encrypt_helper.should_encrypt(t, true, &ps).await?);
 
         let mut ps = new_peerstates(EncryptPreference::Mutual);
-        // Own preference is `NoPreference` and there's no majority with `Mutual`.
-        assert!(!encrypt_helper.should_encrypt(t, false, &ps).await?);
-        // Now the majority wants to encrypt. Let's encrypt, anyway there are other cases when we
-        // can't send unencrypted, e.g. protected groups.
+        assert!(encrypt_helper.should_encrypt(t, false, &ps).await?);
+
         ps.push(ps[0].clone());
         assert!(encrypt_helper.should_encrypt(t, false, &ps).await?);
 
