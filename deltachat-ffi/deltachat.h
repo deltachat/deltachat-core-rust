@@ -1234,6 +1234,58 @@ uint32_t        dc_init_webxdc_integration    (dc_context_t* context, uint32_t c
 
 
 /**
+ * Start an outgoing call.
+ * This sends a message with all relevant information to the callee,
+ * who will get informed by an #DC_EVENT_INCOMING_CALL event and rings.
+ *
+ * Possible actions during ringing:
+ * - callee accepts using dc_accept_incoming_call(), caller receives #DC_EVENT_OUTGOING_CALL_ACCEPTED,
+ *   callee's other devices receive #DC_EVENT_INCOMING_CALL_ACCEPTED_ON_OTHER_DEVICE, call starts
+ * - callee rejects using dc_end_call(), caller receives #DC_EVENT_CALL_ENDED,
+ *   callee's other devices receive #DC_EVENT_CALL_ENDED, done.
+ * - caller cancels the call using dc_end_call(), callee receives #DC_EVENT_CALL_ENDED, done.
+ * - after 2 minutes, caller and callee both should end the call.
+ *   this is to prevent endless ringing of callee
+ *   in case caller got offline without being able to send cancellation message.
+ *
+ * Actions during the call:
+ * - callee ends the call using dc_end_call(), caller receives #DC_EVENT_CALL_ENDED
+ * - caller ends the call using dc_end_call(), callee receives #DC_EVENT_CALL_ENDED
+ *
+ * Note, that the events are for updating the call screen,
+ * possible status messages are placed and updated as usualy.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param chat_id The chat to place a call for.
+ *     This needs to be a one-to-one chat.
+ */
+void            dc_place_outgoing_call       (dc_context_t* context, uint32_t chat_id);
+
+
+/**
+ * Accept incoming call.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ */
+ void           dc_accept_incoming_call      (dc_context_t* context);
+
+
+ /**
+  * Cancel and incoming our outgoing call.
+  *
+  * From the view of the caller, a "cancellation",
+  * from the view of callee, a "rejection".
+  * If the call was established, this is a "hangup".
+  *
+  * @memberof dc_context_t
+  * @param context The context object.
+  */
+ void           dc_end_call                  (dc_context_t* context);
+
+
+/**
  * Save a draft for a chat in the database.
  *
  * The UI should call this function if the user has prepared a message
@@ -6541,6 +6593,39 @@ void dc_event_unref(dc_event_t* event);
  * @param data1 (int) number of events that have been skipped
  */
 #define DC_EVENT_CHANNEL_OVERFLOW              2400
+
+
+
+/**
+ * Incoming call.
+ * UI will usually start ringing.
+ *
+ * If user takes action, dc_accept_incoming_call() or dc_end_call() is called.
+ *
+ * Otherwise, ringing should end on #DC_EVENT_CALL_ENDED
+ * or #DC_EVENT_INCOMING_CALL_ACCEPTED_ON_OTHER_DEVICE
+ */
+#define DC_EVENT_INCOMING_CALL                            2500
+
+
+/**
+ * The callee accepted an incoming call on another another device using dc_accept_incoming_call().
+ * The caller gets the event #DC_EVENT_OUTGOING_CALL_ACCEPTED at the same time.
+ */
+ #define DC_EVENT_INCOMING_CALL_ACCEPTED_ON_OTHER_DEVICE  2520
+
+
+ /**
+  * A call placed using dc_place_outgoing_call() was accepted by the callee using dc_accept_incoming_call().
+  */
+ #define DC_EVENT_OUTGOING_CALL_ACCEPTED                  2550
+
+
+/**
+ * An incoming or outgoing call was ended.
+ */
+ #define DC_EVENT_CALL_ENDED                              2590
+
 
 /**
  * @}
