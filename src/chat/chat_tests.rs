@@ -3048,6 +3048,10 @@ async fn test_sync_delete_chat() -> Result<()> {
     a0b_chat_id.delete(alice0).await?;
     sync(alice0, alice1).await;
     alice1.assert_no_chat(a1b_chat_id).await;
+    alice1
+        .evtracker
+        .get_matching(|evt| matches!(evt, EventType::ChatDeleted { .. }))
+        .await;
 
     let bob_grp_chat_id = bob
         .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[alice0])
@@ -3060,6 +3064,11 @@ async fn test_sync_delete_chat() -> Result<()> {
     a0_grp_chat_id.delete(alice0).await?;
     sync(alice0, alice1).await;
     alice1.assert_no_chat(a1_grp_chat_id).await;
+    alice0
+        .evtracker
+        .get_matching(|evt| matches!(evt, EventType::ChatDeleted { .. }))
+        .await;
+
     Ok(())
 }
 
