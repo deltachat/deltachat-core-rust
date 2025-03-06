@@ -53,6 +53,7 @@ pub use events::*;
 
 mod aheader;
 mod blob;
+pub mod calls;
 pub mod chat;
 pub mod chatlist;
 pub mod config;
