@@ -266,14 +266,14 @@ impl<'a> BlobObject<'a> {
             };
 
         let maybe_sticker = &mut false;
-        let strict_limits = true;
+        let is_avatar = true;
         self.recode_to_size(
             context,
             None, // The name of an avatar doesn't matter
             maybe_sticker,
             img_wh,
             max_bytes,
-            strict_limits,
+            is_avatar,
         )?;
 
         Ok(())
@@ -302,21 +302,17 @@ impl<'a> BlobObject<'a> {
                 ),
                 MediaQuality::Worse => (constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES),
             };
-        let strict_limits = false;
-        let new_name = self.recode_to_size(
-            context,
-            name,
-            maybe_sticker,
-            img_wh,
-            max_bytes,
-            strict_limits,
-        )?;
+        let is_avatar = false;
+        let new_name =
+            self.recode_to_size(context, name, maybe_sticker, img_wh, max_bytes, is_avatar)?;
 
         Ok(new_name)
     }
 
-    /// If `!strict_limits`, then if `max_bytes` is exceeded, reduce the image to `img_wh` and just
-    /// proceed with the result.
+    /// Recodes the image so that it fits into limits on width/height and byte size.
+    ///
+    /// If `!is_avatar`, then if `max_bytes` is exceeded, reduces the image to `img_wh` and proceeds
+    /// with the result without rechecking.
     ///
     /// This modifies the blob object in-place.
     ///
@@ -331,10 +327,10 @@ impl<'a> BlobObject<'a> {
         maybe_sticker: &mut bool,
         mut img_wh: u32,
         max_bytes: usize,
-        strict_limits: bool,
+        is_avatar: bool,
     ) -> Result<String> {
         // Add white background only to avatars to spare the CPU.
-        let mut add_white_bg = img_wh <= constants::BALANCED_AVATAR_SIZE;
+        let mut add_white_bg = is_avatar;
         let mut no_exif = false;
         let no_exif_ref = &mut no_exif;
         let mut name = name.unwrap_or_else(|| self.name.clone());
@@ -405,7 +401,7 @@ impl<'a> BlobObject<'a> {
             // also `Viewtype::Gif` (maybe renamed to `Animation`) should be used for animated
             // images.
             let do_scale = exceeds_max_bytes
-                || strict_limits
+                || is_avatar
                     && (exceeds_wh
                         || exif.is_some() && {
                             if mem::take(&mut add_white_bg) {
@@ -442,7 +438,7 @@ impl<'a> BlobObject<'a> {
                         ofmt.clone(),
                         max_bytes,
                         &mut encoded,
-                    )? && strict_limits
+                    )? && is_avatar
                     {
                         if img_wh < 20 {
                             return Err(format_err!(
@@ -492,7 +488,7 @@ impl<'a> BlobObject<'a> {
         match res {
             Ok(_) => res,
             Err(err) => {
-                if !strict_limits && no_exif {
+                if !is_avatar && no_exif {
                     warn!(
                         context,
                         "Cannot recode image, using original data: {err:#}.",
