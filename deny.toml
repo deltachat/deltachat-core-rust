@@ -12,6 +12,12 @@ ignore = [
 
     # DNSSEC validation that we don't use anyway.
     "RUSTSEC-2025-0006",
+
+    # Unmaintained backoff
+    "RUSTSEC-2025-0012",
+
+    # Unmaintained paste
+    "RUSTSEC-2024-0436",
 ]
 
 [bans]
@@ -75,7 +81,6 @@ allow = [
     "ISC",
     "MIT",
     "MPL-2.0",
-    "OpenSSL",
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "Zlib",
