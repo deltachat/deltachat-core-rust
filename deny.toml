@@ -10,9 +10,6 @@ ignore = [
     # Unmaintained instant
     "RUSTSEC-2024-0384",
 
-    # DNSSEC validation that we don't use anyway.
-    "RUSTSEC-2025-0006",
-
     # Unmaintained backoff
     "RUSTSEC-2025-0012",
 
@@ -33,12 +30,16 @@ skip = [
      { name = "core-foundation", version = "0.9.4" },
      { name = "event-listener", version = "2.5.3" },
      { name = "generator", version = "0.7.5" },
+     { name = "getrandom", version = "0.2.12" },
      { name = "http", version = "0.2.12" },
      { name = "loom", version = "0.5.6" },
      { name = "netlink-packet-route", version = "0.17.1" },
      { name = "nix", version = "0.26.4" },
      { name = "nix", version = "0.27.1" },
      { name = "quick-error", version = "<2.0" },
+     { name = "rand_chacha", version = "0.3.1" },
+     { name = "rand_core", version = "0.6.4" },
+     { name = "rand", version = "0.8.5" },
      { name = "redox_syscall", version = "0.3.5" },
      { name = "regex-automata", version = "0.1.10" },
      { name = "regex-syntax", version = "0.6.29" },
@@ -51,6 +52,7 @@ skip = [
      { name = "tokio-tungstenite", version = "0.21.0" },
      { name = "tungstenite", version = "0.21.0" },
      { name = "unicode-width", version = "0.1.11" },
+     { name = "wasi", version = "0.11.0+wasi-snapshot-preview1" },
      { name = "windows" },
      { name = "windows_aarch64_gnullvm" },
      { name = "windows_aarch64_msvc" },
@@ -67,6 +69,7 @@ skip = [
      { name = "windows_x86_64_gnu" },
      { name = "windows_x86_64_gnullvm" },
      { name = "windows_x86_64_msvc" },
+     { name = "zerocopy", version = "0.7.32" },
 ]
 
 
