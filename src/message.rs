@@ -1724,6 +1724,7 @@ pub async fn delete_msgs_ex(
 ) -> Result<()> {
     let mut modified_chat_ids = HashSet::new();
     let mut deleted_rfc724_mid = Vec::new();
+    let mut guarantee_e2ee = false;
     let mut res = Ok(());
 
     for &msg_id in msg_ids {
@@ -1735,6 +1736,7 @@ pub async fn delete_msgs_ex(
 
         modified_chat_ids.insert(msg.chat_id);
         deleted_rfc724_mid.push(msg.rfc724_mid.clone());
+        guarantee_e2ee |= msg.get_showpadlock();
 
         let target = context.get_delete_msgs_target().await?;
         let update_db = |trans: &mut rusqlite::Transaction| {
@@ -1760,7 +1762,9 @@ pub async fn delete_msgs_ex(
         );
         if let Some(chat_id) = modified_chat_ids.iter().next() {
             let mut msg = Message::new_text("🚮".to_owned());
-            msg.param.set_int(Param::GuaranteeE2ee, 1);
+            if guarantee_e2ee {
+                msg.param.set_int(Param::GuaranteeE2ee, 1);
+            }
             msg.param
                 .set(Param::DeleteRequestFor, deleted_rfc724_mid.join(" "));
             msg.hidden = true;
