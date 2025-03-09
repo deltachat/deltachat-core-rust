@@ -145,6 +145,10 @@ class Account:
         [contact] = self.import_vcard(vcard)
         return contact.create_chat()
 
+    def get_device_chat(self) -> Chat:
+        """Return device chat."""
+        return self.device_contact.create_chat()
+
     def get_contact_by_id(self, contact_id: int) -> Contact:
         """Return Contact instance for the given contact ID."""
         return Contact(self, contact_id)
