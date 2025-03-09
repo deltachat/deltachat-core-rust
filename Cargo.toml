@@ -68,7 +68,7 @@ iroh = { version = "0.33", default-features = false }
 kamadak-exif = "0.6.1"
 libc = { workspace = true }
 mail-builder = { version = "0.4.2", default-features = false }
-mailparse = "0.16.1"
+mailparse = { workspace = true }
 mime = "0.3.17"
 num_cpus = "1.16"
 num-derive = "0.4"
@@ -135,6 +135,7 @@ members = [
   "deltachat-time",
   "format-flowed",
   "deltachat-contact-tools",
+  "fuzz",
 ]
 
 [[bench]]
@@ -182,6 +183,7 @@ futures = "0.3.31"
 futures-lite = "2.6.0"
 libc = "0.2"
 log = "0.4"
+mailparse = "0.16.1"
 nu-ansi-term = "0.46"
 num-traits = "0.2"
 once_cell = "1.20.2"

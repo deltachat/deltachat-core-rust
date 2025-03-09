@@ -9,7 +9,7 @@ fn round_trip(input: &str) -> String {
 
 fn main() {
     check!().for_each(|data: &[u8]| {
-        if let Ok(input) = std::str::from_utf8(data.into()) {
+        if let Ok(input) = std::str::from_utf8(data) {
             let input = input.trim().to_string();
 
             // Only consider inputs that are the result of unformatting format=flowed text.
