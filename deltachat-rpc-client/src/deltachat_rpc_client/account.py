@@ -205,6 +205,11 @@ class Account:
         """This account's identity as a Contact."""
         return Contact(self, SpecialContactId.SELF)
 
+    @property
+    def device_contact(self) -> Chat:
+        """This account's device contact."""
+        return Contact(self, SpecialContactId.DEVICE)
+
     def get_chatlist(
         self,
         query: Optional[str] = None,
