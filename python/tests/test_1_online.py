@@ -1173,10 +1173,6 @@ def test_no_old_msg_is_fresh(acfactory, lp):
     ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
     acfactory.bring_accounts_online()
 
-    ac1.set_config("e2ee_enabled", "0")
-    ac1_clone.set_config("e2ee_enabled", "0")
-    ac2.set_config("e2ee_enabled", "0")
-
     ac1_clone.set_config("bcc_self", "1")
 
     ac1.create_chat(ac2)
