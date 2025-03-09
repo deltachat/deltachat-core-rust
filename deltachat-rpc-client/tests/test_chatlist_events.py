@@ -157,11 +157,7 @@ def get_multi_account_test_setup(acfactory: ACFactory) -> [Account, Account, Acc
 
     bob.wait_for_incoming_msg_event()
 
-    alice_second_device: Account = acfactory.get_unconfigured_account()
-
-    alice._rpc.provide_backup.future(alice.id)
-    backup_code = alice._rpc.get_backup_qr(alice.id)
-    alice_second_device._rpc.get_backup(alice_second_device.id, backup_code)
+    alice_second_device = alice.clone()
     alice_second_device.start_io()
     alice.clear_all_events()
     alice_second_device.clear_all_events()

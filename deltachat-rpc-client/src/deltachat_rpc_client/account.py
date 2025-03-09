@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Optional, Union
 from warnings import warn
 
@@ -37,6 +39,16 @@ class Account:
     def remove(self) -> None:
         """Remove the account."""
         self._rpc.remove_account(self.id)
+
+    def clone(self) -> "Account":
+        """Clone given account."""
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            self.export_backup(tmp_path)
+            files = list(tmp_path.glob("*.tar"))
+            new_account = self.manager.add_account()
+            new_account.import_backup(files[0])
+            return new_account
 
     def start_io(self) -> None:
         """Start the account I/O."""
