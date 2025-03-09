@@ -3446,8 +3446,9 @@ checksum = "9106e1d747ffd48e6be5bb2d97fa706ed25b144fbee4d5c02eae110cd8d6badd"
 
 [[package]]
 name = "mail-builder"
-version = "0.4.1"
-source = "git+https://github.com/stalwartlabs/mail-builder?branch=main#b86e558d54d43c1c1991fbda84109268815abcac"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5666db60ccc742381c715c8daf303e60d266f1d1c8b123ab3fe78b590edaf564"
 
 [[package]]
 name = "mailparse"
