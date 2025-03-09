@@ -287,12 +287,9 @@ def test_message(acfactory) -> None:
     assert reactions == snapshot.reactions
 
 
-def test_reaction_seen_on_another_dev(acfactory, tmp_path) -> None:
+def test_reaction_seen_on_another_dev(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
-    alice.export_backup(tmp_path)
-    files = list(tmp_path.glob("*.tar"))
-    alice2 = acfactory.get_unconfigured_account()
-    alice2.import_backup(files[0])
+    alice2 = alice.clone()
     alice2.start_io()
 
     bob_addr = bob.get_config("addr")
@@ -661,7 +658,7 @@ def test_download_limit_chat_assignment(acfactory, tmp_path, n_accounts):
             assert snapshot.chat == bob_chat_alice
 
 
-def test_markseen_contact_request(acfactory, tmp_path):
+def test_markseen_contact_request(acfactory):
     """
     Test that seen status is synchronized for contact request messages
     even though read receipt is not sent.
@@ -669,10 +666,7 @@ def test_markseen_contact_request(acfactory, tmp_path):
     alice, bob = acfactory.get_online_accounts(2)
 
     # Bob sets up a second device.
-    bob.export_backup(tmp_path)
-    files = list(tmp_path.glob("*.tar"))
-    bob2 = acfactory.get_unconfigured_account()
-    bob2.import_backup(files[0])
+    bob2 = bob.clone()
     bob2.start_io()
 
     alice_chat_bob = alice.create_chat(bob)

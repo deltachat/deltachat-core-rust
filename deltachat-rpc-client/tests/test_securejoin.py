@@ -60,15 +60,12 @@ def test_qr_setup_contact_svg(acfactory) -> None:
 
 
 @pytest.mark.parametrize("protect", [True, False])
-def test_qr_securejoin(acfactory, protect, tmp_path):
+def test_qr_securejoin(acfactory, protect):
     alice, bob, fiona = acfactory.get_online_accounts(3)
 
     # Setup second device for Alice
     # to test observing securejoin protocol.
-    alice.export_backup(tmp_path)
-    files = list(tmp_path.glob("*.tar"))
-    alice2 = acfactory.get_unconfigured_account()
-    alice2.import_backup(files[0])
+    alice2 = alice.clone()
 
     logging.info("Alice creates a group")
     alice_chat = alice.create_group("Group", protect=protect)
