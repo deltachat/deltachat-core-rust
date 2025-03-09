@@ -87,9 +87,6 @@
         };
         cargoLock = {
           lockFile = ./Cargo.lock;
-          outputHashes = {
-            "mail-builder-0.4.1" = "sha256-1hnsU76ProcX7iXT2UBjHnHbJ/ROT3077sLi3+yAV58=";
-          };
         };
         mkRustPackage = packageName:
           naersk'.buildPackage {
