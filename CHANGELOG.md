@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.156.3] - 2025-03-09
+
+### API-Changes
+
+- jsonrpc: Add import_vcard_contents() method.
+- jsonrpc: Add API to make and import vCards.
+- [**breaking**] Remove save_mime_headers config option and dc_get_mime_headers().
+- [**breaking**] Remove key_gen_type config.
+
+### Features / Changes
+
+- Add chat-deleted event.
+- Delete messages on IMAP when deleting chat ([#6613](https://github.com/deltachat/deltachat-core-rust/pull/6613)).
+- Allow doubled avatar resolution
+
+### Fixes
+
+- Move Chat-Group-Avatar to hidden headers.
+- Ignore outer Chat-User-Avatar header in Autocrypt-encrypted messages.
+
+### Build system
+
+- Use mailbuilder from crates.io.
+- Update iroh to 0.33.
+
+### Documentation
+
+- Nonstandard headers needing DKIM protection should be hidden.
+
+### Refactor
+
+- Recode_to_size(): Rename strict_limits to is_avatar.
+
+### Tests
+
+- Test for ChatDeleted event.
+- Replace create_chat() with get_chat() in test_setup_contact_ex() and test_secure_join().
+- Transfer vCards in TestContext.create_chat().
+
 ## [1.156.2] - 2025-03-02
 
 ### Fixes
@@ -5909,3 +5948,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.156.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.6..v1.156.0
 [1.156.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.0..v1.156.1
 [1.156.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.1..v1.156.2
+[1.156.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.2..v1.156.3
