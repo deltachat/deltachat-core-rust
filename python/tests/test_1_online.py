@@ -919,64 +919,6 @@ def test_gossip_optimization(acfactory, lp):
     assert gossiped_timestamp == int(msg.time_sent.timestamp())
 
 
-def test_gossip_encryption_preference(acfactory, lp):
-    """Test that encryption preference of group members is gossiped to new members.
-    This is a Delta Chat extension to Autocrypt 1.1.0, which Autocrypt-Gossip headers
-    SHOULD NOT contain encryption preference.
-    """
-    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
-
-    lp.sec("ac1 learns that ac2 prefers encryption")
-    ac1.create_chat(ac2)
-    msg = ac2.create_chat(ac1).send_text("first message")
-    msg = ac1._evtracker.wait_next_incoming_message()
-    assert msg.text == "first message"
-    assert not msg.is_encrypted()
-    res = "End-to-end encryption preferred:\n{}".format(ac2.get_config("addr"))
-    assert msg.chat.get_encryption_info() == res
-    lp.sec("ac2 learns that ac3 prefers encryption")
-    ac2.create_chat(ac3)
-    msg = ac3.create_chat(ac2).send_text("I prefer encryption")
-    msg = ac2._evtracker.wait_next_incoming_message()
-    assert msg.text == "I prefer encryption"
-    assert not msg.is_encrypted()
-
-    lp.sec("ac3 does not know that ac1 prefers encryption")
-    ac1.create_chat(ac3)
-    chat = ac3.create_chat(ac1)
-    res = "No encryption:\n{}".format(ac1.get_config("addr"))
-    assert chat.get_encryption_info() == res
-    msg = chat.send_text("not encrypted")
-    msg = ac1._evtracker.wait_next_incoming_message()
-    assert msg.text == "not encrypted"
-    assert not msg.is_encrypted()
-
-    lp.sec("ac1 creates a group chat with ac2")
-    group_chat = ac1.create_group_chat("hello")
-    group_chat.add_contact(ac2)
-    encryption_info = group_chat.get_encryption_info()
-    res = "End-to-end encryption preferred:\n{}".format(ac2.get_config("addr"))
-    assert encryption_info == res
-    msg = group_chat.send_text("hi")
-
-    msg = ac2._evtracker.wait_next_incoming_message()
-    assert msg.is_encrypted()
-    assert msg.text == "hi"
-
-    lp.sec("ac2 adds ac3 to the group")
-    msg.chat.add_contact(ac3)
-    assert msg.is_encrypted()
-
-    lp.sec("ac3 learns that ac1 prefers encryption")
-    msg = ac3._evtracker.wait_next_incoming_message()
-    encryption_info = msg.chat.get_encryption_info().splitlines()
-    assert encryption_info[0] == "End-to-end encryption preferred:"
-    assert ac1.get_config("addr") in encryption_info[1:]
-    assert ac2.get_config("addr") in encryption_info[1:]
-    msg = chat.send_text("encrypted")
-    assert msg.is_encrypted()
-
-
 def test_send_first_message_as_long_unicode_with_cr(acfactory, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
 
