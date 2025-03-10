@@ -1648,29 +1648,26 @@ async fn test_webxdc_no_internet_access() -> Result<()> {
     let group_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
     let broadcast_id = create_broadcast_list(&t).await?;
 
-    for e2ee in ["1", "0"] {
-        t.set_config(Config::E2eeEnabled, Some(e2ee)).await?;
-        for chat_id in [self_id, single_id, group_id, broadcast_id] {
-            for internet_xdc in [true, false] {
-                let mut instance = create_webxdc_instance(
-                    &t,
-                    "foo.xdc",
-                    if internet_xdc {
-                        include_bytes!("../../test-data/webxdc/request-internet-access.xdc")
-                    } else {
-                        include_bytes!("../../test-data/webxdc/minimal.xdc")
-                    },
-                )?;
-                let instance_id = send_msg(&t, chat_id, &mut instance).await?;
-                t.send_webxdc_status_update(
-                    instance_id,
-                    r#"{"summary":"real summary", "payload": 42}"#,
-                )
-                .await?;
-                let instance = Message::load_from_db(&t, instance_id).await?;
-                let info = instance.get_webxdc_info(&t).await?;
-                assert_eq!(info.internet_access, false);
-            }
+    for chat_id in [self_id, single_id, group_id, broadcast_id] {
+        for internet_xdc in [true, false] {
+            let mut instance = create_webxdc_instance(
+                &t,
+                "foo.xdc",
+                if internet_xdc {
+                    include_bytes!("../../test-data/webxdc/request-internet-access.xdc")
+                } else {
+                    include_bytes!("../../test-data/webxdc/minimal.xdc")
+                },
+            )?;
+            let instance_id = send_msg(&t, chat_id, &mut instance).await?;
+            t.send_webxdc_status_update(
+                instance_id,
+                r#"{"summary":"real summary", "payload": 42}"#,
+            )
+            .await?;
+            let instance = Message::load_from_db(&t, instance_id).await?;
+            let info = instance.get_webxdc_info(&t).await?;
+            assert_eq!(info.internet_access, false);
         }
     }
 
