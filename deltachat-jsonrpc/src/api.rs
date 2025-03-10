@@ -496,11 +496,11 @@ impl CommandApi {
         Ok(res)
     }
 
-    /// Removes the specified transport.
-    /// `transport_id` is the position in the list returned by [Self::list_transports].
-    async fn delete_transport(&self, account_id: u32, transport_id: u32) -> Result<()> {
+    /// Removes the transport with the specified email address
+    /// (i.e. [EnteredLoginParam::addr]).
+    async fn delete_transport(&self, account_id: u32, addr: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.delete_transport(transport_id).await
+        ctx.delete_transport(&addr).await
     }
 
     /// Signal an ongoing process to stop.

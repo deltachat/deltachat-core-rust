@@ -172,10 +172,10 @@ impl Context {
         Ok(vec![param])
     }
 
-    /// Removes the specified transport.
-    /// `transport_id` is the position in the list returned by [Self::list_transports].
+    /// Removes the transport with the specified email address
+    /// (i.e. [EnteredLoginParam::addr]).
     #[expect(clippy::unused_async)]
-    pub async fn delete_transport(&self, _transport_id: u32) -> Result<()> {
+    pub async fn delete_transport(&self, _addr: &str) -> Result<()> {
         bail!("Adding and removing additional transports is not supported yet. Check back in a few months!")
     }
 
