@@ -433,6 +433,7 @@ pub enum SystemMessageType {
     OutgoingCall,
     IncomingCall,
     CallAccepted,
+    CallEnded,
 }
 
 impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
@@ -461,6 +462,7 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
             SystemMessage::OutgoingCall => SystemMessageType::OutgoingCall,
             SystemMessage::IncomingCall => SystemMessageType::IncomingCall,
             SystemMessage::CallAccepted => SystemMessageType::CallAccepted,
+            SystemMessage::CallEnded => SystemMessageType::CallEnded,
         }
     }
 }
