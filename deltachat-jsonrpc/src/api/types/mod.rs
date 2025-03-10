@@ -5,6 +5,7 @@ pub mod contact;
 pub mod events;
 pub mod http;
 pub mod location;
+pub mod login_param;
 pub mod message;
 pub mod provider_info;
 pub mod qr;
