@@ -140,8 +140,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
 }
 
 async fn set_self_key(context: &Context, armored: &str) -> Result<()> {
-    // try hard to only modify key-state
-    let (private_key, header) = SignedSecretKey::from_asc(armored)?;
+    let (private_key, _header) = SignedSecretKey::from_asc(armored)?;
     let public_key = private_key.split_public_key()?;
 
     let keypair = pgp::KeyPair {
