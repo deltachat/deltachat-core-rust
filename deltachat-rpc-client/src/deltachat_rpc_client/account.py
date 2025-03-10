@@ -95,6 +95,10 @@ class Account:
         return self.get_config("selfavatar")
 
     def check_qr(self, qr):
+        """Parse QR code contents.
+
+        This function takes the raw text scanned
+        and checks what can be done with it."""
         return self._rpc.check_qr(self.id, qr)
 
     def set_config_from_qr(self, qr: str):
