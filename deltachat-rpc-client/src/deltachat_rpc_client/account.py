@@ -141,6 +141,9 @@ class Account:
         return self._rpc.make_vcard(self.id, contact_ids)
 
     def import_vcard(self, vcard: str) -> list[Contact]:
+        """Import vCard.
+
+        Return created or modified contacts in the order they appear in vCard."""
         contact_ids = self._rpc.import_vcard_contents(self.id, vcard)
         return [Contact(self, contact_id) for contact_id in contact_ids]
 
