@@ -345,6 +345,13 @@ impl MimeMessage {
                     }
 
                     decrypted_msg = Some(msg);
+
+                    timestamp_sent = Self::get_timestamp_sent(
+                        &decrypted_mail.headers,
+                        timestamp_sent,
+                        timestamp_rcvd,
+                    );
+
                     if let Some(protected_aheader_value) = decrypted_mail
                         .headers
                         .get_header_value(HeaderDef::Autocrypt)
@@ -416,8 +423,6 @@ impl MimeMessage {
             content
         });
         if let (Ok(mail), true) = (mail, encrypted) {
-            timestamp_sent =
-                Self::get_timestamp_sent(&mail.headers, timestamp_sent, timestamp_rcvd);
             if !signatures.is_empty() {
                 // Remove unsigned opportunistically protected headers from messages considered
                 // Autocrypt-encrypted / displayed with padlock.
