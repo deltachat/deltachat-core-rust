@@ -264,7 +264,7 @@ impl MimeMessage {
                     // messages are shown as unencrypted anyway.
 
                     timestamp_sent =
-                        Self::get_timestamp_sent(&mail.headers, timestamp_sent, timestamp_rcvd);
+                        Self::get_timestamp_sent(&part.headers, timestamp_sent, timestamp_rcvd);
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
@@ -347,6 +347,18 @@ impl MimeMessage {
                     }
 
                     decrypted_msg = Some(msg);
+
+                    if let Some(protected_timestamp_sent) = decrypted_mail
+                        .headers
+                        .get_header_value(HeaderDef::Date)
+                        .and_then(|v| mailparse::dateparse(&v).ok())
+                    {
+                        timestamp_sent = min(
+                            protected_timestamp_sent,
+                            timestamp_rcvd + constants::TIMESTAMP_SENT_TOLERANCE,
+                        )
+                    }
+
                     if let Some(protected_aheader_value) = decrypted_mail
                         .headers
                         .get_header_value(HeaderDef::Autocrypt)
