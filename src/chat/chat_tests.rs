@@ -3885,3 +3885,20 @@ async fn test_send_delete_request() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_send_delete_request_no_encryption() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_chat = alice.create_email_chat(bob).await;
+
+    // Alice sends a message, then tries to send a deletion request which fails.
+    let sent1 = alice.send_text(alice_chat.id, "wtf").await;
+    assert!(message::delete_msgs_ex(alice, &[sent1.sender_msg_id], true)
+        .await
+        .is_err());
+    sent1.load_from_db().await;
+    assert_eq!(alice_chat.id.get_msg_cnt(alice).await?, 1);
+    Ok(())
+}
