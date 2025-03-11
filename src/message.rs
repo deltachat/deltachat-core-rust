@@ -1760,6 +1760,10 @@ pub async fn delete_msgs_ex(
         );
         if let Some(chat_id) = modified_chat_ids.iter().next() {
             let mut msg = Message::new_text("🚮".to_owned());
+            // We don't want to send deletion requests in chats w/o encryption:
+            // - These are usually chats with non-DC clients who won't respect deletion requests
+            //   anyway and display a weird trash bin message instead.
+            // - Deletion of world-visible unencrypted messages seems not very useful.
             msg.param.set_int(Param::GuaranteeE2ee, 1);
             msg.param
                 .set(Param::DeleteRequestFor, deleted_rfc724_mid.join(" "));
