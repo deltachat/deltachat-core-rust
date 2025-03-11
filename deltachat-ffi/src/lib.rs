@@ -1658,6 +1658,7 @@ pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -
         return ptr::null_mut();
     }
     let ctx = &*context;
+    let context: Context = ctx.clone();
 
     block_on(async move {
         match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)).await {
@@ -2982,7 +2983,7 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
 pub struct ChatWrapper {
-    context: *const dc_context_t,
+    context: Context,
     chat: chat::Chat,
 }
 
@@ -3049,14 +3050,13 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
         return ptr::null_mut(); // NULL explicitly defined as "no image"
     }
     let ffi_chat = &*chat;
-    let ctx = &*ffi_chat.context;
 
     block_on(async move {
-        match ffi_chat.chat.get_profile_image(ctx).await {
+        match ffi_chat.chat.get_profile_image(&ffi_chat.context).await {
             Ok(Some(p)) => p.to_string_lossy().strdup(),
             Ok(None) => ptr::null_mut(),
             Err(err) => {
-                error!(ctx, "failed to get profile image: {err:#}");
+                error!(ffi_chat.context, "failed to get profile image: {err:#}");
                 ptr::null_mut()
             }
         }
@@ -3070,9 +3070,9 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
         return 0;
     }
     let ffi_chat = &*chat;
-    let ctx = &*ffi_chat.context;
 
-    block_on(ffi_chat.chat.get_color(ctx)).unwrap_or_log_default(ctx, "Failed get_color")
+    block_on(ffi_chat.chat.get_color(&ffi_chat.context))
+        .unwrap_or_log_default(&ffi_chat.context, "Failed get_color")
 }
 
 #[no_mangle]
@@ -3136,10 +3136,9 @@ pub unsafe extern "C" fn dc_chat_can_send(chat: *mut dc_chat_t) -> libc::c_int {
         return 0;
     }
     let ffi_chat = &*chat;
-    let ctx = &*ffi_chat.context;
-    block_on(ffi_chat.chat.can_send(ctx))
+    block_on(ffi_chat.chat.can_send(&ffi_chat.context))
         .context("can_send failed")
-        .log_err(ctx)
+        .log_err(&ffi_chat.context)
         .unwrap_or_default() as libc::c_int
 }
 
