@@ -248,6 +248,10 @@ jobs:
           cp result/*.whl dist/
           nix build .#deltachat-rpc-server-win32-wheel
           cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-arm64-v8a-android-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-armeabi-v7a-android-wheel
+          cp result/*.whl dist/
           nix build .#deltachat-rpc-server-source
           cp result/*.tar.gz dist/
           python3 scripts/wheel-rpc-server.py x86_64-darwin bin/deltachat-rpc-server-x86_64-macos

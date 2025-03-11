@@ -154,6 +154,8 @@ arch2tags = {
     "armv6l-linux": "linux_armv6l",
     "aarch64-linux": "manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64",
     "i686-linux": "manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686",
+    "arm64-v8a-android": "android_21_arm64_v8a",
+    "armeabi-v7a-android": "android_21_armeabi_v7a",
     "win64": "win_amd64",
     "win32": "win32",
     # macOS versions for platform compatibility tags are taken from https://doc.rust-lang.org/rustc/platform-support.html
