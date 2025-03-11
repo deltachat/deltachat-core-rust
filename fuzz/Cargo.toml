@@ -19,11 +19,6 @@ path = "fuzz_targets/fuzz_dateparse.rs"
 harness = false
 
 [[test]]
-name = "fuzz_simplify"
-path = "fuzz_targets/fuzz_simplify.rs"
-harness = false
-
-[[test]]
 name = "fuzz_mailparse"
 path = "fuzz_targets/fuzz_mailparse.rs"
 harness = false
