@@ -264,7 +264,7 @@ impl MimeMessage {
                     // messages are shown as unencrypted anyway.
 
                     timestamp_sent =
-                        Self::get_timestamp_sent(&mail.headers, timestamp_sent, timestamp_rcvd);
+                        Self::get_timestamp_sent(&part.headers, timestamp_sent, timestamp_rcvd);
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
