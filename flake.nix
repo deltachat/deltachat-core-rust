@@ -18,9 +18,9 @@
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
         androidSdk = android.sdk.${system} (sdkPkgs:
           builtins.attrValues {
-            inherit (sdkPkgs) ndk-27-0-11902837 cmdline-tools-latest;
+            inherit (sdkPkgs) ndk-27-2-12479018 cmdline-tools-latest;
           });
-        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/27.0.11902837";
+        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/27.2.12479018";
 
         rustSrc = nix-filter.lib {
           root = ./.;
