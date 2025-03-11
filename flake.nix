@@ -30,6 +30,7 @@
           include = [
             ./benches
             ./assets
+            ./fuzz
             ./Cargo.lock
             ./Cargo.toml
             ./CMakeLists.txt
