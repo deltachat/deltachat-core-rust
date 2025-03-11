@@ -3110,7 +3110,7 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         }
     }
 
-    if rendered_msg.is_encrypted && !needs_encryption {
+    if rendered_msg.is_encrypted {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
         msg.update_param(context).await?;
     }
