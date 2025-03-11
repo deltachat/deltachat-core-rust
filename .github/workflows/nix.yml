@@ -55,7 +55,9 @@ jobs:
           - deltachat-rpc-server-aarch64-linux
           - deltachat-rpc-server-aarch64-linux-wheel
           - deltachat-rpc-server-arm64-v8a-android
+          - deltachat-rpc-server-arm64-v8a-android-wheel
           - deltachat-rpc-server-armeabi-v7a-android
+          - deltachat-rpc-server-armeabi-v7a-android-wheel
           - deltachat-rpc-server-armv6l-linux
           - deltachat-rpc-server-armv6l-linux-wheel
           - deltachat-rpc-server-armv7l-linux
