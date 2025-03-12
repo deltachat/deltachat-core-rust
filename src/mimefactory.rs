@@ -8,7 +8,7 @@ use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
 use deltachat_contact_tools::sanitize_bidi_characters;
-use mail_builder::headers::address::{Address, EmailAddress};
+use mail_builder::headers::address::Address;
 use mail_builder::headers::HeaderType;
 use mail_builder::mime::MimePart;
 use tokio::fs;
@@ -890,18 +890,10 @@ impl MimeFactory {
                 if is_encrypted {
                     unprotected_headers.push((
                         original_header_name,
-                        Address::new_list(
-                            to.clone()
-                                .into_iter()
-                                .filter_map(|header| match header {
-                                    Address::Address(mb) => Some(Address::Address(EmailAddress {
-                                        name: None,
-                                        email: mb.email,
-                                    })),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>(),
-                        )
+                        Address::new_list(vec![Address::new_group(
+                            Some("hidden-recipients".to_string()),
+                            Vec::new(),
+                        )])
                         .into(),
                     ));
                 } else {
