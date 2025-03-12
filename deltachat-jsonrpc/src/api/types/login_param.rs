@@ -114,16 +114,16 @@ impl TryFrom<EnteredLoginParam> for dc::EnteredLoginParam {
 #[serde(rename_all = "camelCase")]
 pub enum Socket {
     /// Unspecified socket security, select automatically.
-    Automatic = 0,
+    Automatic,
 
     /// TLS connection.
-    Ssl = 1,
+    Ssl,
 
     /// STARTTLS connection.
-    Starttls = 2,
+    Starttls,
 
     /// No TLS, plaintext connection.
-    Plain = 3,
+    Plain,
 }
 
 impl From<dc::Socket> for Socket {
@@ -154,14 +154,14 @@ pub enum EnteredCertificateChecks {
     /// `Automatic` means that provider database setting should be taken.
     /// If there is no provider database setting for certificate checks,
     /// check certificates strictly.
-    Automatic = 0,
+    Automatic,
 
     /// Ensure that TLS certificate is valid for the server hostname.
-    Strict = 1,
+    Strict,
 
     /// Accept certificates that are expired, self-signed
     /// or otherwise not valid for the server hostname.
-    AcceptInvalidCertificates = 2,
+    AcceptInvalidCertificates,
 }
 
 impl From<dc::EnteredCertificateChecks> for EnteredCertificateChecks {
