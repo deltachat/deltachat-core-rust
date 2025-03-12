@@ -2964,15 +2964,24 @@ async fn test_sync_accept_before_first_msg() -> Result<()> {
 
     let ba_chat = bob.create_chat(alice0).await;
     let sent_msg = bob.send_text(ba_chat.id, "hi").await;
-    let a0b_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
-    assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Request);
+    let rcvd_msg = alice0.recv_msg(&sent_msg).await;
+    let a0b_chat_id = rcvd_msg.chat_id;
+    let a0b_contact_id = rcvd_msg.from_id;
+    assert_eq!(
+        Chat::load_from_db(alice0, a0b_chat_id).await?.blocked,
+        Blocked::Request
+    );
     a0b_chat_id.accept(alice0).await?;
-    let a0b_contact = alice0.add_or_lookup_contact(&bob).await;
+    let a0b_contact = Contact::get_by_id(alice0, a0b_contact_id).await?;
     assert_eq!(a0b_contact.origin, Origin::CreateChat);
     assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Not);
 
     sync(alice0, alice1).await;
-    let a1b_contact = alice1.add_or_lookup_contact(&bob).await;
+    let alice1_contacts = Contact::get_all(alice1, 0, None).await?;
+    assert_eq!(alice1_contacts.len(), 1);
+    let a1b_contact_id = alice1_contacts[0];
+    let a1b_contact = Contact::get_by_id(alice1, a1b_contact_id).await?;
+    assert_eq!(a1b_contact.get_addr(), "bob@example.net");
     assert_eq!(a1b_contact.origin, Origin::CreateChat);
     let a1b_chat = alice1.get_chat(&bob).await;
     assert_eq!(a1b_chat.blocked, Blocked::Not);
@@ -2995,22 +3004,22 @@ async fn test_sync_block_before_first_msg() -> Result<()> {
 
     let ba_chat = bob.create_chat(alice0).await;
     let sent_msg = bob.send_text(ba_chat.id, "hi").await;
-    let a0b_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+    let rcvd_msg = alice0.recv_msg(&sent_msg).await;
+    let a0b_chat_id = rcvd_msg.chat_id;
+    let a0b_contact_id = rcvd_msg.from_id;
     assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Request);
     a0b_chat_id.block(alice0).await?;
-    let a0b_contact = alice0.add_or_lookup_contact(&bob).await;
+    let a0b_contact = Contact::get_by_id(alice0, a0b_contact_id).await?;
     assert_eq!(a0b_contact.origin, Origin::IncomingUnknownFrom);
     assert_eq!(alice0.get_chat(&bob).await.blocked, Blocked::Yes);
 
     sync(alice0, alice1).await;
-    let a1b_contact = alice1.add_or_lookup_contact(&bob).await;
-    assert_eq!(a1b_contact.origin, Origin::Hidden);
-    assert!(ChatIdBlocked::lookup_by_contact(alice1, a1b_contact.id)
-        .await?
-        .is_none());
+    let alice1_contacts = Contact::get_all(alice1, 0, None).await?;
+    assert_eq!(alice1_contacts.len(), 0);
 
     let rcvd_msg = alice1.recv_msg(&sent_msg).await;
-    let a1b_contact = alice1.add_or_lookup_contact(&bob).await;
+    let a1b_contact_id = rcvd_msg.from_id;
+    let a1b_contact = Contact::get_by_id(alice1, a1b_contact_id).await?;
     assert_eq!(a1b_contact.origin, Origin::IncomingUnknownFrom);
     let a1b_chat = alice1.get_chat(&bob).await;
     assert_eq!(a1b_chat.blocked, Blocked::Yes);
