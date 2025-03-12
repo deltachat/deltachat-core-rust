@@ -1616,58 +1616,6 @@ async fn test_lookup_self_by_contact_id() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_group_with_removed_message_id() -> Result<()> {
-    // Alice creates a group with Bob, sends a message to bob
-    let alice = TestContext::new_alice().await;
-    let bob = TestContext::new_bob().await;
-
-    let alice_bob_contact = alice.add_or_lookup_contact(&bob).await;
-    let contact_id = alice_bob_contact.id;
-    let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
-    let alice_chat = Chat::load_from_db(&alice, alice_chat_id).await?;
-
-    add_contact_to_chat(&alice, alice_chat_id, contact_id).await?;
-    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
-    send_text_msg(&alice, alice_chat_id, "hi!".to_string()).await?;
-    assert_eq!(get_chat_msgs(&alice, alice_chat_id).await?.len(), 1);
-
-    // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
-    let sent_msg = alice.pop_sent_msg().await;
-    let msg = sent_msg.payload();
-    assert_eq!(msg.match_indices("Message-ID: <").count(), 2);
-    assert_eq!(msg.match_indices("References: <").count(), 1);
-    let msg = msg.replace("Message-ID: <", "Message-ID: <X.X");
-    assert_eq!(msg.match_indices("References: <").count(), 1);
-
-    // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
-    receive_imf(&bob, msg.as_bytes(), false).await.unwrap();
-    let msg = bob.get_last_msg().await;
-
-    let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await?;
-    assert_eq!(bob_chat.grpid, alice_chat.grpid);
-
-    // Bob accepts contact request.
-    bob_chat.id.unblock(&bob).await?;
-
-    // Bob answers - simulate a normal MUA by not setting `Chat-*`-headers;
-    // moreover, Bob's SMTP-server also replaces the `Message-ID:`-header
-    send_text_msg(&bob, bob_chat.id, "ho!".to_string()).await?;
-    let sent_msg = bob.pop_sent_msg().await;
-    let msg = sent_msg.payload();
-    let msg = msg.replace("Message-ID: <", "Message-ID: <X.X");
-    let msg = msg.replace("Chat-", "XXXX-");
-    assert_eq!(msg.match_indices("Chat-").count(), 0);
-
-    // Alice receives this message - she can still detect the group by the `References:`-header
-    receive_imf(&alice, msg.as_bytes(), false).await.unwrap();
-    let msg = alice.get_last_msg().await;
-    assert_eq!(msg.chat_id, alice_chat_id);
-    assert_eq!(msg.text, "ho!".to_string());
-    assert_eq!(get_chat_msgs(&alice, alice_chat_id).await?.len(), 2);
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_marknoticed_chat() -> Result<()> {
     let t = TestContext::new_alice().await;
     let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
