@@ -720,7 +720,7 @@ impl TestContext {
     /// This first creates a contact using the configured details on the other account, then
     /// gets the 1:1 chat with this contact.
     pub async fn get_chat(&self, other: &TestContext) -> Chat {
-        let contact = self.add_or_lookup_contact(other).await;
+        let contact = self.add_or_lookup_email_contact(other).await;
 
         let chat_id = ChatIdBlocked::lookup_by_contact(&self.ctx, contact.id)
             .await
