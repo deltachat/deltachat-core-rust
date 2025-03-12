@@ -669,11 +669,11 @@ async fn test_secure_join() -> Result<()> {
     assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
     // If Bob then sends a direct message to alice, however, the one-to-one with Alice should appear.
-    let bobs_chat_with_alice = bob.get_chat(&alice).await;
+    let bobs_chat_with_alice = bob.create_chat(&alice).await;
     let sent = bob.send_text(bobs_chat_with_alice.id, "Hello").await;
     alice.recv_msg(&sent).await;
     assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 2);
-    assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
+    assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 2);
 
     Ok(())
 }
