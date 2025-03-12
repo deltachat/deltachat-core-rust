@@ -208,7 +208,7 @@ async fn test_setup_contact_ex(case: SetupContactCase) {
             .gossiped_keys
             .insert(alice_addr.to_string(), wrong_pubkey)
             .unwrap();
-        let contact_bob = alice.add_or_lookup_contact(&bob).await;
+        let contact_bob = alice.add_or_lookup_email_contact(&bob).await;
         let handshake_msg = handle_securejoin_handshake(&alice, &mut msg, contact_bob.id)
             .await
             .unwrap();
