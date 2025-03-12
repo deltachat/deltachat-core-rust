@@ -70,3 +70,11 @@ line-length = 120
 
 [tool.isort]
 profile = "black"
+
+[dependency-groups]
+dev = [
+    "imap-tools",
+    "pytest",
+    "pytest-timeout",
+    "pytest-xdist",
+]
