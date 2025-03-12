@@ -92,11 +92,11 @@ impl Context {
     /// and may be used to create a progress bar.
     /// This function will return after configuration is finished.
     ///
-    /// If configuration is successful:
-    /// - The parameters entered by the user will be saved
-    ///   so that they can be prefilled when the user opens the server-configuration screen again
-    /// - and the working server parameters will be saved
-    ///   and used for connecting to the server.
+    /// If configuration is successful,
+    /// the working server parameters will be saved
+    /// and used for connecting to the server.
+    /// The parameters entered by the user will be saved separately
+    /// so that they can be prefilled when the user opens the server-configuration screen again.
     ///
     /// See also:
     /// - [Self::is_configured()] to check whether there is

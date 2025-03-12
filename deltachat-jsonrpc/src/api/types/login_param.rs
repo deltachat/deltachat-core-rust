@@ -73,6 +73,7 @@ pub struct EnteredLoginParam {
     /// Proxy configuration.
     pub proxy_config: Option<String>,
 
+    /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
 
@@ -161,10 +162,6 @@ pub enum EnteredCertificateChecks {
     /// Accept certificates that are expired, self-signed
     /// or otherwise not valid for the server hostname.
     AcceptInvalidCertificates = 2,
-
-    /// Alias for `AcceptInvalidCertificates`
-    /// for API compatibility.
-    AcceptInvalidCertificates2 = 3,
 }
 
 impl From<dc::EnteredCertificateChecks> for EnteredCertificateChecks {
@@ -176,7 +173,7 @@ impl From<dc::EnteredCertificateChecks> for EnteredCertificateChecks {
                 Self::AcceptInvalidCertificates
             }
             dc::EnteredCertificateChecks::AcceptInvalidCertificates2 => {
-                Self::AcceptInvalidCertificates2
+                Self::AcceptInvalidCertificates
             }
         }
     }
@@ -188,9 +185,6 @@ impl From<EnteredCertificateChecks> for dc::EnteredCertificateChecks {
             EnteredCertificateChecks::Automatic => Self::Automatic,
             EnteredCertificateChecks::Strict => Self::Strict,
             EnteredCertificateChecks::AcceptInvalidCertificates => Self::AcceptInvalidCertificates,
-            EnteredCertificateChecks::AcceptInvalidCertificates2 => {
-                Self::AcceptInvalidCertificates2
-            }
         }
     }
 }

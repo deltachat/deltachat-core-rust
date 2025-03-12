@@ -464,6 +464,7 @@ pub(crate) struct ConfiguredLoginParam {
     /// invalid hostnames
     pub certificate_checks: ConfiguredCertificateChecks,
 
+    /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
 
