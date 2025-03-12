@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.157.0] - 2025-03-12
+
+### Features / Changes
+
+- Ignore encryption preferences.
+
+### API-Changes
+
+- deltachat-rpc-client: Make it possible to clone accounts.
+- deltachat-rpc-client: Add Account.device_contact.
+- deltachat-rpc-client: Add Account.get_device_chat().
+- deltechat-rpc-client: Add Account.wait_for_msgs_noticed_event().
+- ffi: Store reference pointer to Context in dc_chat_t.
+
+### Build system
+
+- Intergrate `fuzz` crate into workspace.
+- Update env_logger to get rid of unmaintained humantime dependency.
+- nix: Update NDK to 27.2.12479018.
+- Build Android wheels for PyPI.
+
+### Documentation
+
+- deltachat-rpc-client: Document Account.check_qr().
+- deltachat-rpc-client: Document Account.import_vcard().
+
+### Fixes
+
+- Update async-imap to 0.10.23 to fix division by zero.
+- Ignore hidden headers in IMF section.
+- Process Autocrypt-Gossip only after merging protected headers.
+
+### Miscellaneous Tasks
+
+- cargo: Bump smallvec from 1.13.2 to 1.14.0.
+
+### Tests
+
+- Deletion request fails in an unencrypted chat and the message remains.
+- python: port `test_no_old_msg_is_fresh` to JSON-RPC.
+
 ## [1.156.3] - 2025-03-09
 
 ### API-Changes
@@ -5949,3 +5990,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.156.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.0..v1.156.1
 [1.156.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.1..v1.156.2
 [1.156.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.2..v1.156.3
+[1.157.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.3..v1.157.0
