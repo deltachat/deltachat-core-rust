@@ -186,14 +186,14 @@ async fn test_missing_peerstate_reexecute_securejoin() -> Result<()> {
     let alice_addr = alice.get_config(Config::Addr).await?.unwrap();
     let bob = &tcm.bob().await;
     enable_verified_oneonone_chats(&[alice, bob]).await;
-    tcm.execute_securejoin(bob, alice).await;
-    let chat = bob.get_chat(alice).await;
+    let chat_id = tcm.execute_securejoin(bob, alice).await;
+    let chat = Chat::load_from_db(bob, chat_id).await?;
     assert!(chat.is_protected());
     bob.sql
         .execute("DELETE FROM acpeerstates WHERE addr=?", (&alice_addr,))
         .await?;
-    tcm.execute_securejoin(bob, alice).await;
-    let chat = bob.get_chat(alice).await;
+    let chat_id = tcm.execute_securejoin(bob, alice).await;
+    let chat = Chat::load_from_db(bob, chat_id).await?;
     assert!(chat.is_protected());
     assert!(!chat.is_protection_broken());
     Ok(())
