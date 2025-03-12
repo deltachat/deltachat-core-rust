@@ -421,19 +421,6 @@ impl MimeMessage {
             timestamp_sent =
                 Self::get_timestamp_sent(&mail.headers, timestamp_sent, timestamp_rcvd);
             if !signatures.is_empty() {
-                // Handle any gossip headers if the mail was encrypted. See section
-                // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
-                // but only if the mail was correctly signed. Probably it's ok to not require
-                // encryption here, but let's follow the standard.
-                let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
-                gossiped_keys = update_gossip_peerstates(
-                    context,
-                    timestamp_sent,
-                    &from.addr,
-                    &recipients,
-                    gossip_headers,
-                )
-                .await?;
                 // Remove unsigned opportunistically protected headers from messages considered
                 // Autocrypt-encrypted / displayed with padlock.
                 // For "Subject" see <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
@@ -473,6 +460,22 @@ impl MimeMessage {
                 &mut chat_disposition_notification_to,
                 &mail.headers,
             );
+
+            if !signatures.is_empty() {
+                // Handle any gossip headers if the mail was encrypted. See section
+                // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
+                // but only if the mail was correctly signed. Probably it's ok to not require
+                // encryption here, but let's follow the standard.
+                let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
+                gossiped_keys = update_gossip_peerstates(
+                    context,
+                    timestamp_sent,
+                    &from.addr,
+                    &recipients,
+                    gossip_headers,
+                )
+                .await?;
+            }
 
             if let Some(inner_from) = inner_from {
                 if !addr_cmp(&inner_from.addr, &from.addr) {
