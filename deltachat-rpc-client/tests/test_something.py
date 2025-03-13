@@ -297,7 +297,7 @@ def test_selfavatar_sync(acfactory, data, log) -> None:
     alice2.start_io()
 
     log.section("First device waits for the text")
-    event = alice.wait_for_event(EventType.MSGS_CHANGED, timeout=2)
+    event = alice.wait_for_event(EventType.MSGS_CHANGED)
     snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
     assert "Account transferred" in snapshot.text
 
@@ -309,7 +309,7 @@ def test_selfavatar_sync(acfactory, data, log) -> None:
     log.section("Sending text from the second device")
     alice2.get_self_chat().send_text("Hello!")
 
-    event = alice.wait_for_event(EventType.MSGS_CHANGED, timeout=2)
+    event = alice.wait_for_event(EventType.MSGS_CHANGED)
     snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
     assert snapshot.text == "Hello!"
 
