@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.157.1] - 2025-03-13
+
+### Miscellaneous Tasks
+
+- Update repository URLs to make npm and PyPI publishing possible.
+
 ## [1.157.0] - 2025-03-12
 
 ### Features / Changes
@@ -5991,3 +5997,4 @@ https://github.com/chatmail/core/pulls?q=is%3Apr+is%3Aclosed
 [1.156.2]: https://github.com/chatmail/core/compare/v1.156.1..v1.156.2
 [1.156.3]: https://github.com/chatmail/core/compare/v1.156.2..v1.156.3
 [1.157.0]: https://github.com/chatmail/core/compare/v1.156.3..v1.157.0
+[1.157.1]: https://github.com/chatmail/core/compare/v1.157.0..v1.157.1
