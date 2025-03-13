@@ -124,3 +124,59 @@ def rpc(tmp_path) -> AsyncGenerator:
 @pytest.fixture
 def acfactory(rpc) -> AsyncGenerator:
     return ACFactory(DeltaChat(rpc))
+
+
+@pytest.fixture
+def data(request):
+    """Test data."""
+
+    class Data:
+        def __init__(self) -> None:
+            # trying to find test data heuristically
+            # because we are run from a dev-setup with pytest direct,
+            # through tox, and then maybe also from deltachat-binding
+            # users like "deltabot".
+            self.paths = [
+                os.path.normpath(x)
+                for x in [
+                    os.path.join(os.path.dirname(request.fspath.strpath), "data"),
+                    os.path.join(os.path.dirname(request.fspath.strpath), "..", "..", "test-data"),
+                    os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-data"),
+                ]
+            ]
+
+        def get_path(self, bn):
+            """return path of file or None if it doesn't exist."""
+            for path in self.paths:
+                fn = os.path.join(path, *bn.split("/"))
+                if os.path.exists(fn):
+                    return fn
+            print(f"WARNING: path does not exist: {fn!r}")
+            return None
+
+        def read_path(self, bn, mode="r"):
+            fn = self.get_path(bn)
+            if fn is not None:
+                with open(fn, mode) as f:
+                    return f.read()
+            return None
+
+    return Data()
+
+
+@pytest.fixture
+def log():
+    """Log printer fixture."""
+
+    class Printer:
+        def section(self, msg: str) -> None:
+            print()
+            print("=" * 10, msg, "=" * 10)
+
+        def step(self, msg: str) -> None:
+            print("-" * 5, "step " + msg, "-" * 5)
+
+        def indent(self, msg: str) -> None:
+            print("  " + msg)
+
+    return Printer()
