@@ -220,7 +220,7 @@ typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
  * - Strings in function arguments or return values are usually UTF-8 encoded.
  *
  * - The issue-tracker for the core library is here:
- *   <https://github.com/deltachat/deltachat-core-rust/issues>
+ *   <https://github.com/chatmail/core/issues>
  *
  * If you need further assistance,
  * please do not hesitate to contact us

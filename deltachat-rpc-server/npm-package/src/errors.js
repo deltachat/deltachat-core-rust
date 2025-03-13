@@ -2,7 +2,7 @@
 import { ENV_VAR_NAME } from "./const.js";
 
 const cargoInstallCommand =
-  "cargo install --git https://github.com/deltachat/deltachat-core-rust deltachat-rpc-server";
+  "cargo install --git https://github.com/chatmail/core deltachat-rpc-server";
 
 export function NPM_NOT_FOUND_SUPPORTED_PLATFORM_ERROR(package_name) {
   return `deltachat-rpc-server not found:

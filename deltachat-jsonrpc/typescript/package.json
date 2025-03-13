@@ -34,7 +34,7 @@
   "name": "@deltachat/jsonrpc-client",
   "repository": {
     "type": "git",
-    "url": "https://github.com/deltachat/deltachat-core-rust.git"
+    "url": "https://github.com/chatmail/core.git"
   },
   "scripts": {
     "build": "run-s generate-bindings extract-constants build:tsc build:bundle build:cjs",

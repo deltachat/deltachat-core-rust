@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Home" = "https://github.com/deltachat/deltachat-core-rust/"
-"Bug Tracker" = "https://github.com/deltachat/deltachat-core-rust/issues"
+"Home" = "https://github.com/chatmail/core/"
+"Bug Tracker" = "https://github.com/chatmail/core/issues"
 "Documentation" = "https://py.delta.chat/"
 "Mastodon" = "https://chaos.social/@delta"
 

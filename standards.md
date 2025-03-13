@@ -21,7 +21,7 @@ Detect/prevent active attacks    | [securejoin][] protocols
 Compare public keys              | [openpgp4fpr][] URI Scheme
 Header encryption                | [Header Protection for Cryptographically Protected E-mail](https://datatracker.ietf.org/doc/draft-ietf-lamps-header-protection/)
 Configuration assistance         | [Autoconfigure](https://web.archive.org/web/20210402044801/https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover][]
-Messenger functions              | [Chat-over-Email](https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#chat-mail-specification)
+Messenger functions              | [Chat-over-Email](https://github.com/chatmail/core/blob/main/spec.md#chat-mail-specification)
 Detect mailing list              | List-Id ([RFC 2919][]) and Precedence ([RFC 3834][])
 User and chat colors             | [XEP-0392][]: Consistent Color Generation
 Send and receive system messages | Multipart/Report Media Type ([RFC 6522][])

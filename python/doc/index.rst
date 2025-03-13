@@ -2,7 +2,7 @@ Delta Chat Python bindings, new and old
 =======
 
 `Delta Chat <https://delta.chat/>`_ provides two kinds of Python bindings
-to the `Rust Core <https://github.com/deltachat/deltachat-core-rust>`_:
+to the `Rust Core <https://github.com/chatmail/core>`_:
 JSON-RPC bindings and CFFI bindings.
 When starting a new project it is recommended to use JSON-RPC bindings,
 which are used in the Delta Chat Desktop app through generated Typescript-bindings. 
@@ -41,4 +41,4 @@ as the CFFI bindings are increasingly in maintenance-only mode.
 .. _virtualenv: http://pypi.org/project/virtualenv/
 .. _merlinux: http://merlinux.eu
 .. _pypi: http://pypi.org/
-.. _`issue-tracker`: https://github.com/deltachat/deltachat-core-rust
+.. _`issue-tracker`: https://github.com/chatmail/core

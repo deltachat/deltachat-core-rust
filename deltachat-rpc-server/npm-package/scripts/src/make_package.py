@@ -25,7 +25,7 @@ def write_package_json(platform_path, rust_target, my_binary_name):
         "license": "MPL-2.0",
         "repository": {
             "type": "git",
-            "url": "https://github.com/deltachat/deltachat-core-rust.git",
+            "url": "https://github.com/chatmail/core.git",
         },
     }
 

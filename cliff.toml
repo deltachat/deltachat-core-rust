@@ -11,7 +11,7 @@ filter_unconventional = false
 split_commits = false
 # regex for preprocessing the commit messages
 commit_preprocessors = [
-    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/deltachat/deltachat-core-rust/pull/${2}))"}, # replace pull request / issue numbers
+    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/chatmail/core/pull/${2}))"}, # replace pull request / issue numbers
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
@@ -82,11 +82,11 @@ footer = """
     {% if release.version -%}
         {% if release.previous.version -%}
             [{{ release.version | trim_start_matches(pat="v") }}]: \
-                https://github.com/deltachat/deltachat-core-rust\
+                https://github.com/chatmail/core\
                     /compare/{{ release.previous.version }}..{{ release.version }}
         {% endif -%}
     {% else -%}
-        [unreleased]: https://github.com/deltachat/deltachat-core-rust\
+        [unreleased]: https://github.com/chatmail/core\
             /compare/{{ release.previous.version }}..HEAD
     {% endif -%}
 {% endfor %}

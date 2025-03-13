@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml">
-    <img alt="Rust CI" src="https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml/badge.svg">
+  <a href="https://github.com/chatmail/core/actions/workflows/ci.yml">
+    <img alt="Rust CI" src="https://github.com/chatmail/core/actions/workflows/ci.yml/badge.svg">
   </a>
-  <a href="https://deps.rs/repo/github/deltachat/deltachat-core-rust">
-    <img alt="dependency status" src="https://deps.rs/repo/github/deltachat/deltachat-core-rust/status.svg">
+  <a href="https://deps.rs/repo/github/chatmail/core">
+    <img alt="dependency status" src="https://deps.rs/repo/github/chatmail/core/status.svg">
   </a>
 </p>
 
@@ -104,7 +104,7 @@ For more commands type:
 ## Installing libdeltachat system wide
 
 ```
-$ git clone https://github.com/deltachat/deltachat-core-rust.git
+$ git clone https://github.com/chatmail/core.git
 $ cd deltachat-core-rust
 $ cmake -B build . -DCMAKE_INSTALL_PREFIX=/usr
 $ cmake --build build

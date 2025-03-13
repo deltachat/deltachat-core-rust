@@ -3,9 +3,9 @@ Development
 ===========
 
 To develop JSON-RPC bindings,
-clone the `deltachat-core-rust <https://github.com/deltachat/deltachat-core-rust/>`_ repository::
+clone the `chatmail core <https://github.com/chatmail/core/>`_ repository::
 
-   git clone https://github.com/deltachat/deltachat-core-rust.git
+   git clone https://github.com/chatmail/core.git
 
 Testing
 =======

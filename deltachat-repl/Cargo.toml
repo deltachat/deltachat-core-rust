@@ -3,7 +3,7 @@ name = "deltachat-repl"
 version = "1.157.0"
 license = "MPL-2.0"
 edition = "2021"
-repository = "https://github.com/deltachat/deltachat-core-rust"
+repository = "https://github.com/chatmail/core"
 
 [dependencies]
 anyhow = { workspace = true }

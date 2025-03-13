@@ -4,14 +4,14 @@ resources:
     icon: github
     source:
       branch: main
-      uri: https://github.com/deltachat/deltachat-core-rust.git
+      uri: https://github.com/chatmail/core.git
 
   - name: deltachat-core-rust-release
     type: git
     icon: github
     source:
       branch: main
-      uri: https://github.com/deltachat/deltachat-core-rust.git
+      uri: https://github.com/chatmail/core.git
       tag_filter: "v*"
 
 jobs:

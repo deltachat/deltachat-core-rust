@@ -53,7 +53,7 @@
 ### Features / Changes
 
 - Add chat-deleted event.
-- Delete messages on IMAP when deleting chat ([#6613](https://github.com/deltachat/deltachat-core-rust/pull/6613)).
+- Delete messages on IMAP when deleting chat ([#6613](https://github.com/chatmail/core/pull/6613)).
 - Allow doubled avatar resolution
 
 ### Fixes
@@ -88,7 +88,7 @@
 
 ### Features / Changes
 
-- Show sender name in 'Saved Messages' summary ([#6607](https://github.com/deltachat/deltachat-core-rust/pull/6607)).
+- Show sender name in 'Saved Messages' summary ([#6607](https://github.com/chatmail/core/pull/6607)).
 - Sync chats deletion across devices.
 
 ### Documentation
@@ -105,7 +105,7 @@
 ### Fixes
 
 - Update mailparse to 0.16.1 to fix panic when parsing a message.
-- Add Chat-Group-Name-Timestamp header and use it to update group names ([#6412](https://github.com/deltachat/deltachat-core-rust/pull/6412)).
+- Add Chat-Group-Name-Timestamp header and use it to update group names ([#6412](https://github.com/chatmail/core/pull/6412)).
 - Log tokio::fs::metadata errors.
 
 ### Build system
@@ -116,27 +116,27 @@
 
 ### API-Changes
 
-- Save messages API in JSON RPC ([#6554](https://github.com/deltachat/deltachat-core-rust/pull/6554)).
+- Save messages API in JSON RPC ([#6554](https://github.com/chatmail/core/pull/6554)).
 - jsonrpc: Add `MessageObject.is_edited`.
 - jsonrpc: Add `send_edit_request`.
-- Deduplicate blob files in the JsonRPC API ([#6470](https://github.com/deltachat/deltachat-core-rust/pull/6470)).
-- Message deletion request API ([#6576](https://github.com/deltachat/deltachat-core-rust/pull/6576))
+- Deduplicate blob files in the JsonRPC API ([#6470](https://github.com/chatmail/core/pull/6470)).
+- Message deletion request API ([#6576](https://github.com/chatmail/core/pull/6576))
 
 ### Features / Changes
 
-- Edit message's text ([#6550](https://github.com/deltachat/deltachat-core-rust/pull/6550))
-- Sync message deletion to other devices ([#6573](https://github.com/deltachat/deltachat-core-rust/pull/6573))
+- Edit message's text ([#6550](https://github.com/chatmail/core/pull/6550))
+- Sync message deletion to other devices ([#6573](https://github.com/chatmail/core/pull/6573))
 - Allow scanning multiple securejoin QR codes in parallel.
-- When reactions are seen, remove notification from second device ([#6480](https://github.com/deltachat/deltachat-core-rust/pull/6480)).
+- When reactions are seen, remove notification from second device ([#6480](https://github.com/chatmail/core/pull/6480)).
 - Enable bcc-self automatically when doing Autocrypt Setup Message.
-- Don't send a notification when a group member left ([#6575](https://github.com/deltachat/deltachat-core-rust/pull/6575)).
-- Fail on too new backups ([#6580](https://github.com/deltachat/deltachat-core-rust/pull/6580)).
+- Don't send a notification when a group member left ([#6575](https://github.com/chatmail/core/pull/6575)).
+- Fail on too new backups ([#6580](https://github.com/chatmail/core/pull/6580)).
 
 ### Fixes
 
 - Make it impossible to overwrite default key.
-- Do not allow to edit html messages ([#6564](https://github.com/deltachat/deltachat-core-rust/pull/6564)).
-- `get_config(Config::Selfavatar)` returns the path, not the name ([#6570](https://github.com/deltachat/deltachat-core-rust/pull/6570)).
+- Do not allow to edit html messages ([#6564](https://github.com/chatmail/core/pull/6564)).
+- `get_config(Config::Selfavatar)` returns the path, not the name ([#6570](https://github.com/chatmail/core/pull/6570)).
 - `chat::save_msgs`: Interrupt inbox loop to send a sync message.
 - Do not delete files if cannot read their metadata.
 
@@ -152,11 +152,11 @@
 ### Refactor
 
 - Use mail-builder instead of lettre_email.
-- Move even even more tests into their own files ([#6559](https://github.com/deltachat/deltachat-core-rust/pull/6559)).
-- Remove `Message.set_file()`, `dc_msg_set_file()` and related code ([#6558](https://github.com/deltachat/deltachat-core-rust/pull/6558)).
-- Remove unused blob functions ([#6563](https://github.com/deltachat/deltachat-core-rust/pull/6563)).
-- Let `BlobObject::from_name()` take `&str` ([#6571](https://github.com/deltachat/deltachat-core-rust/pull/6571)).
-- Don't use traits where it's not necessary ([#6567](https://github.com/deltachat/deltachat-core-rust/pull/6567)).
+- Move even even more tests into their own files ([#6559](https://github.com/chatmail/core/pull/6559)).
+- Remove `Message.set_file()`, `dc_msg_set_file()` and related code ([#6558](https://github.com/chatmail/core/pull/6558)).
+- Remove unused blob functions ([#6563](https://github.com/chatmail/core/pull/6563)).
+- Let `BlobObject::from_name()` take `&str` ([#6571](https://github.com/chatmail/core/pull/6571)).
+- Don't use traits where it's not necessary ([#6567](https://github.com/chatmail/core/pull/6567)).
 
 ## [1.155.6] - 2025-02-17
 
@@ -181,13 +181,13 @@
 
 ### Documentation
 
-- Improve docstrings ([#6496](https://github.com/deltachat/deltachat-core-rust/pull/6496)).
+- Improve docstrings ([#6496](https://github.com/chatmail/core/pull/6496)).
 
 ## [1.155.5] - 2025-02-14
 
 ### Fixes
 
-- Get_filename() is now guaranteed to return a valid filename ([#6537](https://github.com/deltachat/deltachat-core-rust/pull/6537)).
+- Get_filename() is now guaranteed to return a valid filename ([#6537](https://github.com/chatmail/core/pull/6537)).
 
 ### Miscellaneous Tasks
 
@@ -208,7 +208,7 @@
 - Use CRLF newlines in vCards.
 - Make vCard parsing more robust in case of trailing newlines.
 - Do not include CRLF before MIME boundary in the part body.
-- Accept QR codes with 'broken' JSON ([#6528](https://github.com/deltachat/deltachat-core-rust/pull/6528)).
+- Accept QR codes with 'broken' JSON ([#6528](https://github.com/chatmail/core/pull/6528)).
 
 ### Other
 
@@ -216,7 +216,7 @@
 
 ### Refactor
 
-- Move even more tests into their own files ([#6521](https://github.com/deltachat/deltachat-core-rust/pull/6521)).
+- Move even more tests into their own files ([#6521](https://github.com/chatmail/core/pull/6521)).
 
 ## [1.155.3] - 2025-02-05
 
@@ -261,7 +261,7 @@ due to iroh upgrade.
 
 ### API-Changes
 
-- Add `IncomingReaction.chat_id` ([#6459](https://github.com/deltachat/deltachat-core-rust/pull/6459)).
+- Add `IncomingReaction.chat_id` ([#6459](https://github.com/chatmail/core/pull/6459)).
 
 ### Features / Changes
 
@@ -273,11 +273,11 @@ due to iroh upgrade.
 
 - Don't remove file extension when recoding avatars.
 - Use `BufReader` when reading .xdc files.
-- No implicit member changes when we are added to the group ([#6493](https://github.com/deltachat/deltachat-core-rust/pull/6493)).
+- No implicit member changes when we are added to the group ([#6493](https://github.com/chatmail/core/pull/6493)).
 
 ### Documentation
 
-- jsonrpc: Update documentation for `select_account` and `get_selected_account_id` ([#6483](https://github.com/deltachat/deltachat-core-rust/pull/6483)).
+- jsonrpc: Update documentation for `select_account` and `get_selected_account_id` ([#6483](https://github.com/chatmail/core/pull/6483)).
 - jsonrpc: Add docs for some functions.
 
 ## [1.155.1] - 2025-01-25
@@ -295,8 +295,8 @@ due to iroh upgrade.
 
 ### Refactor
 
-- Remove BlobObject::create(), use create_and_deduplicate_from_bytes() instead ([#6467](https://github.com/deltachat/deltachat-core-rust/pull/6467)).
-- Move more tests into their own files ([#6473](https://github.com/deltachat/deltachat-core-rust/pull/6473)).
+- Remove BlobObject::create(), use create_and_deduplicate_from_bytes() instead ([#6467](https://github.com/chatmail/core/pull/6467)).
+- Move more tests into their own files ([#6473](https://github.com/chatmail/core/pull/6473)).
 
 ## [1.155.0] - 2025-01-23
 
@@ -311,13 +311,13 @@ due to iroh upgrade.
 
 ### Features / Changes
 
-- feat: Set BccSelf to true when receiving a sync message  ([#6434](https://github.com/deltachat/deltachat-core-rust/pull/6434))
-- File deduplication ([#6332](https://github.com/deltachat/deltachat-core-rust/pull/6332))
+- feat: Set BccSelf to true when receiving a sync message  ([#6434](https://github.com/chatmail/core/pull/6434))
+- File deduplication ([#6332](https://github.com/chatmail/core/pull/6332))
 
 ### Refactor
 
 - Move tests to their own files.
-- Extract `group_changes_msgs()` function ([#6460](https://github.com/deltachat/deltachat-core-rust/pull/6460)).
+- Extract `group_changes_msgs()` function ([#6460](https://github.com/chatmail/core/pull/6460)).
 
 ## [1.154.3] - 2025-01-20
 
@@ -328,17 +328,17 @@ due to iroh upgrade.
 
 ### Miscellaneous Tasks
 
-- Remove unused function delete_files_in_dir() ([#6454](https://github.com/deltachat/deltachat-core-rust/pull/6454)).
+- Remove unused function delete_files_in_dir() ([#6454](https://github.com/chatmail/core/pull/6454)).
 
 ## [1.154.2] - 2025-01-20
 
 ### Features / Changes
 
-- Add API to save messages ([#5606](https://github.com/deltachat/deltachat-core-rust/pull/5606)).
+- Add API to save messages ([#5606](https://github.com/chatmail/core/pull/5606)).
 
 ### Fixes
 
-- fix: Don't accidentally remove Self from groups ([#6455](https://github.com/deltachat/deltachat-core-rust/pull/6455)).
+- fix: Don't accidentally remove Self from groups ([#6455](https://github.com/chatmail/core/pull/6455)).
 - Do not create tombstones for members removed from unpromoted groups.
 
 ### Build system
@@ -363,8 +363,8 @@ due to iroh upgrade.
 
 ### Fixes
 
-- Migration: Set bcc_self=1 if it's unset and delete_server_after!=1 ([#6432](https://github.com/deltachat/deltachat-core-rust/pull/6432)).
-- Clear the config cache after every migration ([#6438](https://github.com/deltachat/deltachat-core-rust/pull/6438)).
+- Migration: Set bcc_self=1 if it's unset and delete_server_after!=1 ([#6432](https://github.com/chatmail/core/pull/6432)).
+- Clear the config cache after every migration ([#6438](https://github.com/chatmail/core/pull/6438)).
 
 ### Build system
 
@@ -377,14 +377,14 @@ due to iroh upgrade.
 
 ### Miscellaneous Tasks
 
-- Beta Clippy suggestions ([#6422](https://github.com/deltachat/deltachat-core-rust/pull/6422)).
+- Beta Clippy suggestions ([#6422](https://github.com/chatmail/core/pull/6422)).
 
 ### Refactor
 
 - Use let..else.
 - Add why_cant_send_ex() capable to only ignore specified conditions.
 - Remove unnecessary is_contact_in_chat check.
-- Eliminate remaining repeat_vars() calls ([#6359](https://github.com/deltachat/deltachat-core-rust/pull/6359)).
+- Eliminate remaining repeat_vars() calls ([#6359](https://github.com/chatmail/core/pull/6359)).
 
 ### Tests
 
@@ -394,24 +394,24 @@ due to iroh upgrade.
 
 ### Features / Changes
 
-- Remove "jobs" from imap_markseen if folder doesn't exist ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
-- Delete `vg-request-with-auth` from IMAP after processing ([#6208](https://github.com/deltachat/deltachat-core-rust/pull/6208)).
+- Remove "jobs" from imap_markseen if folder doesn't exist ([#5870](https://github.com/chatmail/core/pull/5870)).
+- Delete `vg-request-with-auth` from IMAP after processing ([#6208](https://github.com/chatmail/core/pull/6208)).
 
 ### API-Changes
 
-- Add `IncomingWebxdcNotify.chat_id` ([#6356](https://github.com/deltachat/deltachat-core-rust/pull/6356)).
-- rpc-client: Add INCOMING_REACTION to const.EventType ([#6349](https://github.com/deltachat/deltachat-core-rust/pull/6349)).
+- Add `IncomingWebxdcNotify.chat_id` ([#6356](https://github.com/chatmail/core/pull/6356)).
+- rpc-client: Add INCOMING_REACTION to const.EventType ([#6349](https://github.com/chatmail/core/pull/6349)).
 
 ### Documentation
 
-- Viewtype::Sticker may be changed to Image and how to disable that ([#6352](https://github.com/deltachat/deltachat-core-rust/pull/6352)).
+- Viewtype::Sticker may be changed to Image and how to disable that ([#6352](https://github.com/chatmail/core/pull/6352)).
 
 ### Fixes
 
-- Never change Viewtype::Sticker to Image if file has non-image extension ([#6352](https://github.com/deltachat/deltachat-core-rust/pull/6352)).
-- Change BccSelf default to 0 for chatmail ([#6340](https://github.com/deltachat/deltachat-core-rust/pull/6340)).
+- Never change Viewtype::Sticker to Image if file has non-image extension ([#6352](https://github.com/chatmail/core/pull/6352)).
+- Change BccSelf default to 0 for chatmail ([#6340](https://github.com/chatmail/core/pull/6340)).
 - Mark holiday notice messages as bot-generated.
-- Don't treat location-only and sync messages as bot ones ([#6357](https://github.com/deltachat/deltachat-core-rust/pull/6357)).
+- Don't treat location-only and sync messages as bot ones ([#6357](https://github.com/chatmail/core/pull/6357)).
 - Update shadowsocks crate to 1.22.0 to avoid panic when parsing some QR codes.
 - Prefer to encrypt if E2eeEnabled even if peers have EncryptPreference::NoPreference.
 - Prioritize mailing list over self-sent messages.
@@ -420,7 +420,7 @@ due to iroh upgrade.
 
 ### Refactor
 
-- Remove unused parameter and return value from `build_body_file(…)` ([#6369](https://github.com/deltachat/deltachat-core-rust/pull/6369)).
+- Remove unused parameter and return value from `build_body_file(…)` ([#6369](https://github.com/chatmail/core/pull/6369)).
 - Deprecate Param::ErroneousE2ee.
 - Add `emit_msgs_changed_without_msg_id`.
 - Add_parts: Remove excessive `is_mdn` checks.
@@ -446,7 +446,7 @@ due to iroh upgrade.
 ### Fixes
 
 - Reduce number of `repeat_vars()` calls.
-- `sanitise_name`: Don't consider punctuation and control chars as part of file extension ([#6362](https://github.com/deltachat/deltachat-core-rust/pull/6362)).
+- `sanitise_name`: Don't consider punctuation and control chars as part of file extension ([#6362](https://github.com/chatmail/core/pull/6362)).
 
 ### Refactor
 
@@ -477,11 +477,11 @@ due to iroh upgrade.
 
 - Cache HTTP GET requests.
 - Prefix server-url in info.
-- Set `mime_modified` for the last message part, not the first ([#4462](https://github.com/deltachat/deltachat-core-rust/pull/4462)).
+- Set `mime_modified` for the last message part, not the first ([#4462](https://github.com/chatmail/core/pull/4462)).
 
 ### Fixes
 
-- Render "message" parts in multipart messages' HTML ([#4462](https://github.com/deltachat/deltachat-core-rust/pull/4462)).
+- Render "message" parts in multipart messages' HTML ([#4462](https://github.com/chatmail/core/pull/4462)).
 - Ignore garbage at the end of the keys.
 
 ## [1.151.6] - 2024-12-11
@@ -489,7 +489,7 @@ due to iroh upgrade.
 ### Features / Changes
 
 - Don't add "Failed to send message to ..." info messages to group chats.
-- Add info messages about implicit membership changes if group member list is recreated ([#6314](https://github.com/deltachat/deltachat-core-rust/pull/6314)).
+- Add info messages about implicit membership changes if group member list is recreated ([#6314](https://github.com/chatmail/core/pull/6314)).
 
 ### Fixes
 
@@ -510,7 +510,7 @@ due to iroh upgrade.
 
 ### Tests
 
-- Notifiy more prominently & in more tests about false positives when running `cargo test` ([#6308](https://github.com/deltachat/deltachat-core-rust/pull/6308)).
+- Notifiy more prominently & in more tests about false positives when running `cargo test` ([#6308](https://github.com/chatmail/core/pull/6308)).
 
 ## [1.151.5] - 2024-12-05
 
@@ -530,7 +530,7 @@ due to iroh upgrade.
 
 ### Fixes
 
-- Store plaintext in mime_headers of truncated sent messages ([#6273](https://github.com/deltachat/deltachat-core-rust/pull/6273)).
+- Store plaintext in mime_headers of truncated sent messages ([#6273](https://github.com/chatmail/core/pull/6273)).
 
 ### Documentation
 
@@ -539,7 +539,7 @@ due to iroh upgrade.
 
 ### Tests
 
-- Fix panic in `receive_emails` benchmark ([#6306](https://github.com/deltachat/deltachat-core-rust/pull/6306)).
+- Fix panic in `receive_emails` benchmark ([#6306](https://github.com/chatmail/core/pull/6306)).
 
 ## [1.151.4] - 2024-12-03
 
@@ -553,7 +553,7 @@ due to iroh upgrade.
 
 ### Miscellaneous Tasks
 
-- Beta clippy suggestions ([#6271](https://github.com/deltachat/deltachat-core-rust/pull/6271)).
+- Beta clippy suggestions ([#6271](https://github.com/chatmail/core/pull/6271)).
 
 ### Tests
 
@@ -568,7 +568,7 @@ due to iroh upgrade.
 ### API-Changes
 
 - Remove experimental `request_internet_access` option from webxdc's `manifest.toml`.
-- Add getWebxdcHref to json api ([#6281](https://github.com/deltachat/deltachat-core-rust/pull/6281)).
+- Add getWebxdcHref to json api ([#6281](https://github.com/chatmail/core/pull/6281)).
 
 ### CI
 
@@ -576,13 +576,13 @@ due to iroh upgrade.
 
 ### Documentation
 
-- Update dc_msg_get_info_type() and dc_get_securejoin_qr() ([#6269](https://github.com/deltachat/deltachat-core-rust/pull/6269)).
+- Update dc_msg_get_info_type() and dc_get_securejoin_qr() ([#6269](https://github.com/chatmail/core/pull/6269)).
 - Fix references to iroh-related headers in peer_channels docs.
 - Improve CFFI docs, link to corresponding JSON-RPC docs.
 
 ### Features / Changes
 
-- Allow the user to replace maps integration ([#5678](https://github.com/deltachat/deltachat-core-rust/pull/5678)).
+- Allow the user to replace maps integration ([#5678](https://github.com/chatmail/core/pull/5678)).
 - Mark saved messages chat as protected.
 
 ### Fixes
@@ -590,7 +590,7 @@ due to iroh upgrade.
 - Close iroh endpoint when I/O is stopped.
 - Do not add protection messages to Saved Messages chat.
 - Mark Saved Messages chat as protected if it exists.
-- Sync chat action even if sync message arrives before first one from contact ([#6259](https://github.com/deltachat/deltachat-core-rust/pull/6259)).
+- Sync chat action even if sync message arrives before first one from contact ([#6259](https://github.com/chatmail/core/pull/6259)).
 
 ### Refactor
 
@@ -602,15 +602,15 @@ due to iroh upgrade.
 
 ### API-Changes
 
-- Deprecate webxdc `descr` parameter ([#6255](https://github.com/deltachat/deltachat-core-rust/pull/6255)).
+- Deprecate webxdc `descr` parameter ([#6255](https://github.com/chatmail/core/pull/6255)).
 
 ### Features / Changes
 
 - AEAP: Check that the old peerstate verified key fingerprint hasn't changed when removing it.
-- Add `AccountsChanged` and `AccountsItemChanged` events ([#6118](https://github.com/deltachat/deltachat-core-rust/pull/6118)).
-- Do not use format=flowed in outgoing messages ([#6256](https://github.com/deltachat/deltachat-core-rust/pull/6256)).
+- Add `AccountsChanged` and `AccountsItemChanged` events ([#6118](https://github.com/chatmail/core/pull/6118)).
+- Do not use format=flowed in outgoing messages ([#6256](https://github.com/chatmail/core/pull/6256)).
 - Add webxdc limits api.
-- Add href to IncomingWebxdcNotify event ([#6266](https://github.com/deltachat/deltachat-core-rust/pull/6266)).
+- Add href to IncomingWebxdcNotify event ([#6266](https://github.com/chatmail/core/pull/6266)).
 
 ### Fixes
 
@@ -639,64 +639,64 @@ due to iroh upgrade.
 ### Features / Changes
 
 - Trim whitespace from scanned QR codes.
-- Use privacy-preserving webxdc addresses ([#6237](https://github.com/deltachat/deltachat-core-rust/pull/6237)).
-- Webxdc notify ([#6230](https://github.com/deltachat/deltachat-core-rust/pull/6230)).
-- `update.href` api ([#6248](https://github.com/deltachat/deltachat-core-rust/pull/6248)).
+- Use privacy-preserving webxdc addresses ([#6237](https://github.com/chatmail/core/pull/6237)).
+- Webxdc notify ([#6230](https://github.com/chatmail/core/pull/6230)).
+- `update.href` api ([#6248](https://github.com/chatmail/core/pull/6248)).
 
 ### Fixes
 
-- Never notify SELF ([#6251](https://github.com/deltachat/deltachat-core-rust/pull/6251)).
+- Never notify SELF ([#6251](https://github.com/chatmail/core/pull/6251)).
 
 ### Build system
 
 - Use underscores in deltachat-rpc-server source package filename.
-- Remove imap_tools from dependencies ([#6238](https://github.com/deltachat/deltachat-core-rust/pull/6238)).
+- Remove imap_tools from dependencies ([#6238](https://github.com/chatmail/core/pull/6238)).
 - cargo: Update Rustls from 0.23.14 to 0.23.18.
 - deps: Bump curve25519-dalek from 3.2.0 to 4.1.3 in /fuzz.
 
 ### Documentation
 
 - Move style guide into a separate document.
-- Clarify DC_EVENT_INCOMING_WEBXDC_NOTIFY documentation ([#6249](https://github.com/deltachat/deltachat-core-rust/pull/6249)).
+- Clarify DC_EVENT_INCOMING_WEBXDC_NOTIFY documentation ([#6249](https://github.com/chatmail/core/pull/6249)).
 
 ### Tests
 
-- After AEAP, 1:1 chat isn't available for sending, but unprotected groups are ([#6222](https://github.com/deltachat/deltachat-core-rust/pull/6222)).
+- After AEAP, 1:1 chat isn't available for sending, but unprotected groups are ([#6222](https://github.com/chatmail/core/pull/6222)).
 
 ## [1.150.0] - 2024-11-21
 
 ### API-Changes
 
-- Correct `DC_CERTCK_ACCEPT_*` values and docs ([#6176](https://github.com/deltachat/deltachat-core-rust/pull/6176)).
+- Correct `DC_CERTCK_ACCEPT_*` values and docs ([#6176](https://github.com/chatmail/core/pull/6176)).
 
 ### Features / Changes
 
-- Use Rustls for connections with strict TLS ([#6186](https://github.com/deltachat/deltachat-core-rust/pull/6186)).
+- Use Rustls for connections with strict TLS ([#6186](https://github.com/chatmail/core/pull/6186)).
 - Experimental header protection for Autocrypt.
 - Tune down io-not-started info in connectivity-html.
-- Clear config cache in start_io() ([#6228](https://github.com/deltachat/deltachat-core-rust/pull/6228)).
+- Clear config cache in start_io() ([#6228](https://github.com/chatmail/core/pull/6228)).
 - Line-before-quote may be up to 120 character long instead of 80.
-- Use i.delta.chat in qr codes ([#6223](https://github.com/deltachat/deltachat-core-rust/pull/6223)).
+- Use i.delta.chat in qr codes ([#6223](https://github.com/chatmail/core/pull/6223)).
 
 ### Fixes
 
-- Prevent accidental wrong-password-notifications ([#6122](https://github.com/deltachat/deltachat-core-rust/pull/6122)).
+- Prevent accidental wrong-password-notifications ([#6122](https://github.com/chatmail/core/pull/6122)).
 - Remove footers from "Show Full Message...".
 - `send_msg_to_smtp`: Return Ok if `smtp` row is deleted in parallel.
-- Only add "member added/removed" messages if they actually do that ([#5992](https://github.com/deltachat/deltachat-core-rust/pull/5992)).
+- Only add "member added/removed" messages if they actually do that ([#5992](https://github.com/chatmail/core/pull/5992)).
 - Do not fail to load chatlist summary if the message got removed.
 - deltachat-jsonrpc: Do not fail `get_chatlist_items_by_entries` if the message got deleted.
 - deltachat-jsonrpc: Do not fail `get_draft` if draft is deleted.
-- `markseen_msgs`: Limit not yet downloaded messages state to `InNoticed` ([#2970](https://github.com/deltachat/deltachat-core-rust/pull/2970)).
+- `markseen_msgs`: Limit not yet downloaded messages state to `InNoticed` ([#2970](https://github.com/chatmail/core/pull/2970)).
 - Update state of message when fully downloading it.
-- Dont overwrite equal drafts ([#6212](https://github.com/deltachat/deltachat-core-rust/pull/6212)).
+- Dont overwrite equal drafts ([#6212](https://github.com/chatmail/core/pull/6212)).
 
 ### Build system
 
 - Silence RUSTSEC-2024-0384.
 - cargo: Update rPGP from 0.13.2 to 0.14.0.
 - cargo: Update futures-concurrency from 7.6.1 to 7.6.2.
-- Update flake.nix ([#6200](https://github.com/deltachat/deltachat-core-rust/pull/6200))
+- Update flake.nix ([#6200](https://github.com/chatmail/core/pull/6200))
 
 ### CI
 
@@ -731,8 +731,8 @@ due to iroh upgrade.
 
 - Remove all calls to print() from deltachat-rpc-client tests.
 - Reply to protected group from MUA.
-- Mark not downloaded message as seen ([#2970](https://github.com/deltachat/deltachat-core-rust/pull/2970)).
-- Mark `receive_imf()` as only for tests and "internals" feature ([#6235](https://github.com/deltachat/deltachat-core-rust/pull/6235)).
+- Mark not downloaded message as seen ([#2970](https://github.com/chatmail/core/pull/2970)).
+- Mark `receive_imf()` as only for tests and "internals" feature ([#6235](https://github.com/chatmail/core/pull/6235)).
 
 ## [1.149.0] - 2024-11-05
 
@@ -760,9 +760,9 @@ due to iroh upgrade.
 
 - send_msg_to_smtp: Do not fail if the message does not exist anymore.
 - Do not percent-encode dot when passing to autoconfig server.
-- Save contact name from SecureJoin QR to `authname`, not to `name` ([#6115](https://github.com/deltachat/deltachat-core-rust/pull/6115)).
+- Save contact name from SecureJoin QR to `authname`, not to `name` ([#6115](https://github.com/chatmail/core/pull/6115)).
 - Always exit fake IDLE after at most 60 seconds.
-- Concat NDNs ([#6129](https://github.com/deltachat/deltachat-core-rust/pull/6129)).
+- Concat NDNs ([#6129](https://github.com/chatmail/core/pull/6129)).
 
 ### Refactor
 
@@ -776,34 +776,34 @@ due to iroh upgrade.
 
 ### API-Changes
 
-- Add Message::new_text() ([#6123](https://github.com/deltachat/deltachat-core-rust/pull/6123)).
-- Add `MessageSearchResult.chat_id` ([#6120](https://github.com/deltachat/deltachat-core-rust/pull/6120)).
+- Add Message::new_text() ([#6123](https://github.com/chatmail/core/pull/6123)).
+- Add `MessageSearchResult.chat_id` ([#6120](https://github.com/chatmail/core/pull/6120)).
 
 ### Features / Changes
 
-- Enable Webxdc realtime by default ([#6125](https://github.com/deltachat/deltachat-core-rust/pull/6125)).
+- Enable Webxdc realtime by default ([#6125](https://github.com/chatmail/core/pull/6125)).
 
 ### Fixes
 
-- Save full text to mime_headers for long outgoing messages ([#6091](https://github.com/deltachat/deltachat-core-rust/pull/6091)).
-- Show root SMTP connection failure in connectivity view ([#6121](https://github.com/deltachat/deltachat-core-rust/pull/6121)).
-- Skip IDLE if we got unsolicited FETCH ([#6130](https://github.com/deltachat/deltachat-core-rust/pull/6130)).
+- Save full text to mime_headers for long outgoing messages ([#6091](https://github.com/chatmail/core/pull/6091)).
+- Show root SMTP connection failure in connectivity view ([#6121](https://github.com/chatmail/core/pull/6121)).
+- Skip IDLE if we got unsolicited FETCH ([#6130](https://github.com/chatmail/core/pull/6130)).
 
 ### Miscellaneous Tasks
 
-- Silence another rust-analyzer false-positive ([#6124](https://github.com/deltachat/deltachat-core-rust/pull/6124)).
+- Silence another rust-analyzer false-positive ([#6124](https://github.com/chatmail/core/pull/6124)).
 - cargo: Upgrade iroh to 0.26.0.
 
 ### Refactor
 
-- Directly use connectives ([#6128](https://github.com/deltachat/deltachat-core-rust/pull/6128)).
-- Use Message::new_text() more ([#6127](https://github.com/deltachat/deltachat-core-rust/pull/6127)).
+- Directly use connectives ([#6128](https://github.com/chatmail/core/pull/6128)).
+- Use Message::new_text() more ([#6127](https://github.com/chatmail/core/pull/6127)).
 
 ## [1.148.5] - 2024-10-27
 
 ### Fixes
 
-- Set Config::NotifyAboutWrongPw before saving configuration ([#5896](https://github.com/deltachat/deltachat-core-rust/pull/5896)).
+- Set Config::NotifyAboutWrongPw before saving configuration ([#5896](https://github.com/chatmail/core/pull/5896)).
 - Do not take write lock for maybe_network_lost() and set_push_device_token().
 - Do not lock the account manager for the whole duration of background_fetch.
 
@@ -828,7 +828,7 @@ due to iroh upgrade.
 
 ### Features / Changes
 
-- Jsonrpc: add `private_tag` to `Account::Configured` Object ([#6107](https://github.com/deltachat/deltachat-core-rust/pull/6107)).
+- Jsonrpc: add `private_tag` to `Account::Configured` Object ([#6107](https://github.com/chatmail/core/pull/6107)).
 
 ### Fixes
 
@@ -851,7 +851,7 @@ due to iroh upgrade.
 
 ### Documentation
 
-- Fix DC_QR_PROXY docs ([#6099](https://github.com/deltachat/deltachat-core-rust/pull/6099)).
+- Fix DC_QR_PROXY docs ([#6099](https://github.com/chatmail/core/pull/6099)).
 
 ### Refactor
 
@@ -888,11 +888,11 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### API-Changes
 
-- Create QR codes from any data ([#6090](https://github.com/deltachat/deltachat-core-rust/pull/6090)).
-- Add delta chat logo to QR codes ([#6093](https://github.com/deltachat/deltachat-core-rust/pull/6093)).
-- Add realtime advertisement received event ([#6043](https://github.com/deltachat/deltachat-core-rust/pull/6043)).
-- Notify adding reactions ([#6072](https://github.com/deltachat/deltachat-core-rust/pull/6072))
-- Internal profile names ([#6088](https://github.com/deltachat/deltachat-core-rust/pull/6088)).
+- Create QR codes from any data ([#6090](https://github.com/chatmail/core/pull/6090)).
+- Add delta chat logo to QR codes ([#6093](https://github.com/chatmail/core/pull/6093)).
+- Add realtime advertisement received event ([#6043](https://github.com/chatmail/core/pull/6043)).
+- Notify adding reactions ([#6072](https://github.com/chatmail/core/pull/6072))
+- Internal profile names ([#6088](https://github.com/chatmail/core/pull/6088)).
 
 ### Features / Changes
 
@@ -908,7 +908,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Fixes
 
 - Replace old draft with a new one atomically.
-- ChatId::maybe_delete_draft: Don't delete message if it's not a draft anymore ([#6053](https://github.com/deltachat/deltachat-core-rust/pull/6053)).
+- ChatId::maybe_delete_draft: Don't delete message if it's not a draft anymore ([#6053](https://github.com/chatmail/core/pull/6053)).
 - Call update_connection_history for proxified connections.
 - sql: Set PRAGMA query_only to avoid writing on read-only connections.
 - sql: Run `PRAGMA incremental_vacuum` on a write connection.
@@ -917,8 +917,8 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Build system
 
 - Nix flake update.
-- Resolve warning about default-features, and make it possible to disable vendoring ([#6079](https://github.com/deltachat/deltachat-core-rust/pull/6079)).
-- Silence a rust-analyzer false-positive ([#6077](https://github.com/deltachat/deltachat-core-rust/pull/6077)).
+- Resolve warning about default-features, and make it possible to disable vendoring ([#6079](https://github.com/chatmail/core/pull/6079)).
+- Silence a rust-analyzer false-positive ([#6077](https://github.com/chatmail/core/pull/6077)).
 
 ### CI
 
@@ -944,7 +944,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - test_qr_setup_contact_svg: Stop testing for no display name.
 - Always gossip if gossip_period is set to 0.
-- test_aeap_flow_verified: Wait for "member added" before sending messages ([#6057](https://github.com/deltachat/deltachat-core-rust/pull/6057)).
+- test_aeap_flow_verified: Wait for "member added" before sending messages ([#6057](https://github.com/chatmail/core/pull/6057)).
 - Make test_verified_group_member_added_recovery more reliable.
 - test_aeap_flow_verified: Do not start ac1new.
 - Fix `test_securejoin_after_contact_resetup` flakiness.
@@ -967,15 +967,15 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Reset quota on configured address change ([#5908](https://github.com/deltachat/deltachat-core-rust/pull/5908)).
+- Reset quota on configured address change ([#5908](https://github.com/chatmail/core/pull/5908)).
 - Do not emit progress 1000 when configuration is cancelled.
-- Assume file extensions are 32 chars max and don't contain whitespace ([#5338](https://github.com/deltachat/deltachat-core-rust/pull/5338)).
-- Re-add tokens.foreign_id column ([#6038](https://github.com/deltachat/deltachat-core-rust/pull/6038)).
+- Assume file extensions are 32 chars max and don't contain whitespace ([#5338](https://github.com/chatmail/core/pull/5338)).
+- Re-add tokens.foreign_id column ([#6038](https://github.com/chatmail/core/pull/6038)).
 
 ### Miscellaneous Tasks
 
 - cargo: Bump futures-* from 0.3.30 to 0.3.31.
-- cargo: Upgrade async_zip to 0.0.17 ([#6035](https://github.com/deltachat/deltachat-core-rust/pull/6035)).
+- cargo: Upgrade async_zip to 0.0.17 ([#6035](https://github.com/chatmail/core/pull/6035)).
 
 ### Refactor
 
@@ -991,7 +991,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Reuse existing connections in background_fetch() if I/O is started.
 - MsgId::get_info(): Report original filename as well.
-- More context for the "Cannot establish guaranteed..." info message ([#6022](https://github.com/deltachat/deltachat-core-rust/pull/6022)).
+- More context for the "Cannot establish guaranteed..." info message ([#6022](https://github.com/chatmail/core/pull/6022)).
 - deltachat-repl: Add `fetch` command to test `background_fetch()`.
 - deltachat-repl: Print send-backup QR code to the terminal.
 
@@ -1019,7 +1019,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Assign message to ad-hoc group with matching name and members ([#5385](https://github.com/deltachat/deltachat-core-rust/pull/5385)).
+- Assign message to ad-hoc group with matching name and members ([#5385](https://github.com/chatmail/core/pull/5385)).
 - Use Rustls instead of native TLS for HTTPS requests.
 
 ### Miscellaneous Tasks
@@ -1060,25 +1060,25 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### API-Changes
 
-- [**breaking**] Make QR code type for proxy not specific to SOCKS5 ([#5980](https://github.com/deltachat/deltachat-core-rust/pull/5980)).
+- [**breaking**] Make QR code type for proxy not specific to SOCKS5 ([#5980](https://github.com/chatmail/core/pull/5980)).
 
   `DC_QR_SOCKS5_PROXY` is replaced with `DC_QR_PROXY`.
 
 ### Features / Changes
 
-- Make resending OutPending messages possible ([#5817](https://github.com/deltachat/deltachat-core-rust/pull/5817)).
+- Make resending OutPending messages possible ([#5817](https://github.com/chatmail/core/pull/5817)).
 - Don't SMTP-send messages to self-chat if BccSelf is disabled.
 - HTTP(S) tunneling.
-- Don't put displayname into From/To/Sender if it equals to address ([#5983](https://github.com/deltachat/deltachat-core-rust/pull/5983)).
-- Use IMAP APPEND command to upload sync messages ([#5845](https://github.com/deltachat/deltachat-core-rust/pull/5845)).
+- Don't put displayname into From/To/Sender if it equals to address ([#5983](https://github.com/chatmail/core/pull/5983)).
+- Use IMAP APPEND command to upload sync messages ([#5845](https://github.com/chatmail/core/pull/5845)).
 - Generate 144-bit group IDs.
 - smtp: More verbose SMTP connection establishment errors.
 - Log unexpected message state when resending fails.
 
 ### Fixes
 
-- Save QR code token regardless of whether the group exists ([#5954](https://github.com/deltachat/deltachat-core-rust/pull/5954)).
-- Shorten message text in locally sent messages too ([#2281](https://github.com/deltachat/deltachat-core-rust/pull/2281)).
+- Save QR code token regardless of whether the group exists ([#5954](https://github.com/chatmail/core/pull/5954)).
+- Shorten message text in locally sent messages too ([#2281](https://github.com/chatmail/core/pull/2281)).
 
 ### Documentation
 
@@ -1104,12 +1104,12 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Automatic reconfiguration, e.g. switching to implicit TLS if STARTTLS port stops working.
 - Always use preloaded DNS results.
 - Add "Auto-Submitted: auto-replied" header to appropriate SecureJoin messages.
-- Parallelize IMAP and SMTP connection attempts ([#5915](https://github.com/deltachat/deltachat-core-rust/pull/5915)).
+- Parallelize IMAP and SMTP connection attempts ([#5915](https://github.com/chatmail/core/pull/5915)).
 - securejoin: Ignore invalid *-request-with-auth messages silently.
 - ChatId::create_for_contact_with_blocked: Don't emit events on no op.
-- Delete messages from a chatmail server immediately by default ([#5805](https://github.com/deltachat/deltachat-core-rust/pull/5805)) ([#5840](https://github.com/deltachat/deltachat-core-rust/pull/5840)).
+- Delete messages from a chatmail server immediately by default ([#5805](https://github.com/chatmail/core/pull/5805)) ([#5840](https://github.com/chatmail/core/pull/5840)).
 - Shadowsocks support.
-- Recognize t.me SOCKS5 proxy QR codes ([#5895](https://github.com/deltachat/deltachat-core-rust/pull/5895))
+- Recognize t.me SOCKS5 proxy QR codes ([#5895](https://github.com/chatmail/core/pull/5895))
 - Remove old iroh 0.4 and support for old `DCBACKUP` QR codes.
 
 ### Fixes
@@ -1117,7 +1117,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - http: Set I/O timeout to 1 minute rather than whole request timeout.
 - Add Auto-Submitted header in a single place.
 - Do not allow quotes with "... wrote:" headers in chat messages.
-- Don't sync QR code token before populating the group ([#5935](https://github.com/deltachat/deltachat-core-rust/pull/5935)).
+- Don't sync QR code token before populating the group ([#5935](https://github.com/chatmail/core/pull/5935)).
 
 ### Documentation
 
@@ -1150,25 +1150,25 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Display Config::MdnsEnabled as true by default ([#5948](https://github.com/deltachat/deltachat-core-rust/pull/5948)).
+- Display Config::MdnsEnabled as true by default ([#5948](https://github.com/chatmail/core/pull/5948)).
 
 ## [1.142.11] - 2024-08-30
 
 ### Fixes
 
-- Set backward verification when observing vc-contact-confirm or `vg-member-added` ([#5930](https://github.com/deltachat/deltachat-core-rust/pull/5930)).
+- Set backward verification when observing vc-contact-confirm or `vg-member-added` ([#5930](https://github.com/chatmail/core/pull/5930)).
 
 ## [1.142.10] - 2024-08-26
 
 ### Fixes
 
-- Only include one From: header in securejoin messages ([#5917](https://github.com/deltachat/deltachat-core-rust/pull/5917)).
+- Only include one From: header in securejoin messages ([#5917](https://github.com/chatmail/core/pull/5917)).
 
 ## [1.142.9] - 2024-08-24
 
 ### Fixes
 
-- Fix reading of multiline SMTP greetings ([#5911](https://github.com/deltachat/deltachat-core-rust/pull/5911)).
+- Fix reading of multiline SMTP greetings ([#5911](https://github.com/chatmail/core/pull/5911)).
 
 ### Features / Changes
 
@@ -1185,7 +1185,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Fixes
 
 - Do not save "Automatic" into configured_imap_certificate_checks. **This fixes regression introduced in core 1.142.4. Versions 1.142.4..1.142.6 should not be used in releases.**
-- Create a group unblocked for bot even if 1:1 chat is blocked ([#5514](https://github.com/deltachat/deltachat-core-rust/pull/5514)).
+- Create a group unblocked for bot even if 1:1 chat is blocked ([#5514](https://github.com/chatmail/core/pull/5514)).
 - Update rpgp from 0.13.1 to 0.13.2 to fix "unable to decrypt" errors when sending messages to old Delta Chat clients and using Ed25519 keys to encrypt.
 - Do not request ALPN on standard ports and when using STARTTLS.
 
@@ -1211,9 +1211,9 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Still try to create "INBOX.DeltaChat" if couldn't create "DeltaChat" ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
-- `store_seen_flags_on_imap`: Skip to next messages if couldn't select folder ([#5870](https://github.com/deltachat/deltachat-core-rust/pull/5870)).
-- Increase timeout for QR generation to 60s ([#5882](https://github.com/deltachat/deltachat-core-rust/pull/5882)).
+- Still try to create "INBOX.DeltaChat" if couldn't create "DeltaChat" ([#5870](https://github.com/chatmail/core/pull/5870)).
+- `store_seen_flags_on_imap`: Skip to next messages if couldn't select folder ([#5870](https://github.com/chatmail/core/pull/5870)).
+- Increase timeout for QR generation to 60s ([#5882](https://github.com/chatmail/core/pull/5882)).
 
 ### Documentation
 
@@ -1247,7 +1247,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Allow using OAuth 2 with SOCKS5.
 - Allow autoconfig when SOCKS5 is enabled.
 - Update provider database.
-- cargo: Update iroh from 0.21 to 0.22 ([#5860](https://github.com/deltachat/deltachat-core-rust/pull/5860)).
+- cargo: Update iroh from 0.21 to 0.22 ([#5860](https://github.com/chatmail/core/pull/5860)).
 
 ### CI
 
@@ -1285,7 +1285,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Try only the full email address if username is unspecified.
-- Sort DNS results by successful connection timestamp ([#5818](https://github.com/deltachat/deltachat-core-rust/pull/5818)).
+- Sort DNS results by successful connection timestamp ([#5818](https://github.com/chatmail/core/pull/5818)).
 
 ### Fixes
 
@@ -1314,14 +1314,14 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Do not reveal sender's language in read receipts ([#5802](https://github.com/deltachat/deltachat-core-rust/pull/5802)).
+- Do not reveal sender's language in read receipts ([#5802](https://github.com/chatmail/core/pull/5802)).
 - Try next DNS resolution result if TLS setup fails.
 - Report first error instead of the last on connection failure.
 
 ### Fixes
 
 - smtp: Use DNS cache for implicit TLS connections.
-- Imex::import_backup: Unpack all blobs before importing a db ([#4307](https://github.com/deltachat/deltachat-core-rust/pull/4307)).
+- Imex::import_backup: Unpack all blobs before importing a db ([#4307](https://github.com/chatmail/core/pull/4307)).
 - Import_backup_stream: Fix progress stucking at 0.
 - Sql::import: Detach backup db if any step of the import fails.
 - Imex::import_backup: Ignore errors from delete_and_reset_all_device_msgs().
@@ -1350,7 +1350,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### API-Changes
 
 - deltachat-jsonrpc: Add `pinned` property to `FullChat` and `BasicChat`.
-- deltachat-jsonrpc: Allow to set message quote text without referencing quoted message ([#5695](https://github.com/deltachat/deltachat-core-rust/pull/5695)).
+- deltachat-jsonrpc: Allow to set message quote text without referencing quoted message ([#5695](https://github.com/chatmail/core/pull/5695)).
 
 ### Features / Changes
 
@@ -1358,25 +1358,25 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - iroh: Pass direct addresses from Endpoint to Gossip.
 - New BACKUP2 transfer protocol.
 - Use `[...]` instead of `...` for protected subject.
-- Add email address and fingerprint to exported key file names ([#5694](https://github.com/deltachat/deltachat-core-rust/pull/5694)).
+- Add email address and fingerprint to exported key file names ([#5694](https://github.com/chatmail/core/pull/5694)).
 - Request `imap` ALPN for IMAP TLS connections and `smtp` ALPN for SMTP TLS connections.
-- Limit the size of aggregated WebXDC update to 100 KiB ([#4825](https://github.com/deltachat/deltachat-core-rust/pull/4825)).
-- Don't create ad-hoc group on a member removal message ([#5618](https://github.com/deltachat/deltachat-core-rust/pull/5618)).
-- Don't unarchive a group on a member removal except SELF ([#5618](https://github.com/deltachat/deltachat-core-rust/pull/5618)).
+- Limit the size of aggregated WebXDC update to 100 KiB ([#4825](https://github.com/chatmail/core/pull/4825)).
+- Don't create ad-hoc group on a member removal message ([#5618](https://github.com/chatmail/core/pull/5618)).
+- Don't unarchive a group on a member removal except SELF ([#5618](https://github.com/chatmail/core/pull/5618)).
 - Use custom DNS resolver for HTTP(S).
 - Promote fallback DNS results to cached on successful use.
-- Set summary thumbnail path for WebXDCs to "webxdc-icon://last-msg-id" ([#5782](https://github.com/deltachat/deltachat-core-rust/pull/5782)).
+- Set summary thumbnail path for WebXDCs to "webxdc-icon://last-msg-id" ([#5782](https://github.com/chatmail/core/pull/5782)).
 - Do not show the address in invite QR code SVG.
-- Report better error from DcKey::from_asc() ([#5539](https://github.com/deltachat/deltachat-core-rust/pull/5539)).
-- Contact::create_ex: Don't send sync message if nothing changed ([#5705](https://github.com/deltachat/deltachat-core-rust/pull/5705)).
+- Report better error from DcKey::from_asc() ([#5539](https://github.com/chatmail/core/pull/5539)).
+- Contact::create_ex: Don't send sync message if nothing changed ([#5705](https://github.com/chatmail/core/pull/5705)).
 
 ### Fixes
 
 - `Message::set_quote`: Don't forget to remove `Param::ProtectQuote`.
 - Randomize avatar blob filenames to work around caching.
 - Correct copy-pasted DCACCOUNT parsing errors message.
-- Call `send_sync_msg()` only from the SMTP loop ([#5780](https://github.com/deltachat/deltachat-core-rust/pull/5780)).
-- Emit MsgsChanged if the number of unnoticed archived chats could decrease ([#5768](https://github.com/deltachat/deltachat-core-rust/pull/5768)).
+- Call `send_sync_msg()` only from the SMTP loop ([#5780](https://github.com/chatmail/core/pull/5780)).
+- Emit MsgsChanged if the number of unnoticed archived chats could decrease ([#5768](https://github.com/chatmail/core/pull/5768)).
 - Reject message with forged From even if no valid signatures are found.
 
 ### Refactor
@@ -1406,28 +1406,28 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Add `is_muted` config option.
-- Parse vcards exported by protonmail ([#5723](https://github.com/deltachat/deltachat-core-rust/pull/5723)).
-- Disable sending sync messages for bots ([#5705](https://github.com/deltachat/deltachat-core-rust/pull/5705)).
+- Parse vcards exported by protonmail ([#5723](https://github.com/chatmail/core/pull/5723)).
+- Disable sending sync messages for bots ([#5705](https://github.com/chatmail/core/pull/5705)).
 
 ### Fixes
 
 - Don't fail if going to send plaintext, but some peerstate is missing.
-- Correctly sanitize input everywhere ([#5697](https://github.com/deltachat/deltachat-core-rust/pull/5697)).
+- Correctly sanitize input everywhere ([#5697](https://github.com/chatmail/core/pull/5697)).
 - Do not try to register non-iOS tokens for heartbeats.
 - imap: Reset new_mail if folder is ignored.
-- Use and prefer Date from signed message part ([#5716](https://github.com/deltachat/deltachat-core-rust/pull/5716)).
+- Use and prefer Date from signed message part ([#5716](https://github.com/chatmail/core/pull/5716)).
 - Distinguish between database errors and no gossip topic.
 - MimeFactory::verified: Return true for self-chat.
 
 ### Refactor
 
 - `MimeFactory::is_e2ee_guaranteed()`: always respect `Param::ForcePlaintext`.
-- Protect from reusing migration versions ([#5719](https://github.com/deltachat/deltachat-core-rust/pull/5719)).
-- Move `quota_needs_update` calculation to a separate function ([#5683](https://github.com/deltachat/deltachat-core-rust/pull/5683)).
+- Protect from reusing migration versions ([#5719](https://github.com/chatmail/core/pull/5719)).
+- Move `quota_needs_update` calculation to a separate function ([#5683](https://github.com/chatmail/core/pull/5683)).
 
 ### Documentation
 
-- Document vCards in the specification ([#5724](https://github.com/deltachat/deltachat-core-rust/pull/5724))
+- Document vCards in the specification ([#5724](https://github.com/chatmail/core/pull/5724))
 
 ### Miscellaneous Tasks
 
@@ -1449,12 +1449,12 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Update quota if it's stale, not fresh ([#5683](https://github.com/deltachat/deltachat-core-rust/pull/5683)).
+- Update quota if it's stale, not fresh ([#5683](https://github.com/chatmail/core/pull/5683)).
 - sql: Assign migration adding msgs.deleted a new number.
 
 ### Refactor
 
-- mimefactory: Factor out header confidentiality policy ([#5715](https://github.com/deltachat/deltachat-core-rust/pull/5715)).
+- mimefactory: Factor out header confidentiality policy ([#5715](https://github.com/chatmail/core/pull/5715)).
 - Improve logging during SMTP/IMAP configuration.
 
 ## [1.141.0] - 2024-06-24
@@ -1467,20 +1467,20 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Prefer references to fully downloaded messages for chat assignment ([#5645](https://github.com/deltachat/deltachat-core-rust/pull/5645)).
-- Protect From name for verified chats and To names for encrypted chats ([#5166](https://github.com/deltachat/deltachat-core-rust/pull/5166)).
+- Prefer references to fully downloaded messages for chat assignment ([#5645](https://github.com/chatmail/core/pull/5645)).
+- Protect From name for verified chats and To names for encrypted chats ([#5166](https://github.com/chatmail/core/pull/5166)).
 - Display vCard contact name in the message summary.
-- Case-insensitive search for non-ASCII messages ([#5052](https://github.com/deltachat/deltachat-core-rust/pull/5052)).
-- Remove subject prefix from ad-hoc group names ([#5385](https://github.com/deltachat/deltachat-core-rust/pull/5385)).
+- Case-insensitive search for non-ASCII messages ([#5052](https://github.com/chatmail/core/pull/5052)).
+- Remove subject prefix from ad-hoc group names ([#5385](https://github.com/chatmail/core/pull/5385)).
 - Replace "Unnamed group" with "👥📧" to avoid translation.
-- Sync `Config::MvboxMove` across devices ([#5680](https://github.com/deltachat/deltachat-core-rust/pull/5680)).
-- Don't reveal profile data to a not yet verified contact ([#5166](https://github.com/deltachat/deltachat-core-rust/pull/5166)).
-- Don't reveal profile data in MDNs ([#5166](https://github.com/deltachat/deltachat-core-rust/pull/5166)).
+- Sync `Config::MvboxMove` across devices ([#5680](https://github.com/chatmail/core/pull/5680)).
+- Don't reveal profile data to a not yet verified contact ([#5166](https://github.com/chatmail/core/pull/5166)).
+- Don't reveal profile data in MDNs ([#5166](https://github.com/chatmail/core/pull/5166)).
 
 ### Fixes
 
-- Fetch existing messages for bots as `InFresh` ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
-- Keep tombstones for two days before deleting ([#3685](https://github.com/deltachat/deltachat-core-rust/pull/3685)).
+- Fetch existing messages for bots as `InFresh` ([#4976](https://github.com/chatmail/core/pull/4976)).
+- Keep tombstones for two days before deleting ([#3685](https://github.com/chatmail/core/pull/3685)).
 - Housekeeping: Delete MDNs and webxdc status updates for tombstones.
 - Delete user-deleted messages on the server even if they show up on IMAP later.
 - Do not send sync messages if bcc_self is disabled.
@@ -1503,15 +1503,15 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Refactor
 
-- Deduplicate dependency versions ([#5691](https://github.com/deltachat/deltachat-core-rust/pull/5691)).
+- Deduplicate dependency versions ([#5691](https://github.com/chatmail/core/pull/5691)).
 - Store public key instead of secret key for peer channels.
 
 ### Tests
 
 - Image drafted as Viewtype::File is sent as is.
-- python: Set delete_server_after=1 ("delete immediately") for bots ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
+- python: Set delete_server_after=1 ("delete immediately") for bots ([#4976](https://github.com/chatmail/core/pull/4976)).
 - deltachat-rpc-client: Test that webxdc realtime data is not reordered on the sender.
-- python: Wait for bot's DC_EVENT_IMAP_INBOX_IDLE before sending messages to it ([#5699](https://github.com/deltachat/deltachat-core-rust/pull/5699)).
+- python: Wait for bot's DC_EVENT_IMAP_INBOX_IDLE before sending messages to it ([#5699](https://github.com/chatmail/core/pull/5699)).
 
 ## [1.140.2] - 2024-06-07
 
@@ -1521,10 +1521,10 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Allow fetch_existing_msgs for bots ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
-- Remove group member locally even if send_msg() fails ([#5508](https://github.com/deltachat/deltachat-core-rust/pull/5508)).
-- Revert member addition if the corresponding message couldn't be sent ([#5508](https://github.com/deltachat/deltachat-core-rust/pull/5508)).
-- @deltachat/stdio-rpc-server: Make local non-symlinked installation possible by using absolute paths for local dev version ([#5679](https://github.com/deltachat/deltachat-core-rust/pull/5679)).
+- Allow fetch_existing_msgs for bots ([#4976](https://github.com/chatmail/core/pull/4976)).
+- Remove group member locally even if send_msg() fails ([#5508](https://github.com/chatmail/core/pull/5508)).
+- Revert member addition if the corresponding message couldn't be sent ([#5508](https://github.com/chatmail/core/pull/5508)).
+- @deltachat/stdio-rpc-server: Make local non-symlinked installation possible by using absolute paths for local dev version ([#5679](https://github.com/chatmail/core/pull/5679)).
 
 ### Miscellaneous Tasks
 
@@ -1533,12 +1533,12 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Refactor
 
-- @deltachat/stdio-rpc-server: Use old school require instead of the experimental json import ([#5628](https://github.com/deltachat/deltachat-core-rust/pull/5628)).
+- @deltachat/stdio-rpc-server: Use old school require instead of the experimental json import ([#5628](https://github.com/chatmail/core/pull/5628)).
 
 ### Tests
 
-- Set fetch_existing_msgs for bots ([#4976](https://github.com/deltachat/deltachat-core-rust/pull/4976)).
-- Don't leave protected group if some member's key is missing ([#5508](https://github.com/deltachat/deltachat-core-rust/pull/5508)).
+- Set fetch_existing_msgs for bots ([#4976](https://github.com/chatmail/core/pull/4976)).
+- Don't leave protected group if some member's key is missing ([#5508](https://github.com/chatmail/core/pull/5508)).
 
 ## [1.140.1] - 2024-06-05
 
@@ -1567,15 +1567,15 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Remove limit on number of email recipients for chatmail clients ([#5598](https://github.com/deltachat/deltachat-core-rust/pull/5598)).
-- Add config option to enable iroh ([#5607](https://github.com/deltachat/deltachat-core-rust/pull/5607)).
-- Map `*.wav` to Viewtype::Audio ([#5633](https://github.com/deltachat/deltachat-core-rust/pull/5633)).
-- Add a db index for reactions by msg_id ([#5507](https://github.com/deltachat/deltachat-core-rust/pull/5507)).
+- Remove limit on number of email recipients for chatmail clients ([#5598](https://github.com/chatmail/core/pull/5598)).
+- Add config option to enable iroh ([#5607](https://github.com/chatmail/core/pull/5607)).
+- Map `*.wav` to Viewtype::Audio ([#5633](https://github.com/chatmail/core/pull/5633)).
+- Add a db index for reactions by msg_id ([#5507](https://github.com/chatmail/core/pull/5507)).
 
 ### Fixes
 
-- Set Param::Bot for messages on the sender side as well ([#5615](https://github.com/deltachat/deltachat-core-rust/pull/5615)).
-- AEAP: Remove old peerstate verified_key instead of removing the whole peerstate ([#5535](https://github.com/deltachat/deltachat-core-rust/pull/5535)).
+- Set Param::Bot for messages on the sender side as well ([#5615](https://github.com/chatmail/core/pull/5615)).
+- AEAP: Remove old peerstate verified_key instead of removing the whole peerstate ([#5535](https://github.com/chatmail/core/pull/5535)).
 - Allow creation of groups by outgoing messages without recipients.
 - Prefer `Chat-Group-ID` over references for new groups.
 - Do not fail to send images with wrong extensions.
@@ -1649,7 +1649,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Fixes
 
 - peer_channels: Connect to peers that advertise to you.
-- Don't recode images in `Viewtype::File` messages ([#5617](https://github.com/deltachat/deltachat-core-rust/pull/5617)).
+- Don't recode images in `Viewtype::File` messages ([#5617](https://github.com/chatmail/core/pull/5617)).
 
 ### Tests
 
@@ -1661,7 +1661,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Scale up contact origins to OutgoingTo when sending a message.
-- Add import_vcard() ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
+- Add import_vcard() ([#5202](https://github.com/chatmail/core/pull/5202)).
 
 ### Fixes
 
@@ -1671,7 +1671,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Other
 
-- nix: Add nextest ([#5610](https://github.com/deltachat/deltachat-core-rust/pull/5610)).
+- nix: Add nextest ([#5610](https://github.com/chatmail/core/pull/5610)).
 
 ## [1.139.3] - 2024-05-20
 
@@ -1694,7 +1694,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - mimeparser: Take the last header of multiple ones with the same name.
 - Db migration version 59, it contained an sql syntax error.
 - Sql syntax error in db migration 27.
-- Log/print exit error of deltachat-rpc-server ([#5601](https://github.com/deltachat/deltachat-core-rust/pull/5601)).
+- Log/print exit error of deltachat-rpc-server ([#5601](https://github.com/chatmail/core/pull/5601)).
 - @deltachat/stdio-rpc-server: set default options for `startDeltaChat`.
 - Always convert absolute paths to relative in accounts.toml.
 
@@ -1723,22 +1723,22 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Ephemeral peer channels ([#5346](https://github.com/deltachat/deltachat-core-rust/pull/5346)).
+- Ephemeral peer channels ([#5346](https://github.com/chatmail/core/pull/5346)).
 
 ### Fixes
 
 - Save override sender displayname for outgoing messages.
 - Do not mark the message as seen if it has `location.kml`.
-- @deltachat/stdio-rpc-server: fix version check when deltachat-rpc-server is found in path ([#5579](https://github.com/deltachat/deltachat-core-rust/pull/5579)).
-- @deltachat/stdio-rpc-server: fix local desktop development ([#5583](https://github.com/deltachat/deltachat-core-rust/pull/5583)).
-- @deltachat/stdio-rpc-server: rename `shutdown` method to `close` and add `muteStdErr` option to mute the stderr output ([#5588](https://github.com/deltachat/deltachat-core-rust/pull/5588))
-- @deltachat/stdio-rpc-server: fix `convert_platform.py`: 32bit `i32` -> `ia32` ([#5589](https://github.com/deltachat/deltachat-core-rust/pull/5589))
-- @deltachat/stdio-rpc-server: fix example ([#5580](https://github.com/deltachat/deltachat-core-rust/pull/5580))
+- @deltachat/stdio-rpc-server: fix version check when deltachat-rpc-server is found in path ([#5579](https://github.com/chatmail/core/pull/5579)).
+- @deltachat/stdio-rpc-server: fix local desktop development ([#5583](https://github.com/chatmail/core/pull/5583)).
+- @deltachat/stdio-rpc-server: rename `shutdown` method to `close` and add `muteStdErr` option to mute the stderr output ([#5588](https://github.com/chatmail/core/pull/5588))
+- @deltachat/stdio-rpc-server: fix `convert_platform.py`: 32bit `i32` -> `ia32` ([#5589](https://github.com/chatmail/core/pull/5589))
+- @deltachat/stdio-rpc-server: fix example ([#5580](https://github.com/chatmail/core/pull/5580))
 
 ### API-Changes
 
 - deltachat-jsonrpc: Return vcard contact directly in MessageObject.
-- deltachat-jsonrpc: Add api `migrate_account` and `get_blob_dir` ([#5584](https://github.com/deltachat/deltachat-core-rust/pull/5584)).
+- deltachat-jsonrpc: Add api `migrate_account` and `get_blob_dir` ([#5584](https://github.com/chatmail/core/pull/5584)).
 - deltachat-rpc-client: Add ViewType.VCARD constant.
 - deltachat-rpc-client: Add Contact.make_vcard().
 - deltachat-rpc-client: Add Chat.send_contact().
@@ -1765,9 +1765,9 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### API-Changes
 
-- jsonrpc: Add parse_vcard() ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
-- Add Viewtype::Vcard ([#5202](https://github.com/deltachat/deltachat-core-rust/pull/5202)).
-- Add make_vcard() ([#5203](https://github.com/deltachat/deltachat-core-rust/pull/5203)).
+- jsonrpc: Add parse_vcard() ([#5202](https://github.com/chatmail/core/pull/5202)).
+- Add Viewtype::Vcard ([#5202](https://github.com/chatmail/core/pull/5202)).
+- Add make_vcard() ([#5203](https://github.com/chatmail/core/pull/5203)).
 
 ### Build system
 
@@ -1831,7 +1831,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### CI
 
 - Set RUSTUP_WINDOWS_PATH_ADD_BIN to work around `nextest` issue <https://github.com/nextest-rs/nextest/issues/1493>.
-- deltachat-rpc-server: Fix upload of npm packages to github releases ([#5564](https://github.com/deltachat/deltachat-core-rust/pull/5564)).
+- deltachat-rpc-server: Fix upload of npm packages to github releases ([#5564](https://github.com/chatmail/core/pull/5564)).
 
 ### Refactor
 
@@ -1853,7 +1853,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### API-Changes
 
-- Add dc_msg_save_file() which saves file copy at the provided path ([#4309](https://github.com/deltachat/deltachat-core-rust/pull/4309)).
+- Add dc_msg_save_file() which saves file copy at the provided path ([#4309](https://github.com/chatmail/core/pull/4309)).
 - Api!(jsonrpc): replace EphemeralTimer tag "variant" with "kind"
 
 ### CI
@@ -1872,11 +1872,11 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Delete expired path locations in ephemeral loop.
 - Delete orphaned POI locations during housekeeping.
-- Parsing vCards for contacts sharing ([#5482](https://github.com/deltachat/deltachat-core-rust/pull/5482)).
+- Parsing vCards for contacts sharing ([#5482](https://github.com/chatmail/core/pull/5482)).
 - contact-tools: Support parsing profile images from "PHOTO:data:image/jpeg;base64,...".
 - contact-tools: Add make_vcard().
 - Do not add location markers to messages with non-POI location.
-- Make one-to-one chats read-only the first seconds of a SecureJoin ([#5512](https://github.com/deltachat/deltachat-core-rust/pull/5512)).
+- Make one-to-one chats read-only the first seconds of a SecureJoin ([#5512](https://github.com/chatmail/core/pull/5512)).
 
 ### Fixes
 
@@ -1884,10 +1884,10 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Do not fail to send encrypted quotes to unencrypted chats.
 - Never prepend subject to message text when bot receives it.
 - Interrupt location loop when new location is stored.
-- Correct message viewtype before recoding image blob ([#5496](https://github.com/deltachat/deltachat-core-rust/pull/5496)).
+- Correct message viewtype before recoding image blob ([#5496](https://github.com/chatmail/core/pull/5496)).
 - Delete POI location when disappearing message expires.
 - Delete non-POI locations after `delete_device_after`, not immediately.
-- Update special chats icons even if they are blocked ([#5509](https://github.com/deltachat/deltachat-core-rust/pull/5509)).
+- Update special chats icons even if they are blocked ([#5509](https://github.com/chatmail/core/pull/5509)).
 - Use ChatIdBlocked::lookup_by_contact() instead of ChatId's method when applicable.
 
 ### Miscellaneous Tasks
@@ -1919,9 +1919,9 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Merge pull request #5515 from deltachat/dependabot/cargo/quote-1.0.36
 - Merge pull request #5522 from deltachat/dependabot/cargo/chrono-0.4.38
 - Merge pull request #5523 from deltachat/dependabot/cargo/mailparse-0.15.0
-- Add webxdc internal integration commands in jsonrpc ([#5541](https://github.com/deltachat/deltachat-core-rust/pull/5541))
-- Limit quote replies ([#5543](https://github.com/deltachat/deltachat-core-rust/pull/5543))
-- Stdio jsonrpc server npm package ([#5332](https://github.com/deltachat/deltachat-core-rust/pull/5332))
+- Add webxdc internal integration commands in jsonrpc ([#5541](https://github.com/chatmail/core/pull/5541))
+- Limit quote replies ([#5543](https://github.com/chatmail/core/pull/5543))
+- Stdio jsonrpc server npm package ([#5332](https://github.com/chatmail/core/pull/5332))
 
 ### Refactor
 
@@ -1931,7 +1931,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Tests
 
-- Explain test_was_seen_recently false-positive and give workaround instructions ([#5474](https://github.com/deltachat/deltachat-core-rust/pull/5474)).
+- Explain test_was_seen_recently false-positive and give workaround instructions ([#5474](https://github.com/chatmail/core/pull/5474)).
 - Test that member is added even if "Member added" is lost.
 - Test that POIs are deleted when ephemeral message expires.
 - Test ts build on branch
@@ -1942,18 +1942,18 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### API-Changes
 
 - [**breaking**] Remove `Stream` implementation for `EventEmitter`.
-- Experimental Webxdc Integration API, Maps Integration ([#5461](https://github.com/deltachat/deltachat-core-rust/pull/5461)).
+- Experimental Webxdc Integration API, Maps Integration ([#5461](https://github.com/chatmail/core/pull/5461)).
 
 ### Features / Changes
 
-- Add progressive backoff for failing IMAP connection attempts ([#5443](https://github.com/deltachat/deltachat-core-rust/pull/5443)).
+- Add progressive backoff for failing IMAP connection attempts ([#5443](https://github.com/chatmail/core/pull/5443)).
 - Replace event channel with broadcast channel.
 - Mark contact request messages as seen on IMAP.
 
 ### Fixes
 
 - Convert images to RGB8 (without alpha) before encoding into JPEG to fix sending of large RGBA images.
-- Don't set `is_bot` for webxdc status updates ([#5445](https://github.com/deltachat/deltachat-core-rust/pull/5445)).
+- Don't set `is_bot` for webxdc status updates ([#5445](https://github.com/chatmail/core/pull/5445)).
 - Do not fail if Autocrypt Setup Message has no encryption preference to fix key transfer from K-9 Mail to Delta Chat.
 - Use only CRLF in Autocrypt Setup Message.
 - python: Use cached message object if `dc_get_msg()` returns `NULL`.
@@ -1986,7 +1986,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - [**breaking**] Remove reactions ffi; all implementations use jsonrpc.
 - Don't load trashed messages with `Message::load_from_db`.
-- Add `ChatListChanged` and `ChatListItemChanged` events ([#4476](https://github.com/deltachat/deltachat-core-rust/pull/4476)).
+- Add `ChatListChanged` and `ChatListItemChanged` events ([#4476](https://github.com/chatmail/core/pull/4476)).
 - deltachat-rpc-client: Add `check_qr` and `set_config_from_qr` APIs.
 - deltachat-rpc-client: Add `Account.create_chat()`.
 - deltachat-rpc-client: Add `Message.wait_until_delivered()`.
@@ -2004,10 +2004,10 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Do not emit `MSGS_CHANGED` event for outgoing hidden messages.
 - `Message::get_summary()` must not return reaction summary.
-- Fix emitting `ContactsChanged` events on "recently seen" status change ([#5377](https://github.com/deltachat/deltachat-core-rust/pull/5377)).
+- Fix emitting `ContactsChanged` events on "recently seen" status change ([#5377](https://github.com/chatmail/core/pull/5377)).
 - deltachat-jsonrpc: block in `inner_get_backup_qr`.
-- Add tolerance to `MemberListTimestamp` ([#5366](https://github.com/deltachat/deltachat-core-rust/pull/5366)).
-- Keep webxdc instance for `delete_device_after` period after a status update ([#5365](https://github.com/deltachat/deltachat-core-rust/pull/5365)).
+- Add tolerance to `MemberListTimestamp` ([#5366](https://github.com/chatmail/core/pull/5366)).
+- Keep webxdc instance for `delete_device_after` period after a status update ([#5365](https://github.com/chatmail/core/pull/5365)).
 - Don't try to do `fetch_move_delete()` if Trash is needed but not yet configured.
 - Assign messages to chats based on not fully downloaded references.
 - Do not create ad-hoc groups from partial downloads.
@@ -2022,8 +2022,8 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### CI
 
 - Use cargo-nextest instead of cargo-test.
-- Run doc tests with cargo test --workspace --doc ([#5459](https://github.com/deltachat/deltachat-core-rust/pull/5459)).
-- Typos in CI files ([#5453](https://github.com/deltachat/deltachat-core-rust/pull/5453)).
+- Run doc tests with cargo test --workspace --doc ([#5459](https://github.com/chatmail/core/pull/5459)).
+- Typos in CI files ([#5453](https://github.com/chatmail/core/pull/5453)).
 
 ### Documentation
 
@@ -2034,9 +2034,9 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Do not ignore `Contact::get_by_id` errors in `get_encrinfo`.
 - deltachat-rpc-client: Use `list`, `set` and `tuple` instead of `typing`.
-- Use `clone_from()` ([#5451](https://github.com/deltachat/deltachat-core-rust/pull/5451)).
+- Use `clone_from()` ([#5451](https://github.com/chatmail/core/pull/5451)).
 - Do not check for `is_trash()` in `get_last_reaction_if_newer_than()`.
-- Split off functional contact tools into its own crate ([#5444](https://github.com/deltachat/deltachat-core-rust/pull/5444))
+- Split off functional contact tools into its own crate ([#5444](https://github.com/chatmail/core/pull/5444))
 - Fix nightly clippy warnings.
 
 ### Tests
@@ -2054,7 +2054,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Show reactions in summaries ([#5387](https://github.com/deltachat/deltachat-core-rust/pull/5387)).
+- Show reactions in summaries ([#5387](https://github.com/chatmail/core/pull/5387)).
 
 ### Tests
 
@@ -2085,7 +2085,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### API-Changes
 
 - [**breaking**] Remove data from `DC_EVENT_INCOMING_MSG_BUNCH`.
-- [**breaking**] Remove unused `dc_accounts_all_work_done()` ([#5384](https://github.com/deltachat/deltachat-core-rust/pull/5384)).
+- [**breaking**] Remove unused `dc_accounts_all_work_done()` ([#5384](https://github.com/chatmail/core/pull/5384)).
 - deltachat-rpc-client: Add futures.
 
 ### Build system
@@ -2094,7 +2094,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - nix: Add outputs for Android binaries.
 - Add `repository` to Cargo.toml.
 - python: Remove `setuptools_scm` dependency.
-- Add development shell ([#5390](https://github.com/deltachat/deltachat-core-rust/pull/5390)).
+- Add development shell ([#5390](https://github.com/chatmail/core/pull/5390)).
 
 ### CI
 
@@ -2110,12 +2110,12 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Preserve upper-/lowercase of links parsed by `dehtml()` ([#5362](https://github.com/deltachat/deltachat-core-rust/pull/5362)).
+- Preserve upper-/lowercase of links parsed by `dehtml()` ([#5362](https://github.com/chatmail/core/pull/5362)).
 - Rescan folders after changing `Config::SentboxWatch`.
 - Do not ignore `Contact::get_by_id()` error in `from_field_to_contact_id()`.
 - Put overridden sender name into message info.
-- Don't send selfavatar in `SecureJoin` messages before contact verification ([#5354](https://github.com/deltachat/deltachat-core-rust/pull/5354)).
-- Always set correct `chat_id` for `DC_EVENT_REACTIONS_CHANGED` ([#5419](https://github.com/deltachat/deltachat-core-rust/pull/5419)).
+- Don't send selfavatar in `SecureJoin` messages before contact verification ([#5354](https://github.com/chatmail/core/pull/5354)).
+- Always set correct `chat_id` for `DC_EVENT_REACTIONS_CHANGED` ([#5419](https://github.com/chatmail/core/pull/5419)).
 
 ### Refactor
 
@@ -2125,7 +2125,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Tests
 
-- `Test_mvbox_sentbox_threads`: Check that sentbox gets configured after setting `sentbox_watch` ([#5105](https://github.com/deltachat/deltachat-core-rust/pull/5105)).
+- `Test_mvbox_sentbox_threads`: Check that sentbox gets configured after setting `sentbox_watch` ([#5105](https://github.com/chatmail/core/pull/5105)).
 - Remove flaky time check from `test_list_from()`.
 - Add failing test for #5418 (wrong `DC_EVENT_REACTIONS_CHANGED`)
 
@@ -2178,14 +2178,14 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Nicer summaries: prefer emoji over names
-- Add `save_mime_headers` to debug info ([#5350](https://github.com/deltachat/deltachat-core-rust/pull/5350))
+- Add `save_mime_headers` to debug info ([#5350](https://github.com/chatmail/core/pull/5350))
 
 ### Fixes
 
 - Terminate ephemeral and location loop immediately on channel close.
 - Update MemberListTimestamp when sending a group message.
-- On iOS, use FILE (default) instead of MEMORY ([#5349](https://github.com/deltachat/deltachat-core-rust/pull/5349)).
-- Add white background to recoded avatars ([#3787](https://github.com/deltachat/deltachat-core-rust/pull/3787)).
+- On iOS, use FILE (default) instead of MEMORY ([#5349](https://github.com/chatmail/core/pull/5349)).
+- Add white background to recoded avatars ([#3787](https://github.com/chatmail/core/pull/3787)).
 
 ### Build system
 
@@ -2218,11 +2218,11 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Start IMAP loop for sentbox only if it is configured ([#5105](https://github.com/deltachat/deltachat-core-rust/pull/5105)).
+- Start IMAP loop for sentbox only if it is configured ([#5105](https://github.com/chatmail/core/pull/5105)).
 
 ### Fixes
 
-- Remove leading whitespace from Subject ([#5106](https://github.com/deltachat/deltachat-core-rust/pull/5106)).
+- Remove leading whitespace from Subject ([#5106](https://github.com/chatmail/core/pull/5106)).
 - Create new Peerstate for unencrypted message with already known Autocrypt key, but a new address.
 
 ### Build system
@@ -2237,14 +2237,14 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Refactor
 
-- Don't parse Autocrypt header for outgoing messages ([#5259](https://github.com/deltachat/deltachat-core-rust/pull/5259)).
+- Don't parse Autocrypt header for outgoing messages ([#5259](https://github.com/chatmail/core/pull/5259)).
 - Remove `deduplicate_peerstates()`.
 - Fix 2024-03-05 nightly clippy warnings.
 
 ### Miscellaneous Tasks
 
 - deps: Bump mio from 0.8.8 to 0.8.11 in /fuzz.
-- RPC client: Add missing constants ([#5110](https://github.com/deltachat/deltachat-core-rust/pull/5110)).
+- RPC client: Add missing constants ([#5110](https://github.com/chatmail/core/pull/5110)).
 
 ## [1.136.2] - 2024-03-05
 
@@ -2271,13 +2271,13 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Recognise Trash folder by name ([#5275](https://github.com/deltachat/deltachat-core-rust/pull/5275)).
-- Send Chat-Group-Avatar as inline base64 ([#5253](https://github.com/deltachat/deltachat-core-rust/pull/5253)).
-- Self-Reporting: Report number of protected/encrypted/unencrypted chats ([#5292](https://github.com/deltachat/deltachat-core-rust/pull/5292)).
+- Recognise Trash folder by name ([#5275](https://github.com/chatmail/core/pull/5275)).
+- Send Chat-Group-Avatar as inline base64 ([#5253](https://github.com/chatmail/core/pull/5253)).
+- Self-Reporting: Report number of protected/encrypted/unencrypted chats ([#5292](https://github.com/chatmail/core/pull/5292)).
 
 ### Fixes
 
-- Don't send sync messages on self-{status,avatar} update from self-sent messages ([#5289](https://github.com/deltachat/deltachat-core-rust/pull/5289)).
+- Don't send sync messages on self-{status,avatar} update from self-sent messages ([#5289](https://github.com/chatmail/core/pull/5289)).
 - imap: Allow `maybe_network` to interrupt connection ratelimit.
 - imap: Set connectivity to "connecting" only after ratelimit.
 - Remove `Group-ID` from `Message-ID`.
@@ -2294,7 +2294,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Tag armv6 wheels with tags accepted by PyPI.
 - Unpin OpenSSL.
 - Remove deprecated `unmaintained` field from deny.toml.
-- Do not vendor OpenSSL when cross-compiling ([#5316](https://github.com/deltachat/deltachat-core-rust/pull/5316)).
+- Do not vendor OpenSSL when cross-compiling ([#5316](https://github.com/chatmail/core/pull/5316)).
 - Increase MSRV to 1.74.0.
 
 ### CI
@@ -2321,17 +2321,17 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Tests
 
-- Fix `test_verified_oneonone_chat_broken_by_device_change()` ([#5280](https://github.com/deltachat/deltachat-core-rust/pull/5280)).
-- `get_protected_chat()`: Use FFIEventTracker instead of `dc_wait_next_msgs()` ([#5207](https://github.com/deltachat/deltachat-core-rust/pull/5207)).
+- Fix `test_verified_oneonone_chat_broken_by_device_change()` ([#5280](https://github.com/chatmail/core/pull/5280)).
+- `get_protected_chat()`: Use FFIEventTracker instead of `dc_wait_next_msgs()` ([#5207](https://github.com/chatmail/core/pull/5207)).
 - Fixup `tests/test_3_offline.py::TestOfflineAccountBasic::test_wrong_db`.
-- Fix pytest compat ([#5317](https://github.com/deltachat/deltachat-core-rust/pull/5317)).
+- Fix pytest compat ([#5317](https://github.com/chatmail/core/pull/5317)).
 
 ## [1.135.1] - 2024-02-20
 
 ### Features / Changes
 
-- Sync self-avatar across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
-- Sync Config::Selfstatus across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+- Sync self-avatar across devices ([#4893](https://github.com/chatmail/core/pull/4893)).
+- Sync Config::Selfstatus across devices ([#4893](https://github.com/chatmail/core/pull/4893)).
 - Remove webxdc sending limit.
 
 ### Fixes
@@ -2343,7 +2343,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Tests
 
 - Mock `SystemTime::now()` for the tests.
-- Add a test on protection message sort timestamp ([#5088](https://github.com/deltachat/deltachat-core-rust/pull/5088)).
+- Add a test on protection message sort timestamp ([#5088](https://github.com/chatmail/core/pull/5088)).
 
 ### Build system
 
@@ -2371,24 +2371,24 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Add wildcard pattern support to provider database.
-- Add device message about outgoing undecryptable messages ([#5164](https://github.com/deltachat/deltachat-core-rust/pull/5164)).
-- Context::set_config(): Restart IO scheduler if needed ([#5111](https://github.com/deltachat/deltachat-core-rust/pull/5111)).
+- Add device message about outgoing undecryptable messages ([#5164](https://github.com/chatmail/core/pull/5164)).
+- Context::set_config(): Restart IO scheduler if needed ([#5111](https://github.com/chatmail/core/pull/5111)).
 - Server_sent_unsolicited_exists(): Log folder name.
 - Cache system time instead of looking at the clock several times in a row.
-- Basic self-reporting ([#5129](https://github.com/deltachat/deltachat-core-rust/pull/5129)).
+- Basic self-reporting ([#5129](https://github.com/chatmail/core/pull/5129)).
 
 ### Fixes
 
-- Dehtml: Don't just truncate text when trying to decode ([#5223](https://github.com/deltachat/deltachat-core-rust/pull/5223)).
-- Mark the gossip keys from the message as verified, not the ones from the db ([#5247](https://github.com/deltachat/deltachat-core-rust/pull/5247)).
-- Guarantee immediate message deletion if delete_server_after == 0 ([#5201](https://github.com/deltachat/deltachat-core-rust/pull/5201)).
-- Never allow a message timestamp to be a lot in the future ([#5249](https://github.com/deltachat/deltachat-core-rust/pull/5249)).
+- Dehtml: Don't just truncate text when trying to decode ([#5223](https://github.com/chatmail/core/pull/5223)).
+- Mark the gossip keys from the message as verified, not the ones from the db ([#5247](https://github.com/chatmail/core/pull/5247)).
+- Guarantee immediate message deletion if delete_server_after == 0 ([#5201](https://github.com/chatmail/core/pull/5201)).
+- Never allow a message timestamp to be a lot in the future ([#5249](https://github.com/chatmail/core/pull/5249)).
 - Imap::configure_mvbox: Do select_with_uidvalidity() before return.
 - ImapSession::select_or_create_folder(): Don't fail if folder is created in parallel.
 - Emit ConfigSynced event on the second device.
 - Create mvbox on setting mvbox_move.
 - Use SystemTime instead of Instant everywhere.
-- Restore database rows removed in previous release; this ensures compatibility when adding second device or importing backup and not all devices run the new core ([#5254](https://github.com/deltachat/deltachat-core-rust/pull/5254))
+- Restore database rows removed in previous release; this ensures compatibility when adding second device or importing backup and not all devices run the new core ([#5254](https://github.com/chatmail/core/pull/5254))
 
 ### Miscellaneous Tasks
 
@@ -2428,28 +2428,28 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Tests
 
-- Delete_server_after="1" should cause immediate message deletion ([#5201](https://github.com/deltachat/deltachat-core-rust/pull/5201)).
+- Delete_server_after="1" should cause immediate message deletion ([#5201](https://github.com/chatmail/core/pull/5201)).
 
 ## [1.134.0] - 2024-01-31
 
 ### API-Changes
 
-- [**breaking**] JSON-RPC: device message api now requires `Option<MessageData>` instead of `String` for the message ([#5211](https://github.com/deltachat/deltachat-core-rust/pull/5211)).
+- [**breaking**] JSON-RPC: device message api now requires `Option<MessageData>` instead of `String` for the message ([#5211](https://github.com/chatmail/core/pull/5211)).
 - CFFI: add `dc_accounts_background_fetch` and event `DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE`.
 - JSON-RPC: add `accounts_background_fetch`.
 
 ### Features / Changes
 
-- `Qr::check_qr()`: Accept i.delta.chat invite links ([#5217](https://github.com/deltachat/deltachat-core-rust/pull/5217)).
+- `Qr::check_qr()`: Accept i.delta.chat invite links ([#5217](https://github.com/chatmail/core/pull/5217)).
 - Add support for IMAP METADATA, fetching `/shared/comment` and `/shared/admin` and displaying it in account info.
 
 ### Fixes
 
 - Add tolerance for macOS and iOS changing `#` to `%23`.
 - Do not drop unknown report attachments, such as TLS reports.
-- Treat only "Auto-Submitted: auto-generated" messages as bot-sent ([#5213](https://github.com/deltachat/deltachat-core-rust/pull/5213)).
+- Treat only "Auto-Submitted: auto-generated" messages as bot-sent ([#5213](https://github.com/chatmail/core/pull/5213)).
 - `Chat::resend_msgs`: Guarantee strictly increasing time in the `Date` header.
-- Delete resent messages on receiver side ([#5155](https://github.com/deltachat/deltachat-core-rust/pull/5155)).
+- Delete resent messages on receiver side ([#5155](https://github.com/chatmail/core/pull/5155)).
 - Fix iOS build issue.
 
 ### CI
@@ -2458,32 +2458,32 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Tests
 
-- `test_import_export_online_all`: Send the message to the existing address to avoid errors ([#5220](https://github.com/deltachat/deltachat-core-rust/pull/5220)).
+- `test_import_export_online_all`: Send the message to the existing address to avoid errors ([#5220](https://github.com/chatmail/core/pull/5220)).
 
 ## [1.133.2] - 2024-01-24
 
 ### Fixes
 
-- Downgrade OpenSSL from 3.2.0 to 3.1.4 ([#5206](https://github.com/deltachat/deltachat-core-rust/issues/5206))
-- No new chats for MDNs with alias ([#5196](https://github.com/deltachat/deltachat-core-rust/issues/5196)) ([#5199](https://github.com/deltachat/deltachat-core-rust/pull/5199)).
+- Downgrade OpenSSL from 3.2.0 to 3.1.4 ([#5206](https://github.com/chatmail/core/issues/5206))
+- No new chats for MDNs with alias ([#5196](https://github.com/chatmail/core/issues/5196)) ([#5199](https://github.com/chatmail/core/pull/5199)).
 
 ## [1.133.1] - 2024-01-21
 
 ### API-Changes
 
-- Add `is_bot` to cffi and jsonrpc ([#5197](https://github.com/deltachat/deltachat-core-rust/pull/5197)).
+- Add `is_bot` to cffi and jsonrpc ([#5197](https://github.com/chatmail/core/pull/5197)).
 
 ### Features / Changes
 
-- Add system message when provider does not allow unencrypted messages ([#5195](https://github.com/deltachat/deltachat-core-rust/pull/5195)).
+- Add system message when provider does not allow unencrypted messages ([#5195](https://github.com/chatmail/core/pull/5195)).
 
 ### Fixes
 
 - `Chat::send_msg`: Remove encryption-related params from already sent message. This allows to send received encrypted `dc_msg_t` object to unencrypted chat, e.g. in a Python bot.
 - Set message download state to Failure on IMAP errors. This avoids partially downloaded messages getting stuck in "Downloading..." state without actually being in a download queue.
 - BCC-to-self even if server deletion is set to "at once". This is a workaround for SMTP servers which do not return response in time, BCC-self works as a confirmation that message was sent out successfully and does not need more retries.
-- node: Run tests with native ESM modules instead of `esm` ([#5194](https://github.com/deltachat/deltachat-core-rust/pull/5194)).
-- Use Quoted-Printable MIME encoding for the text part ([#3986](https://github.com/deltachat/deltachat-core-rust/pull/3986)).
+- node: Run tests with native ESM modules instead of `esm` ([#5194](https://github.com/chatmail/core/pull/5194)).
+- Use Quoted-Printable MIME encoding for the text part ([#3986](https://github.com/chatmail/core/pull/3986)).
 
 ### Tests
 
@@ -2494,14 +2494,14 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Securejoin protocol implementation refinements
-  - Track forward and backward verification separately ([#5089](https://github.com/deltachat/deltachat-core-rust/pull/5089)) to avoid inconsistent states.
+  - Track forward and backward verification separately ([#5089](https://github.com/chatmail/core/pull/5089)) to avoid inconsistent states.
   - Mark 1:1 chat as verified for Bob early. 1:1 chat with Alice is verified as soon as Alice's key is verified rather than at the end of the protocol.
-- Put Message-ID into hidden headers and take it from there on receiver ([#4798](https://github.com/deltachat/deltachat-core-rust/pull/4798)). This works around servers which generate their own Message-ID and overwrite the one generated by Delta Chat.
+- Put Message-ID into hidden headers and take it from there on receiver ([#4798](https://github.com/chatmail/core/pull/4798)). This works around servers which generate their own Message-ID and overwrite the one generated by Delta Chat.
 - deltachat-repl: Enable INFO logging by default and add timestamps.
 - Add `ConfigSynced` (`DC_EVENT_CONFIG_SYNCED`) event which is emitted when configuration is changed via synchronization message or synchronization message for configuration is sent. UI may refresh elements based on the configuration key which is a part of the event.
-- Sync contact creation/rename across devices ([#5163](https://github.com/deltachat/deltachat-core-rust/pull/5163)).
-- Encrypt MDNs ([#5175](https://github.com/deltachat/deltachat-core-rust/pull/5175)).
-- Only try to configure non-strict TLS checks if explicitly set ([#5181](https://github.com/deltachat/deltachat-core-rust/pull/5181)).
+- Sync contact creation/rename across devices ([#5163](https://github.com/chatmail/core/pull/5163)).
+- Encrypt MDNs ([#5175](https://github.com/chatmail/core/pull/5175)).
+- Only try to configure non-strict TLS checks if explicitly set ([#5181](https://github.com/chatmail/core/pull/5181)).
 
 ### Build system
 
@@ -2523,13 +2523,13 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - imap: Limit the rate of LOGIN attempts rather than connection attempts. This is to avoid having to wait for rate limiter right after switching from a bad or offline network to a working network while still guarding against reconnection loop.
 - Do not ignore `peerstate.save_to_db()` errors.
 - securejoin: Mark 1:1s as protected regardless of the Config::VerifiedOneOnOneChats.
-- Delete received outgoing messages from SMTP queue ([#5115](https://github.com/deltachat/deltachat-core-rust/pull/5115)).
+- Delete received outgoing messages from SMTP queue ([#5115](https://github.com/chatmail/core/pull/5115)).
 - imap: Fail fast on `LIST` errors to avoid busy loop when connection is lost.
-- Split SMTP jobs already in `chat::create_send_msg_jobs()` ([#5115](https://github.com/deltachat/deltachat-core-rust/pull/5115)).
+- Split SMTP jobs already in `chat::create_send_msg_jobs()` ([#5115](https://github.com/chatmail/core/pull/5115)).
 - Do not remove contents from unencrypted [Schleuder](https://schleuder.org/) mailing lists messages.
-- Reset message error when scheduling resending ([#5119](https://github.com/deltachat/deltachat-core-rust/pull/5119)).
-- Emit events more reliably when starting and stopping I/O ([#5101](https://github.com/deltachat/deltachat-core-rust/pull/5101)).
-- Fix timestamp of chat protection info message for correct message ordering after restoring a backup ([#5088](https://github.com/deltachat/deltachat-core-rust/pull/5088)).
+- Reset message error when scheduling resending ([#5119](https://github.com/chatmail/core/pull/5119)).
+- Emit events more reliably when starting and stopping I/O ([#5101](https://github.com/chatmail/core/pull/5101)).
+- Fix timestamp of chat protection info message for correct message ordering after restoring a backup ([#5088](https://github.com/chatmail/core/pull/5088)).
 
 ### Refactor
 
@@ -2550,7 +2550,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Add "From:" to protected headers for signed-only messages.
-- Sync user actions for ad-hoc groups across devices ([#5065](https://github.com/deltachat/deltachat-core-rust/pull/5065)).
+- Sync user actions for ad-hoc groups across devices ([#5065](https://github.com/chatmail/core/pull/5065)).
 
 ### Fixes
 
@@ -2574,7 +2574,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Don't sort message creating a protected group over a protection message ([#4963](https://github.com/deltachat/deltachat-core-rust/pull/4963)).
+- Don't sort message creating a protected group over a protection message ([#4963](https://github.com/chatmail/core/pull/4963)).
 - Do not lock accounts.toml on iOS.
 - Protect groups even if some members are not verified and add `test_securejoin_after_contact_resetup` regression test.
 
@@ -2593,17 +2593,17 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Features / Changes
 
 - Send `Chat-Verified` headers in 1:1 chats.
-- Ratelimit IMAP connections ([#4940](https://github.com/deltachat/deltachat-core-rust/pull/4940)).
+- Ratelimit IMAP connections ([#4940](https://github.com/chatmail/core/pull/4940)).
 - Remove receiver limit on `.xdc` size.
 - Don't affect MimeMessage with "From" and secured headers from encrypted unsigned messages.
-- Sync `Config::{MdnsEnabled,ShowEmails}` across devices ([#4954](https://github.com/deltachat/deltachat-core-rust/pull/4954)).
-- Sync `Config::Displayname` across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+- Sync `Config::{MdnsEnabled,ShowEmails}` across devices ([#4954](https://github.com/chatmail/core/pull/4954)).
+- Sync `Config::Displayname` across devices ([#4893](https://github.com/chatmail/core/pull/4893)).
 - `Chat::rename_ex`: Don't send sync message if usual message is sent.
 
 ### Fixes
 
 - Lock the database when INSERTing a webxdc update, avoid "Database is locked" errors.
-- Use keyring with all private keys when decrypting a message ([#5046](https://github.com/deltachat/deltachat-core-rust/pull/5046)).
+- Use keyring with all private keys when decrypting a message ([#5046](https://github.com/chatmail/core/pull/5046)).
 
 ### Tests
 
@@ -2621,7 +2621,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Fixes
 
 - Allow IMAP servers not returning UIDNEXT on SELECT and STATUS such as mail.163.com.
-- Use the correct securejoin strings used in the UI, remove old TODO ([#5047](https://github.com/deltachat/deltachat-core-rust/pull/5047)).
+- Use the correct securejoin strings used in the UI, remove old TODO ([#5047](https://github.com/chatmail/core/pull/5047)).
 - Do not emit events about webxdc update events logged into debug log webxdc.
 
 ### Tests
@@ -2722,17 +2722,17 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Sync chat contacts across devices ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
-- Sync creating broadcast lists across devices ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
-- Sync Chat::name across devices ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
-- Multi-device broadcast lists ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
+- Sync chat contacts across devices ([#4953](https://github.com/chatmail/core/pull/4953)).
+- Sync creating broadcast lists across devices ([#4953](https://github.com/chatmail/core/pull/4953)).
+- Sync Chat::name across devices ([#4953](https://github.com/chatmail/core/pull/4953)).
+- Multi-device broadcast lists ([#4953](https://github.com/chatmail/core/pull/4953)).
 
 ### Fixes
 
 - Encode chat name in the `List-ID` header to avoid SMTPUTF8 errors.
 - Ignore errors from generating sync messages.
-- `Context::execute_sync_items`: Ignore all errors ([#4817](https://github.com/deltachat/deltachat-core-rust/pull/4817)).
-- Allow to send unverified securejoin messages to protected chats ([#4982](https://github.com/deltachat/deltachat-core-rust/pull/4982)).
+- `Context::execute_sync_items`: Ignore all errors ([#4817](https://github.com/chatmail/core/pull/4817)).
+- Allow to send unverified securejoin messages to protected chats ([#4982](https://github.com/chatmail/core/pull/4982)).
 
 ## [1.130.0] - 2023-11-10
 
@@ -2747,7 +2747,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Add secondary verified key.
 - Add info messages about implicitly added members.
 - Treat reset state as encryption not preferred.
-- Grow sleep durations on errors in Imap::fake_idle() ([#4424](https://github.com/deltachat/deltachat-core-rust/pull/4424)).
+- Grow sleep durations on errors in Imap::fake_idle() ([#4424](https://github.com/chatmail/core/pull/4424)).
 
 ### Fixes
 
@@ -2757,7 +2757,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 - Do not apply group changes to special chats. Avoid adding members to the trash chat.
 - imap: make `UidGrouper` robust against duplicate UIDs.
 - Do not return hidden chat from `dc_get_chat_id_by_contact_id`.
-- Smtp_loop(): Don't grow timeout if interrupted early ([#4833](https://github.com/deltachat/deltachat-core-rust/pull/4833)).
+- Smtp_loop(): Don't grow timeout if interrupted early ([#4833](https://github.com/chatmail/core/pull/4833)).
 
 ### Refactor
 
@@ -2767,11 +2767,11 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Tests
 
 - Remove unused `--liveconfig` option.
-- Test chatlist can load for corrupted chats ([#4979](https://github.com/deltachat/deltachat-core-rust/pull/4979)).
+- Test chatlist can load for corrupted chats ([#4979](https://github.com/chatmail/core/pull/4979)).
 
 ### Miscellaneous Tasks
 
-- Update provider-db ([#4949](https://github.com/deltachat/deltachat-core-rust/pull/4949)).
+- Update provider-db ([#4949](https://github.com/chatmail/core/pull/4949)).
 
 ## [1.129.1] - 2023-11-06
 
@@ -2779,8 +2779,8 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Update tokio-imap to fix Outlook STATUS parsing bug.
 - deltachat-rpc-client: Add the Lock around request ID.
-- `apply_group_changes`: Don't implicitly delete members locally, add absent ones instead ([#4934](https://github.com/deltachat/deltachat-core-rust/pull/4934)).
-- Partial messages do not change group state ([#4900](https://github.com/deltachat/deltachat-core-rust/pull/4900)).
+- `apply_group_changes`: Don't implicitly delete members locally, add absent ones instead ([#4934](https://github.com/chatmail/core/pull/4934)).
+- Partial messages do not change group state ([#4900](https://github.com/chatmail/core/pull/4900)).
 
 ### Tests
 
@@ -2790,31 +2790,31 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### API-Changes
 
-- Add JSON-RPC `get_chat_id_by_contact_id` API ([#4918](https://github.com/deltachat/deltachat-core-rust/pull/4918)).
+- Add JSON-RPC `get_chat_id_by_contact_id` API ([#4918](https://github.com/chatmail/core/pull/4918)).
 - [**breaking**] Remove deprecated `get_verifier_addr`.
 
 ### Features / Changes
 
-- Sync chat `Blocked` state, chat visibility, chat mute duration and contact blocked status across devices ([#4817](https://github.com/deltachat/deltachat-core-rust/pull/4817)).
-- Add 'group created instructions' as info message ([#4916](https://github.com/deltachat/deltachat-core-rust/pull/4916)).
+- Sync chat `Blocked` state, chat visibility, chat mute duration and contact blocked status across devices ([#4817](https://github.com/chatmail/core/pull/4817)).
+- Add 'group created instructions' as info message ([#4916](https://github.com/chatmail/core/pull/4916)).
 - Add hardcoded fallback DNS cache.
 
 ### Fixes
 
-- Switch to `EncryptionPreference::Mutual` on a receipt of encrypted+signed message ([#4707](https://github.com/deltachat/deltachat-core-rust/pull/4707)).
+- Switch to `EncryptionPreference::Mutual` on a receipt of encrypted+signed message ([#4707](https://github.com/chatmail/core/pull/4707)).
 - imap: Check UIDNEXT with a STATUS command before going IDLE.
 - Allow to change verified key via "member added" message.
 - json-rpc: Return verifier even if the contact is not "verified" (Autocrypt key does not equal Secure-Join key).
 
 ### Documentation
 
-- Refine `Contact::get_verifier_id` and `Contact::is_verified` documentation ([#4922](https://github.com/deltachat/deltachat-core-rust/pull/4922)).
+- Refine `Contact::get_verifier_id` and `Contact::is_verified` documentation ([#4922](https://github.com/chatmail/core/pull/4922)).
 - Contact profile view should not use `dc_contact_is_verified()`.
 - Remove documentation for non-existing `dc_accounts_new` `os_name` param.
 
 ### Refactor
 
-- Remove unused or useless code paths in Secure-Join ([#4897](https://github.com/deltachat/deltachat-core-rust/pull/4897)).
+- Remove unused or useless code paths in Secure-Join ([#4897](https://github.com/chatmail/core/pull/4897)).
 - Improve error handling in Secure-Join code.
 - Add hostname to "no DNS resolution results" error message.
 - Accept `&str` instead of `Option<String>` in idle().
@@ -2822,7 +2822,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ## [1.128.0] - 2023-11-02
 
 ### Build system
-- [**breaking**] Upgrade nodejs version to 18 ([#4903](https://github.com/deltachat/deltachat-core-rust/pull/4903)).
+- [**breaking**] Upgrade nodejs version to 18 ([#4903](https://github.com/chatmail/core/pull/4903)).
 
 ### Features / Changes
 
@@ -2831,7 +2831,7 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Do not fail securejoin due to unrelated pending bobstate  ([#4896](https://github.com/deltachat/deltachat-core-rust/pull/4896)).
+- Do not fail securejoin due to unrelated pending bobstate  ([#4896](https://github.com/chatmail/core/pull/4896)).
 - Allow other verified group recipients to be unverified, only check the sender verification.
 - Remove not working attempt to recover from verified key changes.
 
@@ -2862,15 +2862,15 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - [**breaking**] `dc_accounts_new` API is changed. Unused `os_name` argument is removed and `writable` argument is added.
 - jsonrpc: Add `resend_messages`.
-- [**breaking**] Remove unused function `is_verified_ex()` ([#4551](https://github.com/deltachat/deltachat-core-rust/pull/4551))
+- [**breaking**] Remove unused function `is_verified_ex()` ([#4551](https://github.com/chatmail/core/pull/4551))
 - [**breaking**] Make `MsgId.delete_from_db()` private.
 - [**breaking**] deltachat-jsonrpc: use `kind` as a tag for all union types
-- json-rpc: Force stickers to be sent as stickers ([#4819](https://github.com/deltachat/deltachat-core-rust/pull/4819)).
-- Add mailto parse api ([#4829](https://github.com/deltachat/deltachat-core-rust/pull/4829)).
+- json-rpc: Force stickers to be sent as stickers ([#4819](https://github.com/chatmail/core/pull/4819)).
+- Add mailto parse api ([#4829](https://github.com/chatmail/core/pull/4829)).
 - [**breaking**] Remove unused `DC_STR_PROTECTION_(EN)ABLED` strings
 - [**breaking**] Remove unused `dc_set_chat_protection()`
 - Hide `DcSecretKey` trait from the API.
-- Verified 1:1 chats ([#4315](https://github.com/deltachat/deltachat-core-rust/pull/4315)). Disabled by default, enable with `verified_one_on_one_chats` config.
+- Verified 1:1 chats ([#4315](https://github.com/chatmail/core/pull/4315)). Disabled by default, enable with `verified_one_on_one_chats` config.
 - Add api `chat::Chat::is_protection_broken`
 - Add `dc_chat_is_protection_broken()` C API.
 
@@ -2888,24 +2888,24 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Features / Changes
 
-- Add lockfile to account manager ([#4314](https://github.com/deltachat/deltachat-core-rust/pull/4314)). 
-- Don't show a contact as verified if their key changed since the verification ([#4574](https://github.com/deltachat/deltachat-core-rust/pull/4574)).
+- Add lockfile to account manager ([#4314](https://github.com/chatmail/core/pull/4314)). 
+- Don't show a contact as verified if their key changed since the verification ([#4574](https://github.com/chatmail/core/pull/4574)).
 - deltachat-rpc-server: Add `--openrpc` option to print OpenRPC specification for JSON-RPC API. This specification can be used to generate JSON-RPC API clients.
-- Track whether contact is a bot or not ([#4821](https://github.com/deltachat/deltachat-core-rust/pull/4821)).
-- Replace `Config::SendSyncMsgs` with `SyncMsgs` ([#4817](https://github.com/deltachat/deltachat-core-rust/pull/4817)).
+- Track whether contact is a bot or not ([#4821](https://github.com/chatmail/core/pull/4821)).
+- Replace `Config::SendSyncMsgs` with `SyncMsgs` ([#4817](https://github.com/chatmail/core/pull/4817)).
 
 ### Fixes
 
-- Don't create 1:1 chat as protected for contact who doesn't prefer to encrypt ([#4538](https://github.com/deltachat/deltachat-core-rust/pull/4538)).
-- Allow to save a draft if the verification is broken ([#4542](https://github.com/deltachat/deltachat-core-rust/pull/4542)).
-- Fix info-message orderings of verified 1:1 chats ([#4545](https://github.com/deltachat/deltachat-core-rust/pull/4545)).
+- Don't create 1:1 chat as protected for contact who doesn't prefer to encrypt ([#4538](https://github.com/chatmail/core/pull/4538)).
+- Allow to save a draft if the verification is broken ([#4542](https://github.com/chatmail/core/pull/4542)).
+- Fix info-message orderings of verified 1:1 chats ([#4545](https://github.com/chatmail/core/pull/4545)).
 - Fix example; this was changed some time ago, see https://docs.webxdc.org/spec.html#sendupdate
-- `receive_imf`: Update peerstate from db after handling Securejoin handshake ([#4600](https://github.com/deltachat/deltachat-core-rust/pull/4600)).
-- Sort old incoming messages below all outgoing ones ([#4621](https://github.com/deltachat/deltachat-core-rust/pull/4621)).
+- `receive_imf`: Update peerstate from db after handling Securejoin handshake ([#4600](https://github.com/chatmail/core/pull/4600)).
+- Sort old incoming messages below all outgoing ones ([#4621](https://github.com/chatmail/core/pull/4621)).
 - Do not mark non-verified group chats as verified when using securejoin.
-- `receive_imf`: Set protection only for Chattype::Single ([#4597](https://github.com/deltachat/deltachat-core-rust/pull/4597)).
-- Return from `dc_get_chatlist(DC_GCL_FOR_FORWARDING)` only chats where we can send ([#4616](https://github.com/deltachat/deltachat-core-rust/pull/4616)).
-- Clear VerifiedOneOnOneChats config on backup ([#4615](https://github.com/deltachat/deltachat-core-rust/pull/4615)).
+- `receive_imf`: Set protection only for Chattype::Single ([#4597](https://github.com/chatmail/core/pull/4597)).
+- Return from `dc_get_chatlist(DC_GCL_FOR_FORWARDING)` only chats where we can send ([#4616](https://github.com/chatmail/core/pull/4616)).
+- Clear VerifiedOneOnOneChats config on backup ([#4615](https://github.com/chatmail/core/pull/4615)).
 - Try removal of accounts multiple times with timeouts in case the database file is blocked (restore `try_many_times` workaround).
 
 ### Build system
@@ -2943,14 +2943,14 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### API-Changes
 
-- Allow to filter by unread in `chatlist:try_load` ([#4824](https://github.com/deltachat/deltachat-core-rust/pull/4824)).
-- Add `misc_send_draft()` to JSON-RPC API ([#4839](https://github.com/deltachat/deltachat-core-rust/pull/4839)).
+- Allow to filter by unread in `chatlist:try_load` ([#4824](https://github.com/chatmail/core/pull/4824)).
+- Add `misc_send_draft()` to JSON-RPC API ([#4839](https://github.com/chatmail/core/pull/4839)).
 
 ### Features / Changes
 
-- [**breaking**] Make broadcast lists create their own chat ([#4644](https://github.com/deltachat/deltachat-core-rust/pull/4644)).
+- [**breaking**] Make broadcast lists create their own chat ([#4644](https://github.com/chatmail/core/pull/4644)).
   - This means that UIs need to ask for the name when creating a broadcast list, similar to <https://github.com/deltachat/deltachat-android/pull/2653>.
-- Add self-address to backup filename ([#4820](https://github.com/deltachat/deltachat-core-rust/pull/4820))
+- Add self-address to backup filename ([#4820](https://github.com/chatmail/core/pull/4820))
 
 ### CI
 
@@ -2985,12 +2985,12 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - `deltachat-rpc-client`: Run `deltachat-rpc-server` in its own process group. This prevents reception of `SIGINT` by the server when the bot is terminated with `^C`.
 - python: Don't automatically set the displayname to "bot" when setting log level.
-- Don't update `timestamp`, `timestamp_rcvd`, `state` when replacing partially downloaded message ([#4700](https://github.com/deltachat/deltachat-core-rust/pull/4700)).
-- Assign encrypted partially downloaded group messages to 1:1 chat ([#4757](https://github.com/deltachat/deltachat-core-rust/pull/4757)).
-- Return all contacts from `Contact::get_all` for bots ([#4811](https://github.com/deltachat/deltachat-core-rust/pull/4811)).
+- Don't update `timestamp`, `timestamp_rcvd`, `state` when replacing partially downloaded message ([#4700](https://github.com/chatmail/core/pull/4700)).
+- Assign encrypted partially downloaded group messages to 1:1 chat ([#4757](https://github.com/chatmail/core/pull/4757)).
+- Return all contacts from `Contact::get_all` for bots ([#4811](https://github.com/chatmail/core/pull/4811)).
 - Set connectivity status to "connected" during fake idle.
 - Return verifier contacts regardless of their origin.
-- Don't try to send more MDNs if there's a temporary SMTP error ([#4534](https://github.com/deltachat/deltachat-core-rust/pull/4534)).
+- Don't try to send more MDNs if there's a temporary SMTP error ([#4534](https://github.com/chatmail/core/pull/4534)).
 
 ### Refactor
 
@@ -3005,11 +3005,11 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Remove footer from reactions on the receiver side ([#4780](https://github.com/deltachat/deltachat-core-rust/pull/4780)).
+- Remove footer from reactions on the receiver side ([#4780](https://github.com/chatmail/core/pull/4780)).
 
 ### CI
 
-- Pin `urllib3` version to `<2`. ([#4788](https://github.com/deltachat/deltachat-core-rust/issues/4788))
+- Pin `urllib3` version to `<2`. ([#4788](https://github.com/chatmail/core/issues/4788))
 
 ## [1.124.0] - 2023-10-04
 
@@ -3025,19 +3025,19 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Wrap base64-encoded parts to 76 characters.
 - Require valid email addresses in `dc_provider_new_from_email[_with_dns]`.
-- Do not trash messages with attachments and no text when `location.kml` is attached ([#4749](https://github.com/deltachat/deltachat-core-rust/issues/4749)).
+- Do not trash messages with attachments and no text when `location.kml` is attached ([#4749](https://github.com/chatmail/core/issues/4749)).
 - Initialise `last_msg_id` to the highest known row id. This ensures bots migrated from older version to `dc_get_next_msgs()` API do not process all previous messages from scratch.
 - Do not put the status footer into reaction MIME parts.
-- Ignore special chats in `get_similar_chat_ids()`. This prevents trash chat from showing up in similar chat list ([#4756](https://github.com/deltachat/deltachat-core-rust/issues/4756)).
-- Cap percentage in connectivity layout to 100% ([#4765](https://github.com/deltachat/deltachat-core-rust/pull/4765)).
+- Ignore special chats in `get_similar_chat_ids()`. This prevents trash chat from showing up in similar chat list ([#4756](https://github.com/chatmail/core/issues/4756)).
+- Cap percentage in connectivity layout to 100% ([#4765](https://github.com/chatmail/core/pull/4765)).
 - Add Let's Encrypt root certificate to `reqwest`. This should allow scanning `DCACCOUNT` QR-codes on older Android phones when the server has a Let's Encrypt certificate.
 - deltachat-rpc-client: Increase stdio buffer to 64 MiB to avoid Python bots crashing when trying to load large messages via a JSON-RPC call.
-- Add `protected-headers` directive to Content-Type of encrypted messages with attachments ([#2302](https://github.com/deltachat/deltachat-core-rust/issues/2302)). This makes Thunderbird show encrypted Subject for Delta Chat messages.
+- Add `protected-headers` directive to Content-Type of encrypted messages with attachments ([#2302](https://github.com/chatmail/core/issues/2302)). This makes Thunderbird show encrypted Subject for Delta Chat messages.
 - webxdc: Reset `document.update` on forwarding. This fixes the test `test_forward_webxdc_instance()`.
 
 ### Features / Changes
 
-- Remove extra members from the local list in sake of group membership consistency ([#3782](https://github.com/deltachat/deltachat-core-rust/issues/3782)).
+- Remove extra members from the local list in sake of group membership consistency ([#3782](https://github.com/chatmail/core/issues/3782)).
 - deltachat-rpc-client: Log exceptions when long-running tasks die.
 
 ### Build
@@ -3053,8 +3053,8 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- `lookup_chat_by_reply()`: Skip not fully downloaded and undecipherable messages ([#4676](https://github.com/deltachat/deltachat-core-rust/pull/4676)).
-- `lookup_chat_by_reply()`: Skip undecipherable parent messages created by older versions ([#4676](https://github.com/deltachat/deltachat-core-rust/pull/4676)).
+- `lookup_chat_by_reply()`: Skip not fully downloaded and undecipherable messages ([#4676](https://github.com/chatmail/core/pull/4676)).
+- `lookup_chat_by_reply()`: Skip undecipherable parent messages created by older versions ([#4676](https://github.com/chatmail/core/pull/4676)).
 - imex: Use "default" in the filename of the default key.
 
 ### Miscellaneous Tasks
@@ -3071,8 +3071,8 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 - Reopen all connections on database passpharse change.
 - Do not block new group chats if 1:1 chat is blocked.
-- Improve group membership consistency algorithm ([#3782](https://github.com/deltachat/deltachat-core-rust/pull/3782))([#4624](https://github.com/deltachat/deltachat-core-rust/pull/4624)).
-- Forbid membership changes from possible non-members ([#3782](https://github.com/deltachat/deltachat-core-rust/pull/3782)).
+- Improve group membership consistency algorithm ([#3782](https://github.com/chatmail/core/pull/3782))([#4624](https://github.com/chatmail/core/pull/4624)).
+- Forbid membership changes from possible non-members ([#3782](https://github.com/chatmail/core/pull/3782)).
 - `ChatId::parent_query()`: Don't filter out OutPending and OutFailed messages.
 
 ### Build system
@@ -3104,9 +3104,9 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ### Fixes
 
-- Allow membership changes by a MUA if we're not in the group ([#4624](https://github.com/deltachat/deltachat-core-rust/pull/4624)).
-- Save mime headers for messages not signed with a known key ([#4557](https://github.com/deltachat/deltachat-core-rust/pull/4557)).
-- Return from `dc_get_chatlist(DC_GCL_FOR_FORWARDING)` only chats where we can send ([#4616](https://github.com/deltachat/deltachat-core-rust/pull/4616)).
+- Allow membership changes by a MUA if we're not in the group ([#4624](https://github.com/chatmail/core/pull/4624)).
+- Save mime headers for messages not signed with a known key ([#4557](https://github.com/chatmail/core/pull/4557)).
+- Return from `dc_get_chatlist(DC_GCL_FOR_FORWARDING)` only chats where we can send ([#4616](https://github.com/chatmail/core/pull/4616)).
 - Do not allow dots at the end of email addresses.
 - deltachat-rpc-client: Remove `aiodns` optional dependency from required dependencies.
   `aiodns` depends on `pycares` which [fails to install in Termux](https://github.com/saghul/aiodns/issues/98).
@@ -3120,8 +3120,8 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 ### Fixes
 
 - Update async-imap to 0.9.1 to fix memory leak.
-- Delete messages from SMTP queue only on user demand ([#4579](https://github.com/deltachat/deltachat-core-rust/pull/4579)).
-- Do not send images without transparency as stickers ([#4611](https://github.com/deltachat/deltachat-core-rust/pull/4611)).
+- Delete messages from SMTP queue only on user demand ([#4579](https://github.com/chatmail/core/pull/4579)).
+- Do not send images without transparency as stickers ([#4611](https://github.com/chatmail/core/pull/4611)).
 - `prepare_msg_blob()`: do not use the image if it has Exif metadata but the image cannot be recoded.
 
 ### Refactor
@@ -3146,11 +3146,11 @@ This reverts commit 6f22ce2722b51773d7fbb0d89e4764f963cafd91..
 
 ## [1.119.1] - 2023-08-06
 
-Bugfix release attempting to fix the [iOS build error](https://github.com/deltachat/deltachat-core-rust/issues/4610).
+Bugfix release attempting to fix the [iOS build error](https://github.com/chatmail/core/issues/4610).
 
 ### Features / Changes
 
-- Guess message viewtype from "application/octet-stream" attachment extension ([#4378](https://github.com/deltachat/deltachat-core-rust/pull/4378)).
+- Guess message viewtype from "application/octet-stream" attachment extension ([#4378](https://github.com/chatmail/core/pull/4378)).
 
 ### Fixes
 
@@ -3179,7 +3179,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 ### Features / Changes
 
 - deltachat-rpc-client: Add `MSG_DELETED` constant.
-- Make `dc_msg_get_filename()` return the original attachment filename ([#4309](https://github.com/deltachat/deltachat-core-rust/pull/4309)).
+- Make `dc_msg_get_filename()` return the original attachment filename ([#4309](https://github.com/chatmail/core/pull/4309)).
 
 ### API-Changes
 
@@ -3215,11 +3215,11 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 ### Fixes
 
 - Use different member added/removal messages locally and on the network.
-- Update tokio to 1.29.1 to fix core panic after sending 29 offline messages ([#4414](https://github.com/deltachat/deltachat-core-rust/issues/4414)).
+- Update tokio to 1.29.1 to fix core panic after sending 29 offline messages ([#4414](https://github.com/chatmail/core/issues/4414)).
 - Make SVG avatar image work on more platforms (use `xlink:href`).
 - Preserve indentation when converting plaintext to HTML.
 - Do not run simplify() on dehtml() output.
-- Rewrite member added/removed messages even if the change is not allowed PR ([#4529](https://github.com/deltachat/deltachat-core-rust/pull/4529)).
+- Rewrite member added/removed messages even if the change is not allowed PR ([#4529](https://github.com/chatmail/core/pull/4529)).
 
 ### Documentation
 
@@ -3290,7 +3290,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 - python: make `Contact.is_verified()` return bool.
 
-- rust: add API endpoint `get_status_update` ([#4468](https://github.com/deltachat/deltachat-core-rust/pull/4468)).
+- rust: add API endpoint `get_status_update` ([#4468](https://github.com/chatmail/core/pull/4468)).
 
 - rust: make `WebxdcManifest` type public.
 
@@ -3348,7 +3348,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 - python: Make `test_mdn_asymmetric` less flaky.
 - Make `test_group_with_removed_message_id` less flaky.
-- Add golden tests infrastructure ([#4395](https://github.com/deltachat/deltachat-core-rust/pull/4395)).
+- Add golden tests infrastructure ([#4395](https://github.com/chatmail/core/pull/4395)).
 
 ### Build system
 
@@ -3383,7 +3383,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 ### JSON-RPC API Changes
 
-- Sort reactions in descending order ([#4388](https://github.com/deltachat/deltachat-core-rust/pull/4388)).
+- Sort reactions in descending order ([#4388](https://github.com/chatmail/core/pull/4388)).
 - Add API to get reactions outside the message snapshot.
 - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`.
 - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`.
@@ -3404,19 +3404,19 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 ### Features / Changes
 
 - Build deltachat-rpc-server releases for x86\_64 macOS.
-- Generate changelogs using git-cliff ([#4393](https://github.com/deltachat/deltachat-core-rust/pull/4393), [#4396](https://github.com/deltachat/deltachat-core-rust/pull/4396)).
+- Generate changelogs using git-cliff ([#4393](https://github.com/chatmail/core/pull/4393), [#4396](https://github.com/chatmail/core/pull/4396)).
 - Improve SMTP logging.
 - Do not cut incoming text if "bot" config is set.
 
 ### Fixes
 
-- JSON-RPC: typescript client: fix types of events in event emitter ([#4373](https://github.com/deltachat/deltachat-core-rust/pull/4373)).
-- Fetch at most 100 existing messages even if EXISTS was not received ([#4383](https://github.com/deltachat/deltachat-core-rust/pull/4383)).
-- Don't put a double dot at the end of error messages ([#4398](https://github.com/deltachat/deltachat-core-rust/pull/4398)).
-- Recreate `smtp` table with AUTOINCREMENT `id` ([#4390](https://github.com/deltachat/deltachat-core-rust/pull/4390)).
+- JSON-RPC: typescript client: fix types of events in event emitter ([#4373](https://github.com/chatmail/core/pull/4373)).
+- Fetch at most 100 existing messages even if EXISTS was not received ([#4383](https://github.com/chatmail/core/pull/4383)).
+- Don't put a double dot at the end of error messages ([#4398](https://github.com/chatmail/core/pull/4398)).
+- Recreate `smtp` table with AUTOINCREMENT `id` ([#4390](https://github.com/chatmail/core/pull/4390)).
 - Do not return an error from `send_msg_to_smtp` if retry limit is exceeded.
-- Make the bots automatically accept group chat contact requests ([#4377](https://github.com/deltachat/deltachat-core-rust/pull/4377)).
-- Delete `smtp` rows when message sending is cancelled ([#4391](https://github.com/deltachat/deltachat-core-rust/pull/4391)).
+- Make the bots automatically accept group chat contact requests ([#4377](https://github.com/chatmail/core/pull/4377)).
+- Delete `smtp` rows when message sending is cancelled ([#4391](https://github.com/chatmail/core/pull/4391)).
 
 ### Refactor
 
@@ -5708,7 +5708,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 - historic: we now use the mailparse crate and lettre-email to generate mime
   messages.  This got rid of mmime completely, the C2rust generated port of the libetpan 
   mime-parse -- IOW 22KLocs of cumbersome code removed! see 
-  https://github.com/deltachat/deltachat-core-rust/pull/904#issuecomment-561163330
+  https://github.com/chatmail/core/pull/904#issuecomment-561163330
   many thanks @dignifiedquire for making everybody's life easier 
   and @jonhoo (from rust-imap fame) for suggesting to use the mailparse crate :) 
 
@@ -5848,146 +5848,146 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 For a full list of changes, please see our closed Pull Requests: 
 
-https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
+https://github.com/chatmail/core/pulls?q=is%3Apr+is%3Aclosed
 
-[1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
-[1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
-[1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
-[1.112.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...v1.112.2
-[1.112.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...v1.112.3
-[1.112.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.3...v1.112.4
-[1.112.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.4...v1.112.5
-[1.112.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.5...v1.112.6
-[1.112.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.6...v1.112.7
-[1.112.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.7...v1.112.8
-[1.112.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.8...v1.112.9
-[1.112.10]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.9...v1.112.10
-[1.113.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.9...v1.113.0
-[1.114.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.113.0...v1.114.0
-[1.115.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.114.0...v1.115.0
-[1.116.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.115.0...v1.116.0
-[1.117.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.116.0...v1.117.0
-[1.118.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.117.0...v1.118.0
-[1.119.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.118.0...v1.119.0
-[1.119.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.0...v1.119.1
-[1.120.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.1...v1.120.0
-[1.121.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.120.0...v1.121.0
-[1.122.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.121.0...v1.122.0
-[1.123.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.122.0...v1.123.0
-[1.124.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.123.0...v1.124.0
-[1.124.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.0...v1.124.1
-[1.125.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.1...v1.125.0
-[1.126.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.125.0...v1.126.0
-[1.126.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.0...v1.126.1
-[1.127.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.1...v1.127.0
-[1.127.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.0...v1.127.1
-[1.127.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.1...v1.127.2
-[1.128.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.2...v1.128.0
-[1.129.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.128.0...v1.129.0
-[1.129.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.0...v1.129.1
-[1.130.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.1...v1.130.0
-[1.131.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.130.0...v1.131.0
-[1.131.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.0...v1.131.1
-[1.131.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.1...v1.131.2
-[1.131.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.2...v1.131.3
-[1.131.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.3...v1.131.4
-[1.131.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.4...v1.131.5
-[1.131.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.5...v1.131.6
-[1.131.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.6...v1.131.7
-[1.131.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.7...v1.131.8
-[1.131.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.8...v1.131.9
-[1.132.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.9...v1.132.0
-[1.132.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.0...v1.132.1
-[1.133.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.1...v1.133.0
-[1.133.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.0...v1.133.1
-[1.133.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.1...v1.133.2
-[1.134.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.2...v1.134.0
-[1.135.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.134.0...v1.135.0
-[1.135.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.0...v1.135.1
-[1.136.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.1...v1.136.0
-[1.136.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.0...v1.136.1
-[1.136.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.1...v1.136.2
-[1.136.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.2...v1.136.3
-[1.136.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.3...v1.136.4
-[1.136.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.4...v1.136.5
-[1.136.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.5...v1.136.6
-[1.137.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.6...v1.137.0
-[1.137.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.0...v1.137.1
-[1.137.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.1...v1.137.2
-[1.137.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.2...v1.137.3
-[1.137.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.3...v1.137.4
-[1.138.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.137.4...v1.138.0
-[1.138.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.0...v1.138.1
-[1.138.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.1...v1.138.2
-[1.138.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.2...v1.138.3
-[1.138.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.3...v1.138.4
-[1.138.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.4...v1.138.5
-[1.139.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.138.5...v1.139.0
-[1.139.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.0...v1.139.1
-[1.139.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.1...v1.139.2
-[1.139.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.2...v1.139.3
-[1.139.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.3...v1.139.4
-[1.139.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.4...v1.139.5
-[1.139.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.5...v1.139.6
-[1.140.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.139.6...v1.140.0
-[1.140.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.0...v1.140.1
-[1.140.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.1...v1.140.2
-[1.141.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.140.2...v1.141.0
-[1.141.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.0...v1.141.1
-[1.141.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.1...v1.141.2
-[1.142.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.141.2...v1.142.0
-[1.142.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.0...v1.142.1
-[1.142.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.1...v1.142.2
-[1.142.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.2...v1.142.3
-[1.142.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.3...v1.142.4
-[1.142.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.4...v1.142.5
-[1.142.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.5...v1.142.6
-[1.142.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.6...v1.142.7
-[1.142.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.7...v1.142.8
-[1.142.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.8...v1.142.9
-[1.142.10]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.9..v1.142.10
-[1.142.11]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.10..v1.142.11
-[1.142.12]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.11..v1.142.12
-[1.143.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.142.12..v1.143.0
-[1.144.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.143.0..v1.144.0
-[1.145.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.144.0..v1.145.0
-[1.146.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.145.0..v1.146.0
-[1.147.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.146.0..v1.147.0
-[1.147.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.0..v1.147.1
-[1.148.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.147.1..v1.148.0
-[1.148.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.0..v1.148.1
-[1.148.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.1..v1.148.2
-[1.148.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.2..v1.148.3
-[1.148.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.3..v1.148.4
-[1.148.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.4..v1.148.5
-[1.148.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.5..v1.148.6
-[1.148.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.6..v1.148.7
-[1.149.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.148.7..v1.149.0
-[1.150.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.149.0..v1.150.0
-[1.151.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.150.0..v1.151.0
-[1.151.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.0..v1.151.1
-[1.151.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.1..v1.151.2
-[1.151.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.2..v1.151.3
-[1.151.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.3..v1.151.4
-[1.151.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.4..v1.151.5
-[1.151.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.5..v1.151.6
-[1.152.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.151.6..v1.152.0
-[1.152.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.0..v1.152.1
-[1.152.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.1..v1.152.2
-[1.153.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.152.2..v1.153.0
-[1.154.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.153.0..v1.154.0
-[1.154.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.0..v1.154.1
-[1.154.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.1..v1.154.2
-[1.154.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.2..v1.154.3
-[1.155.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.154.3..v1.155.0
-[1.155.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.0..v1.155.1
-[1.155.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.1..v1.155.2
-[1.155.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.2..v1.155.3
-[1.155.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.3..v1.155.4
-[1.155.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.4..v1.155.5
-[1.155.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.5..v1.155.6
-[1.156.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.155.6..v1.156.0
-[1.156.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.0..v1.156.1
-[1.156.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.1..v1.156.2
-[1.156.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.2..v1.156.3
-[1.157.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.156.3..v1.157.0
+[1.111.0]: https://github.com/chatmail/core/compare/v1.110.0...v1.111.0
+[1.112.0]: https://github.com/chatmail/core/compare/v1.111.0...v1.112.0
+[1.112.1]: https://github.com/chatmail/core/compare/v1.112.0...v1.112.1
+[1.112.2]: https://github.com/chatmail/core/compare/v1.112.1...v1.112.2
+[1.112.3]: https://github.com/chatmail/core/compare/v1.112.2...v1.112.3
+[1.112.4]: https://github.com/chatmail/core/compare/v1.112.3...v1.112.4
+[1.112.5]: https://github.com/chatmail/core/compare/v1.112.4...v1.112.5
+[1.112.6]: https://github.com/chatmail/core/compare/v1.112.5...v1.112.6
+[1.112.7]: https://github.com/chatmail/core/compare/v1.112.6...v1.112.7
+[1.112.8]: https://github.com/chatmail/core/compare/v1.112.7...v1.112.8
+[1.112.9]: https://github.com/chatmail/core/compare/v1.112.8...v1.112.9
+[1.112.10]: https://github.com/chatmail/core/compare/v1.112.9...v1.112.10
+[1.113.0]: https://github.com/chatmail/core/compare/v1.112.9...v1.113.0
+[1.114.0]: https://github.com/chatmail/core/compare/v1.113.0...v1.114.0
+[1.115.0]: https://github.com/chatmail/core/compare/v1.114.0...v1.115.0
+[1.116.0]: https://github.com/chatmail/core/compare/v1.115.0...v1.116.0
+[1.117.0]: https://github.com/chatmail/core/compare/v1.116.0...v1.117.0
+[1.118.0]: https://github.com/chatmail/core/compare/v1.117.0...v1.118.0
+[1.119.0]: https://github.com/chatmail/core/compare/v1.118.0...v1.119.0
+[1.119.1]: https://github.com/chatmail/core/compare/v1.119.0...v1.119.1
+[1.120.0]: https://github.com/chatmail/core/compare/v1.119.1...v1.120.0
+[1.121.0]: https://github.com/chatmail/core/compare/v1.120.0...v1.121.0
+[1.122.0]: https://github.com/chatmail/core/compare/v1.121.0...v1.122.0
+[1.123.0]: https://github.com/chatmail/core/compare/v1.122.0...v1.123.0
+[1.124.0]: https://github.com/chatmail/core/compare/v1.123.0...v1.124.0
+[1.124.1]: https://github.com/chatmail/core/compare/v1.124.0...v1.124.1
+[1.125.0]: https://github.com/chatmail/core/compare/v1.124.1...v1.125.0
+[1.126.0]: https://github.com/chatmail/core/compare/v1.125.0...v1.126.0
+[1.126.1]: https://github.com/chatmail/core/compare/v1.126.0...v1.126.1
+[1.127.0]: https://github.com/chatmail/core/compare/v1.126.1...v1.127.0
+[1.127.1]: https://github.com/chatmail/core/compare/v1.127.0...v1.127.1
+[1.127.2]: https://github.com/chatmail/core/compare/v1.127.1...v1.127.2
+[1.128.0]: https://github.com/chatmail/core/compare/v1.127.2...v1.128.0
+[1.129.0]: https://github.com/chatmail/core/compare/v1.128.0...v1.129.0
+[1.129.1]: https://github.com/chatmail/core/compare/v1.129.0...v1.129.1
+[1.130.0]: https://github.com/chatmail/core/compare/v1.129.1...v1.130.0
+[1.131.0]: https://github.com/chatmail/core/compare/v1.130.0...v1.131.0
+[1.131.1]: https://github.com/chatmail/core/compare/v1.131.0...v1.131.1
+[1.131.2]: https://github.com/chatmail/core/compare/v1.131.1...v1.131.2
+[1.131.3]: https://github.com/chatmail/core/compare/v1.131.2...v1.131.3
+[1.131.4]: https://github.com/chatmail/core/compare/v1.131.3...v1.131.4
+[1.131.5]: https://github.com/chatmail/core/compare/v1.131.4...v1.131.5
+[1.131.6]: https://github.com/chatmail/core/compare/v1.131.5...v1.131.6
+[1.131.7]: https://github.com/chatmail/core/compare/v1.131.6...v1.131.7
+[1.131.8]: https://github.com/chatmail/core/compare/v1.131.7...v1.131.8
+[1.131.9]: https://github.com/chatmail/core/compare/v1.131.8...v1.131.9
+[1.132.0]: https://github.com/chatmail/core/compare/v1.131.9...v1.132.0
+[1.132.1]: https://github.com/chatmail/core/compare/v1.132.0...v1.132.1
+[1.133.0]: https://github.com/chatmail/core/compare/v1.132.1...v1.133.0
+[1.133.1]: https://github.com/chatmail/core/compare/v1.133.0...v1.133.1
+[1.133.2]: https://github.com/chatmail/core/compare/v1.133.1...v1.133.2
+[1.134.0]: https://github.com/chatmail/core/compare/v1.133.2...v1.134.0
+[1.135.0]: https://github.com/chatmail/core/compare/v1.134.0...v1.135.0
+[1.135.1]: https://github.com/chatmail/core/compare/v1.135.0...v1.135.1
+[1.136.0]: https://github.com/chatmail/core/compare/v1.135.1...v1.136.0
+[1.136.1]: https://github.com/chatmail/core/compare/v1.136.0...v1.136.1
+[1.136.2]: https://github.com/chatmail/core/compare/v1.136.1...v1.136.2
+[1.136.3]: https://github.com/chatmail/core/compare/v1.136.2...v1.136.3
+[1.136.4]: https://github.com/chatmail/core/compare/v1.136.3...v1.136.4
+[1.136.5]: https://github.com/chatmail/core/compare/v1.136.4...v1.136.5
+[1.136.6]: https://github.com/chatmail/core/compare/v1.136.5...v1.136.6
+[1.137.0]: https://github.com/chatmail/core/compare/v1.136.6...v1.137.0
+[1.137.1]: https://github.com/chatmail/core/compare/v1.137.0...v1.137.1
+[1.137.2]: https://github.com/chatmail/core/compare/v1.137.1...v1.137.2
+[1.137.3]: https://github.com/chatmail/core/compare/v1.137.2...v1.137.3
+[1.137.4]: https://github.com/chatmail/core/compare/v1.137.3...v1.137.4
+[1.138.0]: https://github.com/chatmail/core/compare/v1.137.4...v1.138.0
+[1.138.1]: https://github.com/chatmail/core/compare/v1.138.0...v1.138.1
+[1.138.2]: https://github.com/chatmail/core/compare/v1.138.1...v1.138.2
+[1.138.3]: https://github.com/chatmail/core/compare/v1.138.2...v1.138.3
+[1.138.4]: https://github.com/chatmail/core/compare/v1.138.3...v1.138.4
+[1.138.5]: https://github.com/chatmail/core/compare/v1.138.4...v1.138.5
+[1.139.0]: https://github.com/chatmail/core/compare/v1.138.5...v1.139.0
+[1.139.1]: https://github.com/chatmail/core/compare/v1.139.0...v1.139.1
+[1.139.2]: https://github.com/chatmail/core/compare/v1.139.1...v1.139.2
+[1.139.3]: https://github.com/chatmail/core/compare/v1.139.2...v1.139.3
+[1.139.4]: https://github.com/chatmail/core/compare/v1.139.3...v1.139.4
+[1.139.5]: https://github.com/chatmail/core/compare/v1.139.4...v1.139.5
+[1.139.6]: https://github.com/chatmail/core/compare/v1.139.5...v1.139.6
+[1.140.0]: https://github.com/chatmail/core/compare/v1.139.6...v1.140.0
+[1.140.1]: https://github.com/chatmail/core/compare/v1.140.0...v1.140.1
+[1.140.2]: https://github.com/chatmail/core/compare/v1.140.1...v1.140.2
+[1.141.0]: https://github.com/chatmail/core/compare/v1.140.2...v1.141.0
+[1.141.1]: https://github.com/chatmail/core/compare/v1.141.0...v1.141.1
+[1.141.2]: https://github.com/chatmail/core/compare/v1.141.1...v1.141.2
+[1.142.0]: https://github.com/chatmail/core/compare/v1.141.2...v1.142.0
+[1.142.1]: https://github.com/chatmail/core/compare/v1.142.0...v1.142.1
+[1.142.2]: https://github.com/chatmail/core/compare/v1.142.1...v1.142.2
+[1.142.3]: https://github.com/chatmail/core/compare/v1.142.2...v1.142.3
+[1.142.4]: https://github.com/chatmail/core/compare/v1.142.3...v1.142.4
+[1.142.5]: https://github.com/chatmail/core/compare/v1.142.4...v1.142.5
+[1.142.6]: https://github.com/chatmail/core/compare/v1.142.5...v1.142.6
+[1.142.7]: https://github.com/chatmail/core/compare/v1.142.6...v1.142.7
+[1.142.8]: https://github.com/chatmail/core/compare/v1.142.7...v1.142.8
+[1.142.9]: https://github.com/chatmail/core/compare/v1.142.8...v1.142.9
+[1.142.10]: https://github.com/chatmail/core/compare/v1.142.9..v1.142.10
+[1.142.11]: https://github.com/chatmail/core/compare/v1.142.10..v1.142.11
+[1.142.12]: https://github.com/chatmail/core/compare/v1.142.11..v1.142.12
+[1.143.0]: https://github.com/chatmail/core/compare/v1.142.12..v1.143.0
+[1.144.0]: https://github.com/chatmail/core/compare/v1.143.0..v1.144.0
+[1.145.0]: https://github.com/chatmail/core/compare/v1.144.0..v1.145.0
+[1.146.0]: https://github.com/chatmail/core/compare/v1.145.0..v1.146.0
+[1.147.0]: https://github.com/chatmail/core/compare/v1.146.0..v1.147.0
+[1.147.1]: https://github.com/chatmail/core/compare/v1.147.0..v1.147.1
+[1.148.0]: https://github.com/chatmail/core/compare/v1.147.1..v1.148.0
+[1.148.1]: https://github.com/chatmail/core/compare/v1.148.0..v1.148.1
+[1.148.2]: https://github.com/chatmail/core/compare/v1.148.1..v1.148.2
+[1.148.3]: https://github.com/chatmail/core/compare/v1.148.2..v1.148.3
+[1.148.4]: https://github.com/chatmail/core/compare/v1.148.3..v1.148.4
+[1.148.5]: https://github.com/chatmail/core/compare/v1.148.4..v1.148.5
+[1.148.6]: https://github.com/chatmail/core/compare/v1.148.5..v1.148.6
+[1.148.7]: https://github.com/chatmail/core/compare/v1.148.6..v1.148.7
+[1.149.0]: https://github.com/chatmail/core/compare/v1.148.7..v1.149.0
+[1.150.0]: https://github.com/chatmail/core/compare/v1.149.0..v1.150.0
+[1.151.0]: https://github.com/chatmail/core/compare/v1.150.0..v1.151.0
+[1.151.1]: https://github.com/chatmail/core/compare/v1.151.0..v1.151.1
+[1.151.2]: https://github.com/chatmail/core/compare/v1.151.1..v1.151.2
+[1.151.3]: https://github.com/chatmail/core/compare/v1.151.2..v1.151.3
+[1.151.4]: https://github.com/chatmail/core/compare/v1.151.3..v1.151.4
+[1.151.5]: https://github.com/chatmail/core/compare/v1.151.4..v1.151.5
+[1.151.6]: https://github.com/chatmail/core/compare/v1.151.5..v1.151.6
+[1.152.0]: https://github.com/chatmail/core/compare/v1.151.6..v1.152.0
+[1.152.1]: https://github.com/chatmail/core/compare/v1.152.0..v1.152.1
+[1.152.2]: https://github.com/chatmail/core/compare/v1.152.1..v1.152.2
+[1.153.0]: https://github.com/chatmail/core/compare/v1.152.2..v1.153.0
+[1.154.0]: https://github.com/chatmail/core/compare/v1.153.0..v1.154.0
+[1.154.1]: https://github.com/chatmail/core/compare/v1.154.0..v1.154.1
+[1.154.2]: https://github.com/chatmail/core/compare/v1.154.1..v1.154.2
+[1.154.3]: https://github.com/chatmail/core/compare/v1.154.2..v1.154.3
+[1.155.0]: https://github.com/chatmail/core/compare/v1.154.3..v1.155.0
+[1.155.1]: https://github.com/chatmail/core/compare/v1.155.0..v1.155.1
+[1.155.2]: https://github.com/chatmail/core/compare/v1.155.1..v1.155.2
+[1.155.3]: https://github.com/chatmail/core/compare/v1.155.2..v1.155.3
+[1.155.4]: https://github.com/chatmail/core/compare/v1.155.3..v1.155.4
+[1.155.5]: https://github.com/chatmail/core/compare/v1.155.4..v1.155.5
+[1.155.6]: https://github.com/chatmail/core/compare/v1.155.5..v1.155.6
+[1.156.0]: https://github.com/chatmail/core/compare/v1.155.6..v1.156.0
+[1.156.1]: https://github.com/chatmail/core/compare/v1.156.0..v1.156.1
+[1.156.2]: https://github.com/chatmail/core/compare/v1.156.1..v1.156.2
+[1.156.3]: https://github.com/chatmail/core/compare/v1.156.2..v1.156.3
+[1.157.0]: https://github.com/chatmail/core/compare/v1.156.3..v1.157.0

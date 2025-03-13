@@ -43,7 +43,7 @@ Bootstrap Rust and Cargo by using rustup::
 
 Then clone the deltachat-core-rust repo::
 
-   git clone https://github.com/deltachat/deltachat-core-rust
+   git clone https://github.com/chatmail/core
    cd deltachat-core-rust
 
 To install the Delta Chat Python bindings make sure you have Python3 installed.

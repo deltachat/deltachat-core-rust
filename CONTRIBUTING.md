@@ -2,7 +2,7 @@
 
 ## Bug reports
 
-If you found a bug, [report it on GitHub](https://github.com/deltachat/deltachat-core-rust/issues).
+If you found a bug, [report it on GitHub](https://github.com/chatmail/core/issues).
 If the bug you found is specific to
 [Android](https://github.com/deltachat/deltachat-android/issues),
 [iOS](https://github.com/deltachat/deltachat-ios/issues) or
@@ -67,7 +67,7 @@ If you want to contribute a code, follow this guide.
    BREAKING CHANGE: You have to call `dc_stop_io()`/`dc_start_io()` before/after `dc_imex(DC_IMEX_EXPORT_BACKUP)`
    ```
 
-4. [**Open a Pull Request**](https://github.com/deltachat/deltachat-core-rust/pulls).
+4. [**Open a Pull Request**](https://github.com/chatmail/core/pulls).
 
    Refer to the corresponding issue.
 
@@ -116,7 +116,7 @@ For other ways to contribute, refer to the [website](https://delta.chat/en/contr
 
 You can find the list of good first issues
 and a link to this guide
-on the contributing page: <https://github.com/deltachat/deltachat-core-rust/contribute>
+on the contributing page: <https://github.com/chatmail/core/contribute>
 
 [Conventional Commits]: https://www.conventionalcommits.org/
 [git-cliff]: https://git-cliff.org/
