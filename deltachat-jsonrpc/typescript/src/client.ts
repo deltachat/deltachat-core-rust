@@ -2,7 +2,7 @@ import * as T from "../generated/types.js";
 import { EventType } from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { WebsocketTransport, BaseTransport, Request } from "yerpc";
+import { BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "@deltachat/tiny-emitter";
 
 type Events = { ALL: (accountId: number, event: EventType) => void } & {
@@ -71,34 +71,6 @@ export class BaseDeltaChat<
       this.contextEmitters[account_id] = new TinyEmitter();
       return this.contextEmitters[account_id];
     }
-  }
-}
-
-export type Opts = {
-  url: string;
-  startEventLoop: boolean;
-};
-
-export const DEFAULT_OPTS: Opts = {
-  url: "ws://localhost:20808/ws",
-  startEventLoop: true,
-};
-export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
-  opts: Opts;
-  close() {
-    this.transport.close();
-  }
-  constructor(opts?: Opts | string) {
-    if (typeof opts === "string") {
-      opts = { ...DEFAULT_OPTS, url: opts };
-    } else if (opts) {
-      opts = { ...DEFAULT_OPTS, ...opts };
-    } else {
-      opts = { ...DEFAULT_OPTS };
-    }
-    const transport = new WebsocketTransport(opts.url);
-    super(transport, opts.startEventLoop);
-    this.opts = opts;
   }
 }
 
