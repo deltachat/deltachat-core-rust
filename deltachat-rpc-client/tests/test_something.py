@@ -301,10 +301,12 @@ def test_selfavatar_sync(acfactory, data, log) -> None:
     snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
     assert "Account transferred" in snapshot.text
 
-    image = data.get_path("d.png")
+    image = data.get_path("image/avatar1000x1000.jpg")
     alice.set_config("selfavatar", image)
+    print(alice.get_config("selfavatar"))
 
     alice2.wait_for_event(EventType.SELFAVATAR_CHANGED)
+    print(alice2.get_config("selfavatar"))
 
     log.section("Sending text from the second device")
     alice2.get_self_chat().send_text("Hello!")
