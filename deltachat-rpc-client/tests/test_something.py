@@ -287,6 +287,33 @@ def test_message(acfactory) -> None:
     assert reactions == snapshot.reactions
 
 
+def test_selfavatar_sync(acfactory, data, log) -> None:
+    alice = acfactory.get_online_account()
+
+    log.section("Alice adds a second device")
+    alice2 = alice.clone_via_add_second_device()
+
+    log.section("Second device goes online")
+    alice2.start_io()
+
+    log.section("First device waits for the text")
+    event = alice.wait_for_event(EventType.MSGS_CHANGED, timeout=2)
+    snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
+    assert "Account transferred" in snapshot.text
+
+    image = data.get_path("d.png")
+    alice.set_config("selfavatar", image)
+
+    alice2.wait_for_event(EventType.SELFAVATAR_CHANGED)
+
+    log.section("Sending text from the second device")
+    alice2.get_self_chat().send_text("Hello!")
+
+    event = alice.wait_for_event(EventType.MSGS_CHANGED, timeout=2)
+    snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
+    assert snapshot.text == "Hello!"
+
+
 def test_reaction_seen_on_another_dev(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
     alice2 = alice.clone()
