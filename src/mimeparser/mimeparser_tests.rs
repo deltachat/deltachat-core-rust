@@ -1919,6 +1919,29 @@ This is the epilogue.  It is also to be ignored.";
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_hidden_message_id() {
+    let t = &TestContext::new().await;
+    let raw = br#"Message-ID: bar@example.org
+Date: Sun, 08 Dec 2019 23:12:55 +0000
+To: <alice@example.org>
+From: <tunis4@example.org>
+Content-Type: multipart/mixed; boundary="luTiGu6GBoVLCvTkzVtmZmwsmhkNMw"
+
+
+--luTiGu6GBoVLCvTkzVtmZmwsmhkNMw
+Message-ID: foo@example.org
+Content-Type: text/plain; charset=utf-8
+
+Message with a correct Message-ID hidden header
+
+--luTiGu6GBoVLCvTkzVtmZmwsmhkNMw--
+"#;
+
+    let message = MimeMessage::from_bytes(t, &raw[..], None).await.unwrap();
+    assert_eq!(message.get_rfc724_mid().unwrap(), "foo@example.org");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_chat_edit_imf_header() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = &tcm.alice().await;

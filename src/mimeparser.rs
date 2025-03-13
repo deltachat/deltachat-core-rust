@@ -288,9 +288,7 @@ impl MimeMessage {
             if let Some(part) = part.subparts.first() {
                 for field in &part.headers {
                     let key = field.get_key().to_lowercase();
-
-                    // For now only avatar headers can be hidden.
-                    if !headers.contains_key(&key) && is_hidden(&key) {
+                    if !headers.contains_key(&key) && is_hidden(&key) || key == "message-id" {
                         headers.insert(key.to_string(), field.get_value());
                     }
                 }
