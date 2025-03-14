@@ -607,10 +607,7 @@ impl MimeFactory {
                 || to.len() + past_members.len() == self.member_timestamps.len()
         );
         if to.is_empty() {
-            to.push(Address::new_group(
-                Some("hidden-recipients".to_string()),
-                Vec::new(),
-            ));
+            to.push(hidden_recipients());
         }
 
         // Start with Internet Message Format headers in the order of the standard example
@@ -888,21 +885,23 @@ impl MimeFactory {
             } else if header_name == "to" {
                 protected_headers.push(header.clone());
                 if is_encrypted {
+                    let mut to_without_names = to
+                        .clone()
+                        .into_iter()
+                        .filter_map(|header| match header {
+                            Address::Address(mb) => Some(Address::Address(EmailAddress {
+                                name: None,
+                                email: mb.email,
+                            })),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    if to_without_names.is_empty() {
+                        to_without_names.push(hidden_recipients());
+                    }
                     unprotected_headers.push((
                         original_header_name,
-                        Address::new_list(
-                            to.clone()
-                                .into_iter()
-                                .filter_map(|header| match header {
-                                    Address::Address(mb) => Some(Address::Address(EmailAddress {
-                                        name: None,
-                                        email: mb.email,
-                                    })),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>(),
-                        )
-                        .into(),
+                        Address::new_list(to_without_names).into(),
                     ));
                 } else {
                     unprotected_headers.push(header.clone());
@@ -1631,6 +1630,10 @@ impl MimeFactory {
 
         Ok(message)
     }
+}
+
+fn hidden_recipients() -> Address<'static> {
+    Address::new_group(Some("hidden-recipients".to_string()), Vec::new())
 }
 
 async fn build_body_file(context: &Context, msg: &Message) -> Result<MimePart<'static>> {
