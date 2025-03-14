@@ -342,12 +342,14 @@ impl CommandApi {
         ctx.get_info().await
     }
 
+    /// Get the blob dir.
     async fn get_blob_dir(&self, account_id: u32) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         Ok(ctx.get_blobdir().to_str().map(|s| s.to_owned()))
     }
 
-    async fn copy_to_blobdir(&self, account_id: u32, path: String) -> Result<PathBuf> {
+    /// Copy file to blobdir.
+    async fn copy_to_blobdir(&self, account_id: u32, path: String) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         let file = Path::new(&path);
         let name = BlobObject::create_and_deduplicate(&ctx, file, file)?
@@ -356,6 +358,7 @@ impl CommandApi {
         ctx.get_blobdir()
             .join(name)
             .canonicalize()
+            .map(|val| val.display().to_string())
             .map_err(anyhow::Error::from)
     }
 
