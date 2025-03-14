@@ -1495,73 +1495,9 @@ async fn add_parts(
         }
     }
 
-    if let Some(rfc724_mid) = mime_parser.get_header(HeaderDef::ChatEdit) {
+    if handle_edit_delete(context, mime_parser, from_id).await? {
         chat_id = DC_CHAT_ID_TRASH;
-        if let Some((original_msg_id, _)) = rfc724_mid_exists(context, rfc724_mid).await? {
-            if let Some(mut original_msg) =
-                Message::load_from_db_optional(context, original_msg_id).await?
-            {
-                if original_msg.from_id == from_id {
-                    if let Some(part) = mime_parser.parts.first() {
-                        let edit_msg_showpadlock = part
-                            .param
-                            .get_bool(Param::GuaranteeE2ee)
-                            .unwrap_or_default();
-                        if edit_msg_showpadlock || !original_msg.get_showpadlock() {
-                            let new_text =
-                                part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
-                            chat::save_text_edit_to_db(context, &mut original_msg, new_text)
-                                .await?;
-                        } else {
-                            warn!(context, "Edit message: Not encrypted.");
-                        }
-                    }
-                } else {
-                    warn!(context, "Edit message: Bad sender.");
-                }
-            } else {
-                warn!(context, "Edit message: Database entry does not exist.");
-            }
-        } else {
-            warn!(
-                context,
-                "Edit message: rfc724_mid {rfc724_mid:?} not found."
-            );
-        }
-    } else if let Some(rfc724_mid_list) = mime_parser.get_header(HeaderDef::ChatDelete) {
-        chat_id = DC_CHAT_ID_TRASH;
-        if let Some(part) = mime_parser.parts.first() {
-            // See `message::delete_msgs_ex()`, unlike edit requests, DC doesn't send unencrypted
-            // deletion requests, so there's no need to support them.
-            if part.param.get_bool(Param::GuaranteeE2ee).unwrap_or(false) {
-                let mut modified_chat_ids = HashSet::new();
-                let mut msg_ids = Vec::new();
-
-                let rfc724_mid_vec: Vec<&str> = rfc724_mid_list.split_whitespace().collect();
-                for rfc724_mid in rfc724_mid_vec {
-                    if let Some((msg_id, _)) =
-                        message::rfc724_mid_exists(context, rfc724_mid).await?
-                    {
-                        if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
-                            if msg.from_id == from_id {
-                                message::delete_msg_locally(context, &msg).await?;
-                                msg_ids.push(msg.id);
-                                modified_chat_ids.insert(msg.chat_id);
-                            } else {
-                                warn!(context, "Delete message: Bad sender.");
-                            }
-                        } else {
-                            warn!(context, "Delete message: Database entry does not exist.");
-                        }
-                    } else {
-                        warn!(context, "Delete message: {rfc724_mid:?} not found.");
-                    }
-                }
-                message::delete_msgs_locally_done(context, &msg_ids, modified_chat_ids).await?;
-            } else {
-                warn!(context, "Delete message: Not encrypted.");
-            }
-        }
+        info!(context, "Message edits/deletes existing message (TRASH).");
     }
 
     let mut parts = mime_parser.parts.iter().peekable();
@@ -1828,6 +1764,85 @@ RETURNING id
         #[cfg(test)]
         from_is_signed: mime_parser.from_is_signed,
     })
+}
+
+async fn handle_edit_delete(
+    context: &Context,
+    mime_parser: &MimeMessage,
+    from_id: ContactId,
+) -> Result<bool> {
+    if let Some(rfc724_mid) = mime_parser.get_header(HeaderDef::ChatEdit) {
+        if let Some((original_msg_id, _)) = rfc724_mid_exists(context, rfc724_mid).await? {
+            if let Some(mut original_msg) =
+                Message::load_from_db_optional(context, original_msg_id).await?
+            {
+                if original_msg.from_id == from_id {
+                    if let Some(part) = mime_parser.parts.first() {
+                        let edit_msg_showpadlock = part
+                            .param
+                            .get_bool(Param::GuaranteeE2ee)
+                            .unwrap_or_default();
+                        if edit_msg_showpadlock || !original_msg.get_showpadlock() {
+                            let new_text =
+                                part.msg.strip_prefix(EDITED_PREFIX).unwrap_or(&part.msg);
+                            chat::save_text_edit_to_db(context, &mut original_msg, new_text)
+                                .await?;
+                        } else {
+                            warn!(context, "Edit message: Not encrypted.");
+                        }
+                    }
+                } else {
+                    warn!(context, "Edit message: Bad sender.");
+                }
+            } else {
+                warn!(context, "Edit message: Database entry does not exist.");
+            }
+        } else {
+            warn!(
+                context,
+                "Edit message: rfc724_mid {rfc724_mid:?} not found."
+            );
+        }
+
+        Ok(true)
+    } else if let Some(rfc724_mid_list) = mime_parser.get_header(HeaderDef::ChatDelete) {
+        if let Some(part) = mime_parser.parts.first() {
+            // See `message::delete_msgs_ex()`, unlike edit requests, DC doesn't send unencrypted
+            // deletion requests, so there's no need to support them.
+            if part.param.get_bool(Param::GuaranteeE2ee).unwrap_or(false) {
+                let mut modified_chat_ids = HashSet::new();
+                let mut msg_ids = Vec::new();
+
+                let rfc724_mid_vec: Vec<&str> = rfc724_mid_list.split_whitespace().collect();
+                for rfc724_mid in rfc724_mid_vec {
+                    if let Some((msg_id, _)) =
+                        message::rfc724_mid_exists(context, rfc724_mid).await?
+                    {
+                        if let Some(msg) = Message::load_from_db_optional(context, msg_id).await? {
+                            if msg.from_id == from_id {
+                                message::delete_msg_locally(context, &msg).await?;
+                                msg_ids.push(msg.id);
+                                modified_chat_ids.insert(msg.chat_id);
+                            } else {
+                                warn!(context, "Delete message: Bad sender.");
+                            }
+                        } else {
+                            warn!(context, "Delete message: Database entry does not exist.");
+                        }
+                    } else {
+                        warn!(context, "Delete message: {rfc724_mid:?} not found.");
+                    }
+                }
+                message::delete_msgs_locally_done(context, &msg_ids, modified_chat_ids).await?;
+            } else {
+                warn!(context, "Delete message: Not encrypted.");
+            }
+        }
+
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 async fn tweak_sort_timestamp(
