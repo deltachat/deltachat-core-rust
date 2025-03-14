@@ -31,7 +31,7 @@ use crate::log::LogExt;
 pub use crate::login_param::EnteredLoginParam;
 use crate::login_param::{
     ConfiguredCertificateChecks, ConfiguredLoginParam, ConfiguredServerLoginParam,
-    ConnectionCandidate, EnteredCertificateChecks,
+    ConnectionCandidate, EnteredCertificateChecks, ProxyConfig,
 };
 use crate::message::Message;
 use crate::oauth2::get_oauth2_addr;
@@ -259,8 +259,7 @@ async fn get_configured_param(
         param.smtp.password.clone()
     };
 
-    let proxy_config = param.proxy_config.clone();
-    let proxy_enabled = proxy_config.is_some();
+    let proxy_enabled = ctx.get_config_bool(Config::ProxyEnabled).await?;
 
     let mut addr = param.addr.clone();
     if param.oauth2 {
@@ -419,7 +418,7 @@ async fn get_configured_param(
             .collect(),
         smtp_user: param.smtp.user.clone(),
         smtp_password,
-        proxy_config: param.proxy_config.clone(),
+        proxy_config: ProxyConfig::load(ctx).await?,
         provider,
         certificate_checks: match param.certificate_checks {
             EnteredCertificateChecks::Automatic => ConfiguredCertificateChecks::Automatic,

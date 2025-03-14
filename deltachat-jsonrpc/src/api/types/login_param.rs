@@ -1,6 +1,5 @@
 use anyhow::Result;
 use deltachat::login_param as dc;
-use deltachat::login_param::ProxyConfig;
 use serde::Deserialize;
 use serde::Serialize;
 use yerpc::TypeDef;
@@ -70,9 +69,6 @@ pub struct EnteredLoginParam {
     /// invalid hostnames
     pub certificate_checks: EnteredCertificateChecks,
 
-    /// Proxy configuration.
-    pub proxy_config: Option<String>,
-
     /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
@@ -84,7 +80,6 @@ impl From<dc::EnteredLoginParam> for EnteredLoginParam {
             imap: param.imap.into(),
             smtp: param.smtp.into(),
             certificate_checks: param.certificate_checks.into(),
-            proxy_config: param.proxy_config.map(|p| p.to_url()),
             oauth2: param.oauth2,
         }
     }
@@ -99,12 +94,6 @@ impl TryFrom<EnteredLoginParam> for dc::EnteredLoginParam {
             imap: param.imap.into(),
             smtp: param.smtp.into(),
             certificate_checks: param.certificate_checks.into(),
-            proxy_config: {
-                match param.proxy_config {
-                    Some(url) => Some(ProxyConfig::from_url(&url)?),
-                    None => None,
-                }
-            },
             oauth2: param.oauth2,
         })
     }

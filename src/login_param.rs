@@ -119,9 +119,6 @@ pub struct EnteredLoginParam {
     /// invalid hostnames
     pub certificate_checks: EnteredCertificateChecks,
 
-    /// Proxy configuration.
-    pub proxy_config: Option<ProxyConfig>,
-
     /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
@@ -200,8 +197,6 @@ impl EnteredLoginParam {
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
-        let proxy_config = ProxyConfig::load(context).await?;
-
         Ok(EnteredLoginParam {
             addr,
             imap: EnteredServerLoginParam {
@@ -219,7 +214,6 @@ impl EnteredLoginParam {
                 password: send_pw,
             },
             certificate_checks,
-            proxy_config,
             oauth2,
         })
     }
@@ -281,14 +275,6 @@ impl EnteredLoginParam {
         };
         context
             .set_config(Config::ServerFlags, server_flags.as_deref())
-            .await?;
-
-        context
-            .set_config_bool(Config::ProxyEnabled, self.proxy_config.is_some())
-            .await?;
-        let proxy = self.proxy_config.as_ref().map(|proxy| proxy.to_url());
-        context
-            .set_config(Config::ProxyUrl, proxy.as_deref())
             .await?;
 
         Ok(())
@@ -934,7 +920,6 @@ mod tests {
                 password: "".to_string(),
             },
             certificate_checks: Default::default(),
-            proxy_config: Default::default(),
             oauth2: false,
         };
         param.save(&t).await?;
