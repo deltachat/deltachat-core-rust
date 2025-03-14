@@ -1567,7 +1567,7 @@ async fn add_parts(
     } else if mime_parser.is_system_message == SystemMessage::CallAccepted
         || mime_parser.is_system_message == SystemMessage::CallEnded
     {
-        chat_id = DC_CHAT_ID_TRASH;
+        // TODO: chat_id = DC_CHAT_ID_TRASH;
         if let Some(field) = mime_parser.get_header(HeaderDef::InReplyTo) {
             if let Some(call) =
                 message::get_by_rfc724_mids(context, &parse_message_ids(field)).await?

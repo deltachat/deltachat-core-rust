@@ -13,7 +13,7 @@ use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
 use crate::sync::SyncData;
 use crate::tools::time;
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{ensure, Result};
 use std::time::Duration;
 use tokio::task;
 use tokio::time::sleep;
