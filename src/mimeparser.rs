@@ -422,23 +422,7 @@ impl MimeMessage {
                 // Remove unsigned opportunistically protected headers from messages considered
                 // Autocrypt-encrypted / displayed with padlock.
                 // For "Subject" see <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-                for h in [
-                    HeaderDef::Subject,
-                    HeaderDef::ChatGroupId,
-                    HeaderDef::ChatGroupName,
-                    HeaderDef::ChatGroupNameChanged,
-                    HeaderDef::ChatGroupNameTimestamp,
-                    HeaderDef::ChatGroupAvatar,
-                    HeaderDef::ChatGroupMemberRemoved,
-                    HeaderDef::ChatGroupMemberAdded,
-                    HeaderDef::ChatGroupMemberTimestamps,
-                    HeaderDef::ChatGroupPastMembers,
-                    HeaderDef::ChatDelete,
-                    HeaderDef::ChatEdit,
-                    HeaderDef::ChatUserAvatar,
-                ] {
-                    headers.remove(h.get_headername());
-                }
+                headers.retain(|k, _| !(k.starts_with("chat-") || k == "subject"));
             }
 
             // let known protected headers from the decrypted
