@@ -251,6 +251,7 @@ impl<'a> BlobObject<'a> {
         Ok(blob.as_name().to_string())
     }
 
+    /// Recode image to avatar size.
     pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
         let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
