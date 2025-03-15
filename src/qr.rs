@@ -695,7 +695,7 @@ struct CreateAccountErrorResponse {
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
-async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
+pub(crate) async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = qr
         .get(DCACCOUNT_SCHEME.len()..)
         .context("Invalid DCACCOUNT scheme")?;
