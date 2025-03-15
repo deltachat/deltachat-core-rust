@@ -96,7 +96,7 @@ sha2 = "0.10"
 shadowsocks = { version = "1.22.0", default-features = false, features = ["aead-cipher", "aead-cipher-2022"] }
 smallvec = "1.14.0"
 strum = "0.26"
-strum_macros = "0.26"
+strum_macros = "0.27"
 tagger = "4.3.4"
 textwrap = "0.16.1"
 thiserror = { workspace = true }
