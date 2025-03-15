@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.157.2] - 2025-03-15
+
+### Fixes
+
+- Prefer hidden Message-ID header if any.
+- Update async-compression to 0.4.21 to fix IMAP COMPRESS getting stuck.
+
+### Refactor
+
+- Extract handle_edit_delete() function for message edit/delete  ([#6664](https://github.com/chatmail/core/pull/6664)).
+
+### Tests
+
+- test_secure_join: Bob should not create a 1:1 chat before sending a message.
+- Return chat ID from TestContext.exec_securejoin_qr().
+
 ## [1.157.1] - 2025-03-13
 
 ### Miscellaneous Tasks
@@ -5998,3 +6014,4 @@ https://github.com/chatmail/core/pulls?q=is%3Apr+is%3Aclosed
 [1.156.3]: https://github.com/chatmail/core/compare/v1.156.2..v1.156.3
 [1.157.0]: https://github.com/chatmail/core/compare/v1.156.3..v1.157.0
 [1.157.1]: https://github.com/chatmail/core/compare/v1.157.0..v1.157.1
+[1.157.2]: https://github.com/chatmail/core/compare/v1.157.1..v1.157.2
