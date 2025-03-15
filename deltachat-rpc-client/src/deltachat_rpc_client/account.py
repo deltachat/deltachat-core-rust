@@ -28,9 +28,12 @@ class Account:
     def _rpc(self) -> "Rpc":
         return self.manager.rpc
 
-    def wait_for_event(self) -> AttrDict:
+    def wait_for_event(self, event_type=None, timeout=None) -> AttrDict:
         """Wait until the next event and return it."""
-        return AttrDict(self._rpc.wait_for_event(self.id))
+        while True:
+            next_event = AttrDict(self._rpc.wait_for_event(self.id, timeout))
+            if event_type is None or next_event.kind == event_type:
+                return next_event
 
     def clear_all_events(self):
         """Removes all queued-up events for a given account. Useful for tests."""
@@ -49,6 +52,14 @@ class Account:
             new_account = self.manager.add_account()
             new_account.import_backup(files[0])
             return new_account
+
+    def clone_via_add_second_device(self) -> "Account":
+        future = self._rpc.provide_backup.future(self.id)
+        qr = self._rpc.get_backup_qr(self.id)
+        new_account = self.manager.add_account()
+        new_account._rpc.get_backup(new_account.id, qr)
+        future()
+        return new_account
 
     def start_io(self) -> None:
         """Start the account I/O."""
@@ -133,6 +144,13 @@ class Account:
         if isinstance(obj, Contact):
             obj = obj.get_snapshot().address
         return Contact(self, self._rpc.create_contact(self.id, obj, name))
+
+    def get_self_chat(self) -> Chat:
+        """Get the 'Saved Messages' chat"""
+        return Chat(
+            self,
+            self._rpc.create_chat_by_contact_id(self.id, SpecialContactId.SELF),
+        )
 
     def make_vcard(self, contacts: list[Contact]) -> str:
         """Create vCard with the given contacts."""

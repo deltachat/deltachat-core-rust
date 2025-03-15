@@ -177,10 +177,10 @@ class Rpc:
             # Log an exception if the event loop dies.
             logging.exception("Exception in the event loop")
 
-    def wait_for_event(self, account_id: int) -> Optional[dict]:
+    def wait_for_event(self, account_id: int, timeout=None) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
         queue = self.get_queue(account_id)
-        return queue.get()
+        return queue.get(timeout=timeout)
 
     def clear_all_events(self, account_id: int):
         """Removes all queued-up events for a given account. Useful for tests."""

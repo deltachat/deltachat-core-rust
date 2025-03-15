@@ -45,7 +45,7 @@ use crate::message::Message;
 use crate::qr::Qr;
 use crate::stock_str::backup_transfer_msg_body;
 use crate::tools::{create_id, time, TempPathGuard};
-use crate::EventType;
+use crate::{e2ee, EventType};
 
 use super::{export_backup_stream, export_database, import_backup_stream, DBFILE_BACKUP_NAME};
 
@@ -108,6 +108,11 @@ impl BackupProvider {
             .get_blobdir()
             .parent()
             .context("Context dir not found")?;
+
+        // before we export, make sure the private key exists
+        e2ee::ensure_secret_key_exists(context)
+            .await
+            .context("Cannot create private key or private key not available")?;
 
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
