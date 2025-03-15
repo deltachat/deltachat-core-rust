@@ -73,7 +73,7 @@ impl Context {
     pub async fn configure(&self) -> Result<()> {
         let param = EnteredLoginParam::load(self).await?;
 
-        self.add_transport_ex(&param).await
+        self.add_transport_inner(&param).await
     }
 
     /// Configures a new email account using the provided parameters
@@ -107,7 +107,7 @@ impl Context {
     /// - [Self::delete_transport()] to remove a transport.
     pub async fn add_transport(&self, param: &EnteredLoginParam) -> Result<()> {
         self.stop_io().await;
-        let result = self.add_transport_ex(param).await;
+        let result = self.add_transport_inner(param).await;
         if result.is_err() {
             if let Ok(true) = self.is_configured().await {
                 self.start_io().await;
@@ -118,7 +118,7 @@ impl Context {
         Ok(())
     }
 
-    async fn add_transport_ex(&self, param: &EnteredLoginParam) -> Result<()> {
+    async fn add_transport_inner(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
             "cannot configure, already running"
