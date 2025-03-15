@@ -4,42 +4,12 @@ This crate provides a [JSON-RPC 2.0](https://www.jsonrpc.org/specification) inte
 
 The JSON-RPC API is exposed in two fashions:
 
-* A executable that exposes the JSON-RPC API through a [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) server running on localhost.
+* A executable `deltachat-rpc-server` that exposes the JSON-RPC API through stdio.
 * The JSON-RPC API can also be called through the [C FFI](../deltachat-ffi). The C FFI needs to be built with the `jsonrpc` feature. It will then expose the functions `dc_jsonrpc_init`, `dc_jsonrpc_request`, `dc_jsonrpc_next_response` and `dc_jsonrpc_unref`. See the docs in the [header file](../deltachat-ffi/deltachat.h) for details.
 
 We also include a JavaScript and TypeScript client for the JSON-RPC API. The source for this is in the [`typescript`](typescript) folder. The client can easily be used with the WebSocket server to build DeltaChat apps for web browsers or Node.js. See the [examples](typescript/example) for details.
 
 ## Usage
-
-#### Running the WebSocket server
-
-From within this folder, you can start the WebSocket server with the following command:
-
-```sh
-cargo run --features webserver
-```
-
-If you want to use the server in a production setup, first build it in release mode:
-
-```sh
-cargo build --features webserver --release
-```
-You will then find the `deltachat-jsonrpc-server` executable in your `target/release` folder.
-
-The executable currently does not support any command-line arguments. By default, once started it will accept WebSocket connections on `ws://localhost:20808/ws`. It will store the persistent configuration and databases in a `./accounts` folder relative to the directory from where it is started.
-
-The server can be configured with environment variables:
-
-|variable|default|description|
-|-|-|-|
-|`DC_PORT`|`20808`|port to listen on|
-|`DC_ACCOUNTS_PATH`|`./accounts`|path to storage directory|
-
-If you are targeting other architectures (like KaiOS or Android), the webserver binary can be cross-compiled easily with [rust-cross](https://github.com/cross-rs/cross):
-
-```sh
-cross build --features=webserver --target armv7-linux-androideabi --release
-```
 
 #### Using the TypeScript/JavaScript client
 
