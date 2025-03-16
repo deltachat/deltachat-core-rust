@@ -910,8 +910,9 @@ async fn test_no_empty_to_header() -> Result<()> {
 
     let payload = alice.send_text(self_chat.id, "Hi").await.payload;
     assert!(
-        payload.contains("To: alice@example.org")
-            || payload.contains("To: \"hidden-recipients\": ;"),
+        // It would be equally fine if the payload contained `To: alice@example.org` or similar,
+        // as long as it's a valid header
+        payload.contains("To: \"hidden-recipients\": ;"),
         "Payload doesn't contain correct To: header: {payload}"
     );
 
