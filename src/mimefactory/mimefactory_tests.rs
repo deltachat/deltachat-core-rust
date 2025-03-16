@@ -898,3 +898,23 @@ async fn test_dont_remove_self() -> Result<()> {
 
     Ok(())
 }
+
+/// Regression test: mimefactory should never create an empty to header,
+/// also not if the Selftalk parameter is missing
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_no_empty_to_header() -> Result<()> {
+    let alice = &TestContext::new_alice().await;
+    let mut self_chat = alice.get_self_chat().await;
+    self_chat.param.remove(Param::Selftalk);
+    self_chat.update_param(alice).await?;
+
+    let payload = alice.send_text(self_chat.id, "Hi").await.payload;
+    assert!(
+        // It would be equally fine if the payload contained `To: alice@example.org` or similar,
+        // as long as it's a valid header
+        payload.contains("To: \"hidden-recipients\": ;"),
+        "Payload doesn't contain correct To: header: {payload}"
+    );
+
+    Ok(())
+}
