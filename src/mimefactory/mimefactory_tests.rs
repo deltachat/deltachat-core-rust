@@ -899,7 +899,7 @@ async fn test_dont_remove_self() -> Result<()> {
     Ok(())
 }
 
-/// Regression test: mimefactory should never create an empy to header,
+/// Regression test: mimefactory should never create an empty to header,
 /// also not if the Selftalk parameter is missing
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_no_empty_to_header() -> Result<()> {
