@@ -713,12 +713,11 @@ impl MimeFactory {
 
         if let Loaded::Message { chat, .. } = &self.loaded {
             if chat.typ == Chattype::Broadcast {
-                let encoded_chat_name = encode_words(&chat.name);
                 headers.push((
                     "List-ID",
-                    mail_builder::headers::raw::Raw::new(format!(
-                        "{encoded_chat_name} <{}>",
-                        chat.grpid
+                    mail_builder::headers::text::Text::new(format!(
+                        "{} <{}>",
+                        chat.name, chat.grpid
                     ))
                     .into(),
                 ));
@@ -1746,14 +1745,6 @@ fn render_rfc724_mid(rfc724_mid: &str) -> String {
     } else {
         format!("<{rfc724_mid}>")
     }
-}
-
-/* ******************************************************************************
- * Encode/decode header words, RFC 2047
- ******************************************************************************/
-
-fn encode_words(word: &str) -> String {
-    encoded_words::encode(word, None, encoded_words::EncodingFlag::Shortest, None)
 }
 
 #[cfg(test)]
