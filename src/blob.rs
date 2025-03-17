@@ -193,6 +193,7 @@ impl<'a> BlobObject<'a> {
     /// Note that this is NOT the user-visible filename,
     /// which is only stored in Param::Filename on the message.
     ///
+    #[allow(rustdoc::private_intra_doc_links)]
     /// [Params]: crate::param::Params
     pub fn as_name(&self) -> &str {
         &self.name
