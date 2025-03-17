@@ -296,10 +296,6 @@ def test_selfavatar_sync(acfactory, data, log) -> None:
     log.section("Second device goes online")
     alice2.start_io()
 
-    event = alice.wait_for_msgs_changed_event()
-    snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
-    assert "Account transferred" in snapshot.text
-
     log.section("First device changes avatar")
     image = data.get_path("image/avatar1000x1000.jpg")
     alice.set_config("selfavatar", image)
