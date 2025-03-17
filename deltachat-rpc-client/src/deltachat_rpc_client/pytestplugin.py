@@ -134,7 +134,6 @@ def data():
     class Data:
         def __init__(self) -> None:
             for path in reversed(py.path.local(__file__).parts()):
-                print(path)
                 datadir = path.join("test-data")
                 if datadir.isdir():
                     self.path = datadir
