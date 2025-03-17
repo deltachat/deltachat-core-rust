@@ -296,24 +296,24 @@ def test_selfavatar_sync(acfactory, data, log) -> None:
     log.section("Second device goes online")
     alice2.start_io()
 
-    log.section("First device waits for the text")
-    event = alice.wait_for_event(EventType.MSGS_CHANGED)
+    event = alice.wait_for_msgs_changed_event()
     snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
     assert "Account transferred" in snapshot.text
 
+    log.section("First device changes avatar")
     image = data.get_path("image/avatar1000x1000.jpg")
     alice.set_config("selfavatar", image)
-    print(alice.get_config("selfavatar"))
+    avatar_config = alice.get_config("selfavatar")
+    avatar_hash = os.path.basename(avatar_config)
+    print("Info: avatar hash is ", avatar_hash)
 
+    log.section("First device receives avatar change")
     alice2.wait_for_event(EventType.SELFAVATAR_CHANGED)
-    print(alice2.get_config("selfavatar"))
-
-    log.section("Sending text from the second device")
-    alice2.get_self_chat().send_text("Hello!")
-
-    event = alice.wait_for_event(EventType.MSGS_CHANGED)
-    snapshot = alice.get_message_by_id(event.msg_id).get_snapshot()
-    assert snapshot.text == "Hello!"
+    avatar_config2 = alice2.get_config("selfavatar")
+    avatar_hash2 = os.path.basename(avatar_config2)
+    print("Info: avatar hash on second device is ", avatar_hash2)
+    assert avatar_hash == avatar_hash2
+    assert avatar_config != avatar_config2
 
 
 def test_reaction_seen_on_another_dev(acfactory) -> None:
