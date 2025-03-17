@@ -287,6 +287,31 @@ def test_message(acfactory) -> None:
     assert reactions == snapshot.reactions
 
 
+def test_selfavatar_sync(acfactory, data, log) -> None:
+    alice = acfactory.get_online_account()
+
+    log.section("Alice adds a second device")
+    alice2 = alice.clone()
+
+    log.section("Second device goes online")
+    alice2.start_io()
+
+    log.section("First device changes avatar")
+    image = data.get_path("image/avatar1000x1000.jpg")
+    alice.set_config("selfavatar", image)
+    avatar_config = alice.get_config("selfavatar")
+    avatar_hash = os.path.basename(avatar_config)
+    print("Info: avatar hash is ", avatar_hash)
+
+    log.section("First device receives avatar change")
+    alice2.wait_for_event(EventType.SELFAVATAR_CHANGED)
+    avatar_config2 = alice2.get_config("selfavatar")
+    avatar_hash2 = os.path.basename(avatar_config2)
+    print("Info: avatar hash on second device is ", avatar_hash2)
+    assert avatar_hash == avatar_hash2
+    assert avatar_config != avatar_config2
+
+
 def test_reaction_seen_on_another_dev(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
     alice2 = alice.clone()

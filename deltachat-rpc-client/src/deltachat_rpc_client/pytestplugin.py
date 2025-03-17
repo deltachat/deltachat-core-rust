@@ -4,6 +4,7 @@ import os
 import random
 from typing import AsyncGenerator, Optional
 
+import py
 import pytest
 
 from . import Account, AttrDict, Bot, Chat, Client, DeltaChat, EventType, Message
@@ -124,3 +125,50 @@ def rpc(tmp_path) -> AsyncGenerator:
 @pytest.fixture
 def acfactory(rpc) -> AsyncGenerator:
     return ACFactory(DeltaChat(rpc))
+
+
+@pytest.fixture
+def data():
+    """Test data."""
+
+    class Data:
+        def __init__(self) -> None:
+            for path in reversed(py.path.local(__file__).parts()):
+                datadir = path.join("test-data")
+                if datadir.isdir():
+                    self.path = datadir
+                    return
+            raise Exception("Data path cannot be found")
+
+        def get_path(self, bn):
+            """return path of file or None if it doesn't exist."""
+            fn = os.path.join(self.path, *bn.split("/"))
+            assert os.path.exists(fn)
+            return fn
+
+        def read_path(self, bn, mode="r"):
+            fn = self.get_path(bn)
+            if fn is not None:
+                with open(fn, mode) as f:
+                    return f.read()
+            return None
+
+    return Data()
+
+
+@pytest.fixture
+def log():
+    """Log printer fixture."""
+
+    class Printer:
+        def section(self, msg: str) -> None:
+            print()
+            print("=" * 10, msg, "=" * 10)
+
+        def step(self, msg: str) -> None:
+            print("-" * 5, "step " + msg, "-" * 5)
+
+        def indent(self, msg: str) -> None:
+            print("  " + msg)
+
+    return Printer()
