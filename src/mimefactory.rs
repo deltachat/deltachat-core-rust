@@ -184,9 +184,6 @@ impl MimeFactory {
         let mut req_mdn = false;
 
         if chat.is_self_talk() {
-            if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                recipients.push(from_addr.to_string());
-            }
             to.push((from_displayname.to_string(), from_addr.to_string()));
         } else if chat.is_mailing_list() {
             let list_post = chat
