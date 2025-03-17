@@ -28,10 +28,10 @@ class Account:
     def _rpc(self) -> "Rpc":
         return self.manager.rpc
 
-    def wait_for_event(self, event_type=None, timeout=None) -> AttrDict:
+    def wait_for_event(self, event_type=None) -> AttrDict:
         """Wait until the next event and return it."""
         while True:
-            next_event = AttrDict(self._rpc.wait_for_event(self.id, timeout))
+            next_event = AttrDict(self._rpc.wait_for_event(self.id))
             if event_type is None or next_event.kind == event_type:
                 return next_event
 
