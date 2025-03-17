@@ -193,6 +193,7 @@ impl<'a> BlobObject<'a> {
     /// Note that this is NOT the user-visible filename,
     /// which is only stored in Param::Filename on the message.
     ///
+    #[allow(rustdoc::private_intra_doc_links)]
     /// [Params]: crate::param::Params
     pub fn as_name(&self) -> &str {
         &self.name
@@ -251,6 +252,7 @@ impl<'a> BlobObject<'a> {
         Ok(blob.as_name().to_string())
     }
 
+    /// Recode image to avatar size.
     pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
         let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)

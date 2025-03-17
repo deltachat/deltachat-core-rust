@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,6 +7,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
+use deltachat::blob::BlobObject;
 use deltachat::chat::{
     self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
     marknoticed_chat, remove_contact_from_chat, Chat, ChatId, ChatItem, MessageListOptions,
@@ -341,9 +342,17 @@ impl CommandApi {
         ctx.get_info().await
     }
 
+    /// Get the blob dir.
     async fn get_blob_dir(&self, account_id: u32) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         Ok(ctx.get_blobdir().to_str().map(|s| s.to_owned()))
+    }
+
+    /// Copy file to blobdir.
+    async fn copy_to_blobdir(&self, account_id: u32, path: String) -> Result<PathBuf> {
+        let ctx = self.get_context(account_id).await?;
+        let file = Path::new(&path);
+        Ok(BlobObject::create_and_deduplicate(&ctx, file, file)?.to_abs_path())
     }
 
     async fn draft_self_report(&self, account_id: u32) -> Result<u32> {
