@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Optional, Union
 from warnings import warn
 
@@ -44,16 +42,8 @@ class Account:
         self._rpc.remove_account(self.id)
 
     def clone(self) -> "Account":
-        """Clone given account."""
-        with TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            self.export_backup(tmp_path)
-            files = list(tmp_path.glob("*.tar"))
-            new_account = self.manager.add_account()
-            new_account.import_backup(files[0])
-            return new_account
-
-    def clone_via_add_second_device(self) -> "Account":
+        """Clone given account.
+        This uses backup-transfer via iroh, i.e. the 'Add second device' feature."""
         future = self._rpc.provide_backup.future(self.id)
         qr = self._rpc.get_backup_qr(self.id)
         new_account = self.manager.add_account()

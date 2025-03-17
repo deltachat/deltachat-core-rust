@@ -291,7 +291,7 @@ def test_selfavatar_sync(acfactory, data, log) -> None:
     alice = acfactory.get_online_account()
 
     log.section("Alice adds a second device")
-    alice2 = alice.clone_via_add_second_device()
+    alice2 = alice.clone()
 
     log.section("Second device goes online")
     alice2.start_io()
