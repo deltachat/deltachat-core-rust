@@ -308,7 +308,7 @@ class Account:
         """Mark the given set of messages as seen."""
         self._rpc.markseen_msgs(self.id, [msg.id for msg in messages])
 
-    def delete_messages(self, messages: list[Message], delete_for_all = False) -> None:
+    def delete_messages(self, messages: list[Message], delete_for_all=False) -> None:
         """Delete messages (local and remote)."""
         self._rpc.delete_messages(self.id, [msg.id for msg in messages], delete_for_all)
 
