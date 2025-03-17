@@ -21,6 +21,7 @@ def test_autocrypt_setup_message_key_transfer(acfactory):
     alice2.set_config("addr", alice1.get_config("addr"))
     alice2.set_config("mail_pw", alice1.get_config("mail_pw"))
     alice2.configure()
+    alice2.bring_online()
 
     setup_code = alice1.initiate_autocrypt_key_transfer()
     msg = wait_for_autocrypt_setup_message(alice2)
@@ -34,10 +35,12 @@ def test_autocrypt_setup_message_key_transfer(acfactory):
 
 def test_ac_setup_message_twice(acfactory):
     alice1 = acfactory.get_online_account()
+
     alice2 = acfactory.get_unconfigured_account()
     alice2.set_config("addr", alice1.get_config("addr"))
     alice2.set_config("mail_pw", alice1.get_config("mail_pw"))
     alice2.configure()
+    alice2.bring_online()
 
     # Send the first Autocrypt Setup Message and ignore it.
     _setup_code = alice1.initiate_autocrypt_key_transfer()

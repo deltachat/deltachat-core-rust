@@ -46,11 +46,11 @@ pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
     msg.force_plaintext();
     msg.param.set_int(Param::SkipAutocrypt, 1);
 
-    chat::send_msg(context, chat_id, &mut msg).await?;
-
     // Enable BCC-self, because transferring a key
     // means we have a multi-device setup.
     context.set_config_bool(Config::BccSelf, true).await?;
+
+    chat::send_msg(context, chat_id, &mut msg).await?;
     Ok(setup_code)
 }
 

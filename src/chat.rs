@@ -3029,10 +3029,10 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
     // disabled by default is fine.
     //
     // `from` must be the last addr, see `receive_imf_inner()` why.
-    if context.get_config_bool(Config::BccSelf).await?
-        && !recipients
-            .iter()
-            .any(|x| x.to_lowercase() == lowercase_from)
+    recipients.retain(|x| x.to_lowercase() != lowercase_from);
+    if (context.get_config_bool(Config::BccSelf).await?
+        || msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage)
+        && (context.get_config_delete_server_after().await? != Some(0) || !recipients.is_empty())
     {
         recipients.push(from);
     }
