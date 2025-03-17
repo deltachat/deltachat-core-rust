@@ -135,13 +135,6 @@ class Account:
             obj = obj.get_snapshot().address
         return Contact(self, self._rpc.create_contact(self.id, obj, name))
 
-    def get_self_chat(self) -> Chat:
-        """Get the 'Saved Messages' chat"""
-        return Chat(
-            self,
-            self._rpc.create_chat_by_contact_id(self.id, SpecialContactId.SELF),
-        )
-
     def make_vcard(self, contacts: list[Contact]) -> str:
         """Create vCard with the given contacts."""
         assert all(contact.account == self for contact in contacts)
