@@ -22,7 +22,7 @@ use deltachat::ephemeral::Timer;
 use deltachat::location;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::message::{
-    self, delete_msgs, markseen_msgs, Message, MessageState, MsgId, Viewtype,
+    self, delete_msgs_ex, markseen_msgs, Message, MessageState, MsgId, Viewtype,
 };
 use deltachat::peer_channels::{
     leave_webxdc_realtime, send_webxdc_realtime_advertisement, send_webxdc_realtime_data,
@@ -1214,7 +1214,15 @@ impl CommandApi {
     async fn delete_messages(&self, account_id: u32, message_ids: Vec<u32>) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let msgs: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
-        delete_msgs(&ctx, &msgs).await
+        delete_msgs_ex(&ctx, &msgs, false).await
+    }
+
+    /// Delete messages. The messages are deleted on the current device,
+    /// on the IMAP server and also for all chat members
+    async fn delete_messages_for_all(&self, account_id: u32, message_ids: Vec<u32>) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let msgs: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
+        delete_msgs_ex(&ctx, &msgs, true).await
     }
 
     /// Get an informational text for a single message. The text is multiline and may
