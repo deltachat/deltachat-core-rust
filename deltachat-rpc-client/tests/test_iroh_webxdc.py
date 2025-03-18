@@ -175,17 +175,11 @@ def test_no_duplicate_messages(acfactory, path_to_webxdc):
 
     threading.Thread(target=thread_run, daemon=True).start()
 
-    while 1:
-        event = ac2.wait_for_event()
-        if event.kind == EventType.WEBXDC_REALTIME_DATA:
-            n = int(bytes(event.data).decode())
-            break
+    event = ac2.wait_for_event(EventType.WEBXDC_REALTIME_DATA)
+    n = int(bytes(event.data).decode())
 
-    while 1:
-        event = ac2.wait_for_event()
-        if event.kind == EventType.WEBXDC_REALTIME_DATA:
-            assert int(bytes(event.data).decode()) > n
-            break
+    event = ac2.wait_for_event(EventType.WEBXDC_REALTIME_DATA)
+    assert int(bytes(event.data).decode()) > n
 
 
 def test_no_reordering(acfactory, path_to_webxdc):
@@ -229,8 +223,5 @@ def test_advertisement_after_chatting(acfactory, path_to_webxdc):
     ac2_hello_msg_snapshot.chat.accept()
 
     ac2_webxdc_msg.send_webxdc_realtime_advertisement()
-    while 1:
-        event = ac1.wait_for_event()
-        if event.kind == EventType.WEBXDC_REALTIME_ADVERTISEMENT_RECEIVED:
-            assert event.msg_id == ac1_webxdc_msg.id
-            break
+    event = ac1.wait_for_event(EventType.WEBXDC_REALTIME_ADVERTISEMENT_RECEIVED)
+    assert event.msg_id == ac1_webxdc_msg.id

@@ -76,17 +76,11 @@ def test_qr_securejoin(acfactory, protect):
     bob.secure_join(qr_code)
 
     # Alice deletes "vg-request".
-    while True:
-        event = alice.wait_for_event()
-        if event["kind"] == "ImapMessageDeleted":
-            break
+    alice.wait_for_event(EventType.IMAP_MESSAGE_DELETED)
     alice.wait_for_securejoin_inviter_success()
     # Bob deletes "vg-auth-required", Alice deletes "vg-request-with-auth".
     for ac in [alice, bob]:
-        while True:
-            event = ac.wait_for_event()
-            if event["kind"] == "ImapMessageDeleted":
-                break
+        ac.wait_for_event(EventType.IMAP_MESSAGE_DELETED)
     bob.wait_for_securejoin_joiner_success()
 
     # Test that Alice verified Bob's profile.

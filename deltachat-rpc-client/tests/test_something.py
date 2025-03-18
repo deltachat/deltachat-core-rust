@@ -110,12 +110,9 @@ def test_account(acfactory) -> None:
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            chat_id = event.chat_id
-            msg_id = event.msg_id
-            break
+    event = bob.wait_for_incoming_msg_event()
+    chat_id = event.chat_id
+    msg_id = event.msg_id
 
     message = bob.get_message_by_id(msg_id)
     snapshot = message.get_snapshot()
@@ -330,18 +327,11 @@ def test_reaction_seen_on_another_dev(acfactory) -> None:
     snapshot.chat.accept()
     message.send_reaction("😎")
     for a in [alice, alice2]:
-        while True:
-            event = a.wait_for_event()
-            if event.kind == EventType.INCOMING_REACTION:
-                break
+        a.wait_for_event(EventType.INCOMING_REACTION)
 
     alice2.clear_all_events()
     alice_chat_bob.mark_noticed()
-    while True:
-        event = alice2.wait_for_event()
-        if event.kind == EventType.MSGS_NOTICED:
-            chat_id = event.chat_id
-            break
+    chat_id = alice2.wait_for_event(EventType.MSGS_NOTICED).chat_id
     alice2_contact_bob = alice2.get_contact_by_addr(bob_addr)
     alice2_chat_bob = alice2_contact_bob.create_chat()
     assert chat_id == alice2_chat_bob.id
@@ -359,16 +349,12 @@ def test_is_bot(acfactory) -> None:
     alice.set_config("bot", "1")
     alice_chat_bob.send_text("Hello!")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            msg_id = event.msg_id
-            message = bob.get_message_by_id(msg_id)
-            snapshot = message.get_snapshot()
-            assert snapshot.chat_id == event.chat_id
-            assert snapshot.text == "Hello!"
-            assert snapshot.is_bot
-            break
+    event = bob.wait_for_incoming_msg_event()
+    message = bob.get_message_by_id(event.msg_id)
+    snapshot = message.get_snapshot()
+    assert snapshot.chat_id == event.chat_id
+    assert snapshot.text == "Hello!"
+    assert snapshot.is_bot
 
 
 def test_bot(acfactory) -> None:
@@ -529,10 +515,7 @@ def test_mdn_doesnt_break_autocrypt(acfactory) -> None:
 
     # Alice reads Bob's message.
     message.mark_seen()
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.MSG_READ:
-            break
+    bob.wait_for_event(EventType.MSG_READ)
 
     # Bob sends a message to Alice, it should also be encrypted.
     bob_chat_alice.send_text("Hi Alice!")
@@ -702,10 +685,7 @@ def test_markseen_contact_request(acfactory):
     assert message2.get_snapshot().state == MessageState.IN_FRESH
 
     message.mark_seen()
-    while True:
-        event = bob2.wait_for_event()
-        if event.kind == EventType.MSGS_NOTICED:
-            break
+    bob2.wait_for_event(EventType.MSGS_NOTICED)
     assert message2.get_snapshot().state == MessageState.IN_SEEN
 
 
@@ -753,10 +733,7 @@ def test_no_old_msg_is_fresh(acfactory):
     assert ac1.create_chat(ac2).get_fresh_message_count() == 1
     assert len(list(ac1.get_fresh_messages())) == 1
 
-    while True:
-        event = ac1.wait_for_event()
-        if event.kind == EventType.IMAP_INBOX_IDLE:
-            break
+    ac1.wait_for_event(EventType.IMAP_INBOX_IDLE)
 
     logging.info("Send a message from ac1_clone to ac2 and check that ac1 marks the first message as 'noticed'")
     ac1_clone_chat.send_text("Hi back")
