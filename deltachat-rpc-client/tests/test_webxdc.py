@@ -1,6 +1,3 @@
-from deltachat_rpc_client import EventType
-
-
 def test_webxdc(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
@@ -9,12 +6,9 @@ def test_webxdc(acfactory) -> None:
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_message(text="Let's play chess!", file="../test-data/webxdc/chess.xdc")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            bob_chat_alice = bob.get_chat_by_id(event.chat_id)
-            message = bob.get_message_by_id(event.msg_id)
-            break
+    event = bob.wait_for_incoming_msg_event()
+    bob_chat_alice = bob.get_chat_by_id(event.chat_id)
+    message = bob.get_message_by_id(event.msg_id)
 
     webxdc_info = message.get_webxdc_info()
     assert webxdc_info == {

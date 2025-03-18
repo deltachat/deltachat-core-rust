@@ -113,10 +113,7 @@ class Account:
     def bring_online(self):
         """Start I/O and wait until IMAP becomes IDLE."""
         self.start_io()
-        while True:
-            event = self.wait_for_event()
-            if event.kind == EventType.IMAP_INBOX_IDLE:
-                break
+        self.wait_for_event(EventType.IMAP_INBOX_IDLE)
 
     def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.
@@ -335,24 +332,15 @@ class Account:
 
     def wait_for_incoming_msg_event(self):
         """Wait for incoming message event and return it."""
-        while True:
-            event = self.wait_for_event()
-            if event.kind == EventType.INCOMING_MSG:
-                return event
+        return self.wait_for_event(EventType.INCOMING_MSG)
 
     def wait_for_msgs_changed_event(self):
         """Wait for messages changed event and return it."""
-        while True:
-            event = self.wait_for_event()
-            if event.kind == EventType.MSGS_CHANGED:
-                return event
+        return self.wait_for_event(EventType.MSGS_CHANGED)
 
     def wait_for_msgs_noticed_event(self):
         """Wait for messages noticed event and return it."""
-        while True:
-            event = self.wait_for_event()
-            if event.kind == EventType.MSGS_NOTICED:
-                return event
+        return self.wait_for_event(EventType.MSGS_NOTICED)
 
     def wait_for_incoming_msg(self):
         """Wait for incoming message and return it.
@@ -373,10 +361,7 @@ class Account:
                 break
 
     def wait_for_reactions_changed(self):
-        while True:
-            event = self.wait_for_event()
-            if event.kind == EventType.REACTIONS_CHANGED:
-                return event
+        return self.wait_for_event(EventType.REACTIONS_CHANGED)
 
     def get_fresh_messages_in_arrival_order(self) -> list[Message]:
         """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
