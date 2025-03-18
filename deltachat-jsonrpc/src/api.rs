@@ -348,8 +348,8 @@ impl CommandApi {
         Ok(ctx.get_blobdir().to_str().map(|s| s.to_owned()))
     }
 
-    /// Copy file to blobdir.
-    async fn copy_to_blobdir(&self, account_id: u32, path: String) -> Result<PathBuf> {
+    /// Copy file to blob dir.
+    async fn copy_to_blob_dir(&self, account_id: u32, path: String) -> Result<PathBuf> {
         let ctx = self.get_context(account_id).await?;
         let file = Path::new(&path);
         Ok(BlobObject::create_and_deduplicate(&ctx, file, file)?.to_abs_path())
