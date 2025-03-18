@@ -157,9 +157,22 @@ impl Context {
     /// using the server encoded in the QR code.
     /// See [Self::add_transport].
     pub async fn add_transport_from_qr(&self, qr: &str) -> Result<()> {
-        set_account_from_qr(self, qr).await?;
-        self.configure().await?;
+        self.stop_io().await;
 
+        let result = async move {
+            set_account_from_qr(self, qr).await?;
+            self.configure().await?;
+            Ok(())
+        }
+        .await;
+
+        if result.is_err() {
+            if let Ok(true) = self.is_configured().await {
+                self.start_io().await;
+            }
+            return result;
+        }
+        self.start_io().await;
         Ok(())
     }
 
