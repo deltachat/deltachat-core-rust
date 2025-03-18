@@ -1950,10 +1950,10 @@ impl CommandApi {
     async fn get_webxdc_href(
         &self,
         account_id: u32,
-        instance_msg_id: u32,
+        info_msg_id: u32,
     ) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
-        let message = Message::load_from_db(&ctx, MsgId::new(instance_msg_id)).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(info_msg_id)).await?;
         Ok(message.get_webxdc_href())
     }
 
