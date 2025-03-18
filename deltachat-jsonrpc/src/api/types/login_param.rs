@@ -1,5 +1,6 @@
 use anyhow::Result;
 use deltachat::login_param as dc;
+use deltachat::tools::IntoOption;
 use serde::Deserialize;
 use serde::Serialize;
 use yerpc::TypeDef;
@@ -8,7 +9,7 @@ use yerpc::TypeDef;
 #[serde(rename_all = "camelCase")]
 pub struct EnteredServerLoginParam {
     /// Server hostname or IP address.
-    pub server: String,
+    pub server: Option<String>,
 
     /// Server port.
     ///
@@ -21,20 +22,20 @@ pub struct EnteredServerLoginParam {
     /// Username.
     ///
     /// Empty string if not specified.
-    pub user: String,
+    pub user: Option<String>,
 
     /// Password.
-    pub password: String,
+    pub password: Option<String>,
 }
 
 impl From<dc::EnteredServerLoginParam> for EnteredServerLoginParam {
     fn from(param: dc::EnteredServerLoginParam) -> Self {
         Self {
-            server: param.server,
+            server: param.server.into_option(),
             port: param.port,
             security: param.security.into(),
-            user: param.user,
-            password: param.password,
+            user: param.user.into_option(),
+            password: param.password.into_option(),
         }
     }
 }
@@ -42,11 +43,11 @@ impl From<dc::EnteredServerLoginParam> for EnteredServerLoginParam {
 impl From<EnteredServerLoginParam> for dc::EnteredServerLoginParam {
     fn from(param: EnteredServerLoginParam) -> Self {
         Self {
-            server: param.server,
+            server: param.server.unwrap_or_default(),
             port: param.port,
             security: param.security.into(),
-            user: param.user,
-            password: param.password,
+            user: param.user.unwrap_or_default(),
+            password: param.password.unwrap_or_default(),
         }
     }
 }
