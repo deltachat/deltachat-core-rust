@@ -144,7 +144,8 @@ impl Context {
             // We are using Anyhow's .context() and to show the
             // inner error, too, we need the {:#}:
             let error_msg = stock_str::configuration_failed(self, &format!("{err:#}")).await;
-            progress!(self, 0, Some(error_msg));
+            progress!(self, 0, Some(error_msg.clone()));
+            bail!(error_msg);
         } else {
             param.save(self).await?;
             progress!(self, 1000);
