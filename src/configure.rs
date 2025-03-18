@@ -28,13 +28,15 @@ use crate::constants::NON_ALPHANUMERIC_WITHOUT_DOT;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::log::LogExt;
+pub use crate::login_param::EnteredLoginParam;
 use crate::login_param::{
     ConfiguredCertificateChecks, ConfiguredLoginParam, ConfiguredServerLoginParam,
-    ConnectionCandidate, EnteredCertificateChecks, EnteredLoginParam,
+    ConnectionCandidate, EnteredCertificateChecks, ProxyConfig,
 };
 use crate::message::Message;
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
+use crate::qr::set_account_from_qr;
 use crate::smtp::Smtp;
 use crate::sync::Sync::*;
 use crate::tools::time;
@@ -64,8 +66,59 @@ impl Context {
         self.sql.get_raw_config_bool("configured").await
     }
 
-    /// Configures this account with the currently set parameters.
+    /// Configures this account with the currently provided parameters.
+    ///
+    /// Deprecated since 2025-02; use `add_transport_from_qr()`
+    /// or `add_transport()` instead.
     pub async fn configure(&self) -> Result<()> {
+        let param = EnteredLoginParam::load(self).await?;
+
+        self.add_transport_inner(&param).await
+    }
+
+    /// Configures a new email account using the provided parameters
+    /// and adds it as a transport.
+    ///
+    /// If the email address is the same as an existing transport,
+    /// then this existing account will be reconfigured instead of a new one being added.
+    ///
+    /// This function stops and starts IO as needed.
+    ///
+    /// Usually it will be enough to only set `addr` and `imap.password`,
+    /// and all the other settings will be autoconfigured.
+    ///
+    /// During configuration, ConfigureProgress events are emitted;
+    /// they indicate a successful configuration as well as errors
+    /// and may be used to create a progress bar.
+    /// This function will return after configuration is finished.
+    ///
+    /// If configuration is successful,
+    /// the working server parameters will be saved
+    /// and used for connecting to the server.
+    /// The parameters entered by the user will be saved separately
+    /// so that they can be prefilled when the user opens the server-configuration screen again.
+    ///
+    /// See also:
+    /// - [Self::is_configured()] to check whether there is
+    ///   at least one working transport.
+    /// - [Self::add_transport_from_qr()] to add a transport
+    ///   from a server encoded in a QR code.
+    /// - [Self::list_transports()] to get a list of all configured transports.
+    /// - [Self::delete_transport()] to remove a transport.
+    pub async fn add_transport(&self, param: &EnteredLoginParam) -> Result<()> {
+        self.stop_io().await;
+        let result = self.add_transport_inner(param).await;
+        if result.is_err() {
+            if let Ok(true) = self.is_configured().await {
+                self.start_io().await;
+            }
+            return result;
+        }
+        self.start_io().await;
+        Ok(())
+    }
+
+    async fn add_transport_inner(&self, param: &EnteredLoginParam) -> Result<()> {
         ensure!(
             !self.scheduler.is_running().await,
             "cannot configure, already running"
@@ -74,42 +127,63 @@ impl Context {
             self.sql.is_open().await,
             "cannot configure, database not opened."
         );
+        let old_addr = self.get_config(Config::ConfiguredAddr).await?;
+        if self.is_configured().await? && !addr_cmp(&old_addr.unwrap_or_default(), &param.addr) {
+            bail!("Adding a new transport is not supported right now. Check back in a few months!");
+        }
         let cancel_channel = self.alloc_ongoing().await?;
 
         let res = self
-            .inner_configure()
+            .inner_configure(param)
             .race(cancel_channel.recv().map(|_| Err(format_err!("Cancelled"))))
             .await;
 
         self.free_ongoing().await;
 
         if let Err(err) = res.as_ref() {
-            progress!(
-                self,
-                0,
-                Some(
-                    stock_str::configuration_failed(
-                        self,
-                        // We are using Anyhow's .context() and to show the
-                        // inner error, too, we need the {:#}:
-                        &format!("{err:#}"),
-                    )
-                    .await
-                )
-            );
+            // We are using Anyhow's .context() and to show the
+            // inner error, too, we need the {:#}:
+            let error_msg = stock_str::configuration_failed(self, &format!("{err:#}")).await;
+            progress!(self, 0, Some(error_msg));
         } else {
+            param.save(self).await?;
             progress!(self, 1000);
         }
 
         res
     }
 
-    async fn inner_configure(&self) -> Result<()> {
+    /// Adds a new email account as a transport
+    /// using the server encoded in the QR code.
+    /// See [Self::add_transport].
+    pub async fn add_transport_from_qr(&self, qr: &str) -> Result<()> {
+        set_account_from_qr(self, qr).await?;
+        self.configure().await?;
+
+        Ok(())
+    }
+
+    /// Returns the list of all email accounts that are used as a transport in the current profile.
+    /// Use [Self::add_transport()] to add or change a transport
+    /// and [Self::delete_transport()] to delete a transport.
+    pub async fn list_transports(&self) -> Result<Vec<EnteredLoginParam>> {
+        let param = EnteredLoginParam::load(self).await?;
+
+        Ok(vec![param])
+    }
+
+    /// Removes the transport with the specified email address
+    /// (i.e. [EnteredLoginParam::addr]).
+    #[expect(clippy::unused_async)]
+    pub async fn delete_transport(&self, _addr: &str) -> Result<()> {
+        bail!("Adding and removing additional transports is not supported yet. Check back in a few months!")
+    }
+
+    async fn inner_configure(&self, param: &EnteredLoginParam) -> Result<()> {
         info!(self, "Configure ...");
 
-        let param = EnteredLoginParam::load(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
-        let configured_param = configure(self, &param).await?;
+        let configured_param = configure(self, param).await?;
         self.set_config_internal(Config::NotifyAboutWrongPw, Some("1"))
             .await?;
         on_configure_completed(self, configured_param, old_addr).await?;
@@ -185,8 +259,7 @@ async fn get_configured_param(
         param.smtp.password.clone()
     };
 
-    let proxy_config = param.proxy_config.clone();
-    let proxy_enabled = proxy_config.is_some();
+    let proxy_enabled = ctx.get_config_bool(Config::ProxyEnabled).await?;
 
     let mut addr = param.addr.clone();
     if param.oauth2 {
@@ -345,7 +418,7 @@ async fn get_configured_param(
             .collect(),
         smtp_user: param.smtp.user.clone(),
         smtp_password,
-        proxy_config: param.proxy_config.clone(),
+        proxy_config: ProxyConfig::load(ctx).await?,
         provider,
         certificate_checks: match param.certificate_checks {
             EnteredCertificateChecks::Automatic => ConfiguredCertificateChecks::Automatic,

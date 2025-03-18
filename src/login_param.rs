@@ -4,6 +4,7 @@ use std::fmt;
 
 use anyhow::{format_err, Context as _, Result};
 use deltachat_contact_tools::EmailAddress;
+use num_traits::ToPrimitive as _;
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
@@ -11,9 +12,11 @@ use crate::configure::server_params::{expand_param_vector, ServerParams};
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::context::Context;
 use crate::net::load_connection_timestamp;
-use crate::net::proxy::ProxyConfig;
-use crate::provider::{Protocol, Provider, Socket, UsernamePattern};
+pub use crate::net::proxy::ProxyConfig;
+pub use crate::provider::Socket;
+use crate::provider::{Protocol, Provider, UsernamePattern};
 use crate::sql::Sql;
+use crate::tools::ToOption;
 
 /// User-entered setting for certificate checks.
 ///
@@ -44,7 +47,7 @@ pub enum EnteredCertificateChecks {
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
-pub enum ConfiguredCertificateChecks {
+pub(crate) enum ConfiguredCertificateChecks {
     /// Use configuration from the provider database.
     /// If there is no provider database setting for certificate checks,
     /// accept invalid certificates.
@@ -116,15 +119,13 @@ pub struct EnteredLoginParam {
     /// invalid hostnames
     pub certificate_checks: EnteredCertificateChecks,
 
-    /// Proxy configuration.
-    pub proxy_config: Option<ProxyConfig>,
-
+    /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
 
 impl EnteredLoginParam {
     /// Loads entered account settings.
-    pub async fn load(context: &Context) -> Result<Self> {
+    pub(crate) async fn load(context: &Context) -> Result<Self> {
         let addr = context
             .get_config(Config::Addr)
             .await?
@@ -196,8 +197,6 @@ impl EnteredLoginParam {
             .unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
-        let proxy_config = ProxyConfig::load(context).await?;
-
         Ok(EnteredLoginParam {
             addr,
             imap: EnteredServerLoginParam {
@@ -215,9 +214,70 @@ impl EnteredLoginParam {
                 password: send_pw,
             },
             certificate_checks,
-            proxy_config,
             oauth2,
         })
+    }
+
+    /// Saves entered account settings,
+    /// so that they can be prefilled if the user wants to configure the server again.
+    pub(crate) async fn save(&self, context: &Context) -> Result<()> {
+        context.set_config(Config::Addr, Some(&self.addr)).await?;
+
+        context
+            .set_config(Config::MailServer, self.imap.server.to_option())
+            .await?;
+        context
+            .set_config(Config::MailPort, self.imap.port.to_option().as_deref())
+            .await?;
+        context
+            .set_config(
+                Config::MailSecurity,
+                self.imap.security.to_i32().to_option().as_deref(),
+            )
+            .await?;
+        context
+            .set_config(Config::MailUser, self.imap.user.to_option())
+            .await?;
+        context
+            .set_config(Config::MailPw, self.imap.password.to_option())
+            .await?;
+
+        context
+            .set_config(Config::SendServer, self.smtp.server.to_option())
+            .await?;
+        context
+            .set_config(Config::SendPort, self.smtp.port.to_option().as_deref())
+            .await?;
+        context
+            .set_config(
+                Config::SendSecurity,
+                self.smtp.security.to_i32().to_option().as_deref(),
+            )
+            .await?;
+        context
+            .set_config(Config::SendUser, self.smtp.user.to_option())
+            .await?;
+        context
+            .set_config(Config::SendPw, self.smtp.password.to_option())
+            .await?;
+
+        context
+            .set_config(
+                Config::ImapCertificateChecks,
+                self.certificate_checks.to_i32().to_option().as_deref(),
+            )
+            .await?;
+
+        let server_flags = if self.oauth2 {
+            Some(DC_LP_AUTH_OAUTH2.to_string())
+        } else {
+            None
+        };
+        context
+            .set_config(Config::ServerFlags, server_flags.as_deref())
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -319,7 +379,7 @@ impl TryFrom<Socket> for ConnectionSecurity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ConfiguredServerLoginParam {
+pub(crate) struct ConfiguredServerLoginParam {
     pub connection: ConnectionCandidate,
 
     /// Username.
@@ -357,7 +417,7 @@ pub(crate) async fn prioritize_server_login_params(
 /// Login parameters saved to the database
 /// after successful configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConfiguredLoginParam {
+pub(crate) struct ConfiguredLoginParam {
     /// `From:` address that was used at the time of configuration.
     pub addr: String,
 
@@ -390,6 +450,7 @@ pub struct ConfiguredLoginParam {
     /// invalid hostnames
     pub certificate_checks: ConfiguredCertificateChecks,
 
+    /// If true, login via OAUTH2 (not recommended anymore)
     pub oauth2: bool,
 }
 
@@ -428,7 +489,7 @@ impl ConfiguredLoginParam {
     /// Load configured account settings from the database.
     ///
     /// Returns `None` if account is not configured.
-    pub async fn load(context: &Context) -> Result<Option<Self>> {
+    pub(crate) async fn load(context: &Context) -> Result<Option<Self>> {
         if !context.get_config_bool(Config::Configured).await? {
             return Ok(None);
         }
@@ -699,7 +760,7 @@ impl ConfiguredLoginParam {
     }
 
     /// Save this loginparam to the database.
-    pub async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn save_as_configured_params(&self, context: &Context) -> Result<()> {
         context.set_primary_self_addr(&self.addr).await?;
 
         context
@@ -776,7 +837,7 @@ impl ConfiguredLoginParam {
         Ok(())
     }
 
-    pub fn strict_tls(&self) -> bool {
+    pub(crate) fn strict_tls(&self) -> bool {
         let provider_strict_tls = self.provider.map(|provider| provider.opt.strict_tls);
         match self.certificate_checks {
             ConfiguredCertificateChecks::OldAutomatic => {
@@ -835,6 +896,42 @@ mod tests {
         t.set_config(Config::ImapCertificateChecks, Some("999"))
             .await?;
         assert!(EnteredLoginParam::load(t).await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_save_entered_login_param() -> Result<()> {
+        let t = TestContext::new().await;
+        let param = EnteredLoginParam {
+            addr: "alice@example.org".to_string(),
+            imap: EnteredServerLoginParam {
+                server: "".to_string(),
+                port: 0,
+                security: Socket::Starttls,
+                user: "".to_string(),
+                password: "foobar".to_string(),
+            },
+            smtp: EnteredServerLoginParam {
+                server: "".to_string(),
+                port: 2947,
+                security: Socket::default(),
+                user: "".to_string(),
+                password: "".to_string(),
+            },
+            certificate_checks: Default::default(),
+            oauth2: false,
+        };
+        param.save(&t).await?;
+        assert_eq!(
+            t.get_config(Config::Addr).await?.unwrap(),
+            "alice@example.org"
+        );
+        assert_eq!(t.get_config(Config::MailPw).await?.unwrap(), "foobar");
+        assert_eq!(t.get_config(Config::SendPw).await?, None);
+        assert_eq!(t.get_config_int(Config::SendPort).await?, 2947);
+
+        assert_eq!(EnteredLoginParam::load(&t).await?, param);
 
         Ok(())
     }

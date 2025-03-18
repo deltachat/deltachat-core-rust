@@ -154,18 +154,21 @@ impl Socks5Config {
     }
 }
 
+/// Configuration for the proxy through which all traffic
+/// (except for iroh p2p connections)
+/// will be sent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProxyConfig {
-    // HTTP proxy.
+    /// HTTP proxy.
     Http(HttpConfig),
 
-    // HTTPS proxy.
+    /// HTTPS proxy.
     Https(HttpConfig),
 
-    // SOCKS5 proxy.
+    /// SOCKS5 proxy.
     Socks5(Socks5Config),
 
-    // Shadowsocks proxy.
+    /// Shadowsocks proxy.
     Shadowsocks(ShadowsocksConfig),
 }
 
@@ -246,7 +249,7 @@ where
 
 impl ProxyConfig {
     /// Creates a new proxy configuration by parsing given proxy URL.
-    pub(crate) fn from_url(url: &str) -> Result<Self> {
+    pub fn from_url(url: &str) -> Result<Self> {
         let url = Url::parse(url).context("Cannot parse proxy URL")?;
         match url.scheme() {
             "http" => {
@@ -305,7 +308,7 @@ impl ProxyConfig {
     ///
     /// This function can be used to normalize proxy URL
     /// by parsing it and serializing back.
-    pub(crate) fn to_url(&self) -> String {
+    pub fn to_url(&self) -> String {
         match self {
             Self::Http(http_config) => http_config.to_url("http"),
             Self::Https(http_config) => http_config.to_url("https"),
@@ -391,7 +394,7 @@ impl ProxyConfig {
 
     /// If `load_dns_cache` is true, loads cached DNS resolution results.
     /// Use this only if the connection is going to be protected with TLS checks.
-    pub async fn connect(
+    pub(crate) async fn connect(
         &self,
         context: &Context,
         target_host: &str,
