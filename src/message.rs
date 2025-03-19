@@ -33,6 +33,7 @@ use crate::reaction::get_msg_reactions;
 use crate::sql;
 use crate::summary::Summary;
 use crate::sync::SyncData;
+use crate::tools::create_outgoing_rfc724_mid;
 use crate::tools::{
     buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file,
     sanitize_filename, time, timestamp_to_str, truncate,
@@ -485,6 +486,7 @@ impl Message {
     pub fn new(viewtype: Viewtype) -> Self {
         Message {
             viewtype,
+            rfc724_mid: create_outgoing_rfc724_mid(),
             ..Default::default()
         }
     }
@@ -494,6 +496,7 @@ impl Message {
         Message {
             viewtype: Viewtype::Text,
             text,
+            rfc724_mid: create_outgoing_rfc724_mid(),
             ..Default::default()
         }
     }
@@ -2158,9 +2161,11 @@ pub(crate) async fn get_by_rfc724_mids(
     let mut latest = None;
     for id in mids.iter().rev() {
         let Some((msg_id, _)) = rfc724_mid_exists(context, id).await? else {
+            info!(context, "continue msgid");
             continue;
         };
         let Some(msg) = Message::load_from_db_optional(context, msg_id).await? else {
+            info!(context, "continue msg");
             continue;
         };
         if msg.download_state == DownloadState::Done {
