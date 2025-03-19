@@ -638,10 +638,10 @@ pub trait IntoOption<T> {
 }
 impl<T> IntoOption<T> for T
 where
-    T: AsRef<str>,
+    T: Default + std::cmp::PartialEq,
 {
     fn into_option(self) -> Option<T> {
-        if self.as_ref().is_empty() {
+        if self == T::default() {
             None
         } else {
             Some(self)
