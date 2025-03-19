@@ -285,7 +285,7 @@ mod tests {
     use crate::contact::ContactId;
     use crate::message::{MessengerMessage, Viewtype};
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_plain_unspecified() {
@@ -442,7 +442,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_html_forwarding() {
         // alice receives a non-delta html-message
-        let alice = TestContext::new_alice().await;
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
         let chat = alice
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
@@ -472,7 +473,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(html.contains("this is <b>html</b>"));
 
         // bob: check that bob also got the html-part of the forwarded message
-        let bob = TestContext::new_bob().await;
+        let bob = &tcm.bob().await;
         let chat = bob.create_chat_with_contact("", "alice@example.org").await;
         let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(chat.id, msg.chat_id);
@@ -519,10 +520,11 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_html_forwarding_encrypted() {
+        let mut tcm = TestContextManager::new();
         // Alice receives a non-delta html-message
         // (`ShowEmails=AcceptedContacts` lets Alice actually receive non-delta messages for known
         // contacts, the contact is marked as known by creating a chat using `chat_with_contact()`)
-        let alice = TestContext::new_alice().await;
+        let alice = &tcm.alice().await;
         alice
             .set_config(Config::ShowEmails, Some("1"))
             .await
@@ -543,7 +545,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         let msg = alice.pop_sent_msg().await;
 
         // receive the message on another device
-        let alice = TestContext::new_alice().await;
+        let alice = &tcm.alice().await;
         alice
             .set_config(Config::ShowEmails, Some("0"))
             .await
@@ -562,8 +564,9 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_html() {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
 
         // alice sends a message with html-part to bob
         let chat_id = alice.create_chat(&bob).await.id;
