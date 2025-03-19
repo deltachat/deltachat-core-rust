@@ -95,6 +95,29 @@ impl ContactId {
         self.0
     }
 
+    /// Sets display name for existing contact.
+    ///
+    /// Display name may be an empty string,
+    /// in which case the name displayed in the UI
+    /// for this contact will switch to the
+    /// contact's authorized name.
+    pub async fn set_name(self, context: &Context, name: &str) -> Result<()> {
+        context
+            .sql
+            .transaction(|transaction| {
+                let is_changed = transaction.execute(
+                    "UPDATE contacts SET name=?1 WHERE id=?2 AND name!=?1",
+                    (name, self),
+                )? > 0;
+                if is_changed {
+                    update_chat_names(context, transaction, self)?;
+                }
+                Ok(())
+            })
+            .await?;
+        Ok(())
+    }
+
     /// Mark contact as bot.
     pub(crate) async fn mark_bot(&self, context: &Context, is_bot: bool) -> Result<()> {
         context
@@ -909,7 +932,7 @@ impl Contact {
 
                         if update_name || update_authname {
                             let contact_id = ContactId::new(row_id);
-                            update_chat_names(context, &transaction, contact_id)?;
+                            update_chat_names(context, transaction, contact_id)?;
                         }
                         sth_modified = Modifier::Modified;
                     }
