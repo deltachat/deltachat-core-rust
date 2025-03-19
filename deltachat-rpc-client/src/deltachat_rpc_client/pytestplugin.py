@@ -36,8 +36,7 @@ class ACFactory:
     def new_configured_account(self):
         credentials = get_temp_credentials()
         account = self.get_unconfigured_account()
-        imap_params = {"password": credentials["password"]}
-        params = {"addr": credentials["email"], "imap": imap_params}
+        params = {"addr": credentials["email"], "password": credentials["password"]}
         yield account._rpc.add_transport.future(account.id, params)
 
         assert account.is_configured()
