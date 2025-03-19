@@ -843,44 +843,48 @@ impl Contact {
 
         let mut update_addr = false;
 
-        let row_id = context.sql.transaction(|transaction| {
-            let row = transaction.query_row(
-                "SELECT id, name, addr, origin, authname
+        let row_id = context
+            .sql
+            .transaction(|transaction| {
+                let row = transaction
+                    .query_row(
+                        "SELECT id, name, addr, origin, authname
                  FROM contacts WHERE addr=? COLLATE NOCASE",
-                 (addr,),
-                |row| {
-                    let row_id: isize = row.get(0)?;
-                    let row_name: String = row.get(1)?;
-                    let row_addr: String = row.get(2)?;
-                    let row_origin: Origin = row.get(3)?;
-                    let row_authname: String = row.get(4)?;
+                        (addr,),
+                        |row| {
+                            let row_id: u32 = row.get(0)?;
+                            let row_name: String = row.get(1)?;
+                            let row_addr: String = row.get(2)?;
+                            let row_origin: Origin = row.get(3)?;
+                            let row_authname: String = row.get(4)?;
 
-                    Ok((row_id, row_name, row_addr, row_origin, row_authname))
-                }).optional()?;
+                            Ok((row_id, row_name, row_addr, row_origin, row_authname))
+                        },
+                    )
+                    .optional()?;
 
-            let row_id;
-            if let Some((id, row_name, row_addr, row_origin, row_authname)) = row {
-                let update_name = manual && name != row_name;
-                let update_authname = !manual
-                    && name != row_authname
-                    && !name.is_empty()
-                    && (origin >= row_origin
-                        || origin == Origin::IncomingUnknownFrom
-                        || row_authname.is_empty());
+                let row_id;
+                if let Some((id, row_name, row_addr, row_origin, row_authname)) = row {
+                    let update_name = manual && name != row_name;
+                    let update_authname = !manual
+                        && name != row_authname
+                        && !name.is_empty()
+                        && (origin >= row_origin
+                            || origin == Origin::IncomingUnknownFrom
+                            || row_authname.is_empty());
 
-                row_id = u32::try_from(id)?;
-                if origin >= row_origin && addr.as_ref() != row_addr {
-                    update_addr = true;
-                }
-                if update_name || update_authname || update_addr || origin > row_origin {
-                    let new_name = if update_name {
-                        name.to_string()
-                    } else {
-                        row_name
-                    };
+                    row_id = id;
+                    if origin >= row_origin && addr.as_ref() != row_addr {
+                        update_addr = true;
+                    }
+                    if update_name || update_authname || update_addr || origin > row_origin {
+                        let new_name = if update_name {
+                            name.to_string()
+                        } else {
+                            row_name
+                        };
 
-                    transaction
-                        .execute(
+                        transaction.execute(
                             "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
                             (
                                 new_name,
@@ -899,88 +903,38 @@ impl Contact {
                                 } else {
                                     row_authname
                                 },
-                                row_id
+                                row_id,
                             ),
                         )?;
 
-                    if update_name || update_authname {
-                        // Update the contact name also if it is used as a group name.
-                        // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                        let chat_id: Option<ChatId> = transaction.query_row(
-                            "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
-                            (Chattype::Single, isize::try_from(row_id)?),
-                            |row| {
-                                let chat_id: ChatId = row.get(0)?;
-                                Ok(chat_id)
-                            }
-                        ).optional()?;
-
-                        if let Some(chat_id) = chat_id {
+                        if update_name || update_authname {
                             let contact_id = ContactId::new(row_id);
-                            let (addr, name, authname) =
-                                transaction.query_row(
-                                    "SELECT addr, name, authname
-                                     FROM contacts
-                                     WHERE id=?",
-                                     (contact_id,),
-                                |row| {
-                                    let addr: String = row.get(0)?;
-                                    let name: String = row.get(1)?;
-                                    let authname: String = row.get(2)?;
-                                    Ok((addr, name, authname))
-                                })?;
-
-                            let chat_name = if !name.is_empty() {
-                                name
-                            } else if !authname.is_empty() {
-                                authname
-                            } else {
-                                addr
-                            };
-
-                            let count = transaction.execute(
-                                    "UPDATE chats SET name=?1 WHERE id=?2 AND name!=?1",
-                                    (chat_name, chat_id))?;
-
-                            if count > 0 {
-                                // Chat name updated
-                                context.emit_event(EventType::ChatModified(chat_id));
-                                chatlist_events::emit_chatlist_items_changed_for_contact(context, contact_id);
-                            }
+                            update_chat_names(context, &transaction, contact_id)?;
                         }
+                        sth_modified = Modifier::Modified;
                     }
-                    sth_modified = Modifier::Modified;
-                }
-            } else {
-                let update_name = manual;
-                let update_authname = !manual;
+                } else {
+                    let update_name = manual;
+                    let update_authname = !manual;
 
-                transaction
-                    .execute(
+                    transaction.execute(
                         "INSERT INTO contacts (name, addr, origin, authname)
                          VALUES (?, ?, ?, ?);",
-                         (
-                            if update_name {
-                                &name
-                            } else {
-                                ""
-                            },
+                        (
+                            if update_name { &name } else { "" },
                             &addr,
                             origin,
-                            if update_authname {
-                                &name
-                            } else {
-                                ""
-                            }
+                            if update_authname { &name } else { "" },
                         ),
                     )?;
 
-                sth_modified = Modifier::Created;
-                row_id = u32::try_from(transaction.last_insert_rowid())?;
-                info!(context, "Added contact id={row_id} addr={addr}.");
-            }
-            Ok(row_id)
-        }).await?;
+                    sth_modified = Modifier::Created;
+                    row_id = u32::try_from(transaction.last_insert_rowid())?;
+                    info!(context, "Added contact id={row_id} addr={addr}.");
+                }
+                Ok(row_id)
+            })
+            .await?;
 
         let contact_id = ContactId::new(row_id);
 
@@ -1604,6 +1558,60 @@ impl Contact {
             .await?;
         Ok(exists)
     }
+}
+
+// Updates the names of the chats which use the contact name.
+//
+// This is one of the few duplicated data, however, getting the chat list is easier this way.
+fn update_chat_names(
+    context: &Context,
+    transaction: &rusqlite::Connection,
+    contact_id: ContactId,
+) -> Result<()> {
+    let chat_id: Option<ChatId> = transaction.query_row(
+            "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
+            (Chattype::Single, contact_id),
+            |row| {
+                let chat_id: ChatId = row.get(0)?;
+                Ok(chat_id)
+            }
+        ).optional()?;
+
+    if let Some(chat_id) = chat_id {
+        let (addr, name, authname) = transaction.query_row(
+            "SELECT addr, name, authname
+                     FROM contacts
+                     WHERE id=?",
+            (contact_id,),
+            |row| {
+                let addr: String = row.get(0)?;
+                let name: String = row.get(1)?;
+                let authname: String = row.get(2)?;
+                Ok((addr, name, authname))
+            },
+        )?;
+
+        let chat_name = if !name.is_empty() {
+            name
+        } else if !authname.is_empty() {
+            authname
+        } else {
+            addr
+        };
+
+        let count = transaction.execute(
+            "UPDATE chats SET name=?1 WHERE id=?2 AND name!=?1",
+            (chat_name, chat_id),
+        )?;
+
+        if count > 0 {
+            // Chat name updated
+            context.emit_event(EventType::ChatModified(chat_id));
+            chatlist_events::emit_chatlist_items_changed_for_contact(context, contact_id);
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) async fn set_blocked(
