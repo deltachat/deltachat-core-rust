@@ -348,10 +348,11 @@ impl Imap {
                 connection_candidate,
             )
             .await
+            .context("IMAP failed to connect")
             {
                 Ok(client) => client,
                 Err(err) => {
-                    warn!(context, "IMAP failed to connect: {err:#}.");
+                    warn!(context, "{err:#}");
                     first_error.get_or_insert(err);
                     continue;
                 }

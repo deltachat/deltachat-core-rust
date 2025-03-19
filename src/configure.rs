@@ -485,7 +485,10 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
     let configuring = true;
     let mut imap_session = match imap.connect(ctx, configuring).await {
         Ok(session) => session,
-        Err(err) => bail!("{}", nicer_configuration_error(ctx, err.to_string()).await),
+        Err(err) => bail!(
+            "{}",
+            nicer_configuration_error(ctx, format!("{err:#}")).await
+        ),
     };
 
     progress!(ctx, 850);
