@@ -847,7 +847,7 @@ impl Contact {
             let row = transaction.query_row(
                 "SELECT id, name, addr, origin, authname
                  FROM contacts WHERE addr=? COLLATE NOCASE",
-                 [addr.to_string()],
+                 (addr,),
                 |row| {
                     let row_id: isize = row.get(0)?;
                     let row_name: String = row.get(1)?;
@@ -961,16 +961,16 @@ impl Contact {
                          VALUES (?, ?, ?, ?);",
                          (
                             if update_name {
-                                name.to_string()
+                                &name
                             } else {
-                                "".to_string()
+                                ""
                             },
                             &addr,
                             origin,
                             if update_authname {
-                                name.to_string()
+                                &name
                             } else {
-                                "".to_string()
+                                ""
                             }
                         ),
                     )?;
