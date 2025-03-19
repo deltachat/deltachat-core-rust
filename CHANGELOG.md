@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.157.3] - 2025-03-19
+
+### API-Changes
+
+- jsonrpc: Add `copy_to_blob_dir` api ([#6660](https://github.com/chatmail/core/pull/6660)).
+- Add "delete_for_all" function in json-rpc ([#6672](https://github.com/chatmail/core/pull/6672)).
+- Sketch add_transport_from_qr(), add_transport(), list_transports(), delete_transport() APIs ([#6589](https://github.com/chatmail/core/pull/6589)).
+
+### Build system
+
+- Remove websocket support from deltachat-jsonrpc.
+- Remove encoded-words dependency.
+
+### Fixes
+
+- Never send empty `To:` header ([#6663](https://github.com/chatmail/core/pull/6663)).
+- Use protected `Date` header for signed messages.
+- Fix setting up a profile and immediately transferring to a second device ([#6657](https://github.com/chatmail/core/pull/6657)).
+- Don't SMTP-send self-only messages if DeleteServerAfter is "immediate" ([#6661](https://github.com/chatmail/core/pull/6661)).
+- Use protected `Date` with protected Autocrypt.
+
+### Miscellaneous Tasks
+
+- cargo: Bump uuid from 1.12.1 to 1.15.1.
+- Update `strum` dependency.
+
+### Refactor
+
+- deltachat-rpc-client: Use wait_for_event() type argument.
+
+### Tests
+
+- Avoid creating contacts in `test_sync_{accept,block}_before_first_msg()`.
+- Fix `test_no_old_msg_is_fresh` flakiness.
+
 ## [1.157.2] - 2025-03-15
 
 ### Fixes
@@ -6015,3 +6050,4 @@ https://github.com/chatmail/core/pulls?q=is%3Apr+is%3Aclosed
 [1.157.0]: https://github.com/chatmail/core/compare/v1.156.3..v1.157.0
 [1.157.1]: https://github.com/chatmail/core/compare/v1.157.0..v1.157.1
 [1.157.2]: https://github.com/chatmail/core/compare/v1.157.1..v1.157.2
+[1.157.3]: https://github.com/chatmail/core/compare/v1.157.2..v1.157.3
