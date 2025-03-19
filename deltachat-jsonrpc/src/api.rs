@@ -1537,6 +1537,7 @@ impl CommandApi {
         Ok(())
     }
 
+    /// Sets display name for existing contact.
     async fn change_contact_name(
         &self,
         account_id: u32,
@@ -1545,9 +1546,7 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
-        let contact = Contact::get_by_id(&ctx, contact_id).await?;
-        let addr = contact.get_addr();
-        Contact::create(&ctx, &name, addr).await?;
+        contact_id.set_name(&ctx, &name).await?;
         Ok(())
     }
 
