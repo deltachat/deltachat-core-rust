@@ -32,19 +32,14 @@ class ACFactory:
     def get_unconfigured_bot(self) -> Bot:
         return Bot(self.get_unconfigured_account())
 
-    def new_preconfigured_account(self) -> Account:
-        """Make a new account with configuration options set, but configuration not started."""
-        credentials = get_temp_credentials()
-        account = self.get_unconfigured_account()
-        account.set_config("addr", credentials["email"])
-        account.set_config("mail_pw", credentials["password"])
-        assert not account.is_configured()
-        return account
-
     @futuremethod
     def new_configured_account(self):
-        account = self.new_preconfigured_account()
-        yield account.configure.future()
+        credentials = get_temp_credentials()
+        account = self.get_unconfigured_account()
+        imap_params = {"password": credentials["password"]}
+        params = {"addr": credentials["email"], "imap": imap_params}
+        yield account._rpc.add_transport.future(account.id, params)
+
         assert account.is_configured()
         return account
 
