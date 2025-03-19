@@ -64,6 +64,8 @@ pub struct EnteredLoginParam {
     pub imap: EnteredServerLoginParam,
 
     /// SMTP settings.
+    ///
+    /// If the password is not set, the IMAP password will be used.
     pub smtp: EnteredServerLoginParam,
 
     /// TLS options: whether to allow invalid certificates and/or
