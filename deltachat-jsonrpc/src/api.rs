@@ -1947,11 +1947,7 @@ impl CommandApi {
 
     /// Get href from a WebxdcInfoMessage which might include a hash holding
     /// information about a specific position or state in a webxdc app (optional)
-    async fn get_webxdc_href(
-        &self,
-        account_id: u32,
-        info_msg_id: u32,
-    ) -> Result<Option<String>> {
+    async fn get_webxdc_href(&self, account_id: u32, info_msg_id: u32) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         let message = Message::load_from_db(&ctx, MsgId::new(info_msg_id)).await?;
         Ok(message.get_webxdc_href())
