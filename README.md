@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Delta Chat Logo" height="200px" src="https://raw.githubusercontent.com/deltachat/deltachat-pages/master/assets/blog/rust-delta.png">
+<img alt="Chatmail logo" src="https://delta.chat/assets/logos/chatmail.svg" width="300" style="float:middle;" />
 </p>
 
 <p align="center">
@@ -12,7 +12,22 @@
 </p>
 
 <p align="center">
-The core library for Delta Chat, written in Rust
+The chatmail core library implements low level network and encryption protocols, 
+integrated by many chat bots and higher level applications, 
+allowing to securely participate in the globally scaled e-mail server network. 
+We provide a reproducibly-built `deltachat-rpc-server` static binary 
+that offers a STDIN/STDOUT-based high level JsonRPC API for instant messaging purposes. 
+The following protocols are implemented without requiring API users to know about them: 
+
+- secure TLS setup with DNS caching and other resiliency features
+
+- robust SMTP and IMAP connection handling for multiple chat profiles 
+
+- safe and interoperable MIME and OpenPGP parsing and production 
+
+- solid [Peer-to-Peer Iroh networking](https://iroh.computer) for multi-device setup and
+  [webxdc realtime data as implemented in Delta Chat](https://delta.chat/en/2024-11-20-webxdc-realtime). 
+
 </p>
 
 ## Installing Rust and Cargo
