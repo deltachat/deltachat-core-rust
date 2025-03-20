@@ -11,16 +11,13 @@
   </a>
 </p>
 
-<p align="center">
 The chatmail core library implements low level network and encryption protocols, 
 integrated by many chat bots and higher level applications, 
 allowing to securely participate in the globally scaled e-mail server network. 
+We provide reproducibly-built `deltachat-rpc-server` static binaries
+that offer a stdio-based high level JSON-RPC API for instant messaging purposes. 
 
-</p>
-<p align="left">
-We provide a reproducibly-built `deltachat-rpc-server` static binary 
-that offers a stdio-based high level JSON-RPC API for instant messaging purposes. 
-The following protocols are handled without requiring API users to know about them: 
+The following protocols are handled without requiring API users to know much about them: 
 
 - secure TLS setup with DNS caching and shadowsocks/proxy support 
 
@@ -37,9 +34,8 @@ The following protocols are handled without requiring API users to know about th
   [webxdc realtime data](https://delta.chat/en/2024-11-20-webxdc-realtime). 
 
 - a simulation- and real-world tested [P2P group membership
-  protocol without any server state](https://github.com/chatmail/models/tree/main/group-membership). 
+  protocol without requiring server state](https://github.com/chatmail/models/tree/main/group-membership). 
 
-</p>
 
 ## Installing Rust and Cargo
 
