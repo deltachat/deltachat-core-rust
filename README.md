@@ -21,12 +21,15 @@ The following protocols are implemented without requiring API users to know abou
 
 - secure TLS setup with DNS caching and other resiliency features
 
-- robust SMTP and IMAP connection handling for multiple chat profiles 
+- robust SMTP and IMAP handling for multiple chat profiles 
 
 - safe and interoperable MIME and OpenPGP parsing and production 
 
-- solid [Peer-to-Peer Iroh networking](https://iroh.computer) for multi-device setup and
-  [webxdc realtime data as implemented in Delta Chat](https://delta.chat/en/2024-11-20-webxdc-realtime). 
+- ephemeral [Peer-to-Peer networking using Iroh](https://iroh.computer) for multi-device setup and
+  [webxdc realtime data](https://delta.chat/en/2024-11-20-webxdc-realtime). 
+
+- a simulation- and real-world tested [P2P group membership
+  protocol without any server state](https://github.com/chatmail/models/tree/main/group-membership). 
 
 </p>
 
