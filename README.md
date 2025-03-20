@@ -22,11 +22,13 @@ We provide a reproducibly-built `deltachat-rpc-server` static binary
 that offers a stdio-based high level JSON-RPC API for instant messaging purposes. 
 The following protocols are handled without requiring API users to know about them: 
 
-- secure TLS setup with DNS caching and other resiliency features
+- secure TLS setup with DNS caching and shadowsocks/proxy support 
 
-- robust SMTP and IMAP handling for multiple chat profiles 
+- robust [SMTP](https://github.com/chatmail/async-imap) 
+  and [IMAP](https://github.com/chatmail/async-smtp) handling
 
-- safe and interoperable MIME parsing and production 
+- safe and interoperable [MIME parsing](https://github.com/staktrace/mailparse) 
+  and [MIME building](https://github.com/stalwartlabs/mail-builder). 
 
 - security-audited end-to-end encryption with [rPGP](https://github.com/rpgp/rpgp)
   and [Autocrypt and SecureJoin protocols](https://securejoin.rtfd.io)
