@@ -17,13 +17,16 @@ integrated by many chat bots and higher level applications,
 allowing to securely participate in the globally scaled e-mail server network. 
 We provide a reproducibly-built `deltachat-rpc-server` static binary 
 that offers a stdio-based high level JsonRPC API for instant messaging purposes. 
-The following protocols are implemented without requiring API users to know about them: 
+The following protocols are handled without requiring API users to know about them: 
 
 - secure TLS setup with DNS caching and other resiliency features
 
 - robust SMTP and IMAP handling for multiple chat profiles 
 
-- safe and interoperable MIME and OpenPGP parsing and production 
+- safe and interoperable MIME parsing and production 
+
+- security-audited end-to-end encryption with [rPGP](https://github.com/rpgp/rpgp)
+  and [Autocrypt and SecureJoin protocols](https://securejoin.rtfd.io)
 
 - ephemeral [Peer-to-Peer networking using Iroh](https://iroh.computer) for multi-device setup and
   [webxdc realtime data](https://delta.chat/en/2024-11-20-webxdc-realtime). 
