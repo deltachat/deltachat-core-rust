@@ -68,9 +68,8 @@ def test_configure_starttls(acfactory) -> None:
         {
             "addr": addr,
             "password": password,
-            # Use STARTTLS
-            "imapSecurity": "2",
-            "smptSecurity": "2",
+            "imapSecurity": "starttls",
+            "smptSecurity": "starttls",
         },
     )
     assert account.is_configured()
@@ -102,8 +101,8 @@ def test_configure_alternative_port(acfactory) -> None:
         {
             "addr": addr,
             "password": password,
-            "imapPort": "443",
-            "smptPort": "443",
+            "imapPort": 443,
+            "smptPort": 443,
         },
     )
     assert account.is_configured()
