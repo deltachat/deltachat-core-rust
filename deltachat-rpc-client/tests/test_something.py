@@ -634,8 +634,8 @@ def test_reactions_for_a_reordering_move(acfactory, direct_imap):
 
     addr, password = acfactory.get_credentials()
     ac2 = acfactory.get_unconfigured_account()
-    ac2.set_config("mvbox_move", "1")
     ac2._rpc.add_transport(ac2.id, {"addr": addr, "password": password})
+    ac2.set_config("mvbox_move", "1")
     assert ac2.is_configured()
 
     ac2.bring_online()
