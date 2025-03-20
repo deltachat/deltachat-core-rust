@@ -69,8 +69,8 @@ def test_configure_starttls(acfactory) -> None:
             "addr": addr,
             "password": password,
             # Use STARTTLS
-            "imap_security": "2",
-            "smpt_security": "2",
+            "imapSecurity": "2",
+            "smptSecurity": "2",
         },
     )
     assert account.is_configured()
@@ -88,7 +88,7 @@ def test_configure_ip(acfactory) -> None:
                 "addr": addr,
                 "password": password,
                 # This should fail TLS check.
-                "imap_server": ip_address,
+                "imapServer": ip_address,
             },
         )
 
@@ -102,8 +102,8 @@ def test_configure_alternative_port(acfactory) -> None:
         {
             "addr": addr,
             "password": password,
-            "imap_port": "443",
-            "smpt_port": "443",
+            "imapPort": "443",
+            "smptPort": "443",
         },
     )
     assert account.is_configured()
@@ -117,15 +117,15 @@ def test_list_transports(acfactory) -> None:
         {
             "addr": addr,
             "password": password,
-            "imap_user": addr,
+            "imapUser": addr,
         },
     )
     transports = account._rpc.list_transports(account.id)
     assert len(transports) == 1
     params = transports[0]
-    assert params["imap_user"] == addr
     assert params["addr"] == addr
     assert params["password"] == password
+    assert params["imapUser"] == addr
 
 
 def test_account(acfactory) -> None:
