@@ -32,7 +32,7 @@ class ACFactory:
     def get_unconfigured_bot(self) -> Bot:
         return Bot(self.get_unconfigured_account())
 
-    def get_credentials() -> (str, str):
+    def get_credentials(self) -> (str, str):
         credentials = get_temp_credentials()
         return credentials["email"], credentials["password"]
 
