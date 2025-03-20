@@ -1,6 +1,5 @@
 use anyhow::Result;
 use deltachat::login_param as dc;
-use deltachat::tools::IntoOption;
 use serde::Deserialize;
 use serde::Serialize;
 use yerpc::TypeDef;
@@ -181,6 +180,22 @@ impl From<EnteredCertificateChecks> for dc::EnteredCertificateChecks {
             EnteredCertificateChecks::Automatic => Self::Automatic,
             EnteredCertificateChecks::Strict => Self::Strict,
             EnteredCertificateChecks::AcceptInvalidCertificates => Self::AcceptInvalidCertificates,
+        }
+    }
+}
+
+trait IntoOption<T> {
+    fn into_option(self) -> Option<T>;
+}
+impl<T> IntoOption<T> for T
+where
+    T: Default + std::cmp::PartialEq,
+{
+    fn into_option(self) -> Option<T> {
+        if self == T::default() {
+            None
+        } else {
+            Some(self)
         }
     }
 }

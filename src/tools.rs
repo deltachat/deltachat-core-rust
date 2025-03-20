@@ -633,22 +633,6 @@ impl ToOption<String> for Option<i32> {
     }
 }
 
-pub trait IntoOption<T> {
-    fn into_option(self) -> Option<T>;
-}
-impl<T> IntoOption<T> for T
-where
-    T: Default + std::cmp::PartialEq,
-{
-    fn into_option(self) -> Option<T> {
-        if self == T::default() {
-            None
-        } else {
-            Some(self)
-        }
-    }
-}
-
 pub fn remove_subject_prefix(last_subject: &str) -> String {
     let subject_start = if last_subject.starts_with("Chat:") {
         0
