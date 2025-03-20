@@ -32,11 +32,15 @@ class ACFactory:
     def get_unconfigured_bot(self) -> Bot:
         return Bot(self.get_unconfigured_account())
 
+    def get_credentials() -> (str, str):
+        credentials = get_temp_credentials()
+        return credentials["email"], credentials["password"]
+
     @futuremethod
     def new_configured_account(self):
-        credentials = get_temp_credentials()
+        addr, password = self.get_credentials()
         account = self.get_unconfigured_account()
-        params = {"addr": credentials["email"], "password": credentials["password"]}
+        params = {"addr": addr, "password": password}
         yield account._rpc.add_transport.future(account.id, params)
 
         assert account.is_configured()
