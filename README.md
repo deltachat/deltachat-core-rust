@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Delta Chat Logo" height="200px" src="https://raw.githubusercontent.com/deltachat/deltachat-pages/master/assets/blog/rust-delta.png">
+<img alt="Chatmail logo" src="https://delta.chat/assets/logos/chatmail.svg" width="300" style="float:middle;" />
 </p>
 
 <p align="center">
@@ -11,9 +11,31 @@
   </a>
 </p>
 
-<p align="center">
-The core library for Delta Chat, written in Rust
-</p>
+The chatmail core library implements low-level network and encryption protocols, 
+integrated by many chat bots and higher level applications, 
+allowing to securely participate in the globally scaled e-mail server network. 
+We provide reproducibly-built `deltachat-rpc-server` static binaries
+that offer a stdio-based high-level JSON-RPC API for instant messaging purposes. 
+
+The following protocols are handled without requiring API users to know much about them: 
+
+- secure TLS setup with DNS caching and shadowsocks/proxy support 
+
+- robust [SMTP](https://github.com/chatmail/async-imap) 
+  and [IMAP](https://github.com/chatmail/async-smtp) handling
+
+- safe and interoperable [MIME parsing](https://github.com/staktrace/mailparse) 
+  and [MIME building](https://github.com/stalwartlabs/mail-builder). 
+
+- security-audited end-to-end encryption with [rPGP](https://github.com/rpgp/rpgp)
+  and [Autocrypt and SecureJoin protocols](https://securejoin.rtfd.io)
+
+- ephemeral [Peer-to-Peer networking using Iroh](https://iroh.computer) for multi-device setup and
+  [webxdc realtime data](https://delta.chat/en/2024-11-20-webxdc-realtime). 
+
+- a simulation- and real-world tested [P2P group membership
+  protocol without requiring server state](https://github.com/chatmail/models/tree/main/group-membership). 
+
 
 ## Installing Rust and Cargo
 
