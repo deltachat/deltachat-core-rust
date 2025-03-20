@@ -12,14 +12,6 @@ from ._utils import futuremethod
 from .rpc import Rpc
 
 
-def get_temp_credentials() -> dict:
-    domain = os.getenv("CHATMAIL_DOMAIN")
-    username = "ci-" + "".join(random.choice("2345789acdefghjkmnpqrstuvwxyz") for i in range(6))
-    password = f"{username}${username}"
-    addr = f"{username}@{domain}"
-    return {"email": addr, "password": password}
-
-
 class ACFactory:
     def __init__(self, deltachat: DeltaChat) -> None:
         self.deltachat = deltachat
@@ -33,8 +25,9 @@ class ACFactory:
         return Bot(self.get_unconfigured_account())
 
     def get_credentials(self) -> (str, str):
-        credentials = get_temp_credentials()
-        return credentials["email"], credentials["password"]
+        domain = os.getenv("CHATMAIL_DOMAIN")
+        username = "ci-" + "".join(random.choice("2345789acdefghjkmnpqrstuvwxyz") for i in range(6))
+        return f"{username}@{domain}", f"{username}${username}"
 
     @futuremethod
     def new_configured_account(self):
@@ -47,9 +40,9 @@ class ACFactory:
         return account
 
     def new_configured_bot(self) -> Bot:
-        credentials = get_temp_credentials()
+        addr, password = self.get_credentials()
         bot = self.get_unconfigured_bot()
-        bot.configure(credentials["email"], credentials["password"])
+        bot.configure(addr, password)
         return bot
 
     @futuremethod
