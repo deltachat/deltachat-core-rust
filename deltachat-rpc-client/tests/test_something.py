@@ -444,8 +444,8 @@ def test_wait_next_messages(acfactory) -> None:
     addr, password = acfactory.get_credentials()
     bot = acfactory.get_unconfigured_account()
     bot.set_config("bot", "1")
-    bot._rpc.add_transport(account.id, {"addr": addr, "password": password})
-    assert account.is_configured()
+    bot._rpc.add_transport(bot.id, {"addr": addr, "password": password})
+    assert bot.is_configured()
 
     # There are no old messages and the call returns immediately.
     assert not bot.wait_next_messages()
@@ -636,8 +636,8 @@ def test_reactions_for_a_reordering_move(acfactory, direct_imap):
     addr, password = acfactory.get_credentials()
     ac2 = acfactory.get_unconfigured_account()
     ac2.set_config("mvbox_move", "1")
-    ac2._rpc.add_transport(account.id, {"addr": addr, "password": password})
-    assert account.is_configured()
+    ac2._rpc.add_transport(ac2.id, {"addr": addr, "password": password})
+    assert ac2.is_configured()
 
     ac2.bring_online()
     chat1 = acfactory.get_accepted_chat(ac1, ac2)
