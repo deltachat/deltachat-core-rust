@@ -405,8 +405,11 @@ pub(crate) async fn receive_imf_inner(
         received_msg = None;
     }
 
-    let verified_encryption =
-        has_verified_encryption(context, &mime_parser, from_id, &to_ids).await?;
+    let verified_encryption = has_verified_encryption(&mime_parser, from_id)?;
+
+    if verified_encryption == VerifiedEncryption::Verified {
+        mark_recipients_as_verified(context, from_id, &to_ids, &mime_parser).await?;
+    }
 
     if verified_encryption == VerifiedEncryption::Verified
         && mime_parser.get_header(HeaderDef::ChatVerified).is_some()
@@ -3059,22 +3062,11 @@ async fn update_verified_keys(
 /// Checks whether the message is allowed to appear in a protected chat.
 ///
 /// This means that it is encrypted and signed with a verified key.
-///
-/// Also propagates gossiped keys to verified if needed.
-async fn has_verified_encryption(
-    context: &Context,
+fn has_verified_encryption(
     mimeparser: &MimeMessage,
     from_id: ContactId,
-    to_ids: &[ContactId],
 ) -> Result<VerifiedEncryption> {
     use VerifiedEncryption::*;
-
-    // We do not need to check if we are verified with ourself.
-    let to_ids = to_ids
-        .iter()
-        .copied()
-        .filter(|id| *id != ContactId::SELF)
-        .collect::<Vec<ContactId>>();
 
     if !mimeparser.was_encrypted() {
         return Ok(NotVerified("This message is not encrypted".to_string()));
@@ -3104,21 +3096,24 @@ async fn has_verified_encryption(
         }
     }
 
-    mark_recipients_as_verified(context, from_id, to_ids, mimeparser).await?;
     Ok(Verified)
 }
 
 async fn mark_recipients_as_verified(
     context: &Context,
     from_id: ContactId,
-    to_ids: Vec<ContactId>,
+    to_ids: &[ContactId],
     mimeparser: &MimeMessage,
 ) -> Result<()> {
     if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
         return Ok(());
     }
     let contact = Contact::get_by_id(context, from_id).await?;
-    for id in to_ids {
+    for &id in to_ids {
+        if id == ContactId::SELF {
+            continue;
+        }
+
         let Some((to_addr, is_verified)) = context
             .sql
             .query_row_optional(
