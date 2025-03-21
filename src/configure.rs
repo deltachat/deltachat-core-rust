@@ -520,7 +520,7 @@ async fn configure(ctx: &Context, param: &EnteredLoginParam) -> Result<Configure
         ctx.set_config(Config::ShowEmails, None).await?;
     }
 
-    let create_mvbox = !is_chatmail;
+    let create_mvbox = !is_chatmail || ctx.get_config_bool(Config::MvboxMove).await?;
     imap.configure_folders(ctx, &mut imap_session, create_mvbox)
         .await?;
 

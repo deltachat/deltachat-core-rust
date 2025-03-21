@@ -588,8 +588,8 @@ def test_reactions_for_a_reordering_move(acfactory, direct_imap):
     """
     (ac1,) = acfactory.get_online_accounts(1)
     ac2 = acfactory.new_preconfigured_account()
-    ac2.configure()
     ac2.set_config("mvbox_move", "1")
+    ac2.configure()
     ac2.bring_online()
     chat1 = acfactory.get_accepted_chat(ac1, ac2)
     ac2.stop_io()
