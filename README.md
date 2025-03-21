@@ -1,5 +1,5 @@
 <p align="center">
-<img alt="Chatmail logo" src="https://delta.chat/assets/logos/chatmail.svg" width="300" style="float:middle;" />
+<img alt="Chatmail logo" src="https://github.com/user-attachments/assets/25742da7-a837-48cd-a503-b303af55f10d" width="300" style="float:middle;" />
 </p>
 
 <p align="center">
