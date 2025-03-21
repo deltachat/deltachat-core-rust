@@ -334,12 +334,6 @@ pub(crate) async fn handle_securejoin_handshake(
 
             inviter_progress(context, contact_id, 300);
 
-            // for setup-contact, make Alice's one-to-one chat with Bob visible
-            // (secure-join-information are shown in the group chat)
-            if !join_vg {
-                ChatId::create_for_contact(context, contact_id).await?;
-            }
-
             // Alice -> Bob
             send_alice_handshake_msg(
                 context,
@@ -435,6 +429,11 @@ pub(crate) async fn handle_securejoin_handshake(
             }
             contact_id.regossip_keys(context).await?;
             ContactId::scaleup_origin(context, &[contact_id], Origin::SecurejoinInvited).await?;
+            // for setup-contact, make Alice's one-to-one chat with Bob visible
+            // (secure-join-information are shown in the group chat)
+            if !join_vg {
+                ChatId::create_for_contact(context, contact_id).await?;
+            }
             info!(context, "Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             inviter_progress(context, contact_id, 600);
