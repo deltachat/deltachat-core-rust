@@ -457,7 +457,7 @@ impl CommandApi {
     ///
     /// This function stops and starts IO as needed.
     ///
-    /// Usually it will be enough to only set `addr` and `imap.password`,
+    /// Usually it will be enough to only set `addr` and `password`,
     /// and all the other settings will be autoconfigured.
     ///
     /// During configuration, ConfigureProgress events are emitted;

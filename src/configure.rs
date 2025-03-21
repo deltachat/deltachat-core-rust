@@ -144,7 +144,8 @@ impl Context {
             // We are using Anyhow's .context() and to show the
             // inner error, too, we need the {:#}:
             let error_msg = stock_str::configuration_failed(self, &format!("{err:#}")).await;
-            progress!(self, 0, Some(error_msg));
+            progress!(self, 0, Some(error_msg.clone()));
+            bail!(error_msg);
         } else {
             param.save(self).await?;
             progress!(self, 1000);
@@ -157,9 +158,22 @@ impl Context {
     /// using the server encoded in the QR code.
     /// See [Self::add_transport].
     pub async fn add_transport_from_qr(&self, qr: &str) -> Result<()> {
-        set_account_from_qr(self, qr).await?;
-        self.configure().await?;
+        self.stop_io().await;
 
+        let result = async move {
+            set_account_from_qr(self, qr).await?;
+            self.configure().await?;
+            Ok(())
+        }
+        .await;
+
+        if result.is_err() {
+            if let Ok(true) = self.is_configured().await {
+                self.start_io().await;
+            }
+            return result;
+        }
+        self.start_io().await;
         Ok(())
     }
 

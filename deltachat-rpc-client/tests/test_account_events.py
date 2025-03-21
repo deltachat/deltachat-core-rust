@@ -13,10 +13,11 @@ def test_event_on_configuration(acfactory: ACFactory) -> None:
     Test if ACCOUNTS_ITEM_CHANGED event is emitted on configure
     """
 
-    account = acfactory.new_preconfigured_account()
+    addr, password = acfactory.get_credentials()
+    account = acfactory.get_unconfigured_account()
     account.clear_all_events()
     assert not account.is_configured()
-    future = account.configure.future()
+    future = account._rpc.add_transport.future(account.id, {"addr": addr, "password": password})
     while True:
         event = account.wait_for_event()
         if event.kind == EventType.ACCOUNTS_ITEM_CHANGED:

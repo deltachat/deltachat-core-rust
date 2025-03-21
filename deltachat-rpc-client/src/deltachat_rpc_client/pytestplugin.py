@@ -12,14 +12,6 @@ from ._utils import futuremethod
 from .rpc import Rpc
 
 
-def get_temp_credentials() -> dict:
-    domain = os.getenv("CHATMAIL_DOMAIN")
-    username = "ci-" + "".join(random.choice("2345789acdefghjkmnpqrstuvwxyz") for i in range(6))
-    password = f"{username}${username}"
-    addr = f"{username}@{domain}"
-    return {"email": addr, "password": password}
-
-
 class ACFactory:
     def __init__(self, deltachat: DeltaChat) -> None:
         self.deltachat = deltachat
@@ -32,26 +24,25 @@ class ACFactory:
     def get_unconfigured_bot(self) -> Bot:
         return Bot(self.get_unconfigured_account())
 
-    def new_preconfigured_account(self) -> Account:
-        """Make a new account with configuration options set, but configuration not started."""
-        credentials = get_temp_credentials()
-        account = self.get_unconfigured_account()
-        account.set_config("addr", credentials["email"])
-        account.set_config("mail_pw", credentials["password"])
-        assert not account.is_configured()
-        return account
+    def get_credentials(self) -> (str, str):
+        domain = os.getenv("CHATMAIL_DOMAIN")
+        username = "ci-" + "".join(random.choice("2345789acdefghjkmnpqrstuvwxyz") for i in range(6))
+        return f"{username}@{domain}", f"{username}${username}"
 
     @futuremethod
     def new_configured_account(self):
-        account = self.new_preconfigured_account()
-        yield account.configure.future()
+        addr, password = self.get_credentials()
+        account = self.get_unconfigured_account()
+        params = {"addr": addr, "password": password}
+        yield account._rpc.add_transport.future(account.id, params)
+
         assert account.is_configured()
         return account
 
     def new_configured_bot(self) -> Bot:
-        credentials = get_temp_credentials()
+        addr, password = self.get_credentials()
         bot = self.get_unconfigured_bot()
-        bot.configure(credentials["email"], credentials["password"])
+        bot.configure(addr, password)
         return bot
 
     @futuremethod

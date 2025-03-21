@@ -462,8 +462,7 @@ def test_aeap_flow_verified(acfactory):
     """Test that a new address is added to a contact when it changes its address."""
     ac1, ac2 = acfactory.get_online_accounts(2)
 
-    # ac1new is only used to get a new address.
-    ac1new = acfactory.new_preconfigured_account()
+    addr, password = acfactory.get_credentials()
 
     logging.info("ac1: create verified-group QR, ac2 scans and joins")
     chat = ac1.create_group("hello", protect=True)
@@ -483,8 +482,8 @@ def test_aeap_flow_verified(acfactory):
     assert msg_in_1.text == msg_out.text
 
     logging.info("changing email account")
-    ac1.set_config("addr", ac1new.get_config("addr"))
-    ac1.set_config("mail_pw", ac1new.get_config("mail_pw"))
+    ac1.set_config("addr", addr)
+    ac1.set_config("mail_pw", password)
     ac1.stop_io()
     ac1.configure()
     ac1.start_io()
@@ -497,11 +496,9 @@ def test_aeap_flow_verified(acfactory):
     msg_in_2_snapshot = msg_in_2.get_snapshot()
     assert msg_in_2_snapshot.text == msg_out.text
     assert msg_in_2_snapshot.chat.id == msg_in_1.chat.id
-    assert msg_in_2.get_sender_contact().get_snapshot().address == ac1new.get_config("addr")
+    assert msg_in_2.get_sender_contact().get_snapshot().address == addr
     assert len(msg_in_2_snapshot.chat.get_contacts()) == 2
-    assert ac1new.get_config("addr") in [
-        contact.get_snapshot().address for contact in msg_in_2_snapshot.chat.get_contacts()
-    ]
+    assert addr in [contact.get_snapshot().address for contact in msg_in_2_snapshot.chat.get_contacts()]
 
 
 def test_gossip_verification(acfactory) -> None:

@@ -61,45 +61,70 @@ def test_acfactory(acfactory) -> None:
 
 
 def test_configure_starttls(acfactory) -> None:
-    account = acfactory.new_preconfigured_account()
-
-    # Use STARTTLS
-    account.set_config("mail_security", "2")
-    account.set_config("send_security", "2")
-    account.configure()
+    addr, password = acfactory.get_credentials()
+    account = acfactory.get_unconfigured_account()
+    account._rpc.add_transport(
+        account.id,
+        {
+            "addr": addr,
+            "password": password,
+            "imapSecurity": "starttls",
+            "smtpSecurity": "starttls",
+        },
+    )
     assert account.is_configured()
 
 
 def test_configure_ip(acfactory) -> None:
-    account = acfactory.new_preconfigured_account()
+    addr, password = acfactory.get_credentials()
+    account = acfactory.get_unconfigured_account()
+    ip_address = socket.gethostbyname(addr.rsplit("@")[-1])
 
-    domain = account.get_config("addr").rsplit("@")[-1]
-    ip_address = socket.gethostbyname(domain)
-
-    # This should fail TLS check.
-    account.set_config("mail_server", ip_address)
     with pytest.raises(JsonRpcError):
-        account.configure()
+        account._rpc.add_transport(
+            account.id,
+            {
+                "addr": addr,
+                "password": password,
+                # This should fail TLS check.
+                "imapServer": ip_address,
+            },
+        )
 
 
 def test_configure_alternative_port(acfactory) -> None:
     """Test that configuration with alternative port 443 works."""
-    account = acfactory.new_preconfigured_account()
+    addr, password = acfactory.get_credentials()
+    account = acfactory.get_unconfigured_account()
+    account._rpc.add_transport(
+        account.id,
+        {
+            "addr": addr,
+            "password": password,
+            "imapPort": 443,
+            "smtpPort": 443,
+        },
+    )
+    assert account.is_configured()
 
-    account.set_config("mail_port", "443")
-    account.set_config("send_port", "443")
 
-    account.configure()
-
-
-def test_configure_username(acfactory) -> None:
-    account = acfactory.new_preconfigured_account()
-
-    addr = account.get_config("addr")
-    account.set_config("mail_user", addr)
-    account.configure()
-
-    assert account.get_config("configured_mail_user") == addr
+def test_list_transports(acfactory) -> None:
+    addr, password = acfactory.get_credentials()
+    account = acfactory.get_unconfigured_account()
+    account._rpc.add_transport(
+        account.id,
+        {
+            "addr": addr,
+            "password": password,
+            "imapUser": addr,
+        },
+    )
+    transports = account._rpc.list_transports(account.id)
+    assert len(transports) == 1
+    params = transports[0]
+    assert params["addr"] == addr
+    assert params["password"] == password
+    assert params["imapUser"] == addr
 
 
 def test_account(acfactory) -> None:
@@ -401,9 +426,11 @@ def test_wait_next_messages(acfactory) -> None:
     alice = acfactory.new_configured_account()
 
     # Create a bot account so it does not receive device messages in the beginning.
-    bot = acfactory.new_preconfigured_account()
+    addr, password = acfactory.get_credentials()
+    bot = acfactory.get_unconfigured_account()
     bot.set_config("bot", "1")
-    bot.configure()
+    bot._rpc.add_transport(bot.id, {"addr": addr, "password": password})
+    assert bot.is_configured()
 
     # There are no old messages and the call returns immediately.
     assert not bot.wait_next_messages()
@@ -587,9 +614,13 @@ def test_reactions_for_a_reordering_move(acfactory, direct_imap):
     messages they refer to and thus dropped.
     """
     (ac1,) = acfactory.get_online_accounts(1)
-    ac2 = acfactory.new_preconfigured_account()
-    ac2.configure()
+
+    addr, password = acfactory.get_credentials()
+    ac2 = acfactory.get_unconfigured_account()
+    ac2._rpc.add_transport(ac2.id, {"addr": addr, "password": password})
     ac2.set_config("mvbox_move", "1")
+    assert ac2.is_configured()
+
     ac2.bring_online()
     chat1 = acfactory.get_accepted_chat(ac1, ac2)
     ac2.stop_io()
