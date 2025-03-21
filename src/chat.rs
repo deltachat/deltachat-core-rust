@@ -1989,13 +1989,7 @@ impl Chat {
         if let Some(member_list_timestamp) = self.param.get_i64(Param::MemberListTimestamp) {
             Ok(member_list_timestamp)
         } else {
-            let creation_timestamp: i64 = context
-                .sql
-                .query_get_value("SELECT created_timestamp FROM chats WHERE id=?", (self.id,))
-                .await
-                .context("SQL error querying created_timestamp")?
-                .context("Chat not found")?;
-            Ok(creation_timestamp)
+            Ok(self.id.created_timestamp(context).await?)
         }
     }
 
