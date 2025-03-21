@@ -1080,7 +1080,8 @@ impl ChatId {
             .unwrap_or(0))
     }
 
-    /// Returns timestamp of the latest message in the chat.
+    /// Returns timestamp of the latest message in the chat,
+    /// including hidden messages or a draft if there is one.
     pub(crate) async fn get_timestamp(self, context: &Context) -> Result<Option<i64>> {
         let timestamp = context
             .sql
@@ -4608,17 +4609,7 @@ pub async fn add_device_msg_with_importance(
         // makes sure, the added message is the last one,
         // even if the date is wrong (useful esp. when warning about bad dates)
         let mut timestamp_sort = timestamp_sent;
-        if let Some(last_msg_time) = context
-            .sql
-            .query_get_value(
-                "SELECT MAX(timestamp)
-                 FROM msgs
-                 WHERE chat_id=?
-                 HAVING COUNT(*) > 0",
-                (chat_id,),
-            )
-            .await?
-        {
+        if let Some(last_msg_time) = chat_id.get_timestamp(context).await? {
             if timestamp_sort <= last_msg_time {
                 timestamp_sort = last_msg_time + 1;
             }
