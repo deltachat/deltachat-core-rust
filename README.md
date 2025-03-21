@@ -11,11 +11,11 @@
   </a>
 </p>
 
-The chatmail core library implements low level network and encryption protocols, 
+The chatmail core library implements low-level network and encryption protocols, 
 integrated by many chat bots and higher level applications, 
 allowing to securely participate in the globally scaled e-mail server network. 
 We provide reproducibly-built `deltachat-rpc-server` static binaries
-that offer a stdio-based high level JSON-RPC API for instant messaging purposes. 
+that offer a stdio-based high-level JSON-RPC API for instant messaging purposes. 
 
 The following protocols are handled without requiring API users to know much about them: 
 
