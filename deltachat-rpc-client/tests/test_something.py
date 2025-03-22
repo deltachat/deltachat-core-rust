@@ -730,3 +730,25 @@ def test_no_old_msg_is_fresh(acfactory):
     assert ev.chat_id == first_msg.get_snapshot().chat_id
     assert ac1.create_chat(ac2).get_fresh_message_count() == 0
     assert len(list(ac1.get_fresh_messages())) == 0
+
+
+def test_rename_group(acfactory):
+    """Test renaming the group."""
+    alice, bob = acfactory.get_online_accounts(2)
+
+    alice_group = alice.create_group("Test group")
+    alice_contact_bob = alice.create_contact(bob)
+    alice_group.add_contact(alice_contact_bob)
+    alice_group.send_text("Hello!")
+
+    bob_msg = bob.wait_for_incoming_msg()
+    bob_chat = bob_msg.get_snapshot().chat
+    assert bob_chat.get_basic_snapshot().name == "Test group"
+
+    for name in ["Baz", "Foo bar", "Bar", "Baz", "Xyzzy", "aaa", "quux"]:
+        # Sleep one second between renamings
+        # to ensure timestamps are different.
+        time.sleep(1)
+        alice_group.set_name(name)
+        bob.wait_for_incoming_msg_event()
+        assert bob_chat.get_basic_snapshot().name == name
