@@ -115,7 +115,7 @@ class Account:
         self.start_io()
         self.wait_for_event(EventType.IMAP_INBOX_IDLE)
 
-    def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
+    def create_contact(self, obj: Union[int, str, Contact, "Account"], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.
 
         Calling this method will always result in the same
@@ -123,9 +123,15 @@ class Account:
         with that e-mail address, it is unblocked and its display
         name is updated if specified.
 
-        :param obj: email-address or contact id.
+        :param obj: email-address, contact id or account.
         :param name: (optional) display name for this contact.
         """
+        if isinstance(obj, Account):
+            vcard = obj.self_contact.make_vcard()
+            [contact] = self.import_vcard(vcard)
+            if name:
+                contact.set_name(name)
+            return contact
         if isinstance(obj, int):
             obj = Contact(self, obj)
         if isinstance(obj, Contact):
@@ -146,9 +152,8 @@ class Account:
         return [Contact(self, contact_id) for contact_id in contact_ids]
 
     def create_chat(self, account: "Account") -> Chat:
-        vcard = account.self_contact.make_vcard()
-        [contact] = self.import_vcard(vcard)
-        return contact.create_chat()
+        """Create a 1:1 chat with another account."""
+        return self.create_contact(account).create_chat()
 
     def get_device_chat(self) -> Chat:
         """Return device chat."""
