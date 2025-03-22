@@ -106,7 +106,7 @@ def test_account(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
     bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
@@ -171,8 +171,7 @@ def test_account(acfactory) -> None:
 def test_chat(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
@@ -238,7 +237,7 @@ def test_contact(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
     bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
 
     assert alice_contact_bob == alice.get_contact_by_id(alice_contact_bob.id)
     assert repr(alice_contact_bob)
@@ -255,8 +254,7 @@ def test_contact(acfactory) -> None:
 def test_message(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
@@ -314,8 +312,7 @@ def test_reaction_seen_on_another_dev(acfactory) -> None:
     alice2 = alice.clone()
     alice2.start_io()
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
@@ -332,8 +329,7 @@ def test_reaction_seen_on_another_dev(acfactory) -> None:
     alice2.clear_all_events()
     alice_chat_bob.mark_noticed()
     chat_id = alice2.wait_for_event(EventType.MSGS_NOTICED).chat_id
-    alice2_contact_bob = alice2.get_contact_by_addr(bob_addr)
-    alice2_chat_bob = alice2_contact_bob.create_chat()
+    alice2_chat_bob = alice2.create_chat(bob)
     assert chat_id == alice2_chat_bob.id
 
 
@@ -341,8 +337,7 @@ def test_is_bot(acfactory) -> None:
     """Test that we can recognize messages submitted by bots."""
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
 
     # Alice becomes a bot.
@@ -412,8 +407,7 @@ def test_wait_next_messages(acfactory) -> None:
         # Bot starts waiting for messages.
         next_messages_task = executor.submit(bot.wait_next_messages)
 
-        bot_addr = bot.get_config("addr")
-        alice_contact_bot = alice.create_contact(bot_addr, "Bot")
+        alice_contact_bot = alice.create_contact(bot, "Bot")
         alice_chat_bot = alice_contact_bot.create_chat()
         alice_chat_bot.send_text("Hello!")
 
@@ -437,9 +431,7 @@ def test_import_export_backup(acfactory, tmp_path) -> None:
 def test_import_export_keys(acfactory, tmp_path) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
-    alice_chat_bob = alice_contact_bob.create_chat()
+    alice_chat_bob = alice.create_chat(bob)
     alice_chat_bob.send_text("Hello Bob!")
 
     snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
@@ -489,9 +481,7 @@ def test_provider_info(rpc) -> None:
 def test_mdn_doesnt_break_autocrypt(acfactory) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
 
     # Bob creates chat manually so chat with Alice is accepted.
     alice_chat_bob = alice_contact_bob.create_chat()
@@ -633,9 +623,7 @@ def test_download_limit_chat_assignment(acfactory, tmp_path, n_accounts):
         chat.send_text("Hello Alice!")
         assert alice.get_message_by_id(alice.wait_for_incoming_msg_event().msg_id).get_snapshot().text == "Hello Alice!"
 
-        contact_addr = account.get_config("addr")
-        contact = alice.create_contact(contact_addr, "")
-
+        contact = alice.create_contact(account)
         alice_group.add_contact(contact)
 
     if n_accounts == 2:
