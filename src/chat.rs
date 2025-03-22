@@ -3049,11 +3049,6 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         msg.state = MessageState::OutDelivered;
         return Ok(Vec::new());
     }
-    if msg.param.get_cmd() == SystemMessage::GroupNameChanged {
-        msg.chat_id
-            .update_timestamp(context, Param::GroupNameTimestamp, msg.timestamp_sort)
-            .await?;
-    }
 
     let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),
@@ -4219,6 +4214,16 @@ async fn rename_ex(
                     (new_name.to_string(), chat_id),
                 )
                 .await?;
+
+            // If the change is received from the sync message,
+            // do not update timestamp. It may be long after
+            // the group is promoted.
+            if sync == Sync {
+                chat_id
+                    .update_timestamp(context, Param::GroupNameTimestamp, time())
+                    .await?;
+            }
+
             if chat.is_promoted()
                 && !chat.is_mailing_list()
                 && chat.typ != Chattype::Broadcast
