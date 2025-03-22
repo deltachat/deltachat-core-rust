@@ -48,8 +48,7 @@ def test_delivery_status(acfactory: ACFactory) -> None:
     """
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
 
     alice.clear_all_events()
@@ -119,8 +118,7 @@ def test_download_on_demand(acfactory: ACFactory) -> None:
     """
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("hi")
 
@@ -150,8 +148,7 @@ def test_download_on_demand(acfactory: ACFactory) -> None:
 def get_multi_account_test_setup(acfactory: ACFactory) -> [Account, Account, Account]:
     alice, bob = acfactory.get_online_accounts(2)
 
-    bob_addr = bob.get_config("addr")
-    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_bob = alice.create_contact(bob, "Bob")
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("hi")
 
