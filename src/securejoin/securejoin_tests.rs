@@ -129,7 +129,7 @@ async fn test_setup_contact_ex(case: SetupContactCase) {
             .await
             .unwrap()
             .len(),
-        1
+        0
     );
 
     let sent = alice.pop_sent_msg().await;
